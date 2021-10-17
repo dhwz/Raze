@@ -68,7 +68,7 @@ bool I_SetCursor(FGameTexture *cursorpic)
 			SDL_FreeCursor (cursor);
 		cursor = SDL_CreateColorCursor (cursorSurface, 0, 0);
 		SDL_SetCursor (cursor);
-		SDL_ShowCursor(SDL_ENABLE);
+		SDL_ShowCursor(SDL_DISABLE);
 	}
 	else
 	{

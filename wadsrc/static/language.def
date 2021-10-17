@@ -1,0 +1,4 @@
+[default]
+
+// Engine strings
+CNTRLMNU_OPEN_MAIN				= "Open Main Menu";

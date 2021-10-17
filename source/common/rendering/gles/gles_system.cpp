@@ -10,7 +10,7 @@ CVAR(Bool, gles_force_glsl_v100, false, 0);
 CVAR(Int, gles_max_lights_per_surface, 32, 0);
 EXTERN_CVAR(Bool, gl_customshader);
 
-
+#define __ANDROID__
 #if USE_GLES2
 
 PFNGLMAPBUFFERRANGEEXTPROC glMapBufferRange = NULL;

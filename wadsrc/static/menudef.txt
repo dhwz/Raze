@@ -709,6 +709,7 @@ OptionMenu "OtherControlsMenu" protected
 	Control    "$CNTRLMNU_ADJUST_GAMMA"    , "bumpgamma"
 
 	StaticText ""
+	Control    "$CNTRLMNU_OPEN_MAIN"       , "menu_main"
 	ifnotgame(Exhumed)
 	{
 		Control    "$CNTRLMNU_OPEN_HELP"       , "openhelpmenu"
