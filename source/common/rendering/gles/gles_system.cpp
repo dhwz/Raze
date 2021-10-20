@@ -182,6 +182,7 @@ namespace OpenGLESRenderer
 #if USE_GLES2
 		gles.depthStencilAvailable = CheckExtension("GL_OES_packed_depth_stencil");
 		gles.npotAvailable = CheckExtension("GL_OES_texture_npot");
+		gles.useMappedBuffers = true;
 #else
 		gles.depthStencilAvailable = true;
 		gles.npotAvailable = true;
