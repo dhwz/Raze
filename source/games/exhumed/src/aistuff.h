@@ -180,6 +180,10 @@ void UseItem(short nPlayer, short nItem);
 void UseCurItem(short nPlayer);
 int GrabItem(short nPlayer, short nItem);
 void DropMagic(short nSprite);
+inline void DropMagic(DExhumedActor* actor)
+{
+    DropMagic(actor->GetSpriteIndex());
+}
 void InitItems();
 void StartRegenerate(short nSprite);
 void DoRegenerates();
@@ -236,9 +240,21 @@ void ResetMoveFifo();
 void InitChunks();
 void InitPushBlocks();
 void Gravity(short nSprite);
+inline void Gravity(DExhumedActor* actor)
+{
+    Gravity(actor->GetSpriteIndex());
+}
 short UpdateEnemy(short *nEnemy);
 int MoveCreature(short nSprite);
+Collision MoveCreature(DExhumedActor* nSprite)
+{
+    return Collision(MoveCreature(nSprite->GetSpriteIndex()));
+}
 int MoveCreatureWithCaution(int nSprite);
+inline Collision MoveCreatureWithCaution(DExhumedActor* actor)
+{
+    return Collision(MoveCreatureWithCaution(actor->GetSpriteIndex()));
+}
 void WheresMyMouth(int nPlayer, int *x, int *y, int *z, short *sectnum);
 int GetSpriteHeight(int nSprite);
 int GetActorHeight(DExhumedActor* nSprite);
@@ -248,15 +264,29 @@ DExhumedActor* GrabBodyGunSprite();
 void CreatePushBlock(int nSector);
 void FuncCreatureChunk(int a, int, int nRun);
 int FindPlayer(int nSprite, int nDistance);
+inline DExhumedActor* FindPlayer(DExhumedActor* nSprite, int nDistance)
+{
+    int targ = FindPlayer(nSprite->GetSpriteIndex(), nDistance);
+    return targ > -1 ? &exhumedActors[targ] : nullptr;
+}
+
 int BuildCreatureChunk(int nVal, int nPic);
 void BuildNear(int x, int y, int walldist, int nSector);
 int PlotCourseToSprite(int nSprite1, int nSprite2);
+inline int PlotCourseToSprite(DExhumedActor* nSprite1, DExhumedActor* nSprite2)
+{
+    return PlotCourseToSprite(nSprite1->GetSpriteIndex(), nSprite2->GetSpriteIndex());
+}
 void CheckSectorFloor(short nSector, int z, int *x, int *y);
 int GetAngleToSprite(int nSprite1, int nSprite2);
 int GetWallNormal(short nWall);
 int GetUpAngle(short nSprite1, int nVal, short nSprite2, int ecx);
 void MoveSector(short nSector, int nAngle, int *nXVel, int *nYVel);
 int AngleChase(int nSprite, int nSprite2, int ebx, int ecx, int push1);
+inline Collision AngleChase(DExhumedActor* nSprite, DExhumedActor* nSprite2, int ebx, int ecx, int push1)
+{
+    return Collision(AngleChase(nSprite->GetSpriteIndex(), nSprite2->GetSpriteIndex(), ebx, ecx, push1));
+}
 void SetQuake(short nSprite, int nVal);
 
 // mummy
@@ -376,8 +406,9 @@ enum
 
 struct RunStruct
 {
-    int nRef;
-    int nVal;
+    int nAIType;                // todo later: replace this with an AI pointer
+    int nObjIndex;              // If object is a non-actor / not refactored yet.
+    DExhumedActor* pObjActor;   // If object is an actor
     short next;
     short prev;
 };
@@ -407,15 +438,15 @@ enum class EMessageType
 struct RunListEvent
 {
     EMessageType nMessage;
-    int nIndex;                 // mostly the player, sometimes the channel list
+    int nParam;                 // mostly the player, sometimes the channel list
+    int nObjIndex;
+    DExhumedActor* pObjActor;
     tspritetype* pTSprite;      // for the draw event
-    DExhumedActor* pActor;      // for the damage event, radialSpr for radial damage - owner will not be passed as it can be retrieved from this.
+    DExhumedActor* pOtherActor;      // for the damage event, radialSpr for radial damage - owner will not be passed as it can be retrieved from this.
     int nDamage, nRun;
 
     int nRadialDamage;          // Radial damage needs a bit more info.
     int nDamageRadius;
-
-    int RunValue() const;
 };
 
 struct ExhumedAI
@@ -706,11 +737,6 @@ typedef void(*AiFunc)(int, int, int, int nRun);
 
 extern FreeListArray<RunStruct, kMaxRuns> RunData;
 
-inline int RunListEvent::RunValue() const
-{
-    return RunData[nRun].nVal;
-}
-
 extern RunChannel sRunChannels[kMaxChannels];
 extern short NewRun;
 extern int nRadialOwner;
@@ -720,7 +746,9 @@ void runlist_InitRun();
 
 int runlist_GrabRun();
 int runlist_FreeRun(int nRun);
-int runlist_AddRunRec(int a, int b, int c);
+int runlist_AddRunRec(int index, int object, int aitype);
+int runlist_AddRunRec(int index, DExhumedActor* object, int aitype);
+int runlist_AddRunRec(int index, RunStruct* other);
 int runlist_HeadRun();
 void runlist_InitChan();
 void runlist_ChangeChannel(int eax, short dx);
@@ -731,8 +759,20 @@ void runlist_DoSubRunRec(int RunPtr);
 void runlist_SubRunRec(int RunPtr);
 void runlist_ProcessWallTag(int nWall, short nLotag, short nHitag);
 int runlist_CheckRadialDamage(short nSprite);
+inline int runlist_CheckRadialDamage(DExhumedActor* actor)
+{
+    return runlist_CheckRadialDamage(actor->GetSpriteIndex());
+}
 void runlist_RadialDamageEnemy(short nSprite, short nDamage, short nRadius);
+inline void runlist_RadialDamageEnemy(DExhumedActor* nSprite, short nSprite2, short nDamage)
+{
+    return runlist_RadialDamageEnemy(nSprite->GetSpriteIndex(), nSprite2, nDamage);
+}
 void runlist_DamageEnemy(int nSprite, int nSprite2, short nDamage);
+inline void runlist_DamageEnemy(DExhumedActor* nSprite, DExhumedActor* nSprite2, short nDamage)
+{
+    return runlist_DamageEnemy(nSprite? nSprite->GetSpriteIndex() : -1, nSprite2? nSprite2->GetSpriteIndex() : -1, nDamage);
+}
 void runlist_SignalRun(int NxtPtr, int edx);
 
 void runlist_CleanRunRecs();

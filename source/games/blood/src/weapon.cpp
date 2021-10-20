@@ -748,14 +748,20 @@ void WeaponLower(PLAYER *pPlayer)
         switch (prevState)
         {
         case 1:
-            if (!VanillaMode() && (pPlayer->newWeapon == kWeapSpraycan)) // do not put away lighter after TNT is thrown if while throwing the weapon was switched already to spray
+            if (VanillaMode())
             {
-                pPlayer->weaponState = 2;
-                StartQAV(pPlayer, kQAVBUNDOWN);
-                WeaponRaise(pPlayer);
-                return;
+                StartQAV(pPlayer, kQAVLITECLO2);
             }
-            StartQAV(pPlayer, kQAVLITECLO2);
+            else
+            {
+                if (pPlayer->newWeapon == kWeapSpraycan) // do not put away lighter if TNT was selected while throwing a spray can
+                {
+                    pPlayer->weaponState = 2;
+                    StartQAV(pPlayer, kQAVCANDOWN);
+                    WeaponRaise(pPlayer);
+                    return;
+                }
+            }
             break;
         case 2:
             WeaponRaise(pPlayer);
@@ -2275,7 +2281,7 @@ void WeaponProcess(PLAYER *pPlayer) {
                 if (checkAmmo2(pPlayer, 5, 1) && pPlayer->isUnderwater == 0)
                     pPlayer->newWeapon = kWeapDynamite;
                 else if (checkAmmo2(pPlayer, 10, 1))
-                    pPlayer->newWeapon = kWeapVoodooDoll;
+                    pPlayer->newWeapon = kWeapProximity;
                 else if (checkAmmo2(pPlayer, 11, 1))
                     pPlayer->newWeapon = kWeapRemote;
             }
