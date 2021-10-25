@@ -85,6 +85,19 @@ class DExhumedActor
 	DExhumedActor* base();
 
 public:
+	DExhumedActor* pTarget;
+
+	short nPhase;
+
+	short nHealth;
+	short nFrame;
+	short nAction;
+	short nCount;
+	short nRun;
+	union { short nIndex; short nAngle; };	// angle is for wasp.
+	union { short nIndex2; short nAngle2; }; // index2 is for scorpion, angle2 is for wasp.
+	union { short nChannel; short nVel; };	// channel is for scorpion, vel is for wasp.
+	short nDamage;
 
 	DExhumedActor() :index(int(this - base())) {}
 	DExhumedActor& operator=(const DExhumedActor& other) = default;

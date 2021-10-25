@@ -60,6 +60,8 @@ short SectDamage[kMaxSectors]    = { 0 };
 short SectSpeed[kMaxSectors]     = { 0 };
 int   SectBelow[kMaxSectors]     = { 0 };
 
+int Counters[kNumCounters];
+
 
 uint8_t bIsVersion6 = true;
 
@@ -88,31 +90,22 @@ uint8_t LoadLevel(MapRecord* map)
         nFreeze = 0;
         nSpiritSprite = -1;
         PlayClock = 0;
+        memset(Counters, 0, sizeof(Counters));
 
-        InitLion();
-        InitRexs();
         InitSets();
         InitQueens();
-        InitRoachs();
-        InitWasps();
         InitRats();
         InitBullets();
         InitWeapons();
         InitGrenades();
         InitAnims();
         InitSnakes();
-        InitFishes();
         InitLights();
         ClearAutomap();
         InitBubbles();
         InitObjects();
-        InitLava();
         InitPushBlocks();
-        InitAnubis();
-        InitSpider();
-        InitMummy();
-        InitScorp();
-        InitPlayer();
+		InitPlayer();
         InitItems();
         InitInput();
 
@@ -331,7 +324,8 @@ void InitSectFlag()
 
 void ProcessSpriteTag(short nSprite, short nLotag, short nHitag)
 {
-	auto pSprite = &sprite[nSprite];
+    auto pActor = &exhumedActors[nSprite];
+	auto pSprite = &pActor->s();
     int nChannel = runlist_AllocChannel(nHitag % 1000);
 
     int nSpeed = nLotag / 1000;
@@ -506,7 +500,7 @@ void ProcessSpriteTag(short nSprite, short nLotag, short nHitag)
                     return;
                 }
 
-                BuildAnubis(nSprite, 0, 0, 0, 0, 0, 1);
+                BuildAnubis(pActor, 0, 0, 0, 0, 0, 1);
                 return;
             }
             case 117:
@@ -516,17 +510,17 @@ void ProcessSpriteTag(short nSprite, short nLotag, short nHitag)
                     return;
                 }
 
-                BuildWasp(nSprite, 0, 0, 0, 0, 0);
+                BuildWasp(pActor, 0, 0, 0, 0, 0, false);
                 return;
             }
             case 116:
             {
-                BuildRat(nSprite, 0, 0, 0, 0, -1);
+                BuildRat(pActor, 0, 0, 0, 0, -1);
                 return;
             }
             case 115: // Rat (eating)
             {
-                BuildRat(nSprite, 0, 0, 0, 0, 0);
+                BuildRat(pActor, 0, 0, 0, 0, 0);
                 return;
             }
             case 113:
@@ -536,7 +530,7 @@ void ProcessSpriteTag(short nSprite, short nLotag, short nHitag)
             }
             case 112:
             {
-                BuildScorp(nSprite, 0, 0, 0, 0, 0, nChannel);
+                BuildScorp(pActor, 0, 0, 0, 0, 0, nChannel);
                 return;
             }
             case 111:
@@ -556,7 +550,7 @@ void ProcessSpriteTag(short nSprite, short nLotag, short nHitag)
                     return;
                 }
 
-                BuildLava(nSprite, 0, 0, 0, 0, 0, nChannel);
+                BuildLava(pActor, 0, 0, 0, 0, 0, nChannel);
                 return;
             }
             case 107:
@@ -566,7 +560,7 @@ void ProcessSpriteTag(short nSprite, short nLotag, short nHitag)
                     return;
                 }
 
-                BuildRex(nSprite, 0, 0, 0, 0, 0, nChannel);
+                BuildRex(pActor, 0, 0, 0, 0, 0, nChannel);
                 return;
             }
             case 106:
@@ -576,7 +570,7 @@ void ProcessSpriteTag(short nSprite, short nLotag, short nHitag)
                     return;
                 }
 
-                BuildFish(nSprite, 0, 0, 0, 0, 0);
+                BuildFish(pActor, 0, 0, 0, 0, 0);
                 return;
             }
             case 105:
@@ -586,7 +580,7 @@ void ProcessSpriteTag(short nSprite, short nLotag, short nHitag)
                     return;
                 }
 
-                BuildSpider(nSprite, 0, 0, 0, 0, 0);
+                BuildSpider(pActor, 0, 0, 0, 0, 0);
                 return;
             }
             case 104:
@@ -596,7 +590,7 @@ void ProcessSpriteTag(short nSprite, short nLotag, short nHitag)
                     return;
                 }
 
-                BuildRoach(1, nSprite, 0, 0, 0, 0, 0);
+                BuildRoach(1, pActor, 0, 0, 0, 0, 0);
                 return;
             }
             case 103:
@@ -606,7 +600,7 @@ void ProcessSpriteTag(short nSprite, short nLotag, short nHitag)
                     return;
                 }
 
-                BuildRoach(0, nSprite, 0, 0, 0, 0, 0);
+                BuildRoach(0, pActor, 0, 0, 0, 0, 0);
                 return;
             }
             case 102:
@@ -616,7 +610,7 @@ void ProcessSpriteTag(short nSprite, short nLotag, short nHitag)
                     return;
                 }
 
-                BuildLion(nSprite, 0, 0, 0, 0, 0);
+                BuildLion(pActor, 0, 0, 0, 0, 0);
                 return;
             }
             case 101:
@@ -626,7 +620,7 @@ void ProcessSpriteTag(short nSprite, short nLotag, short nHitag)
                     return;
                 }
 
-                BuildMummy(nSprite, 0, 0, 0, 0, 0);
+                BuildMummy(pActor, 0, 0, 0, 0, 0);
                 return;
             }
             case 100:
@@ -636,7 +630,7 @@ void ProcessSpriteTag(short nSprite, short nLotag, short nHitag)
                     return;
                 }
 
-                BuildAnubis(nSprite, 0, 0, 0, 0, 0, 0);
+                BuildAnubis(pActor, 0, 0, 0, 0, 0, 0);
                 return;
             }
             case 99: // underwater type 2
@@ -926,6 +920,7 @@ void SerializeInit(FSerializer& arc)
             .Array("sectdamage", SectDamage, numsectors)
             .Array("sectspeed", SectSpeed, numsectors)
             .Array("sectbelow", SectBelow, numsectors)
+            .Array("counters", Counters, kNumCounters)
             .EndObject();
     }
 }

@@ -1372,7 +1372,8 @@ sectdone:
         feebtag(pPlayerSprite->x, pPlayerSprite->y, pPlayerSprite->z, pPlayerSprite->sectnum,
             &nValB, var_30, 768);
 
-        auto pSprite = &sprite[nValB];
+        auto pActor = &exhumedActors[nValB];
+        auto pSprite = &pActor->s();
         // Item pickup code
         if (nValB >= 0 && pSprite->statnum >= 900)
         {
@@ -2256,12 +2257,11 @@ sectdone:
                 {
                     if (nLocalPlayer == nPlayer)
                     {
-                        short nAnim = pSprite->owner;
-                        AnimList[nAnim].nSeq++;
-                        AnimList[nAnim].AnimFlags &= 0xEF;
-                        AnimList[nAnim].field_2 = 0;
+                        pActor->nIndex2++;
+                        pActor->nAction &= 0xEF;
+                        pActor->nIndex = 0;
 
-                        changespritestat(nValB, 899);
+                        ChangeActorStat(pActor, 899);
                     }
 
                     SetSavePoint(nPlayer, pPlayerSprite->x, pPlayerSprite->y, pPlayerSprite->z, pPlayerSprite->sectnum, pPlayerSprite->ang);
@@ -2591,7 +2591,7 @@ sectdone:
                 short mouthSect;
                 WheresMyMouth(nPlayer, &mouthX, &mouthY, &mouthZ, &mouthSect);
 
-                BuildAnim(-1, 71, 0, mouthX, mouthY, pPlayerSprite->z + 3840, mouthSect, 75, 128);
+                BuildAnim(nullptr, 71, 0, mouthX, mouthY, pPlayerSprite->z + 3840, mouthSect, 75, 128);
             }
             break;
         case 17:

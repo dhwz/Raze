@@ -1332,7 +1332,7 @@ int BuildTrap(int nSprite, int edx, int ebx, int ecx)
     sTrap[nTrap].field_A = 0;
 
     if (var_18 == -1) {
-        return nTrap | 0x1F0000;
+        return nTrap;
     }
 
     sTrap[nTrap].field_6 = -1;
@@ -1346,7 +1346,7 @@ int BuildTrap(int nSprite, int edx, int ebx, int ecx)
     while (1)
     {
         if (sector[nSector].wallnum >= i) {
-            return nTrap | 0x1F0000;
+            return nTrap;
         }
 
         if (var_18 == wall[nWall].hitag)
@@ -1355,7 +1355,7 @@ int BuildTrap(int nSprite, int edx, int ebx, int ecx)
             {
                 sTrap[nTrap].field_8 = nWall;
                 sTrap[nTrap].field_C = wall[nWall].picnum;
-                return nTrap | 0x1F0000;
+                return nTrap;
             }
             else
             {
@@ -2116,7 +2116,7 @@ void AIObject::Tick(RunListEvent* ev)
         }
 
         AddFlash(pSprite->sectnum, pSprite->x, pSprite->y, pSprite->z, 128);
-        BuildAnim(-1, var_18, 0, pSprite->x, pSprite->y, sector[pSprite->sectnum].floorz, pSprite->sectnum, 240, 4);
+        BuildAnim(nullptr, var_18, 0, pSprite->x, pSprite->y, sector[pSprite->sectnum].floorz, pSprite->sectnum, 240, 4);
 
         //				int edi = nSprite | 0x4000;
 

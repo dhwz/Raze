@@ -240,7 +240,7 @@ void DestroyEgg(short nEgg)
 
     if (QueenEgg[nEgg].nAction != 4)
     {
-        BuildAnim(-1, 34, 0, pSprite->x, pSprite->y, pSprite->z, pSprite->sectnum, pSprite->xrepeat, 4);
+        BuildAnim(nullptr, 34, 0, pSprite->x, pSprite->y, pSprite->z, pSprite->sectnum, pSprite->xrepeat, 4);
     }
     else
     {
@@ -369,12 +369,12 @@ int DestroyTailPart()
     short nSprite = tailspr[--QueenHead.tails];
 
     BlowChunks(nSprite);
-    BuildExplosion(nSprite);
+    BuildExplosion(&exhumedActors[nSprite]);
 
     for (int i = 0; i < 5; i++)
     {
         short nHeight = GetSpriteHeight(nSprite);
-        BuildLavaLimb(nSprite, i, nHeight);
+        BuildLavaLimb(&exhumedActors[nSprite], i, nHeight);
     }
 
     mydeletesprite(nSprite);
@@ -657,8 +657,8 @@ void AIQueenEgg::Tick(RunListEvent* ev)
         pEgg->field_C--;
         if (pEgg->field_C <= 0)
         {
-            short nWaspSprite = BuildWasp(-2, pSprite->x, pSprite->y, pSprite->z, pSprite->sectnum, pSprite->ang);
-            pSprite->z = sprite[nWaspSprite].z;
+            auto pWaspSprite = BuildWasp(nullptr, pSprite->x, pSprite->y, pSprite->z, pSprite->sectnum, pSprite->ang, true);
+            pSprite->z = pWaspSprite->s().z;
 
             DestroyEgg(nEgg);
         }
@@ -1018,7 +1018,7 @@ void AIQueenHead::Tick(RunListEvent* ev)
                     movesprite(nSprite, dx, dy, dz, 0, 0, CLIPMASK1);
 
                     BlowChunks(nSprite);
-                    BuildExplosion(nSprite);
+                    BuildExplosion(&exhumedActors[nSprite]);
 
                     mychangespritesect(nSprite, nSector);
 
@@ -1029,14 +1029,14 @@ void AIQueenHead::Tick(RunListEvent* ev)
                     if (QueenHead.tails < 10) {
                         for (int i = (10 - QueenHead.tails) * 2; i > 0; i--)
                         {
-                            BuildLavaLimb(nSprite, i, GetSpriteHeight(nSprite));
+                            BuildLavaLimb(&exhumedActors[nSprite], i, GetSpriteHeight(nSprite));
                         }
                     }
                 }
             }
             else
             {
-                BuildExplosion(nSprite);
+                BuildExplosion(&exhumedActors[nSprite]);
 
                 int i;
 
@@ -1047,7 +1047,7 @@ void AIQueenHead::Tick(RunListEvent* ev)
 
                 for (i = 0; i < 20; i++)
                 {
-                    BuildLavaLimb(nSprite, i, GetSpriteHeight(nSprite));
+                    BuildLavaLimb(&exhumedActors[nSprite], i, GetSpriteHeight(nSprite));
                 }
 
                 runlist_SubRunRec(pSprite->owner);
@@ -1329,7 +1329,7 @@ void AIQueen::Tick(RunListEvent* ev)
             {
                 if (QueenList[nQueen].field_C <= 0)
                 {
-                    if (WaspCount() < 100)
+                    if (Counters[kCountWasp] < 100)
                     {
                         QueenList[nQueen].nAction = 6;
                         QueenList[nQueen].nFrame = 0;
@@ -1521,7 +1521,7 @@ void AIQueen::Damage(RunListEvent* ev)
                 QueenList[nQueen].nHealth = 4000;
                 QueenList[nQueen].nAction = 7;
 
-                BuildAnim(-1, 36, 0, pSprite->x, pSprite->y, pSprite->z - 7680, pSprite->sectnum, pSprite->xrepeat, 4);
+                BuildAnim(nullptr, 36, 0, pSprite->x, pSprite->y, pSprite->z - 7680, pSprite->sectnum, pSprite->xrepeat, 4);
                 break;
             case 2:
                 QueenList[nQueen].nHealth = 4000;

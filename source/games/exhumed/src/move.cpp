@@ -499,7 +499,7 @@ int movespritez(short nSprite, int z, int height, int, int clipdist)
         if ((SectDepth[nSector] != 0) || (edi != nSector && (SectFlag[edi] & kSectUnderwater)))
         {
             assert(nSector >= 0 && nSector < kMaxSectors);
-            BuildSplash(nSprite, nSector);
+            BuildSplash(&exhumedActors[nSprite], nSector);
         }
     }
 
@@ -1361,12 +1361,8 @@ DExhumedActor* GrabBodyGunSprite()
     }
     else
     {
-		auto pSprite = &pActor->s();
-        int nAnim = pSprite->owner;
-
-        if (nAnim != -1) {
-            DestroyAnim(nAnim);
-        }
+		pSprite = &pActor->s();
+        DestroyAnim(pActor);
 
         pSprite->lotag = -1;
         pSprite->owner = -1;
