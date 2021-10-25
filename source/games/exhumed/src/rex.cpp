@@ -26,20 +26,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_PS_NS
 
-struct Rex
-{
-    short nHealth;
-    short nFrame;
-    short nAction;
-    short nSprite;
-    short nTarget;
-    short nCount;
-    short nChannel;
-};
-
-
-TArray<Rex> RexList;
-
 static actionSeq RexSeq[] = {
     {29, 0},
     {0,  0},
@@ -51,52 +37,24 @@ static actionSeq RexSeq[] = {
     {28, 1}
 };
 
-FSerializer& Serialize(FSerializer& arc, const char* keyname, Rex& w, Rex* def)
+void BuildRex(DExhumedActor* pActor, int x, int y, int z, short nSector, short nAngle, int nChannel)
 {
-    if (arc.BeginObject(keyname))
+    spritetype* pSprite;
+    if (pActor == nullptr)
     {
-        arc("health", w.nHealth)
-            ("frame", w.nFrame)
-            ("action", w.nAction)
-            ("sprite", w.nSprite)
-            ("target", w.nTarget)
-            ("count", w.nCount)
-            ("channel", w.nChannel)
-            .EndObject();
-    }
-    return arc;
-}
-
-void SerializeRex(FSerializer& arc)
-{
-    arc("rex", RexList);
-}
-
-void InitRexs()
-{
-    RexList.Clear();
-}
-
-void BuildRex(short nSprite, int x, int y, int z, short nSector, short nAngle, int nChannel)
-{
-    int nRex = RexList.Reserve(1);
-    auto pSprite = &sprite[nSprite];
-
-    if (nSprite == -1)
-    {
-        nSprite = insertsprite(nSector, 119);
-        pSprite = &sprite[nSprite];
+        pActor = insertActor(nSector, 119);
+        pSprite = &pActor->s();
     }
     else
     {
-        changespritestat(nSprite, 119);
+        pSprite = &pActor->s();
         x = pSprite->x;
         y = pSprite->y;
         z = sector[pSprite->sectnum].floorz;
         nAngle = pSprite->ang;
-    }
 
-    assert(nSprite >= 0 && nSprite < kMaxSprites);
+        ChangeActorStat(pActor, 119);
+    }
 
     pSprite->x = x;
     pSprite->y = y;
@@ -120,74 +78,72 @@ void BuildRex(short nSprite, int x, int y, int z, short nSector, short nAngle, i
 
     GrabTimeSlot(3);
 
-    RexList[nRex].nAction = 0;
-    RexList[nRex].nHealth = 4000;
-    RexList[nRex].nFrame = 0;
-    RexList[nRex].nSprite = nSprite;
-    RexList[nRex].nTarget = -1;
-    RexList[nRex].nCount = 0;
+    pActor->nAction = 0;
+    pActor->nHealth = 4000;
+    pActor->nFrame = 0;
+    pActor->pTarget = nullptr;
+    pActor->nCount = 0;
+    pActor->nPhase = Counters[kCountRex]++;
 
-    RexList[nRex].nChannel = nChannel;
+    pActor->nRun = nChannel;
 
-    pSprite->owner = runlist_AddRunRec(pSprite->lotag - 1, nRex, 0x180000);
+    pSprite->owner = runlist_AddRunRec(pSprite->lotag - 1, pActor, 0x180000);
 
     // this isn't stored anywhere.
-    runlist_AddRunRec(NewRun, nRex, 0x180000);
+    runlist_AddRunRec(NewRun, pActor, 0x180000);
 
     nCreaturesTotal++;
 }
 
 void AIRex::RadialDamage(RunListEvent* ev)
 {
-    short nRex = RunData[ev->nRun].nObjIndex;
-    assert(nRex >= 0 && nRex < (int)RexList.Size());
+    auto pActor = ev->pObjActor;
+    if (!pActor) return;
 
-    short nAction = RexList[nRex].nAction;
-    short nSprite = RexList[nRex].nSprite;
+    short nAction = pActor->nAction;
 
     if (nAction == 5)
     {
-        ev->nDamage = runlist_CheckRadialDamage(nSprite);
+        ev->nDamage = runlist_CheckRadialDamage(pActor);
     }
     Damage(ev);
 }
 
 void AIRex::Damage(RunListEvent* ev)
 {
-    short nRex = RunData[ev->nRun].nObjIndex;
-    assert(nRex >= 0 && nRex < (int)RexList.Size());
+    auto pActor = ev->pObjActor;
+    if (!pActor) return;
 
-    short nAction = RexList[nRex].nAction;
-    short nSprite = RexList[nRex].nSprite;
-    auto pSprite = &sprite[nSprite];
+    short nAction = pActor->nAction;
+    auto pSprite = &pActor->s();
 
     if (ev->nDamage)
     {
-        short nTarget = ev->nParam;
-        if (nTarget >= 0 && sprite[nTarget].statnum == 100)
+        auto pTarget = ev->pOtherActor;
+        if (pTarget && pTarget->s().statnum == 100)
         {
-            RexList[nRex].nTarget = nTarget;
+            pActor->pTarget = pTarget;
         }
 
-        if (RexList[nRex].nAction == 5 && RexList[nRex].nHealth > 0)
+        if (pActor->nAction == 5 && pActor->nHealth > 0)
         {
-            RexList[nRex].nHealth -= dmgAdjust(ev->nDamage);
+            pActor->nHealth -= dmgAdjust(ev->nDamage);
 
-            if (RexList[nRex].nHealth <= 0)
+            if (pActor->nHealth <= 0)
             {
                 pSprite->xvel = 0;
                 pSprite->yvel = 0;
                 pSprite->zvel = 0;
                 pSprite->cstat &= 0xFEFE;
 
-                RexList[nRex].nHealth = 0;
+                pActor->nHealth = 0;
 
                 nCreaturesKilled++;
 
                 if (nAction < 6)
                 {
-                    RexList[nRex].nAction = 6;
-                    RexList[nRex].nFrame = 0;
+                    pActor->nAction = 6;
+                    pActor->nFrame = 0;
                 }
             }
         }
@@ -196,31 +152,30 @@ void AIRex::Damage(RunListEvent* ev)
 
 void AIRex::Draw(RunListEvent* ev)
 {
-    short nRex = RunData[ev->nRun].nObjIndex;
-    assert(nRex >= 0 && nRex < (int)RexList.Size());
+    auto pActor = ev->pObjActor;
+    if (!pActor) return;
 
-    short nAction = RexList[nRex].nAction;
+    short nAction = pActor->nAction;
 
-    seq_PlotSequence(ev->nParam, SeqOffsets[kSeqRex] + RexSeq[nAction].a, RexList[nRex].nFrame, RexSeq[nAction].b);
+    seq_PlotSequence(ev->nParam, SeqOffsets[kSeqRex] + RexSeq[nAction].a, pActor->nFrame, RexSeq[nAction].b);
     return;
 }
 
 void AIRex::Tick(RunListEvent* ev)
 {
-    short nRex = RunData[ev->nRun].nObjIndex;
-    assert(nRex >= 0 && nRex < (int)RexList.Size());
+    auto pActor = ev->pObjActor;
+    if (!pActor) return;
 
-    short nAction = RexList[nRex].nAction;
-    short nSprite = RexList[nRex].nSprite;
-    auto pSprite = &sprite[nSprite];
+    short nAction = pActor->nAction;
+    auto pSprite = &pActor->s();
 
     bool bVal = false;
 
-    Gravity(nSprite);
+    Gravity(pActor);
 
     int nSeq = SeqOffsets[kSeqRex] + RexSeq[nAction].a;
 
-    pSprite->picnum = seq_GetSeqPicnum2(nSeq, RexList[nRex].nFrame);
+    pSprite->picnum = seq_GetSeqPicnum2(nSeq, pActor->nFrame);
 
     int ecx = 2;
 
@@ -231,19 +186,19 @@ void AIRex::Tick(RunListEvent* ev)
     // moves the mouth open and closed as it's idle?
     while (--ecx != -1)
     {
-        seq_MoveSequence(nSprite, nSeq, RexList[nRex].nFrame);
+        seq_MoveSequence(pActor, nSeq, pActor->nFrame);
 
-        RexList[nRex].nFrame++;
-        if (RexList[nRex].nFrame >= SeqSize[nSeq])
+        pActor->nFrame++;
+        if (pActor->nFrame >= SeqSize[nSeq])
         {
-            RexList[nRex].nFrame = 0;
+            pActor->nFrame = 0;
             bVal = true;
         }
     }
 
-    int nFlag = FrameFlag[SeqBase[nSeq] + RexList[nRex].nFrame];
+    int nFlag = FrameFlag[SeqBase[nSeq] + pActor->nFrame];
 
-    short nTarget = RexList[nRex].nTarget;
+    auto pTarget = pActor->pTarget;
 
     switch (nAction)
     {
@@ -252,36 +207,36 @@ void AIRex::Tick(RunListEvent* ev)
 
     case 0:
     {
-        if (!RexList[nRex].nCount)
+        if (!pActor->nCount)
         {
-            if ((nRex & 0x1F) == (totalmoves & 0x1F))
+            if ((pActor->nPhase & 0x1F) == (totalmoves & 0x1F))
             {
-                if (nTarget < 0)
+                if (pTarget == nullptr)
                 {
                     short nAngle = pSprite->ang; // make backup of this variable
-                    RexList[nRex].nTarget = FindPlayer(nSprite, 60);
+                    pActor->pTarget = FindPlayer(pActor, 60);
                     pSprite->ang = nAngle;
                 }
                 else
                 {
-                    RexList[nRex].nCount = 60;
+                    pActor->nCount = 60;
                 }
             }
         }
         else
         {
-            RexList[nRex].nCount--;
-            if (RexList[nRex].nCount <= 0)
+            pActor->nCount--;
+            if (pActor->nCount <= 0)
             {
-                RexList[nRex].nAction = 1;
-                RexList[nRex].nFrame = 0;
+                pActor->nAction = 1;
+                pActor->nFrame = 0;
 
                 pSprite->xvel = bcos(pSprite->ang, -2);
                 pSprite->yvel = bsin(pSprite->ang, -2);
 
-                D3PlayFX(StaticSound[kSound48], nSprite);
+                D3PlayFX(StaticSound[kSound48], pActor);
 
-                RexList[nRex].nCount = 30;
+                pActor->nCount = 30;
             }
         }
 
@@ -290,24 +245,24 @@ void AIRex::Tick(RunListEvent* ev)
 
     case 1:
     {
-        if (RexList[nRex].nCount > 0)
+        if (pActor->nCount > 0)
         {
-            RexList[nRex].nCount--;
+            pActor->nCount--;
         }
 
-        if ((nRex & 0x0F) == (totalmoves & 0x0F))
+        if ((pActor->nPhase & 0x0F) == (totalmoves & 0x0F))
         {
             if (!RandomSize(1))
             {
-                RexList[nRex].nAction = 5;
-                RexList[nRex].nFrame = 0;
+                pActor->nAction = 5;
+                pActor->nFrame = 0;
                 pSprite->xvel = 0;
                 pSprite->yvel = 0;
                 return;
             }
             else
             {
-                if (((PlotCourseToSprite(nSprite, nTarget) >> 8) >= 60) || RexList[nRex].nCount > 0)
+                if (((PlotCourseToSprite(pActor, pTarget) >> 8) >= 60) || pActor->nCount > 0)
                 {
                     int nAngle = pSprite->ang & 0xFFF8;
                     pSprite->xvel = bcos(nAngle, -2);
@@ -315,37 +270,37 @@ void AIRex::Tick(RunListEvent* ev)
                 }
                 else
                 {
-                    RexList[nRex].nAction = 2;
-                    RexList[nRex].nCount = 240;
-                    D3PlayFX(StaticSound[kSound48], nSprite);
-                    RexList[nRex].nFrame = 0;
+                    pActor->nAction = 2;
+                    pActor->nCount = 240;
+                    D3PlayFX(StaticSound[kSound48], pActor);
+                    pActor->nFrame = 0;
                     return;
                 }
             }
         }
 
-        int nMov = MoveCreatureWithCaution(nSprite);
+        auto nMov = MoveCreatureWithCaution(pActor);
 
-        switch ((nMov & 0xC000))
+        switch (nMov.type)
         {
-        case 0xC000:
+        case kHitSprite:
         {
-            if ((nMov & 0x3FFF) == nTarget)
+            if (nMov.actor == pTarget)
             {
-                PlotCourseToSprite(nSprite, nTarget);
-                RexList[nRex].nAction = 4;
-                RexList[nRex].nFrame = 0;
+                PlotCourseToSprite(pActor, pTarget);
+                pActor->nAction = 4;
+                pActor->nFrame = 0;
                 break;
             }
-            fallthrough__;
+            [[fallthrough]];
         }
-        case 0x8000:
+        case kHitWall:
         {
             pSprite->ang = (pSprite->ang + 256) & kAngleMask;
             pSprite->xvel = bcos(pSprite->ang, -2);
             pSprite->yvel = bsin(pSprite->ang, -2);
-            RexList[nRex].nAction = 1;
-            RexList[nRex].nFrame = 0;
+            pActor->nAction = 1;
+            pActor->nFrame = 0;
             nAction = 1;
             break;
         }
@@ -356,72 +311,72 @@ void AIRex::Tick(RunListEvent* ev)
 
     case 2:
     {
-        RexList[nRex].nCount--;
-        if (RexList[nRex].nCount > 0)
+        pActor->nCount--;
+        if (pActor->nCount > 0)
         {
-            PlotCourseToSprite(nSprite, nTarget);
+            PlotCourseToSprite(pActor, pTarget);
 
             pSprite->xvel = bcos(pSprite->ang, -1);
             pSprite->yvel = bsin(pSprite->ang, -1);
 
-            int nMov = MoveCreatureWithCaution(nSprite);
+            auto nMov = MoveCreatureWithCaution(pActor);
 
-            switch (nMov & 0xC000)
+            switch (nMov.type)
             {
-            case 0x8000:
+            case kHitWall:
             {
-                SetQuake(nSprite, 25);
-                RexList[nRex].nCount = 60;
+                SetQuake(pActor, 25);
+                pActor->nCount = 60;
 
                 pSprite->ang = (pSprite->ang + 256) & kAngleMask;
                 pSprite->xvel = bcos(pSprite->ang, -2);
                 pSprite->yvel = bsin(pSprite->ang, -2);
-                RexList[nRex].nAction = 1;
-                RexList[nRex].nFrame = 0;
+                pActor->nAction = 1;
+                pActor->nFrame = 0;
                 nAction = 1;
                 break;
             }
-            case 0xC000:
+            case kHitSprite:
             {
-                RexList[nRex].nAction = 3;
-                RexList[nRex].nFrame = 0;
+                pActor->nAction = 3;
+                pActor->nFrame = 0;
 
-                short nSprite2 = nMov & 0x3FFF;
+                auto pSprite2 = &nMov.actor->s();
 
-                if (sprite[nSprite2].statnum && sprite[nSprite2].statnum < 107)
+                if (pSprite2->statnum && pSprite2->statnum < 107)
                 {
                     short nAngle = pSprite->ang;
 
-                    runlist_DamageEnemy(nSprite2, nSprite, 15);
+                    runlist_DamageEnemy(nMov.actor, pActor, 15);
 
                     int xVel = bcos(nAngle) * 15;
                     int yVel = bsin(nAngle) * 15;
 
-                    if (sprite[nSprite2].statnum == 100)
+                    if (pSprite2->statnum == 100)
                     {
-                        short nPlayer = GetPlayerFromSprite(nSprite2);
+                        auto nPlayer = GetPlayerFromActor(nMov.actor);
                         nXDamage[nPlayer] += (xVel << 4);
                         nYDamage[nPlayer] += (yVel << 4);
-                        sprite[nSprite2].zvel = -3584;
+                        pSprite2->zvel = -3584;
                     }
                     else
                     {
-                        sprite[nSprite2].xvel += (xVel >> 3);
-                        sprite[nSprite2].yvel += (yVel >> 3);
-                        sprite[nSprite2].zvel = -2880;
+                        pSprite2->xvel += (xVel >> 3);
+                        pSprite2->yvel += (yVel >> 3);
+                        pSprite2->zvel = -2880;
                     }
                 }
 
-                RexList[nRex].nCount >>= 2;
+                pActor->nCount >>= 2;
                 return;
             }
             }
         }
         else
         {
-            RexList[nRex].nAction = 1;
-            RexList[nRex].nFrame = 0;
-            RexList[nRex].nCount = 90;
+            pActor->nAction = 1;
+            pActor->nFrame = 0;
+            pActor->nCount = 90;
         }
 
         return;
@@ -431,27 +386,27 @@ void AIRex::Tick(RunListEvent* ev)
     {
         if (bVal)
         {
-            RexList[nRex].nAction = 2;
+            pActor->nAction = 2;
         }
         return;
     }
 
     case 4:
     {
-        if (nTarget != -1)
+        if (pTarget != nullptr)
         {
-            if (PlotCourseToSprite(nSprite, nTarget) < 768)
+            if (PlotCourseToSprite(pActor, pTarget) < 768)
             {
                 if (nFlag & 0x80)
                 {
-                    runlist_DamageEnemy(nTarget, nSprite, 15);
+                    runlist_DamageEnemy(pTarget, pActor, 15);
                 }
 
                 break;
             }
         }
 
-        RexList[nRex].nAction = 1;
+        pActor->nAction = 1;
         break;
     }
 
@@ -459,8 +414,8 @@ void AIRex::Tick(RunListEvent* ev)
     {
         if (bVal)
         {
-            RexList[nRex].nAction = 1;
-            RexList[nRex].nCount = 15;
+            pActor->nAction = 1;
+            pActor->nCount = 15;
         }
         return;
     }
@@ -469,9 +424,9 @@ void AIRex::Tick(RunListEvent* ev)
     {
         if (bVal)
         {
-            RexList[nRex].nAction = 7;
-            RexList[nRex].nFrame = 0;
-            runlist_ChangeChannel(RexList[nRex].nChannel, 1);
+            pActor->nAction = 7;
+            pActor->nFrame = 0;
+            runlist_ChangeChannel(pActor->nRun, 1);
         }
         return;
     }
@@ -486,12 +441,12 @@ void AIRex::Tick(RunListEvent* ev)
     // break-ed
     if (nAction > 0)
     {
-        if ((nTarget != -1) && (!(sprite[nTarget].cstat & 0x101)))
+        if ((pTarget != nullptr) && (!(pTarget->s().cstat & 0x101)))
         {
-            RexList[nRex].nAction = 0;
-            RexList[nRex].nFrame = 0;
-            RexList[nRex].nCount = 0;
-            RexList[nRex].nTarget = -1;
+            pActor->nAction = 0;
+            pActor->nFrame = 0;
+            pActor->nCount = 0;
+            pActor->pTarget = nullptr;
             pSprite->xvel = 0;
             pSprite->yvel = 0;
         }
