@@ -62,7 +62,6 @@ static PROC(WINAPI* getprocaddress)(LPCSTR name);
 
 static void* LoadGLES2Proc(const char* name)
 {
-
 	HINSTANCE hGetProcIDDLL = LoadLibraryA("libGLESv2.dll");
 	
 	int error =	GetLastError();
@@ -71,6 +70,7 @@ static void* LoadGLES2Proc(const char* name)
 	if (!addr)
 	{
 		//exit(1);
+		return nullptr;
 	}
 	else
 	{
@@ -183,7 +183,7 @@ namespace OpenGLESRenderer
 		gles.depthStencilAvailable = CheckExtension("GL_OES_packed_depth_stencil");
 		gles.npotAvailable = CheckExtension("GL_OES_texture_npot");
 		gles.useMappedBuffers = true;
-		gles.depthClampAvailable = CheckExtension("GL_EXT_depth_clamp")
+		gles.depthClampAvailable = CheckExtension("GL_EXT_depth_clamp");
 #else
 		gles.depthStencilAvailable = true;
 		gles.npotAvailable = true;
