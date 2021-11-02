@@ -141,7 +141,7 @@ void AIAnim::Tick(RunListEvent* ev)
 
         if (pIgniter)
         {
-            auto pSpriteB = &pActor->pTarget->s(); 
+            auto pSpriteB = &pIgniter->s(); 
             pSprite->x = pSpriteB->x;
             pSprite->y = pSpriteB->y;
             pSprite->z = pSpriteB->z;
@@ -232,12 +232,6 @@ void AIAnim::Draw(RunListEvent* ev)
 
     seq_PlotSequence(ev->nParam, nIndex2, pActor->nIndex, 0x101);
     ev->pTSprite->owner = -1;
-}
-
-void  FuncAnim(int nObject, int nMessage, int nDamage, int nRun)
-{
-    AIAnim ai;
-    runlist_DispatchEvent(&ai, nObject, nMessage, nDamage, nRun);
 }
 
 void BuildExplosion(DExhumedActor* pActor)

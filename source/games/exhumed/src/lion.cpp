@@ -140,7 +140,7 @@ void AILion::Damage(RunListEvent* ev)
             {
                 DropMagic(pActor);
 
-                if (ev->nMessage == EMessageType::RadialDamage)
+                if (ev->isRadialEvent())
                 {
                     pActor->nAction = 11;
                 }
@@ -553,14 +553,6 @@ void AILion::Tick(RunListEvent* ev)
             pSprite->yvel = 0;
         }
     }
-}
-
-
-
-void FuncLion(int nObject, int nMessage, int nDamage, int nRun)
-{
-    AILion ai;
-    runlist_DispatchEvent(&ai, nObject, nMessage, nDamage, nRun);
 }
 
 END_PS_NS

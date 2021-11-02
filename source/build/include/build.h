@@ -28,7 +28,7 @@ static_assert('\xff' == 255, "Char must be unsigned!");
 #  define EXTERN extern
 #endif
 
-EXTERN int16_t sintable[2048];
+EXTERN int sintable[2048];
 
 #include "buildtiles.h"
 #include "c_cvars.h"
@@ -407,15 +407,11 @@ inline int sectoradjacent(int sect1, int sect2) { return findwallbetweensectors(
 int32_t getsectordist(vec2_t const in, int const sectnum, vec2_t * const out = nullptr);
 extern const int16_t *chsecptr_onextwall;
 
-#if !KRANDDEBUG
 inline int32_t krand(void)
 {
-    randomseed = (randomseed * 1664525ul) + 221297ul;
+    randomseed = (randomseed * 27584621) + 1;
     return ((uint32_t) randomseed)>>16;
 }
-#else
-int32_t    krand(void);
-#endif
 
 inline int32_t ksqrt(uint64_t num)
 {
@@ -629,50 +625,6 @@ inline int inside_p(int32_t const x, int32_t const y, int const sectnum) { retur
 static inline int64_t compat_maybe_truncate_to_int32(int64_t val)
 {
     return enginecompatibility_mode != ENGINECOMPATIBILITY_NONE ? (int32_t)val : val;
-}
-
-static inline int32_t clipmove_old(int32_t *x, int32_t *y, int32_t *z, int16_t *sectnum, int32_t xvect, int32_t yvect, int32_t walldist,
-                   int32_t ceildist, int32_t flordist, uint32_t cliptype) ATTRIBUTE((nonnull(1,2,3,4)));
-
-static inline int32_t clipmove_old(int32_t *x, int32_t *y, int32_t *z, int16_t *sectnum, int32_t xvect, int32_t yvect, int32_t walldist,
-                   int32_t ceildist, int32_t flordist, uint32_t cliptype)
-{
-    vec3_t vector = { *x, *y, *z };
-
-    int32_t result = clipmove(&vector, sectnum, xvect, yvect, walldist, ceildist, flordist, cliptype);
-
-    *x = vector.x;
-    *y = vector.y;
-    *z = vector.z;
-
-    return result;
-}
-
-static inline int32_t pushmove_old(int32_t *x, int32_t *y, int32_t *z, int16_t *sectnum, int32_t walldist,
-                   int32_t ceildist, int32_t flordist, uint32_t cliptype) ATTRIBUTE((nonnull(1,2,3,4)));
-
-static inline int32_t pushmove_old(int32_t *x, int32_t *y, int32_t *z, int16_t *sectnum, int32_t walldist,
-                   int32_t ceildist, int32_t flordist, uint32_t cliptype)
-{
-    vec3_t vector = { *x, *y, *z };
-
-    int32_t result = pushmove(&vector, sectnum, walldist, ceildist, flordist, cliptype);
-
-    *x = vector.x;
-    *y = vector.y;
-    *z = vector.z;
-
-    return result;
-}
-
-static inline void getzrange_old(int32_t x, int32_t y, int32_t z, int16_t sectnum, int32_t *ceilz, int32_t *ceilhit, int32_t *florz,
-                 int32_t *florhit, int32_t walldist, uint32_t cliptype) ATTRIBUTE((nonnull(5,6,7,8)));
-
-static inline void getzrange_old(int32_t x, int32_t y, int32_t z, int16_t sectnum, int32_t *ceilz, int32_t *ceilhit, int32_t *florz,
-                 int32_t *florhit, int32_t walldist, uint32_t cliptype)
-{
-    const vec3_t vector = { x, y, z };
-    getzrange(&vector, sectnum, ceilz, ceilhit, florz, florhit, walldist, cliptype);
 }
 
 static inline int32_t setspritez_old(int16_t spritenum, int32_t x, int32_t y, int32_t z)

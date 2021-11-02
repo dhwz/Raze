@@ -66,12 +66,7 @@ void TintPalette(int a, int b, int c);
 
 void EraseScreen(int eax);
 
-void mychangespritesect(int nSprite, int nSector);
-void mydeletesprite(int nSprite);
-inline void DeleteActor(DExhumedActor* actor)
-{
-    mydeletesprite(actor->GetSpriteIndex());
-}
+void DeleteActor(DExhumedActor* actor);
 
 void GrabPalette();
 
@@ -119,7 +114,7 @@ extern short nEnergyTowers;
 
 extern short nEnergyChan;
 
-extern short nSpiritSprite;
+extern DExhumedActor* pSpiritSprite;
 
 extern short bInDemo;
 
@@ -137,8 +132,6 @@ extern short nHeadStage;
 extern short lastfps;
 
 extern int flash;
-
-extern short nLocalSpr;
 
 extern short nSnakeCam;
 
@@ -249,9 +242,9 @@ struct GameInterface : public ::GameInterface
     int playerKeyMove() override { return 6; }
     void WarpToCoords(int x, int y, int z, int a, int h) override;
     void ToggleThirdPerson() override;
-    int chaseCamX(binangle ang) { return -ang.bcos() / 12; }
-    int chaseCamY(binangle ang) { return -ang.bsin() / 12; }
-    int chaseCamZ(fixedhoriz horiz) { return horiz.asq16() / 384; }
+    int chaseCamX(binangle ang) { return -(ang.bcos() * 3) >> 5; }
+    int chaseCamY(binangle ang) { return -(ang.bsin() * 3) >> 5; }
+    int chaseCamZ(fixedhoriz horiz) { return (horiz.asq16() * 3) >> 10; }
     void processSprites(spritetype* tsprite, int& spritesortcnt, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio) override;
     int GetCurrentSkill() override;
 

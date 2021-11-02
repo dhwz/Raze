@@ -343,7 +343,7 @@ void AIMummy::Tick(RunListEvent* ev)
             {
                 if (!RandomSize(3))
                 {
-                    SetBulletEnemy(pBullet->nPhase, pTarget->GetSpriteIndex());
+                    SetBulletEnemy(pBullet->nPhase, pTarget);
                     pBullet->s().pal = 5;
                 }
             }
@@ -473,12 +473,6 @@ void AIMummy::Damage(RunListEvent* ev)
     }
 
     return;
-}
-
-void FuncMummy(int nObject, int nMessage, int nDamage, int nRun)
-{
-    AIMummy ai;
-    runlist_DispatchEvent(&ai, nObject, nMessage, nDamage, nRun);
 }
 
 END_PS_NS

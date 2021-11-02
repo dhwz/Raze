@@ -361,7 +361,7 @@ short seq_GetFrameFlag(short val, short nFrame)
 
 void seq_DrawPilotLightSeq(double xOffset, double yOffset)
 {
-    short nSect = nPlayerViewSect[nLocalPlayer];
+    short nSect = PlayerList[nLocalPlayer].nPlayerViewSect;
 
     if (!(SectFlag[nSect] & kSectUnderwater))
     {
@@ -437,7 +437,7 @@ int seq_GetFrameSound(int val, int edx)
     return FrameSound[SeqBase[val] + edx];
 }
 
-void seq_MoveSequence(short nSprite, short nSeq, short bx)
+void seq_MoveSequence(DExhumedActor* actor, short nSeq, short bx)
 {
     assert(nSeq >= 0); // TEMP
 
@@ -446,8 +446,8 @@ void seq_MoveSequence(short nSprite, short nSeq, short bx)
         return;
     }
 
-    if (nSprite > -1) {
-        D3PlayFX(nSound, nSprite);
+    if (actor) {
+        D3PlayFX(nSound, actor);
     }
     else {
         PlayLocalSound(nSound, 0);
@@ -611,7 +611,7 @@ int seq_PlotSequence(short nSprite, short edx, short nFrame, short ecx)
         short nSector = pTSprite->sectnum;
         int nFloorZ = sector[nSector].floorz;
 
-        if (nFloorZ <= eyelevel[nLocalPlayer] + initz) {
+        if (nFloorZ <= PlayerList[nLocalPlayer].eyelevel + initz) {
             pTSprite->owner = -1;
         }
         else

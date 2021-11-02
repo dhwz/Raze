@@ -355,8 +355,8 @@ void AIRex::Tick(RunListEvent* ev)
                     if (pSprite2->statnum == 100)
                     {
                         auto nPlayer = GetPlayerFromActor(nMov.actor);
-                        nXDamage[nPlayer] += (xVel << 4);
-                        nYDamage[nPlayer] += (yVel << 4);
+                        PlayerList[nPlayer].nXDamage += (xVel << 4);
+                        PlayerList[nPlayer].nYDamage += (yVel << 4);
                         pSprite2->zvel = -3584;
                     }
                     else
@@ -455,9 +455,4 @@ void AIRex::Tick(RunListEvent* ev)
 }
 
 
-void FuncRex(int nObject, int nMessage, int nDamage, int nRun)
-{
-    AIRex ai;
-    runlist_DispatchEvent(&ai, nObject, nMessage, nDamage, nRun);
-}
 END_PS_NS

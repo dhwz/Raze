@@ -100,8 +100,6 @@ short nFreeze;
 
 short nSnakeCam = -1;
 
-short nLocalSpr;
-
 int nNetPlayerCount = 0;
 
 short nClockVal;
@@ -153,7 +151,7 @@ short bInDemo = false;
 short bSlipMode = false;
 short bDoFlashes = true;
 
-short besttarget;
+DExhumedActor* bestTarget;
 
 short scan_char = 0;
 
@@ -173,9 +171,8 @@ void DebugOut(const char *fmt, ...)
 
 void DoClockBeep()
 {
-    int i;
-    StatIterator it(407);
-    while ((i = it.NextIndex()) >= 0)
+    ExhumedStatIterator it(407);
+    while (auto i = it.Next())
     {
         PlayFX2(StaticSound[kSound74], i);
     }
@@ -292,7 +289,7 @@ void GameMove(void)
 
     obobangle = bobangle;
 
-    if (totalvel[nLocalPlayer] == 0)
+    if (PlayerList[nLocalPlayer].totalvel == 0)
     {
         bobangle = 0;
     }
@@ -398,7 +395,7 @@ void GameInterface::Ticker()
         if (weap2 == WeaponSel_Next)
         {
             auto newWeap = currWeap == 6 ? 0 : currWeap + 1;
-            while (newWeap != 0 && (!(nPlayerWeapons[nLocalPlayer] & (1 << newWeap)) || (nPlayerWeapons[nLocalPlayer] & (1 << newWeap) && PlayerList[nLocalPlayer].nAmmo[newWeap] == 0)))
+            while (newWeap != 0 && (!(PlayerList[nLocalPlayer].nPlayerWeapons & (1 << newWeap)) || (PlayerList[nLocalPlayer].nPlayerWeapons & (1 << newWeap) && PlayerList[nLocalPlayer].nAmmo[newWeap] == 0)))
             {
                 newWeap++;
                 if (newWeap > 6) newWeap = 0;
@@ -408,7 +405,7 @@ void GameInterface::Ticker()
         else if (weap2 == WeaponSel_Prev)
         {
             auto newWeap = currWeap == 0 ? 6 : currWeap - 1;
-            while (newWeap != 0 && ((!(nPlayerWeapons[nLocalPlayer] & (1 << newWeap)) || (nPlayerWeapons[nLocalPlayer] & (1 << newWeap) && PlayerList[nLocalPlayer].nAmmo[newWeap] == 0))))
+            while (newWeap != 0 && ((!(PlayerList[nLocalPlayer].nPlayerWeapons & (1 << newWeap)) || (PlayerList[nLocalPlayer].nPlayerWeapons & (1 << newWeap) && PlayerList[nLocalPlayer].nAmmo[newWeap] == 0))))
             {
                 newWeap--;
             }
@@ -430,11 +427,11 @@ void GameInterface::Ticker()
         sPlayerInput[nLocalPlayer].xVel = lPlayerXVel;
         sPlayerInput[nLocalPlayer].yVel = lPlayerYVel;
         sPlayerInput[nLocalPlayer].buttons = lLocalCodes;
-        sPlayerInput[nLocalPlayer].nTarget = besttarget;
+        sPlayerInput[nLocalPlayer].pTarget = bestTarget;
         sPlayerInput[nLocalPlayer].nAngle = localInput.avel;
         sPlayerInput[nLocalPlayer].pan = localInput.horz;
 
-        Ra[nLocalPlayer].nTarget = besttarget;
+        Ra[nLocalPlayer].pTarget = bestTarget;
 
         lLocalCodes = 0;
 
@@ -509,25 +506,21 @@ void GameInterface::app_init()
     enginecompatibility_mode = ENGINECOMPATIBILITY_19950829;
 }
 
-void mychangespritesect(int nSprite, int nSector)
+void DeleteActor(DExhumedActor* actor) 
 {
-    changespritesect(nSprite, nSector);
-}
-
-void mydeletesprite(int nSprite)
-{
-    if (nSprite < 0 || nSprite > kMaxSprites) {
-        I_Error("bad sprite value %d handed to mydeletesprite", nSprite);
+    if (!actor) 
+    {
+        return;
     }
 
-    FVector3 pos = GetSoundPos(&sprite[nSprite].pos);
-    soundEngine->RelinkSound(SOURCE_Actor, &sprite[nSprite], nullptr, &pos);
+    FVector3 pos = GetSoundPos(&actor->s().pos);
+    soundEngine->RelinkSound(SOURCE_Actor, &actor->s(), nullptr, &pos);
 
-    deletesprite(nSprite);
-    sprite[nSprite].ox = 0x80000000;
+    deletesprite(actor->GetSpriteIndex());
+    actor->s().ox = 0x80000000;
 
-    if (nSprite == besttarget) {
-        besttarget = -1;
+    if (actor == bestTarget) {
+        bestTarget = nullptr;
     }
 }
 
@@ -611,6 +604,10 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, DExhumedActor& w, 
 			("index2", w.nIndex2)
 			("channel", w.nChannel)
             ("damage", w.nDamage)
+
+            ("turn", w.nTurn)
+            ("x", w.x)
+            ("y", w.y)
             .EndObject();
     }
     return arc;
@@ -626,12 +623,11 @@ void SerializeState(FSerializer& arc)
             InitEnergyTile();
     }
 
-        arc ("besttarget", besttarget)
+        arc ("besttarget", bestTarget)
             ("creaturestotal", nCreaturesTotal)
             ("creatureskilled", nCreaturesKilled)
             ("freeze", nFreeze)
             ("snakecam", nSnakeCam)
-            ("localspr", nLocalSpr)
             ("clockval", nClockVal)  // kTile3603
             ("redticks", nRedTicks)
             ("alarmticks", nAlarmTicks)
@@ -645,7 +641,7 @@ void SerializeState(FSerializer& arc)
             ("bsnakecam", bSnakeCam)
             ("slipmode", bSlipMode)
             ("PlayClock", PlayClock)
-            ("spiritsprite", nSpiritSprite)
+            ("spiritsprite", pSpiritSprite)
             .EndObject();
     }
 }

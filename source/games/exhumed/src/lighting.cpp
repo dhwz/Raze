@@ -38,9 +38,10 @@ enum
 
 struct Flash
 {
-    char field_0;
+    int8_t nType;
     int8_t shade;
-    short field_1;
+    DExhumedActor* pActor;
+    int nIndex;
     int next;
 };
 
@@ -95,9 +96,9 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, Flash& w, Flash* d
 {
     if (arc.BeginObject(keyname))
     {
-        arc("at0", w.field_0)
+        arc("at0", w.nType)
             ("shade", w.shade)
-            ("at1", w.field_1)
+            ("at1", w.nIndex)
             ("next", w.next)
             .EndObject();
     }
@@ -277,9 +278,9 @@ void AddFlash(short nSector, int x, int y, int z, int val)
                         return;
                     }
 
-                    sFlash[nFlash].field_0 = var_20 | 2;
+                    sFlash[nFlash].nType = var_20 | 2;
                     sFlash[nFlash].shade = wall[i].shade;
-                    sFlash[nFlash].field_1 = i;
+                    sFlash[nFlash].nIndex = i;
 
                     wall[i].pal += 7;
 
@@ -308,8 +309,8 @@ void AddFlash(short nSector, int x, int y, int z, int val)
             return;
         }
 
-        sFlash[nFlash].field_0 = var_20 | 1;
-        sFlash[nFlash].field_1 = nSector;
+        sFlash[nFlash].nType = var_20 | 1;
+        sFlash[nFlash].nIndex = nSector;
         sFlash[nFlash].shade = sector[nSector].floorshade;
 
         sector[nSector].floorpal += 7;
@@ -330,8 +331,8 @@ void AddFlash(short nSector, int x, int y, int z, int val)
                 short nFlash2 = GrabFlash();
                 if (nFlash2 >= 0)
                 {
-                    sFlash[nFlash2].field_0 = var_20 | 3;
-                    sFlash[nFlash2].field_1 = nSector;
+                    sFlash[nFlash2].nType = var_20 | 3;
+                    sFlash[nFlash2].nIndex = nSector;
                     sFlash[nFlash2].shade = sector[nSector].ceilingshade;
 
                     sector[nSector].ceilingpal += 7;
@@ -348,19 +349,19 @@ void AddFlash(short nSector, int x, int y, int z, int val)
             }
         }
 
-        int nSprite;
-        SectIterator it(nSector);
-        while ((nSprite = it.NextIndex()) >= 0)
+        ExhumedSectIterator it(nSector);
+        while (auto pActor = it.Next())
         {
-			auto pSprite = &sprite[nSprite];
+			auto pSprite = &pActor->s();
             if (pSprite->pal < 4)
             {
                 short nFlash3 = GrabFlash();
                 if (nFlash3 >= 0)
                 {
-                    sFlash[nFlash3].field_0 = var_20 | 4;
+                    sFlash[nFlash3].nType = var_20 | 4;
                     sFlash[nFlash3].shade = pSprite->shade;
-                    sFlash[nFlash3].field_1 = nSprite;
+                    sFlash[nFlash3].nIndex = -1;
+                    sFlash[nFlash3].pActor = pActor;
 
                     pSprite->pal += 7;
 
@@ -406,17 +407,17 @@ void UndoFlashes()
     {
         assert(nFlash < 2000 && nFlash >= 0);
 
-        uint8_t var_28 = sFlash[nFlash].field_0 & 0x3F;
-        short nIndex = sFlash[nFlash].field_1;
+        uint8_t type = sFlash[nFlash].nType & 0x3F;
+        short nIndex = sFlash[nFlash].nIndex;
 
-        if (sFlash[nFlash].field_0 & 0x80)
+        if (sFlash[nFlash].nType & 0x80)
         {
-            int var_20 = var_28 - 1;
-            assert(var_20 >= 0);
+            int flashtype = type - 1;
+            assert(flashtype >= 0);
 
             int8_t *pShade = NULL;
 
-            switch (var_20)
+            switch (flashtype)
             {
                 case 0:
                 {
@@ -444,11 +445,12 @@ void UndoFlashes()
 
                 case 3:
                 {
-                    assert(nIndex >= 0 && nIndex < kMaxSprites);
-
-                    if (sprite[nIndex].pal >= 7)
+                    auto ac = sFlash[nFlash].pActor;
+                    if (!ac) continue;
+                    auto sp = &ac->s();
+                    if (sp->pal >= 7)
                     {
-                        pShade = &sprite[nIndex].shade;
+                        pShade = &sp->shade;
                     }
                     else {
                         goto loc_1868A;
@@ -475,7 +477,7 @@ void UndoFlashes()
         }
 
         // loc_185FE
-        var_24 = var_28 - 1; // CHECKME - Watcom error "initializer for variable var_24 may not execute
+        var_24 = type - 1; // CHECKME - Watcom error "initializer for variable var_24 may not execute
         assert(var_24 >= 0);
 
         switch (var_24)
@@ -506,10 +508,12 @@ void UndoFlashes()
 
             case 3:
             {
-                if (sprite[nIndex].pal >= 7)
+                auto ac = sFlash[nFlash].pActor;
+                auto sp = &ac->s();
+                if (sp->pal >= 7)
                 {
-                    sprite[nIndex].pal -= 7;
-                    sprite[nIndex].shade = sFlash[nFlash].shade;
+                    sp->pal -= 7;
+                    sp->shade = sFlash[nFlash].shade;
                 }
 
                 break;
@@ -657,7 +661,7 @@ void DoFlickers()
 }
 
 // nWall can also be passed in here via nSprite parameter - TODO - rename nSprite parameter :)
-void AddFlow(int nIndex, int nSpeed, int b)
+void AddFlow(int nIndex, int nSpeed, int b, int nAngle)
 {
     if (nFlowCount >= kMaxFlows)
         return;
@@ -668,18 +672,16 @@ void AddFlow(int nIndex, int nSpeed, int b)
 
     if (b < 2)
     {
-        int sectnum = sprite[nIndex].sectnum;
-        short nPic = sector[sectnum].floorpicnum;
-        short nAngle = sprite[nIndex].ang;
+        short nPic = sector[nIndex].floorpicnum;
 
         sFlowInfo[nFlow].xacc = (tileWidth(nPic) << 14) - 1;
         sFlowInfo[nFlow].yacc = (tileHeight(nPic) << 14) - 1;
         sFlowInfo[nFlow].angcos  = -bcos(nAngle) * nSpeed;
         sFlowInfo[nFlow].angsin = bsin(nAngle) * nSpeed;
-        sFlowInfo[nFlow].objindex = sectnum;
+        sFlowInfo[nFlow].objindex = nIndex;
 
-        StartInterpolation(sectnum, b ? Interp_Sect_CeilingPanX : Interp_Sect_FloorPanX);
-        StartInterpolation(sectnum, b ? Interp_Sect_CeilingPanY : Interp_Sect_FloorPanY);
+        StartInterpolation(nIndex, b ? Interp_Sect_CeilingPanX : Interp_Sect_FloorPanX);
+        StartInterpolation(nIndex, b ? Interp_Sect_CeilingPanY : Interp_Sect_FloorPanY);
     }
     else
     {

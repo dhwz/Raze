@@ -60,7 +60,7 @@ bool bCamera = false;
 
 int viewz;
 
-short enemy;
+DExhumedActor* pEnemy;
 
 short nEnemyPal = 0;
 
@@ -87,14 +87,14 @@ static void analyzesprites(spritetype* tsprite, int& spritesortcnt, int x, int y
         }
     }
 
-    short nPlayerSprite = PlayerList[nLocalPlayer].nSprite;
+    auto pPlayerActor = PlayerList[nLocalPlayer].Actor();
 
     int var_38 = 20;
     int var_2C = 30000;
 
-    spritetype *pPlayerSprite = &sprite[nPlayerSprite];
+    spritetype *pPlayerSprite = &pPlayerActor->s();
 
-    besttarget = -1;
+    bestTarget = nullptr;
 
     short nSector = pPlayerSprite->sectnum;
 
@@ -107,7 +107,8 @@ static void analyzesprites(spritetype* tsprite, int& spritesortcnt, int x, int y
     for (nTSprite = spritesortcnt-1, pTSprite = &tsprite[nTSprite]; nTSprite >= 0; nTSprite--, pTSprite--)
     {
         int nSprite = pTSprite->owner;
-        spritetype *pSprite = &sprite[nSprite];
+        auto pActor = &exhumedActors[nSprite];
+        spritetype *pSprite = &pActor->s();
 
         if (pTSprite->sectnum >= 0)
         {
@@ -129,9 +130,11 @@ static void analyzesprites(spritetype* tsprite, int& spritesortcnt, int x, int y
 
         if (pSprite->statnum > 0)
         {
-            runlist_SignalRun(pSprite->lotag - 1, nTSprite | 0x90000);
+            RunListEvent ev{};
+            ev.pTSprite = pTSprite;
+            runlist_SignalRun(pSprite->lotag - 1, nTSprite, &ExhumedAI::Draw, &ev);
 
-            if ((pSprite->statnum < 150) && (pSprite->cstat & 0x101) && (nSprite != nPlayerSprite))
+            if ((pSprite->statnum < 150) && (pSprite->cstat & 0x101) && (pActor != pPlayerActor))
             {
                 int xval = pSprite->x - x;
                 int yval = pSprite->y - y;
@@ -151,7 +154,7 @@ static void analyzesprites(spritetype* tsprite, int& spritesortcnt, int x, int y
                 edx = (abs(edx) * 32) / ebx;
                 if (ebx < 1000 && ebx < var_2C && edx < 10)
                 {
-                    besttarget = nSprite;
+                    bestTarget = pActor;
                     var_38 = edx;
                     var_2C = ebx;
                 }
@@ -162,21 +165,21 @@ static void analyzesprites(spritetype* tsprite, int& spritesortcnt, int x, int y
                     {
                         var_38 = edx;
                         var_2C = ebx;
-                        besttarget = nSprite;
+                        bestTarget = pActor;
                     }
                 }
             }
         }
     }
-    if (besttarget != -1)
+    if (bestTarget != nullptr)
     {
-        spritetype *pTarget = &sprite[besttarget];
+        spritetype *pTarget = &bestTarget->s();
 
         nCreepyTimer = kCreepyCount;
 
-        if (!cansee(x, y, z, nSector, pTarget->x, pTarget->y, pTarget->z - GetSpriteHeight(besttarget), pTarget->sectnum))
+        if (!cansee(x, y, z, nSector, pTarget->x, pTarget->y, pTarget->z - GetActorHeight(bestTarget), pTarget->sectnum))
         {
-            besttarget = -1;
+            bestTarget = nullptr;
         }
     }
 
@@ -211,15 +214,16 @@ void DrawView(double smoothRatio, bool sceneonly)
     DoInterpolations(smoothRatio / 65536.);
     pm_smoothratio = (int)smoothRatio;
 
-    int nPlayerSprite = PlayerList[nLocalPlayer].nSprite;
-	auto pPlayerSprite = &sprite[nPlayerSprite];
+    auto pPlayerActor = PlayerList[nLocalPlayer].Actor();
+	auto pPlayerSprite = &pPlayerActor->s();
     int nPlayerOldCstat = pPlayerSprite->cstat;
-    int nDoppleOldCstat = sprite[nDoppleSprite[nLocalPlayer]].cstat;
+    auto pDop = &PlayerList[nLocalPlayer].pDoppleSprite->s();
+    int nDoppleOldCstat = pDop->cstat;
 
     if (nSnakeCam >= 0 && !sceneonly)
     {
-        int nSprite = SnakeList[nSnakeCam].nSprites[0];
-		auto pSprite = &sprite[nSprite];
+        auto pActor = SnakeList[nSnakeCam].pSprites[0];
+		auto pSprite = &pActor->s();
 
         playerX = pSprite->x;
         playerY = pSprite->y;
@@ -230,26 +234,25 @@ void DrawView(double smoothRatio, bool sceneonly)
 
         SetGreenPal();
 
-        enemy = SnakeList[nSnakeCam].nEnemy;
+        pEnemy = SnakeList[nSnakeCam].pEnemy;
 
-        if (enemy <= -1 || totalmoves & 1)
+        if (pEnemy == nullptr || totalmoves & 1)
         {
             nEnemyPal = -1;
         }
         else
         {
-            nEnemyPal = sprite[enemy].pal;
-            sprite[enemy].pal = 5;
+            nEnemyPal = pEnemy->s().pal;
+            pEnemy->s().pal = 5;
         }
     }
     else
     {
-        auto psp = &sprite[nPlayerSprite];
-        playerX = psp->interpolatedx(smoothRatio);
-        playerY = psp->interpolatedy(smoothRatio);
-        playerZ = psp->interpolatedz(smoothRatio) + interpolatedvalue(oeyelevel[nLocalPlayer], eyelevel[nLocalPlayer], smoothRatio);
+        playerX = pPlayerSprite->interpolatedx(smoothRatio);
+        playerY = pPlayerSprite->interpolatedy(smoothRatio);
+        playerZ = pPlayerSprite->interpolatedz(smoothRatio) + interpolatedvalue(PlayerList[nLocalPlayer].oeyelevel, PlayerList[nLocalPlayer].eyelevel, smoothRatio);
 
-        nSector = nPlayerViewSect[nLocalPlayer];
+        nSector = PlayerList[nLocalPlayer].nPlayerViewSect;
         updatesector(playerX, playerY, &nSector);
 
         if (!SyncInput())
@@ -268,12 +271,12 @@ void DrawView(double smoothRatio, bool sceneonly)
         if (!bCamera)
         {
             pPlayerSprite->cstat |= CSTAT_SPRITE_INVISIBLE;
-            sprite[nDoppleSprite[nLocalPlayer]].cstat |= CSTAT_SPRITE_INVISIBLE;
+            pDop->cstat |= CSTAT_SPRITE_INVISIBLE;
         }
         else
         {
             pPlayerSprite->cstat |= CSTAT_SPRITE_TRANSLUCENT;
-            sprite[nDoppleSprite[nLocalPlayer]].cstat |= CSTAT_SPRITE_INVISIBLE;
+            pDop->cstat |= CSTAT_SPRITE_INVISIBLE;
         }
         pan = q16horiz(clamp(pan.asq16(), gi->playerHorizMin(), gi->playerHorizMax()));
     }
@@ -298,10 +301,10 @@ void DrawView(double smoothRatio, bool sceneonly)
         if (bCamera)
         {
             viewz -= 2560;
-            if (!calcChaseCamPos(&playerX, &playerY, &viewz, &sprite[nPlayerSprite], &nSector, nAngle, pan, smoothRatio))
+            if (!calcChaseCamPos(&playerX, &playerY, &viewz, pPlayerSprite, &nSector, nAngle, pan, smoothRatio))
             {
                 viewz += 2560;
-                calcChaseCamPos(&playerX, &playerY, &viewz, &sprite[nPlayerSprite], &nSector, nAngle, pan, smoothRatio);
+                calcChaseCamPos(&playerX, &playerY, &viewz, pPlayerSprite, &nSector, nAngle, pan, smoothRatio);
             }
         }
     }
@@ -441,7 +444,7 @@ void DrawView(double smoothRatio, bool sceneonly)
             {
                 RestoreGreenPal();
                 if (nEnemyPal > -1) {
-                    sprite[enemy].pal = (uint8_t)nEnemyPal;
+                    pEnemy->s().pal = (uint8_t)nEnemyPal;
                 }
 
                 DrawMap(smoothRatio);
@@ -454,7 +457,7 @@ void DrawView(double smoothRatio, bool sceneonly)
     }
 
     pPlayerSprite->cstat = nPlayerOldCstat;
-    sprite[nDoppleSprite[nLocalPlayer]].cstat = nDoppleOldCstat;
+    pDop->cstat = nDoppleOldCstat;
     RestoreInterpolations();
 
     flash = 0;
@@ -491,7 +494,7 @@ void SerializeView(FSerializer& arc)
         ("camerapan", nCamerapan)
         ("camera", bCamera)
         ("viewz", viewz)
-        ("enemy", enemy)
+        ("enemy", pEnemy)
         ("enemypal", nEnemyPal)
         .Array("vertpan", dVertPan, countof(dVertPan))
         .Array("quake", nQuake, countof(nQuake))

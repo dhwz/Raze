@@ -411,7 +411,7 @@ void AIAnubis::Damage(RunListEvent* ev)
                     pDrumSprite->yrepeat = 40;
                     pDrumSprite->shade = -64;
 
-                    BuildObject(pDrumActor->GetSpriteIndex(), 2, 0);
+                    BuildObject(pDrumActor, 2, 0);
                 }
 
                 ap->pTarget = ev->pOtherActor;
@@ -440,18 +440,12 @@ void AIAnubis::Damage(RunListEvent* ev)
             if (nAction < 11)
             {
                 DropMagic(ap);
-                ap->nAction = (ev->nMessage == EMessageType::RadialDamage) + 11;
+                ap->nAction = int(ev->isRadialEvent()) + 11;
                 ap->nFrame = 0;
             }
         }
     }
 }
 
-
-void FuncAnubis(int nObject, int nMessage, int nDamage, int nRun)
-{
-    AIAnubis ai;
-    runlist_DispatchEvent(&ai, nObject, nMessage, nDamage, nRun);
-}
 
 END_PS_NS

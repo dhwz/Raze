@@ -20,8 +20,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "compat.h"
 #include "freelistarray.h"
+#include "exhumedactor.h"
+
 
 BEGIN_PS_NS
+
 
 // anims
 
@@ -41,8 +44,7 @@ void FuncAnubis(int, int a, int b, int c);
 
 // bubbles
 
-void InitBubbles();
-void BuildBubbleMachine(int nSprite);
+void BuildBubbleMachine(DExhumedActor* nSprite);
 void DoBubbleMachines();
 void DoBubbles(int nPlayer);
 void FuncBubble(int, int, int, int);
@@ -70,22 +72,16 @@ extern short lasthitsect;
 extern int lasthitz;
 extern int lasthitx;
 extern int lasthity;
+extern TArray<DExhumedActor*> EnergyBlocks;
 
 void InitBullets();
 int GrabBullet();
 void DestroyBullet(short nRun);
 int MoveBullet(short nBullet);
-void SetBulletEnemy(short nBullet, short nEnemy);
-int BuildBullet(short nSprite, int nType, int ebx, int ecx, int val1, int nAngle, int val2, int val3);
-inline DExhumedActor* BuildBullet(DExhumedActor* pActor, int nType, int val1, int nAngle, DExhumedActor* pTarget, int val3)
-{
-    int v = BuildBullet(pActor->GetSpriteIndex(), nType, 0, 0, val1, nAngle, pTarget->GetSpriteIndex() + 10000, val3);
-    if (v < 0) return nullptr;
-    auto a = &exhumedActors[v & 0xffff];
-    a->nPhase = (v >> 16);
-    return a;
-}
-void IgniteSprite(int nSprite);
+void SetBulletEnemy(short nBullet, DExhumedActor* nEnemy);
+DExhumedActor* BuildBullet(DExhumedActor* pActor, int nType, int val1, int nAngle, DExhumedActor* pTarget, int val3);
+
+void IgniteSprite(DExhumedActor* nSprite);
 void FuncBullet(int, int, int, int);
 void BackUpBullet(int *x, int *y, short nAngle);
 
@@ -99,10 +95,9 @@ void FuncFishLimb(int a, int b, int c);
 
 enum { kMaxGrenades = 50 };
 
-void InitGrenades();
 void BuildGrenade(int nPlayer);
 void DestroyGrenade(short nGrenade);
-int ThrowGrenade(short nPlayer, int edx, int ebx, int ecx, int push1);
+void ThrowGrenade(short nPlayer, int edx, int ebx, int ecx, int push1);
 void FuncGrenade(int, int, int, int);
 
 // gun
@@ -163,20 +158,15 @@ enum
 
 extern short nItemMagic[];
 
-void BuildItemAnim(short nSprite);
-void DestroyItemAnim(short nSprite);
+void BuildItemAnim(DExhumedActor* nSprite);
 void ItemFlash();
 void FillItems(short nPlayer);
 void UseItem(short nPlayer, short nItem);
 void UseCurItem(short nPlayer);
 int GrabItem(short nPlayer, short nItem);
-void DropMagic(short nSprite);
-inline void DropMagic(DExhumedActor* actor)
-{
-    DropMagic(actor->GetSpriteIndex());
-}
+void DropMagic(DExhumedActor* actor);
 void InitItems();
-void StartRegenerate(short nSprite);
+void StartRegenerate(DExhumedActor* nSprite);
 void DoRegenerates();
 
 // lavadude
@@ -195,7 +185,7 @@ void AddFlash(short nSector, int x, int y, int z, int val);
 void SetTorch(int nPlayer, int bTorchOnOff);
 void UndoFlashes();
 void DoLights();
-void AddFlow(int nSprite, int nSpeed, int b);
+void AddFlow(int nSprite, int nSpeed, int b, int ang = -1);
 void BuildFlash(short nPlayer, short nSector, int nVal);
 void AddGlow(short nSector, int nVal);
 void AddFlicker(short nSector, int nVal);
@@ -212,14 +202,14 @@ void FuncLion(int, int, int, int);
 // 16 bytes
 struct BlockInfo
 {
+    DExhumedActor* pActor;
     int x;
     int y;
     int field_8;
-    short nSprite;
 };
 extern BlockInfo sBlockInfo[];
 
-extern int hihit;
+extern Collision hiHit;
 extern DExhumedActor* nChunkSprite[];
 extern DExhumedActor* nBodySprite[];
 
@@ -228,73 +218,29 @@ void MoveThings();
 void ResetMoveFifo();
 void InitChunks();
 void InitPushBlocks();
-void Gravity(short nSprite);
-inline void Gravity(DExhumedActor* actor)
-{
-    Gravity(actor->GetSpriteIndex());
-}
-short UpdateEnemy(short *nEnemy);
-DExhumedActor* UpdateEnemy(DExhumedActor** ppEnemy)
-{
-    short ndx = (short)(*ppEnemy? (*ppEnemy)->GetSpriteIndex() : -1);
-    int v = UpdateEnemy(&ndx);
-    return v == -1 ? nullptr : &exhumedActors[v];
-}
-
-int MoveCreature(short nSprite);
-Collision MoveCreature(DExhumedActor* nSprite)
-{
-    return Collision(MoveCreature(nSprite->GetSpriteIndex()));
-}
-int MoveCreatureWithCaution(int nSprite);
-inline Collision MoveCreatureWithCaution(DExhumedActor* actor)
-{
-    return Collision(MoveCreatureWithCaution(actor->GetSpriteIndex()));
-}
-void WheresMyMouth(int nPlayer, int *x, int *y, int *z, short *sectnum);
-int GetSpriteHeight(int nSprite);
+void Gravity(DExhumedActor* actor);
+DExhumedActor* UpdateEnemy(DExhumedActor** ppEnemy);
+Collision MoveCreature(DExhumedActor* nSprite);
+Collision MoveCreatureWithCaution(DExhumedActor* actor);
+void WheresMyMouth(int nPlayer, vec3_t* pos, short *sectnum);
 int GetActorHeight(DExhumedActor* nSprite);
 DExhumedActor* insertActor(int, int);
 DExhumedActor* GrabBody();
 DExhumedActor* GrabBodyGunSprite();
 void CreatePushBlock(int nSector);
 void FuncCreatureChunk(int a, int, int nRun);
-int FindPlayer(int nSprite, int nDistance);
-inline DExhumedActor* FindPlayer(DExhumedActor* nSprite, int nDistance)
-{
-    int targ = FindPlayer(nSprite->GetSpriteIndex(), nDistance);
-    return targ > -1 ? &exhumedActors[targ] : nullptr;
-}
+DExhumedActor* FindPlayer(DExhumedActor* nSprite, int nDistance, bool dontengage = false);
 
-int BuildCreatureChunk(int nVal, int nPic);
+DExhumedActor* BuildCreatureChunk(DExhumedActor* pSrc, int nPic, bool bSpecial = false);
 void BuildNear(int x, int y, int walldist, int nSector);
-int PlotCourseToSprite(int nSprite1, int nSprite2);
-inline int PlotCourseToSprite(DExhumedActor* nSprite1, DExhumedActor* nSprite2)
-{
-    if (nSprite1 == nullptr || nSprite2 == nullptr)
-        return -1;
-
-    return PlotCourseToSprite(nSprite1->GetSpriteIndex(), nSprite2->GetSpriteIndex());
-}
+int PlotCourseToSprite(DExhumedActor* nSprite1, DExhumedActor* nSprite2);
 void CheckSectorFloor(short nSector, int z, int *x, int *y);
-int GetAngleToSprite(int nSprite1, int nSprite2);
+int GetAngleToSprite(DExhumedActor* nSprite1, DExhumedActor* nSprite2);
 int GetWallNormal(short nWall);
-int GetUpAngle(short nSprite1, int nVal, short nSprite2, int ecx);
-int GetUpAngle(DExhumedActor* nSprite1, int nVal, DExhumedActor* nSprite2, int ecx)
-{
-    return GetUpAngle(nSprite1->GetSpriteIndex(), nVal, nSprite2->GetSpriteIndex(), ecx);
-}
+int GetUpAngle(DExhumedActor* nSprite1, int nVal, DExhumedActor* nSprite2, int ecx);
 void MoveSector(short nSector, int nAngle, int *nXVel, int *nYVel);
-int AngleChase(int nSprite, int nSprite2, int ebx, int ecx, int push1);
-inline Collision AngleChase(DExhumedActor* nSprite, DExhumedActor* nSprite2, int ebx, int ecx, int push1)
-{
-    return Collision(AngleChase(nSprite->GetSpriteIndex(), nSprite2? nSprite2->GetSpriteIndex() : -1, ebx, ecx, push1));
-}
-void SetQuake(short nSprite, int nVal);
-void SetQuake(DExhumedActor* nSprite, int nVal)
-{
-    SetQuake(nSprite->GetSpriteIndex(), nVal);
-}
+Collision AngleChase(DExhumedActor* nSprite, DExhumedActor* nSprite2, int ebx, int ecx, int push1);
+void SetQuake(DExhumedActor* nSprite, int nVal);
 
 // mummy
 
@@ -310,13 +256,15 @@ enum kStatus
     kStatDestructibleSprite = 97,
     kStatAnubisDrum,
     kStatExplodeTrigger = 141,
-    kStatExplodeTarget = 152
+    kStatExplodeTarget = 152,
+    kStatBubbleMachine = 1022,
+
 };
 
 extern short nSmokeSparks;
 extern short nDronePitch;
 extern int lFinaleStart;
-extern short nFinaleSpr;
+extern DExhumedActor* pFinaleSpr;
 
 void InitObjects();
 void InitElev();
@@ -336,25 +284,24 @@ void FuncTrap(int, int, int, int);
 void FuncEnergyBlock(int, int, int, int);
 void FuncSpark(int, int, int, int);
 void SnapBobs(short nSectorA, short nSectorB);
-short FindWallSprites(short nSector);
+DExhumedActor* FindWallSprites(short nSector);
 void AddMovingSector(int nSector, int edx, int ebx, int ecx);
-int BuildWallSprite(int nSector);
-void ProcessTrailSprite(int nSprite, int nLotag, int nHitag);
+void ProcessTrailSprite(DExhumedActor* nSprite, int nLotag, int nHitag);
 void AddSectorBob(int nSector, int nHitag, int bx);
-int BuildObject(int const nSprite, int nOjectType, int nHitag);
-int BuildArrow(int nSprite, int nVal);
-int BuildFireBall(int nSprite, int a, int b);
-void BuildDrip(int nSprite);
-int BuildEnergyBlock(short nSector);
-int BuildElevC(int arg1, int nChannel, int nSector, int nWallSprite, int arg5, int arg6, int nCount, ...);
-int BuildElevF(int nChannel, int nSector, int nWallSprite, int arg_4, int arg_5, int nCount, ...);
+DExhumedActor* BuildObject(DExhumedActor* nSprite, int nOjectType, int nHitag);
+int BuildArrow(DExhumedActor* nSprite, int nVal);
+int BuildFireBall(DExhumedActor*, int a, int b);
+void BuildDrip(DExhumedActor* nSprite);
+DExhumedActor* BuildEnergyBlock(short nSector);
+int BuildElevC(int arg1, int nChannel, int nSector, DExhumedActor* nWallSprite, int arg5, int arg6, int nCount, ...);
+int BuildElevF(int nChannel, int nSector, DExhumedActor* nWallSprite, int arg_4, int arg_5, int nCount, ...);
 int BuildWallFace(short nChannel, short nWall, int nCount, ...);
 int BuildSlide(int nChannel, int edx, int ebx, int ecx, int arg1, int arg2, int arg3);
 
 // queen
 
 void InitQueens();
-void BuildQueen(int nSprite, int x, int y, int z, int nSector, int nAngle, int nVal);
+void BuildQueen(DExhumedActor* nSprite, int x, int y, int z, int nSector, int nAngle, int nVal);
 void FuncQueenEgg(int, int, int, int);
 void FuncQueenHead(int, int, int, int);
 void FuncQueen(int, int, int, int);
@@ -363,11 +310,12 @@ void FuncQueen(int, int, int, int);
 
 struct RA
 {
+	DExhumedActor* pActor;
+	DExhumedActor* pTarget;
+	
     short nAction;
     short nFrame;
     short nRun;
-    short nSprite;
-    short nTarget;
     short field_A;
     short field_C;
     short nPlayer;
@@ -425,23 +373,10 @@ struct RunChannel
     short d;
 };
 
-enum class EMessageType
-{
-    ProcessChannel = 1,
-    Tick,
-    Process,
-    Use,
-    TouchFloor,
-    LeaveSector,
-    EnterSector,
-    Damage,
-    Draw,
-    RadialDamage
-};
 
 struct RunListEvent
 {
-    EMessageType nMessage;
+    int nMessage;
     int nParam;                 // mostly the player, sometimes the channel list
     int nObjIndex;
     DExhumedActor* pObjActor;
@@ -451,6 +386,9 @@ struct RunListEvent
 
     int nRadialDamage;          // Radial damage needs a bit more info.
     int nDamageRadius;
+    DExhumedActor* pRadialActor;
+
+    bool isRadialEvent() const { return nMessage == 1; }
 };
 
 struct ExhumedAI
@@ -735,7 +673,6 @@ struct AISWPressWall : public ExhumedAI
     void Use(RunListEvent* ev) override;
 };
 
-void runlist_DispatchEvent(ExhumedAI* ai, int nObject, int nMessage, int nDamage, int nRun);
 
 typedef void(*AiFunc)(int, int, int, int nRun);
 
@@ -743,8 +680,6 @@ extern FreeListArray<RunStruct, kMaxRuns> RunData;
 
 extern RunChannel sRunChannels[kMaxChannels];
 extern short NewRun;
-extern int nRadialOwner;
-extern short nRadialSpr;
 
 void runlist_InitRun();
 
@@ -762,22 +697,10 @@ int runlist_AllocChannel(int a);
 void runlist_DoSubRunRec(int RunPtr);
 void runlist_SubRunRec(int RunPtr);
 void runlist_ProcessWallTag(int nWall, short nLotag, short nHitag);
-int runlist_CheckRadialDamage(short nSprite);
-inline int runlist_CheckRadialDamage(DExhumedActor* actor)
-{
-    return runlist_CheckRadialDamage(actor->GetSpriteIndex());
-}
-void runlist_RadialDamageEnemy(short nSprite, short nDamage, short nRadius);
-inline void runlist_RadialDamageEnemy(DExhumedActor* nSprite, short nSprite2, short nDamage)
-{
-    return runlist_RadialDamageEnemy(nSprite->GetSpriteIndex(), nSprite2, nDamage);
-}
-void runlist_DamageEnemy(int nSprite, int nSprite2, short nDamage);
-inline void runlist_DamageEnemy(DExhumedActor* nSprite, DExhumedActor* nSprite2, short nDamage)
-{
-    return runlist_DamageEnemy(nSprite? nSprite->GetSpriteIndex() : -1, nSprite2? nSprite2->GetSpriteIndex() : -1, nDamage);
-}
-void runlist_SignalRun(int NxtPtr, int edx);
+int runlist_CheckRadialDamage(DExhumedActor* actor);
+void runlist_RadialDamageEnemy(DExhumedActor* nSprite, short nSprite2, short nDamage);
+void runlist_DamageEnemy(DExhumedActor* nSprite, DExhumedActor* nSprite2, short nDamage);
+void runlist_SignalRun(int NxtPtr, int edx, void(ExhumedAI::* func)(RunListEvent*), RunListEvent* ev = nullptr);
 
 void runlist_CleanRunRecs();
 void runlist_ExecObjects();
@@ -789,8 +712,7 @@ void FuncScorp(int, int, int, int);
 
 // set
 
-void InitSets();
-void BuildSet(short nSprite, int x, int y, int z, short nSector, short nAngle, int nChannel);
+void BuildSet(DExhumedActor* nSprite, int x, int y, int z, short nSector, short nAngle, int nChannel);
 void FuncSoul(int, int, int, int);
 void FuncSet(int, int, int, int);
 
@@ -801,9 +723,10 @@ enum { kSnakeSprites = 8 }; // or rename to kSnakeParts?
 // 32bytes
 struct Snake
 {
-    short nEnemy;	 // nRun
-    short nSprites[kSnakeSprites];
+    DExhumedActor* pEnemy;	 // nRun
+    DExhumedActor* pSprites[kSnakeSprites];
 
+	short nCountdown;
     short sC;
     short nRun;
 

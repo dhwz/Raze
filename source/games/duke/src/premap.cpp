@@ -60,9 +60,9 @@ void pickrandomspot(int snum)
         i = krand()%numplayersprites;
     else i = snum;
 
-    p->bobposx = p->oposx = p->posx = po[i].ox;
-    p->bobposy = p->oposy = p->posy = po[i].oy;
-    p->oposz = p->posz = po[i].oz;
+    p->bobposx = p->oposx = p->pos.x = po[i].ox;
+    p->bobposy = p->oposy = p->pos.y = po[i].oy;
+    p->oposz = p->pos.z = po[i].oz;
     p->angle.oang = p->angle.ang = buildang(po[i].oa);
     p->cursectnum = po[i].os;
 }
@@ -242,7 +242,7 @@ void resetplayerstats(int snum)
 
     if (numplayers < 2)
     {
-        ufospawn = isRRRA()? 3 : std::min(ud.player_skill*4+1, 32);
+        ufospawn = isRRRA()? 3 : min(ud.player_skill*4+1, 32);
         ufocnt = 0;
         hulkspawn = ud.player_skill + 1;
     }
@@ -278,7 +278,7 @@ void resetweapons(int snum)
     p->curr_weapon = PISTOL_WEAPON;
     p->gotweapon[PISTOL_WEAPON] = true;
     p->gotweapon[KNEE_WEAPON] = true;
-    p->ammo_amount[PISTOL_WEAPON] = std::min<int16_t>(gs.max_ammo_amount[PISTOL_WEAPON], 48);
+    p->ammo_amount[PISTOL_WEAPON] = min<int16_t>(gs.max_ammo_amount[PISTOL_WEAPON], 48);
     p->gotweapon[HANDREMOTE_WEAPON] = true;
     p->last_weapon = -1;
 
@@ -362,7 +362,7 @@ void resetinventory(int snum)
 
     if (numplayers < 2)
     {
-        ufospawn = std::min(ud.player_skill*4+1, 32);
+        ufospawn = min(ud.player_skill*4+1, 32);
         ufocnt = 0;
         hulkspawn = ud.player_skill + 1;
     }
@@ -479,7 +479,7 @@ void resetprestat(int snum,int g)
 
     if (numplayers < 2)
     {
-        ufospawn = std::min(ud.player_skill*4+1, 32);
+        ufospawn = min(ud.player_skill*4+1, 32);
         ufocnt = 0;
         hulkspawn = ud.player_skill + 1;
     }
@@ -507,7 +507,7 @@ void resetpspritevars(int g)
     int aimmode[MAXPLAYERS];
     STATUSBARTYPE tsbar[MAXPLAYERS];
 
-    EGS(ps[0].cursectnum, ps[0].posx, ps[0].posy, ps[0].posz,
+    EGS(ps[0].cursectnum, ps[0].pos.x, ps[0].pos.y, ps[0].pos.z,
         TILE_APLAYER, 0, 0, 0, ps[0].angle.ang.asbuild(), 0, 0, nullptr, 10);
 
     if (ud.recstat != 2) for (i = 0; i < MAXPLAYERS; i++)
@@ -579,8 +579,8 @@ void resetpspritevars(int g)
 
         if (numplayersprites == 0)
         {
-            firstx = ps[0].posx;
-            firsty = ps[0].posy;
+            firstx = ps[0].pos.x;
+            firsty = ps[0].pos.y;
         }
 
         po[numplayersprites].ox = s->x;
@@ -627,9 +627,9 @@ void resetpspritevars(int g)
             ps[j].frag_ps = j;
             act->SetOwner(act);
 
-            ps[j].bobposx = ps[j].oposx = ps[j].posx = s->x;
-            ps[j].bobposy = ps[j].oposy = ps[j].posy = s->y;
-            ps[j].oposz = ps[j].posz = s->z;
+            ps[j].bobposx = ps[j].oposx = ps[j].pos.x = s->x;
+            ps[j].bobposy = ps[j].oposy = ps[j].pos.y = s->y;
+            ps[j].oposz = ps[j].pos.z = s->z;
             s->backuppos();
             ps[j].angle.oang = ps[j].angle.ang = buildang(s->ang);
 

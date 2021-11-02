@@ -288,10 +288,9 @@ void AISpider::Tick(RunListEvent* ev)
     if (nMov.type == kHitNone && nMov.exbits == 0)
         return;
 
-    Collision HiHit(hihit);    // fixme
     if (nMov.exbits & kHitAux1
         && sp->zvel < 0
-        && HiHit.type != kHitSprite
+        && hiHit.type != kHitSprite
         && !((sector[sp->sectnum].ceilingstat) & 1))
     {
         sp->cstat |= 8;
@@ -404,14 +403,9 @@ void AISpider::Damage(RunListEvent* ev)
 
         for (int i = 0; i < 7; i++)
         {
-            BuildCreatureChunk(spp->GetSpriteIndex(), seq_GetSeqPicnum(kSeqSpider, i + 41, 0));
+            BuildCreatureChunk(spp, seq_GetSeqPicnum(kSeqSpider, i + 41, 0));
         }
     }
 }
 
-void FuncSpider(int nObject, int nMessage, int nDamage, int nRun)
-{
-    AISpider ai;
-    runlist_DispatchEvent(&ai, nObject, nMessage, nDamage, nRun);
-}
 END_PS_NS

@@ -47,9 +47,19 @@ extern int nLocalPlayer;
 extern int lPlayerXVel;
 extern int lPlayerYVel;
 
+struct PlayerSave
+{
+    int x;
+    int y;
+    int z;
+    short nSector;
+    short nAngle;
+};
+
 struct Player
 {
-	DExhumedActor* Actor() { return nSprite == -1? nullptr : &exhumedActors[nSprite]; }
+	DExhumedActor* Actor() { return pActor; }
+    DExhumedActor* pActor;
     short nHealth;
     short nLives;
     short nDouble;
@@ -57,7 +67,6 @@ struct Player
     short nTorch;
     short field_2;
     short nAction;
-    short nSprite;
     short bIsMummified;
     short invincibility;
     short nAir;
@@ -68,7 +77,6 @@ struct Player
     short nItem;
     uint8_t items[8];
     short nAmmo[7]; // TODO - kMaxWeapons?
-    short pad[2];
 
     short nCurrentWeapon;
     short field_3FOUR;
@@ -82,51 +90,45 @@ struct Player
 
     PlayerHorizon horizon;
     PlayerAngle angle;
+
+    short nBreathTimer;
+    short nPlayerSwear;
+    short nPlayerPushSect;
+    short nDeathType;
+    short nPlayerScore;
+    short nPlayerColor;
+    int nPlayerDY;
+    int nPlayerDX;
+    short nPistolClip;
+    int nXDamage;
+    int nYDamage;
+    short nPlayerOldWeapon;
+    short nPlayerClip;
+    short nPlayerPushSound;
+    short nTauntTimer;
+    uint16_t nPlayerWeapons; // each set bit represents a weapon the player has
+    short nPlayerViewSect;
+    PlayerSave sPlayerSave;
+    int ototalvel;
+    int totalvel;
+    int16_t eyelevel, oeyelevel;
+    DExhumedActor* pPlayerGrenade;
+    DExhumedActor* pPlayerFloorSprite;
+    DExhumedActor* pDoppleSprite;
+
 };
 
 extern short PlayerCount;
 
-extern short nPlayerLives[];
-extern Player PlayerList[];
-extern short nPlayerViewSect[];
-extern short nPlayerFloorSprite[];
-
-extern short nTauntTimer[];
-
-extern short nDoppleSprite[];
-
-extern uint16_t nPlayerWeapons[];
-
-extern short nPlayerOldWeapon[];
-extern short nPlayerGrenade[kMaxPlayers];
-extern short nGrenadePlayer[50];
-
-extern short nPistolClip[];
-
-extern short nPlayerScore[];
-
-extern short nPlayerClip[];
+extern Player PlayerList[kMaxPlayers];
 
 extern short obobangle, bobangle;
 
-extern int ototalvel[], totalvel[];
-extern int16_t eyelevel[], oeyelevel[];
-
-extern short nNetStartSprite[kMaxPlayers];
+extern DExhumedActor* nNetStartSprite[kMaxPlayers];
 extern short nNetStartSprites;
 extern short nCurStartSprite;
 
-extern int nXDamage[kMaxPlayers];
-extern int nYDamage[kMaxPlayers];
-
-extern int nPlayerDY[kMaxPlayers];
-extern int nPlayerDX[kMaxPlayers];
-
-short GetPlayerFromSprite(short nSprite);
-short GetPlayerFromActor(DExhumedActor* actor)
-{
-    return GetPlayerFromSprite(actor->GetSpriteIndex());
-}
+short GetPlayerFromActor(DExhumedActor* actor);
 void SetPlayerMummified(int nPlayer, int bIsMummified);
 int AddAmmo(int nPlayer, int nWeapon, int nAmmoAmount);
 void ShootStaff(int nPlayer);

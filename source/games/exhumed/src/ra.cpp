@@ -43,8 +43,8 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, RA& w, RA* def)
     {
         arc ("frame", w.nFrame)
             ("action", w.nAction)
-            ("sprite", w.nSprite)
-            ("target", w.nTarget)
+            ("sprite", w.pActor)
+            ("target", w.pTarget)
             ("run", w.nRun)
             ("ata", w.field_A)
             ("atc", w.field_C)
@@ -63,22 +63,23 @@ void SerializeRa(FSerializer& arc)
 void FreeRa(short nPlayer)
 {
     int nRun = Ra[nPlayer].nRun;
-    int nSprite = Ra[nPlayer].nSprite;
-	auto pSprite = &sprite[nSprite];
+    auto pActor = Ra[nPlayer].pActor;
+	auto pSprite = &pActor->s();
 
     runlist_SubRunRec(nRun);
     runlist_DoSubRunRec(pSprite->owner);
     runlist_FreeRun(pSprite->lotag - 1);
 
-    mydeletesprite(nSprite);
+    DeleteActor(pActor);
 }
 
 void BuildRa(short nPlayer)
 {
-    short nPlayerSprite = PlayerList[nPlayer].nSprite;
+    auto pPlayerActor = PlayerList[nPlayer].Actor();
+    auto pPlayerSprite = &pPlayerActor->s();
 
-    int nSprite = insertsprite(sprite[nPlayerSprite].sectnum, 203);
-	auto pSprite = &sprite[nSprite];
+    auto pActor = insertActor(pPlayerSprite->sectnum, 203);
+	auto pSprite = &pActor->s();
 
     pSprite->cstat = 0x8000;
     pSprite->xvel = 0;
@@ -91,16 +92,14 @@ void BuildRa(short nPlayer)
     pSprite->pal = 1;
     pSprite->xrepeat = 64;
     pSprite->yrepeat = 64;
-    pSprite->x = sprite[nPlayerSprite].x;
-    pSprite->y = sprite[nPlayerSprite].y;
-    pSprite->z = sprite[nPlayerSprite].z;
+    pSprite->pos = pPlayerSprite->pos;
 
 //	GrabTimeSlot(3);
 
-    Ra[nPlayer].nSprite = nSprite;
+    Ra[nPlayer].pActor = pActor;
 
     Ra[nPlayer].nRun = runlist_AddRunRec(NewRun, nPlayer, 0x210000);
-    Ra[nPlayer].nTarget = -1;
+    Ra[nPlayer].pTarget = nullptr;
     Ra[nPlayer].nFrame  = 0;
     Ra[nPlayer].nAction = 0;
     Ra[nPlayer].field_C = 0;
@@ -114,16 +113,17 @@ void InitRa()
 
 void MoveRaToEnemy(short nPlayer)
 {
-    short nTarget = Ra[nPlayer].nTarget;
-    short nSprite = Ra[nPlayer].nSprite;
+    auto pTarget = Ra[nPlayer].pTarget;
+    auto pActor = Ra[nPlayer].pActor;
     short nAction = Ra[nPlayer].nAction;
-	auto pSprite = &sprite[nSprite];
+	auto pSprite = &pActor->s();
 
-    if (nTarget != -1)
+    if (pTarget)
     {
-        if (!(sprite[nTarget].cstat & 0x101) || sprite[nTarget].sectnum == MAXSECTORS)
+		auto pTargSprite = &pTarget->s();
+        if (!(pTargSprite->cstat & 0x101) || pTargSprite->sectnum == MAXSECTORS)
         {
-            Ra[nPlayer].nTarget = -1;
+            Ra[nPlayer].pTarget = nullptr;
             if (nAction == 0 || nAction == 3) {
                 return;
             }
@@ -134,8 +134,8 @@ void MoveRaToEnemy(short nPlayer)
         }
         else
         {
-            if (pSprite->sectnum != sprite[nTarget].sectnum) {
-                mychangespritesect(nSprite, sprite[nTarget].sectnum);
+            if (pSprite->sectnum != pTargSprite->sectnum) {
+                ChangeActorSect(pActor, pTargSprite->sectnum);
             }
         }
     }
@@ -153,15 +153,16 @@ void MoveRaToEnemy(short nPlayer)
         }
 
         pSprite->cstat = 0x8000;
-        nTarget = PlayerList[nPlayer].nSprite;
+        pTarget = PlayerList[nPlayer].Actor();
     }
+	auto pTargSprite = &pTarget->s();
 
-    pSprite->x = sprite[nTarget].x;
-    pSprite->y = sprite[nTarget].y;
-    pSprite->z = sprite[nTarget].z - GetSpriteHeight(nTarget);
+    pSprite->x = pTargSprite->x;
+    pSprite->y = pTargSprite->y;
+    pSprite->z = pTargSprite->z - GetActorHeight(pTarget);
 
-    if (pSprite->sectnum != sprite[nTarget].sectnum) {
-        mychangespritesect(nSprite, sprite[nTarget].sectnum);
+    if (pSprite->sectnum != pTargSprite->sectnum) {
+        ChangeActorSect(pActor, pTargSprite->sectnum);
     }
 }
 
@@ -171,17 +172,17 @@ void AIRa::Tick(RunListEvent* ev)
     short nCurrentWeapon = PlayerList[nPlayer].nCurrentWeapon;
 
     short nSeq = SeqOffsets[kSeqEyeHit] + RaSeq[Ra[nPlayer].nAction].a;
-    short nSprite = Ra[nPlayer].nSprite;
-    auto pSprite = &sprite[nSprite];
+    auto pActor = Ra[nPlayer].pActor;
+    auto pSprite = &pActor->s();
 
     bool bVal = false;
 
-    Ra[nPlayer].nTarget = sPlayerInput[nPlayer].nTarget;
+    Ra[nPlayer].pTarget = sPlayerInput[nPlayer].pTarget;
     pSprite->picnum = seq_GetSeqPicnum2(nSeq, Ra[nPlayer].nFrame);
 
     if (Ra[nPlayer].nAction)
     {
-        seq_MoveSequence(nSprite, nSeq, Ra[nPlayer].nFrame);
+        seq_MoveSequence(pActor, nSeq, Ra[nPlayer].nFrame);
 
         Ra[nPlayer].nFrame++;
         if (Ra[nPlayer].nFrame >= SeqSize[nSeq])
@@ -197,7 +198,7 @@ void AIRa::Tick(RunListEvent* ev)
     {
         MoveRaToEnemy(nPlayer);
 
-        if (!Ra[nPlayer].field_C || Ra[nPlayer].nTarget <= -1)
+        if (!Ra[nPlayer].field_C || Ra[nPlayer].pTarget == nullptr)
         {
             pSprite->cstat = 0x8000;
         }
@@ -241,7 +242,7 @@ void AIRa::Tick(RunListEvent* ev)
         }
         else
         {
-            if (Ra[nPlayer].nFrame || Ra[nPlayer].nTarget <= -1)
+            if (Ra[nPlayer].nFrame || Ra[nPlayer].pTarget == nullptr)
             {
                 if (!bVal) {
                     return;
@@ -254,9 +255,9 @@ void AIRa::Tick(RunListEvent* ev)
             {
                 if (PlayerList[nPlayer].nAmmo[kWeaponRing] > 0)
                 {
-                    runlist_DamageEnemy(Ra[nPlayer].nTarget, PlayerList[Ra[nPlayer].nPlayer].nSprite, BulletInfo[kWeaponRing].nDamage);
+                    runlist_DamageEnemy(Ra[nPlayer].pTarget, PlayerList[Ra[nPlayer].nPlayer].Actor(), BulletInfo[kWeaponRing].nDamage);
                     AddAmmo(nPlayer, kWeaponRing, -WeaponInfo[kWeaponRing].d);
-                    SetQuake(nSprite, 100);
+                    SetQuake(pActor, 100);
                 }
                 else
                 {
@@ -294,14 +295,8 @@ void AIRa::Draw(RunListEvent* ev)
     short nSeq = SeqOffsets[kSeqEyeHit] + RaSeq[Ra[nPlayer].nAction].a;
 
     seq_PlotSequence(ev->nParam, nSeq, Ra[nPlayer].nFrame, 1);
-    mytsprite[ev->nParam].owner = -1;
+    ev->pTSprite->owner = -1;
 }
 
-void FuncRa(int nObject, int nMessage, int nDamage, int nRun)
-{
-    AIRa ai;
-    runlist_DispatchEvent(&ai, nObject, nMessage, nDamage, nRun);
-
-}
 
 END_PS_NS

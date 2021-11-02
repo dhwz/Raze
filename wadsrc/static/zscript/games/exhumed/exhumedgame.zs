@@ -41,7 +41,7 @@ struct ExhumedPlayer native
 	native int16 nTorch;
 	native int16 field_2;
 	native int16 nAction;
-	native int16 nSprite;
+	//native int16 nSprite;
 	native int16 bIsMummified;
 	native int16 invincibility;
 	native int16 nAir;
@@ -52,7 +52,6 @@ struct ExhumedPlayer native
 	native int16 nItem;
 	native uint8 items[8];
 	native int16 nAmmo[7]; // TODO - kMaxWeapons?
-	native int16 pad[2];
 
 	native int16 nCurrentWeapon;
 	native int16 field_3FOUR;

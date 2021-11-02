@@ -2,8 +2,6 @@
 
 BEGIN_PS_NS
 
-void mydeletesprite(int nSprite);
-
 class DExhumedActor;
 
 enum
@@ -97,7 +95,13 @@ public:
 	union { short nIndex; short nAngle; };	// angle is for wasp.
 	union { short nIndex2; short nAngle2; }; // index2 is for scorpion, angle2 is for wasp.
 	union { short nChannel; short nVel; };	// channel is for scorpion, vel is for wasp.
-	short nDamage;
+	union { short nDamage; short nAction2; }; // nAction2 is for the queen.
+
+	// for the grenade.
+	int nTurn;
+	int x;
+	int y;
+
 
 	DExhumedActor() :index(int(this - base())) {}
 	DExhumedActor& operator=(const DExhumedActor& other) = default;
@@ -213,11 +217,6 @@ public:
 
 
 
-inline void DeleteSprite(DExhumedActor* nSprite)
-{
-	if (nSprite) mydeletesprite(nSprite->GetSpriteIndex());
-}
-
 inline FSerializer& Serialize(FSerializer& arc, const char* keyname, DExhumedActor*& w, DExhumedActor** def)
 {
 	int index = w? int(w - exhumedActors) : -1;
@@ -243,7 +242,7 @@ inline void setActorPos(DExhumedActor* actor, vec3_t* pos)
 
 inline DExhumedActor* GetActor(const hitdata_t& hitData)
 {
-	return &exhumedActors[hitData.sprite];
+	return hitData.sprite < 0? nullptr : &exhumedActors[hitData.sprite];
 }
 
 END_BLD_NS

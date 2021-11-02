@@ -105,30 +105,28 @@ short x/y repeat
 
 */
 
-short nRegenerates;
-short nFirstRegenerate;
+TArray<DExhumedActor*> Regenerates;
 short nMagicCount;
 
 void SerializeItems(FSerializer& arc)
 {
     if (arc.BeginObject("items"))
     {
-        arc("regenerates", nRegenerates)
-            ("first", nFirstRegenerate)
+        arc("regenerates", Regenerates)
             ("magiccount", nMagicCount)
             .EndObject();
     }
 }
 
-void BuildItemAnim(short nSprite)
+void BuildItemAnim(DExhumedActor* pActor)
 {
-	auto pSprite = &sprite[nSprite];
+	auto pSprite = &pActor->s();
 
     int nItem = pSprite->statnum - 906;
 
     if (nItemAnimInfo[nItem].a >= 0)
     {
-        auto pAnimActor = BuildAnim(&exhumedActors[nSprite], 41, nItemAnimInfo[nItem].a, pSprite->x, pSprite->y, pSprite->z, pSprite->sectnum, nItemAnimInfo[nItem].repeat, 20);
+        auto pAnimActor = BuildAnim(pActor, 41, nItemAnimInfo[nItem].a, pSprite->x, pSprite->y, pSprite->z, pSprite->sectnum, nItemAnimInfo[nItem].repeat, 20);
 
         if (nItem == 44) {
             pAnimActor->s().cstat |= 2;
@@ -146,10 +144,10 @@ void BuildItemAnim(short nSprite)
     }
 }
 
-void DestroyItemAnim(short nSprite)
+void DestroyItemAnim(DExhumedActor* actor)
 {
-    if (sprite[nSprite].owner == 0) 
-        DestroyAnim(&exhumedActors[nSprite]);
+    if (actor && actor->s().owner == 0) 
+        DestroyAnim(actor);
 }
 
 void ItemFlash()
@@ -181,19 +179,19 @@ static bool UseEye(short nPlayer)
     if (PlayerList[nPlayer].nInvisible >= 0) 
         PlayerList[nPlayer].nInvisible = 900;
 
-    int nSprite = PlayerList[nPlayer].nSprite;
-	auto pSprite = &sprite[nSprite];
+    auto pActor = PlayerList[nPlayer].Actor();
+	auto pSprite = &pActor->s();
 
     pSprite->cstat |= 0x8000;
 
-    if (nPlayerFloorSprite[nPlayer] >= 0) {
+    if (PlayerList[nPlayer].pPlayerFloorSprite != nullptr) {
         pSprite->cstat |= 0x8000;
     }
 
     if (nPlayer == nLocalPlayer)
     {
         ItemFlash();
-        D3PlayFX(StaticSound[kSound31], nSprite);
+        D3PlayFX(StaticSound[kSound31], pActor);
     }
     return true;
 }
@@ -205,7 +203,7 @@ static bool UseMask(short nPlayer)
 
     if (nPlayer == nLocalPlayer)
     {
-        D3PlayFX(StaticSound[kSound31], PlayerList[nPlayer].nSprite);
+        D3PlayFX(StaticSound[kSound31], PlayerList[nPlayer].Actor());
     }
     return true;
 }
@@ -229,7 +227,7 @@ bool UseHeart(short nPlayer)
         if (nPlayer == nLocalPlayer)
         {
             ItemFlash();
-            D3PlayFX(StaticSound[kSound31], PlayerList[nPlayer].nSprite);
+            D3PlayFX(StaticSound[kSound31], PlayerList[nPlayer].Actor());
         }
         return true;
     }
@@ -245,7 +243,7 @@ bool UseScarab(short nPlayer)
     if (nPlayer == nLocalPlayer)
     {
         ItemFlash();
-        D3PlayFX(StaticSound[kSound31], PlayerList[nPlayer].nSprite);
+        D3PlayFX(StaticSound[kSound31], PlayerList[nPlayer].Actor());
     }
     return true;
 }
@@ -258,7 +256,7 @@ static bool UseHand(short nPlayer)
     if (nPlayer == nLocalPlayer)
     {
         ItemFlash();
-        D3PlayFX(StaticSound[kSound31], PlayerList[nPlayer].nSprite);
+        D3PlayFX(StaticSound[kSound31], PlayerList[nPlayer].Actor());
     }
     return true;
 }
@@ -330,9 +328,9 @@ int GrabItem(short nPlayer, short nItem)
     return 1;
 }
 
-void DropMagic(short nSprite)
+void DropMagic(DExhumedActor* pActor)
 {
-	auto pSprite = &sprite[nSprite];
+	auto pSprite = &pActor->s();
 
     if (lFinaleStart) {
         return;
@@ -364,59 +362,30 @@ void DropMagic(short nSprite)
 
 void InitItems()
 {
-    nRegenerates = 0;
-    nFirstRegenerate = -1;
+    Regenerates.Clear();
     nMagicCount = 0;
 }
 
-void StartRegenerate(short nSprite)
+void StartRegenerate(DExhumedActor* pActor)
 {
-    spritetype *pSprite = &sprite[nSprite];
+    spritetype *pSprite = &pActor->s();
 
-    int edi = -1;
+    DExhumedActor* pCurr = nullptr;
 
-    int nReg = nFirstRegenerate;
-
-    int i = 0;
-
-//	for (int i = 0; i < nRegenerates; i++)
-    while (1)
+    auto pos = Regenerates.Find(pActor);
+    if (pos >= Regenerates.Size())
     {
-        if (i >= nRegenerates)
-        {
-            // ?? CHECKME
-            pSprite->xvel = pSprite->xrepeat;
-            pSprite->zvel = pSprite->shade;
-            pSprite->yvel = pSprite->pal;
-            break;
-        }
-        else
-        {
-            if (nReg != nSprite)
-            {
-                edi = nReg;
-                nReg = sprite[nReg].ang;
-                i++;
-                continue;
-            }
-            else
-            {
-                if (edi == -1)
-                {
-                    nFirstRegenerate = pSprite->ang;
-                }
-                else
-                {
-                    sprite[edi].ang = pSprite->ang;
-                }
-
-                nRegenerates--;
-            }
-        }
+        // ?? CHECKME
+        pSprite->xvel = pSprite->xrepeat;
+        pSprite->zvel = pSprite->shade;
+        pSprite->yvel = pSprite->pal;
+    }
+    else
+    {
+        Regenerates.Delete(pos);
     }
 
     pSprite->extra = 1350;
-    pSprite->ang = nFirstRegenerate;
 
     if (!(currentLevel->gameflags & LEVEL_EX_MULTI))
     {
@@ -428,17 +397,15 @@ void StartRegenerate(short nSprite)
     pSprite->yrepeat = 1;
     pSprite->pal = 1;
 
-    nRegenerates++;
-    nFirstRegenerate = nSprite;
+    Regenerates.Push(pActor);
 }
 
 void DoRegenerates()
 {
-    int nSprite = nFirstRegenerate;
-	auto pSprite = &sprite[nSprite];
-
-    for (int i = nRegenerates; i > 0; i--, nSprite = pSprite->ang)
+    for(unsigned i = 0; i < Regenerates.Size(); i++)
     {
+        auto pActor = Regenerates[i];
+        auto pSprite = &pActor->s();
         if (pSprite->extra > 0)
         {
             pSprite->extra--;
@@ -446,7 +413,7 @@ void DoRegenerates()
             if (pSprite->extra <= 0)
             {
                 BuildAnim(nullptr, 38, 0, pSprite->x, pSprite->y, pSprite->z, pSprite->sectnum, 64, 4);
-                D3PlayFX(StaticSound[kSoundTorchOn], nSprite);
+                D3PlayFX(StaticSound[kSoundTorchOn], pActor);
             }
             else {
                 continue;
@@ -468,7 +435,6 @@ void DoRegenerates()
         pSprite->pal  = (uint8_t)pSprite->yvel;
         pSprite->yvel = pSprite->zvel; // setting to 0
         pSprite->xvel = pSprite->zvel; // setting to 0
-        nRegenerates--;
 
         if (pSprite->statnum == kStatExplodeTrigger) {
             pSprite->cstat = 0x101;
@@ -476,10 +442,8 @@ void DoRegenerates()
         else {
             pSprite->cstat = 0;
         }
-
-        if (nRegenerates == 0) {
-            nFirstRegenerate = -1;
-        }
+        Regenerates.Delete(i);
+        i--;
     }
 }
 END_PS_NS

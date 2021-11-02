@@ -37,11 +37,11 @@
 #pragma once
 
 #include <math.h>
+#include "basics.h"
 #include "m_fixed.h"
 #include "xs_Float.h"	// needed for reliably overflowing float->int conversions.
 #include "serializer.h"
 #include "math/cmath.h"
-#include "templates.h"
 
 class FSerializer;
 
@@ -49,7 +49,10 @@ enum
 {
 	BAMBITS = 21,
 	BAMUNIT = 1 << BAMBITS,
-	SINSHIFT = 14
+	SINTABLEBITS = 30,
+	SINTABLEUNIT = 1 << SINTABLEBITS,
+	BUILDSINBITS = 14,
+	BUILDSINSHIFT = SINTABLEBITS - BUILDSINBITS,
 };
 
 //---------------------------------------------------------------------------
@@ -61,7 +64,12 @@ enum
 constexpr double BAngRadian = pi::pi() * (1. / 1024.);
 constexpr double BAngToDegree = 360. / 2048.;
 
-extern int16_t sintable[2048];
+extern int sintable[2048];
+
+inline constexpr double sinscale(const int shift)
+{
+	return shift >= -BUILDSINBITS ? uint64_t(1) << (BUILDSINBITS + shift) : 1. / (uint64_t(1) << abs(BUILDSINBITS + shift));
+}
 
 //---------------------------------------------------------------------------
 //
@@ -69,13 +77,13 @@ extern int16_t sintable[2048];
 //
 //---------------------------------------------------------------------------
 
-inline int bsin(const int ang, const int shift = 0)
+inline int bsin(const int ang, int shift = 0)
 {
-	return shift < 0 ? sintable[ang & 2047] >> abs(shift) : sintable[ang & 2047] << shift;
+	return (shift -= BUILDSINSHIFT) < 0 ? sintable[ang & 2047] >> abs(shift) : sintable[ang & 2047] << shift;
 }
 inline double bsinf(const double ang, const int shift = 0)
 {
-	return g_sin(ang * BAngRadian) * (shift >= -SINSHIFT ? uint64_t(1) << (SINSHIFT + shift) : 1. / (uint64_t(1) << abs(SINSHIFT + shift)));
+	return g_sin(ang * BAngRadian) * sinscale(shift);
 }
 
 
@@ -85,13 +93,13 @@ inline double bsinf(const double ang, const int shift = 0)
 //
 //---------------------------------------------------------------------------
 
-inline int bcos(const int ang, const int shift = 0)
+inline int bcos(const int ang, int shift = 0)
 {
-	return shift < 0 ? sintable[(ang + 512) & 2047] >> abs(shift) : sintable[(ang + 512) & 2047] << shift;
+	return (shift -= BUILDSINSHIFT) < 0 ? sintable[(ang + 512) & 2047] >> abs(shift) : sintable[(ang + 512) & 2047] << shift;
 }
 inline double bcosf(const double ang, const int shift = 0)
 {
-	return g_cos(ang * BAngRadian) * (shift >= -SINSHIFT ? uint64_t(1) << (SINSHIFT + shift) : 1. / (uint64_t(1) << abs(SINSHIFT + shift)));
+	return g_cos(ang * BAngRadian) * sinscale(shift);
 }
 
 
@@ -115,12 +123,13 @@ class binangle
 	friend binangle degang(double v);
 
 	friend FSerializer &Serialize(FSerializer &arc, const char *key, binangle &obj, binangle *defval);
+
+	constexpr int32_t tosigned() const { return value > INT32_MAX ? int64_t(value) - UINT32_MAX : value; }
 	
 public:
 	binangle() = default;
 	binangle(const binangle &other) = default;
 	// This class intentionally makes no allowances for implicit type conversions because those would render it ineffective.
-	constexpr int32_t tosigned() const { return value > INT32_MAX ? int64_t(value) - UINT32_MAX : value; }
 	constexpr short asbuild() const { return value >> BAMBITS; }
 	constexpr double asbuildf() const { return value * (1. / BAMUNIT); }
 	constexpr fixed_t asq16() const { return value >> 5; }
@@ -174,24 +183,24 @@ public:
 
 	constexpr binangle &operator<<= (const uint8_t shift)
 	{
-		value <<= shift;
+		value = tosigned() << shift;
 		return *this;
 	}
 
 	constexpr binangle &operator>>= (const uint8_t shift)
 	{
-		value >>= shift;
+		value = tosigned() >> shift;
 		return *this;
 	}
 
 	constexpr binangle operator<< (const uint8_t shift) const
 	{
-		return binangle(value << shift);
+		return binangle(tosigned() << shift);
 	}
 
 	constexpr binangle operator>> (const uint8_t shift) const
 	{
-		return binangle(value >> shift);
+		return binangle(tosigned() >> shift);
 	}
 };
 
@@ -217,7 +226,7 @@ inline FSerializer &Serialize(FSerializer &arc, const char *key, binangle &obj, 
 inline double HorizToPitch(double horiz) { return atan2(horiz, 128) * (180. / pi::pi()); }
 inline double HorizToPitch(fixed_t q16horiz) { return atan2(q16horiz, IntToFixed(128)) * (180. / pi::pi()); }
 inline fixed_t PitchToHoriz(double pitch) { return xs_CRoundToInt(IntToFixed(128) * tan(pitch * (pi::pi() / 180.))); }
-inline int32_t PitchToBAM(double pitch) { return xs_CRoundToInt(clamp(pitch * (1073741823.5 / 45.), -INT32_MAX, INT32_MAX)); }
+inline int32_t PitchToBAM(double pitch) { return xs_CRoundToInt(clamp<double>(pitch * (1073741823.5 / 45.), -INT32_MAX, INT32_MAX)); }
 inline constexpr double BAMToPitch(int32_t bam) { return bam * (45. / 1073741823.5); }
 
 

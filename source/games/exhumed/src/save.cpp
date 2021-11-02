@@ -30,9 +30,7 @@ BEGIN_PS_NS
 
 void SerializeState(FSerializer& arc);
 void SerializeAnim(FSerializer& arc);
-void SerializeBubbles(FSerializer& arc);
 void SerializeBullet(FSerializer& arc);
-void SerializeGrenade(FSerializer& arc);
 void SerializeGun(FSerializer& arc);
 void SerializeInit(FSerializer& arc);
 void SerializeItems(FSerializer& arc);
@@ -50,7 +48,6 @@ void SerializeView(FSerializer& arc);
 
 void SerializeQueen(FSerializer& arc);
 void SerializeRat(FSerializer& arc);
-void SerializeSet(FSerializer& arc);
 
 void GameInterface::SerializeGameState(FSerializer& arc)
 {
@@ -58,9 +55,7 @@ void GameInterface::SerializeGameState(FSerializer& arc)
 	{
 		SerializeState(arc);
 		SerializeAnim(arc);
-		SerializeBubbles(arc);
 		SerializeBullet(arc);
-		SerializeGrenade(arc);
 		SerializeGun(arc);
 		SerializeInit(arc);
 		SerializeItems(arc);
@@ -78,7 +73,6 @@ void GameInterface::SerializeGameState(FSerializer& arc)
 
 		SerializeQueen(arc);
 		SerializeRat(arc);
-		SerializeSet(arc);
 	}
 	if (arc.isReading())
 	{

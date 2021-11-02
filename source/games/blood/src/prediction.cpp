@@ -279,7 +279,7 @@ void fakePlayerProcess(PLAYER *pPlayer, InputPacket *pInput)
     short nSector = predict.sectnum;
     if (!gNoClip)
     {
-        pushmove_old((int32_t*)&predict.x, (int32_t*)&predict.y, (int32_t*)&predict.z, &predict.sectnum, dw, dzt, dzb, CLIPMASK0);
+        pushmove(&predict.pos, &predict.sectnum, dw, dzt, dzb, CLIPMASK0);
         if (predict.sectnum == -1)
             predict.sectnum = nSector;
     }
@@ -383,14 +383,14 @@ static void fakeMoveDude(spritetype *pSprite)
         {
             short bakCstat = pSprite->cstat;
             pSprite->cstat &= ~257;
-            predict.at75.hit = ClipMove(&predict.x, &predict.y, &predict.z, &nSector, predict.xvel >> 12, predict.yvel >> 12, wd, tz, bz, CLIPMASK0);
+            predict.at75.hit = ClipMove(&predict.pos, &nSector, predict.xvel >> 12, predict.yvel >> 12, wd, tz, bz, CLIPMASK0);
             if (nSector == -1)
                 nSector = predict.sectnum;
                     
             if (sector[nSector].type >= kSectorPath && sector[nSector].type <= kSectorRotate)
             {
                 short nSector2 = nSector;
-                pushmove_old((int32_t*)&predict.x, (int32_t*)&predict.y, (int32_t*)&predict.z, &nSector2, wd, tz, bz, CLIPMASK0);
+                pushmove(&predict.pos, &nSector2, wd, tz, bz, CLIPMASK0);
                 if (nSector2 != -1)
                     nSector = nSector2;
             }

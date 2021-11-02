@@ -40,7 +40,8 @@ short NearCount = -1;
 
 DExhumedActor* nBodySprite[50];
 
-int hihit, sprceiling, sprfloor, lohit;
+int sprceiling, sprfloor;
+Collision loHit, hiHit;
 
 enum
 {
@@ -58,7 +59,7 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, BlockInfo& w, Bloc
     if (arc.BeginObject(keyname))
     {
         arc("at8", w.field_8)
-            ("sprite", w.nSprite)
+            ("sprite", w.pActor)
             ("x", w.x)
             ("y", w.y)
             .EndObject();
@@ -77,10 +78,6 @@ void SerializeMove(FSerializer& arc)
             ("chunkcount", nCurChunkNum)
             .Array("chunks", nChunkSprite, kMaxMoveChunks)
             ("overridesect", overridesect)
-            ("hihit", hihit)
-            ("lohit", lohit)
-            ("sprceiling", sprceiling)
-            ("sprfloor", sprfloor)
             .Array("bodysprite", nBodySprite, 50)
             .EndObject();
     }
@@ -288,16 +285,14 @@ int BelowNear(DExhumedActor* pActor)
     short nSector = pSprite->sectnum;
     int z = pSprite->z;
 
-    int var_24, z2;
+    int z2;
 
-    if ((lohit & 0xC000) == 0xC000)
+    if (loHit.type == kHitSprite)
     {
-        var_24 = lohit & 0xC000;
-        z2 = sprite[lohit & 0x3FFF].z;
+        z2 = loHit.actor->s().z;
     }
     else
     {
-        var_24 = 0x20000;
         z2 = sector[nSector].floorz + SectDepth[nSector];
 
         if (NearCount > 0)
@@ -334,7 +329,7 @@ int BelowNear(DExhumedActor* pActor)
 
         bTouchFloor = true;
 
-        return var_24;
+        return kHitAux2;
     }
     else
     {
@@ -342,9 +337,9 @@ int BelowNear(DExhumedActor* pActor)
     }
 }
 
-int movespritez(short nSprite, int z, int height, int, int clipdist)
+Collision movespritez(DExhumedActor* pActor, int z, int height, int, int clipdist)
 {
-    spritetype* pSprite = &sprite[nSprite];
+    spritetype* pSprite = &pActor->s();
     short nSector = pSprite->sectnum;
     assert(nSector >= 0 && nSector < kMaxSectors);
 
@@ -356,7 +351,7 @@ int movespritez(short nSprite, int z, int height, int, int clipdist)
 
     pSprite->cstat &= ~CSTAT_SPRITE_BLOCK;
 
-    int nRet = 0;
+    Collision nRet(0);
 
     short nSectFlags = SectFlag[nSector];
 
@@ -379,7 +374,7 @@ int movespritez(short nSprite, int z, int height, int, int clipdist)
     {
         edi = SectBelow[pSprite->sectnum];
 
-        mychangespritesect(nSprite, edi);
+        ChangeActorSect(pActor, edi);
     }
 
     if (edi != nSector)
@@ -388,8 +383,8 @@ int movespritez(short nSprite, int z, int height, int, int clipdist)
 
         if (SectFlag[edi] & kSectUnderwater)
         {
-            if (nSprite == PlayerList[nLocalPlayer].nSprite) {
-                D3PlayFX(StaticSound[kSound2], nSprite);
+            if (pActor == PlayerList[nLocalPlayer].Actor()) {
+                D3PlayFX(StaticSound[kSound2], pActor);
             }
 
             if (pSprite->statnum <= 107) {
@@ -403,18 +398,23 @@ int movespritez(short nSprite, int z, int height, int, int clipdist)
         {
             edi = SectAbove[pSprite->sectnum];
 
-            mychangespritesect(nSprite, edi);
+            ChangeActorSect(pActor, edi);
         }
     }
 
     // This function will keep the player from falling off cliffs when you're too close to the edge.
     // This function finds the highest and lowest z coordinates that your clipping BOX can get to.
-    getzrange_old(pSprite->x, pSprite->y, pSprite->z - 256, pSprite->sectnum,
+    int hihit, lohit;
+    vec3_t pos = pSprite->pos;
+    pos.z -= 256;
+    getzrange(&pSprite->pos, pSprite->sectnum,
         &sprceiling, &hihit, &sprfloor, &lohit, 128, CLIPMASK0);
+    hiHit.setFromEngine(hihit);
+    loHit.setFromEngine(lohit);
 
     int mySprfloor = sprfloor;
 
-    if ((lohit & 0xC000) != 0xC000) {
+    if (loHit.type != kHitSprite) {
         mySprfloor += SectDepth[pSprite->sectnum];
     }
 
@@ -424,30 +424,30 @@ int movespritez(short nSprite, int z, int height, int, int clipdist)
         {
             bTouchFloor = true;
 
-            if ((lohit & 0xC000) == 0xC000)
+            if (loHit.type == kHitSprite)
             {
                 // Path A
-                short nFloorSprite = lohit & 0x3FFF;
+                auto pFloorSprite = &loHit.actor->s();
 
-                if (pSprite->statnum == 100 && sprite[nFloorSprite].statnum != 0 && sprite[nFloorSprite].statnum < 100)
+                if (pSprite->statnum == 100 && pFloorSprite->statnum != 0 && pFloorSprite->statnum < 100)
                 {
                     short nDamage = (z >> 9);
                     if (nDamage)
                     {
-                        runlist_DamageEnemy(nFloorSprite, nSprite, nDamage << 1);
+                        runlist_DamageEnemy(loHit.actor, pActor, nDamage << 1);
                     }
 
                     pSprite->zvel = -z;
                 }
                 else
                 {
-                    if (sprite[nFloorSprite].statnum == 0 || sprite[nFloorSprite].statnum > 199)
+                    if (pFloorSprite->statnum == 0 || pFloorSprite->statnum > 199)
                     {
-                        nRet |= 0x20000;
+                        nRet.exbits |= kHitAux2;
                     }
                     else
                     {
-                        nRet |= lohit;
+                        nRet = loHit;
                     }
 
                     pSprite->zvel = 0;
@@ -458,7 +458,7 @@ int movespritez(short nSprite, int z, int height, int, int clipdist)
                 // Path B
                 if (SectBelow[pSprite->sectnum] == -1)
                 {
-                    nRet |= 0x20000;
+                    nRet.exbits |= kHitAux2;
 
                     short nSectDamage = SectDamage[pSprite->sectnum];
 
@@ -466,13 +466,13 @@ int movespritez(short nSprite, int z, int height, int, int clipdist)
                     {
                         if (pSprite->hitag < 15)
                         {
-                            IgniteSprite(nSprite);
+                            IgniteSprite(pActor);
                             pSprite->hitag = 20;
                         }
                         nSectDamage >>= 2;
                         nSectDamage = nSectDamage - (nSectDamage>>2);
                         if (nSectDamage) {
-                            runlist_DamageEnemy(nSprite, -1, nSectDamage);
+                            runlist_DamageEnemy(pActor, nullptr, nSectDamage);
                         }
                     }
 
@@ -487,10 +487,10 @@ int movespritez(short nSprite, int z, int height, int, int clipdist)
     }
     else
     {
-        if ((ebp - height) < sprceiling && ((hihit & 0xC000) == 0xC000 || SectAbove[pSprite->sectnum] == -1))
+        if ((ebp - height) < sprceiling && (hiHit.type == kHitSprite || SectAbove[pSprite->sectnum] == -1))
         {
             ebp = sprceiling + height;
-            nRet |= 0x10000;
+            nRet.exbits |= kHitAux1;
         }
     }
 
@@ -499,7 +499,7 @@ int movespritez(short nSprite, int z, int height, int, int clipdist)
         if ((SectDepth[nSector] != 0) || (edi != nSector && (SectFlag[edi] & kSectUnderwater)))
         {
             assert(nSector >= 0 && nSector < kMaxSectors);
-            BuildSplash(&exhumedActors[nSprite], nSector);
+            BuildSplash(pActor, nSector);
         }
     }
 
@@ -509,16 +509,10 @@ int movespritez(short nSprite, int z, int height, int, int clipdist)
     if (pSprite->statnum == 100)
     {
         BuildNear(pSprite->x, pSprite->y, clipdist + (clipdist / 2), pSprite->sectnum);
-        nRet |= BelowNear(&exhumedActors[nSprite]);
+        nRet.exbits |= BelowNear(pActor);
     }
 
     return nRet;
-}
-
-int GetSpriteHeight(int nSprite)
-{
-	auto pSprite = &sprite[nSprite];
-    return tileHeight(pSprite->picnum) * pSprite->yrepeat * 4;
 }
 
 int GetActorHeight(DExhumedActor* actor)
@@ -533,16 +527,16 @@ DExhumedActor* insertActor(int sect, int stat)
 }
 
 
-int movesprite(short nSprite, int dx, int dy, int dz, int, int flordist, unsigned int clipmask)
+Collision movesprite(DExhumedActor* pActor, int dx, int dy, int dz, int ceildist, int flordist, unsigned int clipmask)
 {
-    spritetype *pSprite = &sprite[nSprite];
+    spritetype *pSprite = &pActor->s();
     bTouchFloor = false;
 
     int x = pSprite->x;
     int y = pSprite->y;
     int z = pSprite->z;
 
-    int nSpriteHeight = GetSpriteHeight(nSprite);
+    int nSpriteHeight = GetActorHeight(pActor);
 
     int nClipDist = (int8_t)pSprite->clipdist << 2;
 
@@ -551,21 +545,19 @@ int movesprite(short nSprite, int dx, int dy, int dz, int, int flordist, unsigne
 
     int floorZ = sector[nSector].floorz;
 
-    int nRet = 0;
-
     if ((SectFlag[nSector] & kSectUnderwater) || (floorZ < z))
     {
         dx >>= 1;
         dy >>= 1;
     }
 
-    nRet |= movespritez(nSprite, dz, nSpriteHeight, flordist, nClipDist);
+    Collision nRet = movespritez(pActor, dz, nSpriteHeight, flordist, nClipDist);
 
     nSector = pSprite->sectnum; // modified in movespritez so re-grab this variable
 
     if (pSprite->statnum == 100)
     {
-        short nPlayer = GetPlayerFromSprite(nSprite);
+        short nPlayer = GetPlayerFromActor(pActor);
 
         int varA = 0;
         int varB = 0;
@@ -574,23 +566,29 @@ int movesprite(short nSprite, int dx, int dy, int dz, int, int flordist, unsigne
 
         if (varB || varA)
         {
-            nXDamage[nPlayer] = varB;
-            nYDamage[nPlayer] = varA;
+            PlayerList[nPlayer].nXDamage = varB;
+            PlayerList[nPlayer].nYDamage = varA;
         }
 
-        dx += nXDamage[nPlayer];
-        dy += nYDamage[nPlayer];
+        dx += PlayerList[nPlayer].nXDamage;
+        dy += PlayerList[nPlayer].nYDamage;
     }
     else
     {
         CheckSectorFloor(overridesect, pSprite->z, &dx, &dy);
     }
 
-    nRet |= (uint16_t)clipmove_old(&pSprite->x, &pSprite->y, &pSprite->z, &nSector, dx, dy, nClipDist, nSpriteHeight, flordist, clipmask);
+    int colv = clipmove(&pSprite->pos, &nSector, dx, dy, nClipDist, nSpriteHeight, flordist, clipmask);
+    Collision coll(colv);
+    if (coll.type != kHitNone) // originally this or'ed the two values which can create unpredictable bad values in some edge cases.
+    {
+        coll.exbits = nRet.exbits;
+        nRet = coll;
+    }
 
     if ((nSector != pSprite->sectnum) && nSector >= 0)
     {
-        if (nRet & 0x20000) {
+        if (nRet.exbits & kHitAux2) {
             dz = 0;
         }
 
@@ -601,7 +599,7 @@ int movesprite(short nSprite, int dx, int dy, int dz, int, int flordist, unsigne
         }
         else
         {
-            mychangespritesect(nSprite, nSector);
+            ChangeActorSect(pActor, nSector);
 
             if (pSprite->pal < 5 && !pSprite->hitag)
             {
@@ -613,9 +611,9 @@ int movesprite(short nSprite, int dx, int dy, int dz, int, int flordist, unsigne
     return nRet;
 }
 
-void Gravity(short nSprite)
+void Gravity(DExhumedActor* actor)
 {
-    auto pSprite = &sprite[nSprite];
+    auto pSprite = &actor->s();
     short nSector = pSprite->sectnum;
 
     if (SectFlag[nSector] & kSectUnderwater)
@@ -660,21 +658,21 @@ void Gravity(short nSprite)
     }
 }
 
-int MoveCreature(short nSprite)
+Collision MoveCreature(DExhumedActor* pActor)
 {
-    auto pSprite = &sprite[nSprite];
-    return movesprite(nSprite, pSprite->xvel << 8, pSprite->yvel << 8, pSprite->zvel, 15360, -5120, CLIPMASK0);
+    auto pSprite = &pActor->s();
+    return movesprite(pActor, pSprite->xvel << 8, pSprite->yvel << 8, pSprite->zvel, 15360, -5120, CLIPMASK0);
 }
 
-int MoveCreatureWithCaution(int nSprite)
+Collision MoveCreatureWithCaution(DExhumedActor* pActor)
 {
-    auto pSprite = &sprite[nSprite];
+    auto pSprite = &pActor->s();
     int x = pSprite->x;
     int y = pSprite->y;
     int z = pSprite->z;
     short nSectorPre = pSprite->sectnum;
 
-    int ecx = MoveCreature(nSprite);
+    auto ecx = MoveCreature(pActor);
 
     short nSector = pSprite->sectnum;
 
@@ -691,36 +689,36 @@ int MoveCreatureWithCaution(int nSprite)
             pSprite->y = y;
             pSprite->z = z;
 
-            mychangespritesect(nSprite, nSectorPre);
+            ChangeActorSect(pActor, nSectorPre);
 
             pSprite->ang = (pSprite->ang + 256) & kAngleMask;
             pSprite->xvel = bcos(pSprite->ang, -2);
             pSprite->yvel = bsin(pSprite->ang, -2);
-            return 0;
+            return Collision(0);
         }
     }
 
     return ecx;
 }
 
-int GetAngleToSprite(int nSprite1, int nSprite2)
+int GetAngleToSprite(DExhumedActor* a1, DExhumedActor* a2)
 {
-    if (nSprite1 < 0 || nSprite2 < 0)
+    if (!a1 || !a2)
         return -1;
 
-	auto pSprite1 = &sprite[nSprite1];
-	auto pSprite2 = &sprite[nSprite2];
+	auto pSprite1 = &a1->s();
+	auto pSprite2 = &a2->s();
 
     return GetMyAngle(pSprite2->x - pSprite1->x, pSprite2->y - pSprite1->y);
 }
 
-int PlotCourseToSprite(int nSprite1, int nSprite2)
+int PlotCourseToSprite(DExhumedActor* pActor1, DExhumedActor* pActor2)
 {
-    if (nSprite1 < 0 || nSprite2 < 0)
+    if (pActor1 == nullptr || pActor2 == nullptr)
         return -1;
 
-	auto pSprite1 = &sprite[nSprite1];
-	auto pSprite2 = &sprite[nSprite2];
+	auto pSprite1 = &pActor1->s();
+	auto pSprite2 = &pActor2->s();
     int x = pSprite2->x - pSprite1->x;
     int y = pSprite2->y - pSprite1->y;
 
@@ -740,15 +738,10 @@ int PlotCourseToSprite(int nSprite1, int nSprite2)
     return ksqrt(diff);
 }
 
-int FindPlayer(int nSprite, int nDistance)
+DExhumedActor* FindPlayer(DExhumedActor* pActor, int nDistance, bool dontengage)
 {
-	auto pSprite = &sprite[nSprite];
-    int var_18 = 0;
-    if (nSprite >= 0)
-        var_18 = 1;
-
-    if (nSprite < 0)
-        nSprite = -nSprite;
+    auto pSprite = &pActor->s();
+    int var_18 = !dontengage;
 
     if (nDistance < 0)
         nDistance = 100;
@@ -757,29 +750,30 @@ int FindPlayer(int nSprite, int nDistance)
     int y = pSprite->y;
     short nSector = pSprite->sectnum;
 
-    int z = pSprite->z - GetSpriteHeight(nSprite);
+    int z = pSprite->z - GetActorHeight(pActor);
 
     nDistance <<= 8;
 
-    short nPlayerSprite;
+    DExhumedActor* pPlayerActor = nullptr;
     int i = 0;
 
     while (1)
     {
         if (i >= nTotalPlayers)
-            return -1;
+            return nullptr;
 
-        nPlayerSprite = PlayerList[i].nSprite;
+        pPlayerActor = PlayerList[i].Actor();
+        auto pPlayerSprite = &pPlayerActor->s();
 
-        if ((sprite[nPlayerSprite].cstat & 0x101) && (!(sprite[nPlayerSprite].cstat & 0x8000)))
+        if ((pPlayerSprite->cstat & 0x101) && (!(pPlayerSprite->cstat & 0x8000)))
         {
-            int v9 = abs(sprite[nPlayerSprite].x - x);
+            int v9 = abs(pPlayerSprite->x - x);
 
             if (v9 < nDistance)
             {
-                int v10 = abs(sprite[nPlayerSprite].y - y);
+                int v10 = abs(pPlayerSprite->y - y);
 
-                if (v10 < nDistance && cansee(sprite[nPlayerSprite].x, sprite[nPlayerSprite].y, sprite[nPlayerSprite].z - 7680, sprite[nPlayerSprite].sectnum, x, y, z, nSector))
+                if (v10 < nDistance && cansee(pPlayerSprite->x, pPlayerSprite->y, pPlayerSprite->z - 7680, pPlayerSprite->sectnum, x, y, z, nSector))
                 {
                     break;
                 }
@@ -790,10 +784,10 @@ int FindPlayer(int nSprite, int nDistance)
     }
 
     if (var_18) {
-        PlotCourseToSprite(nSprite, nPlayerSprite);
+        PlotCourseToSprite(pActor, pPlayerActor);
     }
 
-    return nPlayerSprite;
+    return pPlayerActor;
 }
 
 void CheckSectorFloor(short nSector, int z, int *x, int *y)
@@ -819,10 +813,10 @@ void CheckSectorFloor(short nSector, int z, int *x, int *y)
     }
 }
 
-int GetUpAngle(short nSprite1, int nVal, short nSprite2, int ecx)
+int GetUpAngle(DExhumedActor* pActor1, int nVal, DExhumedActor* pActor2, int ecx)
 {
-	auto pSprite1 = &sprite[nSprite1];
-	auto pSprite2 = &sprite[nSprite2];
+	auto pSprite1 = &pActor1->s();
+	auto pSprite2 = &pActor2->s();
     int x = pSprite2->x - pSprite1->x;
     int y = pSprite2->y - pSprite1->y;
 
@@ -878,10 +872,10 @@ void CreatePushBlock(int nSector)
     sBlockInfo[nBlock].x = xAvg;
     sBlockInfo[nBlock].y = yAvg;
 
-    int nSprite = insertsprite(nSector, 0);
-    auto pSprite = &sprite[nSprite];
+    auto pActor = insertActor(nSector, 0);
+    auto pSprite = &pActor->s();
 
-    sBlockInfo[nBlock].nSprite = nSprite;
+    sBlockInfo[nBlock].pActor = pActor;
 
     pSprite->x = xAvg;
     pSprite->y = yAvg;
@@ -917,8 +911,6 @@ void CreatePushBlock(int nSector)
 
 void MoveSector(short nSector, int nAngle, int *nXVel, int *nYVel)
 {
-    int i;
-
     if (nSector == -1) {
         return;
     }
@@ -950,38 +942,39 @@ void MoveSector(short nSector, int nAngle, int *nXVel, int *nYVel)
 
     BlockInfo *pBlockInfo = &sBlockInfo[nBlock];
 
-    int x = sBlockInfo[nBlock].x;
+    vec3_t pos;
+
+    pos.x = sBlockInfo[nBlock].x;
     int x_b = sBlockInfo[nBlock].x;
 
-    int y = sBlockInfo[nBlock].y;
+    pos.y = sBlockInfo[nBlock].y;
     int y_b = sBlockInfo[nBlock].y;
 
     short nSectorB = nSector;
 
     int nZVal;
-    int z;
 
     int bUnderwater = nSectFlag & kSectUnderwater;
 
     if (nSectFlag & kSectUnderwater)
     {
         nZVal = sector[nSector].ceilingz;
-        z = sector[nNextSector].ceilingz + 256;
+        pos.z = sector[nNextSector].ceilingz + 256;
 
         sector[nSector].ceilingz = sector[nNextSector].ceilingz;
     }
     else
     {
         nZVal = sector[nSector].floorz;
-        z = sector[nNextSector].floorz - 256;
+        pos.z = sector[nNextSector].floorz - 256;
 
         sector[nSector].floorz = sector[nNextSector].floorz;
     }
 
-    clipmove_old((int32_t*)&x, (int32_t*)&y, (int32_t*)&z, &nSectorB, nXVect, nYVect, pBlockInfo->field_8, 0, 0, CLIPMASK1);
+    clipmove(&pos, &nSectorB, nXVect, nYVect, pBlockInfo->field_8, 0, 0, CLIPMASK1);
 
-    int yvect = y - y_b;
-    int xvect = x - x_b;
+    int yvect = pos.y - y_b;
+    int xvect = pos.x - x_b;
 
     if (nSectorB != nNextSector && nSectorB != nSector)
     {
@@ -992,15 +985,13 @@ void MoveSector(short nSector, int nAngle, int *nXVel, int *nYVel)
     {
         if (!bUnderwater)
         {
-            z = nZVal;
-            x = x_b;
-            y = y_b;
+            pos = { x_b, y_b, nZVal };
 
-            clipmove_old((int32_t*)&x, (int32_t*)&y, (int32_t*)&z, &nSectorB, nXVect, nYVect, pBlockInfo->field_8, 0, 0, CLIPMASK1);
+            clipmove(&pos, &nSectorB, nXVect, nYVect, pBlockInfo->field_8, 0, 0, CLIPMASK1);
 
-            int ebx = x;
+            int ebx = pos.x;
             int ecx = x_b;
-            int edx = y;
+            int edx = pos.y;
             int eax = xvect;
             int esi = y_b;
 
@@ -1043,45 +1034,44 @@ void MoveSector(short nSector, int nAngle, int *nXVel, int *nYVel)
     // GREEN
     if (yvect || xvect)
     {
-        SectIterator it(nSector);
-        while ((i = it.NextIndex()) >= 0)
+        ExhumedSectIterator it(nSector);
+        while (auto pActor = it.Next())
         {
-            if (sprite[i].statnum < 99)
+            auto sp = &pActor->s();
+            if (sp->statnum < 99)
             {
-                sprite[i].x += xvect;
-                sprite[i].y += yvect;
+                sp->x += xvect;
+                sp->y += yvect;
             }
             else
             {
-                z = sprite[i].z;
+                pos.z = sp->z;
 
-                if ((nSectFlag & kSectUnderwater) || z != nZVal || sprite[i].cstat & 0x8000)
+                if ((nSectFlag & kSectUnderwater) || pos.z != nZVal || sp->cstat & 0x8000)
                 {
-                    x = sprite[i].x;
-                    y = sprite[i].y;
+                    pos.x = sp->x;
+                    pos.y = sp->y;
                     nSectorB = nSector;
 
-                    clipmove_old((int32_t*)&x, (int32_t*)&y, (int32_t*)&z, &nSectorB, -xvect, -yvect, 4 * sprite[i].clipdist, 0, 0, CLIPMASK0);
+                    clipmove(&pos, &nSectorB, -xvect, -yvect, 4 * sp->clipdist, 0, 0, CLIPMASK0);
 
                     if (nSectorB >= 0 && nSectorB < kMaxSectors && nSectorB != nSector) {
-                        mychangespritesect(i, nSectorB);
+                        ChangeActorSect(pActor, nSectorB);
                     }
                 }
             }
         }
 
         it.Reset(nNextSector);
-        while ((i = it.NextIndex()) >= 0)
+        while (auto pActor = it.Next())
         {
-            auto pSprite = &sprite[i];
+            auto pSprite = &pActor->s();
             if (pSprite->statnum >= 99)
             {
-                x = pSprite->x;
-                y = pSprite->y;
-                z = pSprite->z;
+                pos = pSprite->pos;
                 nSectorB = nNextSector;
 
-                clipmove_old((int32_t*)&x, (int32_t*)&y, (int32_t*)&z, &nSectorB,
+                clipmove(&pos, &nSectorB,
                     -xvect - (bcos(nAngle) * (4 * pSprite->clipdist)),
                     -yvect - (bsin(nAngle) * (4 * pSprite->clipdist)),
                     4 * pSprite->clipdist, 0, 0, CLIPMASK0);
@@ -1092,12 +1082,12 @@ void MoveSector(short nSector, int nAngle, int *nXVel, int *nYVel)
                     if (nSectorB != nSector || nFloorZ >= pSprite->z)
                     {
                         if (nSectorB >= 0 && nSectorB < kMaxSectors) {
-                            mychangespritesect(i, nSectorB);
+                            ChangeActorSect(pActor, nSectorB);
                         }
                     }
                     else
                     {
-                        movesprite(i,
+                        movesprite(pActor,
                             (xvect << 14) + bcos(nAngle) * pSprite->clipdist,
                             (yvect << 14) + bsin(nAngle) * pSprite->clipdist,
                             0, 0, 0, CLIPMASK0);
@@ -1123,14 +1113,14 @@ void MoveSector(short nSector, int nAngle, int *nXVel, int *nYVel)
 
     if (!(nSectFlag & kSectUnderwater))
     {
-        SectIterator it(nSector);
-        while ((i = it.NextIndex()) >= 0)
+        ExhumedSectIterator it(nSector);
+        while (auto pActor = it.Next())
         {
-            auto pSprite = &sprite[i];
+            auto pSprite = &pActor->s();
             if (pSprite->statnum >= 99 && nZVal == pSprite->z && !(pSprite->cstat & 0x8000))
             {
                 nSectorB = nSector;
-                clipmove_old(&pSprite->x, &pSprite->y, &pSprite->z, &nSectorB, xvect, yvect, 4 * pSprite->clipdist, 5120, -5120, CLIPMASK0);
+                clipmove(&pSprite->pos, &nSectorB, xvect, yvect, 4 * pSprite->clipdist, 5120, -5120, CLIPMASK0);
             }
         }
     }
@@ -1160,9 +1150,9 @@ void MoveSector(short nSector, int nAngle, int *nXVel, int *nYVel)
     initsect = pSprite->sectnum;
 }
 
-void SetQuake(short nSprite, int nVal)
+void SetQuake(DExhumedActor* pActor, int nVal)
 {
-    auto pSprite = &sprite[nSprite];
+    auto pSprite = &pActor->s();
     int x = pSprite->x;
     int y = pSprite->y;
 
@@ -1170,10 +1160,11 @@ void SetQuake(short nSprite, int nVal)
 
     for (int i = 0; i < nTotalPlayers; i++)
     {
-        int nPlayerSprite = PlayerList[i].nSprite;
+        auto pPlayerActor = PlayerList[i].Actor();
 
-        uint32_t xDiff = abs((int32_t)((sprite[nPlayerSprite].x - x) >> 8));
-        uint32_t yDiff = abs((int32_t)((sprite[nPlayerSprite].y - y) >> 8));
+
+        uint32_t xDiff = abs((int32_t)((pPlayerActor->s().x - x) >> 8));
+        uint32_t yDiff = abs((int32_t)((pPlayerActor->s().y - y) >> 8));
 
         uint32_t sqrtNum = xDiff * xDiff + yDiff * yDiff;
 
@@ -1209,9 +1200,9 @@ void SetQuake(short nSprite, int nVal)
     }
 }
 
-int AngleChase(int nSprite, int nSprite2, int ebx, int ecx, int push1)
+Collision AngleChase(DExhumedActor* pActor, DExhumedActor* pActor2, int ebx, int ecx, int push1) 
 {
-    auto pSprite = &sprite[nSprite];
+    auto pSprite = &pActor->s();
     int nClipType = pSprite->statnum != 107;
 
     /* bjd - need to handle cliptype to clipmask change that occured in later build engine version */
@@ -1224,14 +1215,14 @@ int AngleChase(int nSprite, int nSprite2, int ebx, int ecx, int push1)
 
     short nAngle;
 
-    if (nSprite2 < 0)
+    if (pActor2 == nullptr)
     {
         pSprite->zvel = 0;
         nAngle = pSprite->ang;
     }
     else
     {
-		auto pSprite2 = &sprite[nSprite2];
+		auto pSprite2 = &pActor2->s();
 
         int nHeight = tileHeight(pSprite2->picnum) * pSprite2->yrepeat * 2;
 
@@ -1302,7 +1293,7 @@ int AngleChase(int nSprite, int nSprite2, int ebx, int ecx, int push1)
 
     int z = bsin(pSprite->zvel) * ksqrt(sqrtNum);
 
-    return movesprite(nSprite, x >> 2, y >> 2, (z >> 13) + bsin(ecx, -5), 0, 0, nClipType);
+    return movesprite(pActor, x >> 2, y >> 2, (z >> 13) + bsin(ecx, -5), 0, 0, nClipType);
 }
 
 int GetWallNormal(short nWall)
@@ -1315,20 +1306,18 @@ int GetWallNormal(short nWall)
     return (nAngle + 512) & kAngleMask;
 }
 
-void WheresMyMouth(int nPlayer, int *x, int *y, int *z, short *sectnum)
+void WheresMyMouth(int nPlayer, vec3_t* pos, short *sectnum)
 {
     auto pActor = PlayerList[nPlayer].Actor();
 	auto pSprite = &pActor->s();
 
-    *x = pSprite->x;
-    *y = pSprite->y;
+    int height = GetActorHeight(pActor) >> 1;
 
-    int height = GetActorHeight(pActor) / 2;
-
-    *z = pSprite->z - height;
     *sectnum = pSprite->sectnum;
+    *pos = pSprite->pos;
+    pos->z -= height;
 
-    clipmove_old((int32_t*)x, (int32_t*)y, (int32_t*)z, sectnum,
+    clipmove(pos, sectnum,
         bcos(pSprite->ang, 7),
         bsin(pSprite->ang, 7),
         5120, 1280, 1280, CLIPMASK1);
@@ -1440,34 +1429,21 @@ DExhumedActor* GrabChunkSprite()
     return pActor;
 }
 
-int BuildCreatureChunk(int nVal, int nPic)
+DExhumedActor* BuildCreatureChunk(DExhumedActor* pSrc, int nPic, bool bSpecial)
 {
-    int var_14;
-
     auto actor = GrabChunkSprite();
 
     if (actor == nullptr) {
-        return -1;
+        return nullptr;
     }
 	auto pSprite = &actor->s();
+    auto pSrcSpr = &pSrc->s();
 
-    if (nVal & 0x4000)
-    {
-        nVal &= 0x3FFF;
-        var_14 = 1;
-    }
-    else
-    {
-        var_14 = 0;
-    }
+    pSprite->x = pSrcSpr->x;
+    pSprite->y = pSrcSpr->y;
+    pSprite->z = pSrcSpr->z;
 
-    nVal &= 0xFFFF;
-
-    pSprite->x = sprite[nVal].x;
-    pSprite->y = sprite[nVal].y;
-    pSprite->z = sprite[nVal].z;
-
-    mychangespritesect(actor->GetSpriteIndex(), sprite[nVal].sectnum);
+    ChangeActorSect(actor, pSrcSpr->sectnum);
 
     pSprite->cstat = 0x80;
     pSprite->shade = -12;
@@ -1477,7 +1453,7 @@ int BuildCreatureChunk(int nVal, int nPic)
     pSprite->yvel = (RandomSize(5) - 16) << 7;
     pSprite->zvel = (-(RandomSize(8) + 512)) << 3;
 
-    if (var_14)
+    if (bSpecial)
     {
         pSprite->xvel *= 4;
         pSprite->yvel *= 4;
@@ -1495,24 +1471,24 @@ int BuildCreatureChunk(int nVal, int nPic)
 //	GrabTimeSlot(3);
 
     pSprite->extra = -1;
-    pSprite->owner = runlist_AddRunRec(pSprite->lotag - 1, actor->GetSpriteIndex(), 0xD0000);
-    pSprite->hitag = runlist_AddRunRec(NewRun, actor->GetSpriteIndex(), 0xD0000);
+    pSprite->owner = runlist_AddRunRec(pSprite->lotag - 1, actor, 0xD0000);
+    pSprite->hitag = runlist_AddRunRec(NewRun, actor, 0xD0000);
 
-    return actor->GetSpriteIndex();
+    return actor;
 }
 
 void AICreatureChunk::Tick(RunListEvent* ev)
 {
-    int nSprite = RunData[ev->nRun].nObjIndex;
-    assert(nSprite >= 0 && nSprite < kMaxSprites);
-    auto pSprite = &sprite[nSprite];
+    auto pActor = ev->pObjActor;
+    if (!pActor) return;
+    auto pSprite = &pActor->s();
 
-    Gravity(nSprite);
+    Gravity(pActor);
 
     int nSector = pSprite->sectnum;
     pSprite->pal = sector[nSector].ceilingpal;
 
-    int nVal = movesprite(nSprite, pSprite->xvel << 10, pSprite->yvel << 10, pSprite->zvel, 2560, -2560, CLIPMASK1);
+    auto nVal = movesprite(pActor, pSprite->xvel << 10, pSprite->yvel << 10, pSprite->zvel, 2560, -2560, CLIPMASK1);
 
     if (pSprite->z >= sector[nSector].floorz)
     {
@@ -1526,31 +1502,31 @@ void AICreatureChunk::Tick(RunListEvent* ev)
     }
     else
     {
-        if (!nVal)
+        if (!nVal.type && !nVal.exbits)
             return;
 
         short nAngle;
 
-        if (nVal & 0x20000)
+        if (nVal.exbits & kHitAux2)
         {
             pSprite->cstat = 0x8000;
         }
         else
         {
-            if ((nVal & 0x3C000) == 0x10000)
+            if (nVal.exbits & kHitAux1)
             {
                 pSprite->xvel >>= 1;
                 pSprite->yvel >>= 1;
                 pSprite->zvel = -pSprite->zvel;
                 return;
             }
-            else if ((nVal & 0x3C000) == 0xC000)
+            else if (nVal.type == kHitSprite)
             {
-                nAngle = sprite[nVal & 0x3FFF].ang;
+                nAngle = nVal.actor->s().ang;
             }
-            else if ((nVal & 0x3C000) == 0x8000)
+            else if (nVal.type == kHitWall)
             {
-                nAngle = GetWallNormal(nVal & 0x3FFF);
+                nAngle = GetWallNormal(nVal.index);
             }
             else
             {
@@ -1571,27 +1547,20 @@ void AICreatureChunk::Tick(RunListEvent* ev)
     runlist_FreeRun(pSprite->lotag - 1);
     runlist_SubRunRec(pSprite->hitag);
 
-    changespritestat(nSprite, 0);
+    ChangeActorStat(pActor, 0);
     pSprite->hitag = 0;
     pSprite->lotag = 0;
 }
 
-void  FuncCreatureChunk(int nObject, int nMessage, int nDamage, int nRun)
+DExhumedActor* UpdateEnemy(DExhumedActor** ppEnemy)
 {
-    AICreatureChunk ai;
-    runlist_DispatchEvent(&ai, nObject, nMessage, nDamage, nRun);
-
-}
-
-short UpdateEnemy(short *nEnemy)
-{
-    if (*nEnemy >= 0)
+    if (*ppEnemy)
     {
-        if (!(sprite[*nEnemy].cstat & 0x101)) {
-            *nEnemy = -1;
+        if (!((*ppEnemy)->s().cstat & 0x101)) {
+            *ppEnemy = nullptr;
         }
     }
 
-    return *nEnemy;
+    return *ppEnemy;
 }
 END_PS_NS
