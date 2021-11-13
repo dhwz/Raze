@@ -58,9 +58,7 @@ void hud_input(int plnum)
 	int i, k;
 	uint8_t dainv;
 	struct player_struct* p;
-	short unk;
 
-	unk = 0;
 	p = &ps[plnum];
 	auto pact = p->GetActor();
 
@@ -337,7 +335,7 @@ void hud_input(int plnum)
 					S_PlayActorSound(390, pact);
 					p->noise_radius = 16384;
 					madenoise(plnum);
-					if (sector[p->cursectnum].lotag == 857)
+					if (p->cursector()->lotag == 857)
 					{
 						if (p->GetActor()->s->extra <= gs.max_player_health)
 						{
@@ -528,7 +526,7 @@ enum
 static void processInputBits(player_struct *p, ControlInfo* const hidInput)
 {
 	// Set-up crouch bools.
-	int const sectorLotag = p->cursectnum != -1 ? sector[p->cursectnum].lotag : 0;
+	int const sectorLotag = p->cursectnum != -1 ? p->cursector()->lotag : 0;
 	bool const crouchable = sectorLotag != ST_2_UNDERWATER && (sectorLotag != ST_1_ABOVE_WATER || p->spritebridge);
 	bool const disableToggle = p->jetpack_on || (!crouchable && p->on_ground) || (isRRRA() && (p->OnMotorcycle || p->OnBoat));
 

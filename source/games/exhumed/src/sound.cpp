@@ -673,12 +673,12 @@ void PlayFXAtXYZ(unsigned short ax, int x, int y, int z, int nSector, EChanFlags
 //
 //==========================================================================
 
-void CheckAmbience(short nSector)
+void CheckAmbience(int nSector)
 {
     if (!SoundEnabled()) return;
     if (SectSound[nSector] != -1)
     {
-        short nSector2 = SectSoundSect[nSector];
+        int nSector2 = SectSoundSect[nSector];
         walltype* pWall = &wall[sector[nSector2].wallptr];
         if (!soundEngine->IsSourcePlayingSomething(SOURCE_Ambient, &amb, 0))
         {

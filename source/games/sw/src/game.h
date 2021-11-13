@@ -330,9 +330,9 @@ inline int SPRITEp_SIZE_BOS(const spritetype* sp)
 #define HIT_SECTOR BIT(14)
 #define HIT_PLAX_WALL BIT(16)
 
-#define NORM_SPRITE(val) ((val) & (MAXSPRITES - 1))
-#define NORM_WALL(val) ((val) & (MAXWALLS - 1))
-#define NORM_SECTOR(val) ((val) & (MAXSECTORS - 1))
+#define NORM_SPRITE(val) ((val) & (kHitIndexMask))
+#define NORM_WALL(val) ((val) & (kHitIndexMask))
+#define NORM_SECTOR(val) ((val) & (kHitIndexMask))
 
 // overwritesprite flags
 #define OVER_SPRITE_MIDDLE      (BIT(0))
@@ -736,7 +736,7 @@ typedef void (*PLAYER_ACTION_FUNCp)(PLAYERp);
 
 typedef struct
 {
-    short cursectnum,lastcursectnum,pang,filler;
+    int cursectnum,lastcursectnum,pang;
     int xvect,yvect,oxvect,oyvect,slide_xvect,slide_yvect;
     int posx,posy,posz;
     SECTOR_OBJECTp sop_control;
@@ -789,7 +789,7 @@ struct PLAYERstruct
     short circle_camera_ang;
     short camera_check_time_delay;
 
-    short cursectnum,lastcursectnum;
+    int cursectnum,lastcursectnum;
     fixed_t turn180_target; // 180 degree turn
 
     // variables that do not fit into sprite structure
@@ -1692,6 +1692,7 @@ struct SECTOR_OBJECTstruct
            drive_speed,
            drive_slide,
            crush_z,
+           op_main_sector, // main sector operational SO moves in - for speed purposes
            flags;
 
     short   sector[MAX_SO_SECTOR],     // hold the sector numbers of the sector object
@@ -1727,7 +1728,6 @@ struct SECTOR_OBJECTstruct
             turn_speed,     // shift value determines how fast SO turns to match new angle
             bob_sine_ndx,   // index into sine table
             bob_speed,      // shift value for speed
-            op_main_sector, // main sector operational SO moves in - for speed purposes
             save_vel,       // save velocity
             save_spin_speed, // save spin speed
             match_event,    // match number
@@ -1963,8 +1963,6 @@ void FAFgetzrange(vec3_t pos, int16_t sectnum,
 void FAFgetzrangepoint(int32_t x, int32_t y, int32_t z, int16_t sectnum,
                        int32_t* hiz, int32_t* ceilhit,
                        int32_t* loz, int32_t* florhit);
-
-void COVERupdatesector(int32_t x, int32_t y, int16_t* newsector);
 
 
 void short_setinterpolation(short *posptr);

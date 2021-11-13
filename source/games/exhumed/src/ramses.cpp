@@ -159,10 +159,10 @@ void InitSpiritHead()
     nTalkTime = 1;
 }
 
-void DimSector(short nSector)
+void DimSector(int nSector)
 {
-    short startwall = sector[nSector].wallptr;
-    short nWalls = sector[nSector].wallnum;
+    int startwall = sector[nSector].wallptr;
+    int nWalls = sector[nSector].wallnum;
 
     for (int i = 0; i < nWalls; i++)
     {

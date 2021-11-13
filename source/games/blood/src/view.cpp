@@ -359,43 +359,22 @@ void viewUpdateDelirium(void)
 
 void viewUpdateShake(int& cX, int& cY, int& cZ, binangle& cA, fixedhoriz& cH, double& pshakeX, double& pshakeY)
 {
-    int shakeHoriz = 0;
-    int shakeAngle = 0;
-    int shakeX = 0;
-    int shakeY = 0;
-    int shakeZ = 0;
-    int shakeBobX = 0;
-    int shakeBobY = 0;
-    if (gView->flickerEffect)
+    auto doEffect = [&](const int& effectType)
     {
-        int nValue = ClipHigh(gView->flickerEffect * 8, 2000);
-        shakeHoriz += QRandom2(nValue >> 8);
-        shakeAngle += QRandom2(nValue >> 8);
-        shakeX += QRandom2(nValue >> 4);
-        shakeY += QRandom2(nValue >> 4);
-        shakeZ += QRandom2(nValue);
-        shakeBobX += QRandom2(nValue);
-        shakeBobY += QRandom2(nValue);
-    }
-    if (gView->quakeEffect)
-    {
-        int nValue = ClipHigh(gView->quakeEffect * 8, 2000);
-        shakeHoriz += QRandom2(nValue >> 8);
-        shakeAngle += QRandom2(nValue >> 8);
-        shakeX += QRandom2(nValue >> 4);
-        shakeY += QRandom2(nValue >> 4);
-        shakeZ += QRandom2(nValue);
-        shakeBobX += QRandom2(nValue);
-        shakeBobY += QRandom2(nValue);
-    }
-    cH += buildhoriz(shakeHoriz);
-    cA += buildang(shakeAngle);
-    cX += shakeX;
-    cY += shakeY;
-    cZ += shakeZ;
-    pshakeX += shakeBobX;
-    pshakeY += shakeBobY;
-
+        if (effectType)
+        {
+            int nValue = ClipHigh(effectType * 8, 2000);
+            cH += buildhoriz(QRandom2(nValue >> 8));
+            cA += buildang(QRandom2(nValue >> 8));
+            cX += QRandom2(nValue >> 4);
+            cY += QRandom2(nValue >> 4);
+            cZ += QRandom2(nValue);
+            pshakeX += QRandom2(nValue);
+            pshakeY += QRandom2(nValue);
+        }
+    };
+    doEffect(gView->flickerEffect);
+    doEffect(gView->quakeEffect);
 }
 
 
@@ -445,14 +424,8 @@ void SetupView(int &cX, int& cY, int& cZ, binangle& cA, fixedhoriz& cH, int& nSe
         }
         else
         {
-            auto oang = predictOld.angle + predictOld.look_ang;
-            auto ang = predict.angle + predict.look_ang;
-            cA = interpolatedangle(oang, ang, gInterpolate);
-
-            fixed_t ohoriz = (predictOld.horiz + predictOld.horizoff).asq16();
-            fixed_t horiz = (predict.horiz + predict.horizoff).asq16();
-            cH = q16horiz(interpolatedvalue(ohoriz, horiz, gInterpolate));
-
+            cA = interpolatedangle(predictOld.angle + predictOld.look_ang, predict.angle + predict.look_ang, gInterpolate);
+            cH = interpolatedhorizon(predictOld.horiz + predictOld.horizoff, predict.horiz + predict.horizoff, gInterpolate);
             rotscrnang = interpolatedangle(predictOld.rotscrnang, predict.rotscrnang, gInterpolate);
         }
     }
@@ -501,7 +474,7 @@ void SetupView(int &cX, int& cY, int& cZ, binangle& cA, fixedhoriz& cH, int& nSe
     }
     else
     {
-        calcChaseCamPos((int*)&cX, (int*)&cY, (int*)&cZ, gView->pSprite, (short*)&nSectnum, cA, cH, gInterpolate);
+        calcChaseCamPos((int*)&cX, (int*)&cY, (int*)&cZ, gView->pSprite, &nSectnum, cA, cH, gInterpolate);
     }
     CheckLink((int*)&cX, (int*)&cY, (int*)&cZ, &nSectnum);
 }
@@ -717,8 +690,9 @@ void viewDrawScreen(bool sceneonly)
         bDeliriumOld = bDelirium && gDeliriumBlur;
 
         int nClipDist = gView->pSprite->clipdist << 2;
-        int ve8, vec, vf0, vf4;
-        GetZRange(gView->pSprite, &vf4, &vf0, &vec, &ve8, nClipDist, 0);
+        int vec, vf4;
+        Collision c1, c2;
+        GetZRange(gView->pSprite, &vf4, &c1, &vec, &c2, nClipDist, 0);
         if (sceneonly) return;
 #if 0
         int tmpSect = nSectnum;
@@ -806,7 +780,8 @@ bool GameInterface::DrawAutomapPlayer(int x, int y, int z, int a, double const s
         if (i == gView->nPlayer || gGameOptions.nGameType == 1)
         {
             int nTile = pSprite->picnum;
-            int ceilZ, ceilHit, floorZ, floorHit;
+            int ceilZ, floorZ;
+            Collision ceilHit, floorHit;
             GetZRange(pSprite, &ceilZ, &ceilHit, &floorZ, &floorHit, (pSprite->clipdist << 2) + 16, CLIPMASK0, PARALLAXCLIP_CEILING | PARALLAXCLIP_FLOOR);
             int nTop, nBottom;
             GetSpriteExtents(pSprite, &nTop, &nBottom);

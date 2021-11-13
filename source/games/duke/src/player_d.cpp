@@ -176,7 +176,7 @@ static void shootflamethrowerflame(DDukeActor* actor, int p, int sx, int sy, int
 		if (badguy(actor) && (s->hitag & face_player_smart) != 0)
 			sa = (short)(s->ang + (krand() & 31) - 16);
 
-		if (sector[s->sectnum].lotag == 2 && (krand() % 5) == 0)
+		if (s->sector()->lotag == 2 && (krand() % 5) == 0)
 			spawned = spawn(actor, WATERBUBBLE);
 	}
 	else
@@ -186,7 +186,7 @@ static void shootflamethrowerflame(DDukeActor* actor, int p, int sx, int sy, int
 			vel = (int)((((512 - (1024
 				- abs(abs(getangle(sx - ps[p].oposx, sy - ps[p].oposy) - sa) - 1024)))
 				* 0.001953125f) * ps[p].GetActor()->s->xvel) + 400);
-		if (sector[s->sectnum].lotag == 2 && (krand() % 5) == 0)
+		if (s->sector()->lotag == 2 && (krand() % 5) == 0)
 			spawned = spawn(actor, WATERBUBBLE);
 	}
 
@@ -232,7 +232,7 @@ static void shootknee(DDukeActor* actor, int p, int sx, int sy, int sz, int sa)
 	auto s = actor->s;
 	int sect = s->sectnum;
 	int zvel;
-	short hitsect, hitwall;
+	int hitsect, hitwall;
 	int hitx, hity, hitz;
 	DDukeActor* hitsprt;
 
@@ -319,7 +319,7 @@ static void shootweapon(DDukeActor *actor, int p, int sx, int sy, int sz, int sa
 	auto s = actor->s;
 	int sect = s->sectnum;
 	int zvel;
-	short hitsect, hitwall;
+	int hitsect, hitwall;
 	int hitx, hity, hitz;
 	DDukeActor* hitact;
 
@@ -469,35 +469,36 @@ static void shootweapon(DDukeActor *actor, int p, int sx, int sy, int sz, int sa
 		else if (hitwall >= 0)
 		{
 			spawn(spark, SMALLSMOKE);
+			auto wal = &wall[hitwall];
 
-			if (fi.isadoorwall(wall[hitwall].picnum) == 1)
+			if (fi.isadoorwall(wal->picnum) == 1)
 				goto SKIPBULLETHOLE;
 			if (p >= 0 && (
-				wall[hitwall].picnum == DIPSWITCH ||
-				wall[hitwall].picnum == DIPSWITCH + 1 ||
-				wall[hitwall].picnum == DIPSWITCH2 ||
-				wall[hitwall].picnum == DIPSWITCH2 + 1 ||
-				wall[hitwall].picnum == DIPSWITCH3 ||
-				wall[hitwall].picnum == DIPSWITCH3 + 1 ||
-				wall[hitwall].picnum == HANDSWITCH ||
-				wall[hitwall].picnum == HANDSWITCH + 1))
+				wal->picnum == DIPSWITCH ||
+				wal->picnum == DIPSWITCH + 1 ||
+				wal->picnum == DIPSWITCH2 ||
+				wal->picnum == DIPSWITCH2 + 1 ||
+				wal->picnum == DIPSWITCH3 ||
+				wal->picnum == DIPSWITCH3 + 1 ||
+				wal->picnum == HANDSWITCH ||
+				wal->picnum == HANDSWITCH + 1))
 			{
 				fi.checkhitswitch(p, hitwall, nullptr);
 				return;
 			}
 
-			if (wall[hitwall].hitag != 0 || (wall[hitwall].nextwall >= 0 && wall[wall[hitwall].nextwall].hitag != 0))
+			if (wal->hitag != 0 || (wal->nextwall >= 0 && wal->nextWall()->hitag != 0))
 				goto SKIPBULLETHOLE;
 
 			if (hitsect >= 0 && sector[hitsect].lotag == 0)
-				if (wall[hitwall].overpicnum != BIGFORCE)
-					if ((wall[hitwall].nextsector >= 0 && sector[wall[hitwall].nextsector].lotag == 0) ||
-						(wall[hitwall].nextsector == -1 && sector[hitsect].lotag == 0))
-						if ((wall[hitwall].cstat & 16) == 0)
+				if (wal->overpicnum != BIGFORCE)
+					if ((wal->nextsector >= 0 && wal->nextSector()->lotag == 0) ||
+						(wal->nextsector == -1 && sector[hitsect].lotag == 0))
+						if ((wal->cstat & 16) == 0)
 						{
-							if (wall[hitwall].nextsector >= 0)
+							if (wal->nextsector >= 0)
 							{
-								DukeSectIterator it(wall[hitwall].nextsector);
+								DukeSectIterator it(wal->nextsector);
 								while (auto l = it.Next())
 								{
 									if (l->s->statnum == 3 && l->s->lotag == 13)
@@ -514,17 +515,17 @@ static void shootweapon(DDukeActor *actor, int p, int sx, int sy, int sz, int sa
 							}
 							auto hole = spawn(spark, BULLETHOLE);
 							hole->s->xvel = -1;
-							hole->s->ang = getangle(wall[hitwall].x - wall[wall[hitwall].point2].x,
-								wall[hitwall].y - wall[wall[hitwall].point2].y) + 512;
+							hole->s->ang = getangle(wal->x - wall[wal->point2].x,
+								wal->y - wall[wal->point2].y) + 512;
 							ssp(hole, CLIPMASK0);
 						}
 
 		SKIPBULLETHOLE:
 
-			if (wall[hitwall].cstat & 2)
-				if (wall[hitwall].nextsector >= 0)
-					if (hitz >= (sector[wall[hitwall].nextsector].floorz))
-						hitwall = wall[hitwall].nextwall;
+			if (wal->cstat & 2)
+				if (wal->nextsector >= 0)
+					if (hitz >= (wal->nextSector()->floorz))
+						hitwall = wal->nextwall;
 
 			fi.checkhitwall(spark, hitwall, hitx, hity, hitz, SHOTSPARK1);
 		}
@@ -563,7 +564,7 @@ static void shootstuff(DDukeActor* actor, int p, int sx, int sy, int sz, int sa,
 	spritetype* const s = actor->s;
 	int sect = s->sectnum;
 	int vel, zvel;
-	short l, scount;
+	int l, scount;
 
 	if (s->extra >= 0) s->shade = -96;
 
@@ -674,7 +675,7 @@ static void shootrpg(DDukeActor *actor, int p, int sx, int sy, int sz, int sa, i
 	auto s = actor->s;
 	int sect = s->sectnum;
 	int vel, zvel;
-	short l, scount;
+	int l, scount;
 
 	if (s->extra >= 0) s->shade = -96;
 
@@ -840,7 +841,7 @@ static void shootlaser(DDukeActor* actor, int p, int sx, int sy, int sz, int sa)
 	spritetype* const s = actor->s;
 	int sect = s->sectnum;
 	int zvel;
-	short hitsect, hitwall, j;
+	int hitsect, hitwall, j;
 	int hitx, hity, hitz;
 	DDukeActor* hitsprt;
 
@@ -911,7 +912,7 @@ static void shootgrowspark(DDukeActor* actor, int p, int sx, int sy, int sz, int
 	auto s = actor->s;
 	int sect = s->sectnum;
 	int zvel;
-	short hitsect, hitwall, k;
+	int hitsect, hitwall, k;
 	int hitx, hity, hitz;
 	DDukeActor* hitsprt;
 
@@ -995,7 +996,7 @@ void shoot_d(DDukeActor* actor, int atwith)
 {
 	spritetype* const s = actor->s;
 
-	short sect, l, j;
+	int sect, l, j;
 	int sx, sy, sz, sa, p, vel, zvel, x, dal;
 	if (s->picnum == TILE_APLAYER)
 	{
@@ -1560,7 +1561,7 @@ int doincrements_d(struct player_struct* p)
 		}
 	}
 
-	if (p->scuba_on == 0 && sector[p->cursectnum].lotag == 2)
+	if (p->scuba_on == 0 && p->cursector()->lotag == 2)
 	{
 		if (p->scuba_amount > 0)
 		{
@@ -1621,7 +1622,7 @@ int doincrements_d(struct player_struct* p)
 
 void checkweapons_d(struct player_struct* p)
 {
-	static const short weapon_sprites[MAX_WEAPONS] = { KNEE, FIRSTGUNSPRITE, SHOTGUNSPRITE,
+	static const uint16_t weapon_sprites[MAX_WEAPONS] = { KNEE, FIRSTGUNSPRITE, SHOTGUNSPRITE,
 			CHAINGUNSPRITE, RPGSPRITE, HEAVYHBOMB, SHRINKERSPRITE, DEVISTATORSPRITE,
 			TRIPBOMBSPRITE, FREEZESPRITE, HEAVYHBOMB, SHRINKERSPRITE };
 
@@ -1764,7 +1765,7 @@ static void movement(int snum, ESyncBits actions, int psect, int fz, int cz, int
 					p->dummyplayersprite = spawn(pact, PLAYERONWATER);
 
 				p->footprintcount = 6;
-				if (sector[p->cursectnum].floorpicnum == FLOORSLIME)
+				if (p->cursector()->floorpicnum == FLOORSLIME)
 					p->footprintpal = 8;
 				else p->footprintpal = 0;
 				p->footprintshade = 0;
@@ -1797,7 +1798,7 @@ static void movement(int snum, ESyncBits actions, int psect, int fz, int cz, int
 			if ((p->pos.z + p->poszv) >= (fz - (i << 8))) // hit the ground
 			{
 				S_StopSound(DUKE_SCREAM, pact);
-				if (sector[p->cursectnum].lotag != 1)
+				if (p->cursector()->lotag != 1)
 				{
 					if (p->falling_counter > 62) quickkill(p);
 
@@ -2001,7 +2002,7 @@ int operateTripbomb(int snum)
 	auto p = &ps[snum];
 
 	int sx, sy, sz;
-	short sect, hw;
+	int sect, hw;
 	DDukeActor* hitsprt;
 
 	hitscan(p->pos.x, p->pos.y, p->pos.z,
@@ -2145,7 +2146,7 @@ static void fireweapon(int snum)
 		if (isWorldTour() && p->ammo_amount[FLAMETHROWER_WEAPON] > 0) 
 		{
 			p->kickback_pic = 1;
-			if (sector[p->cursectnum].lotag != 2)
+			if (p->cursector()->lotag != 2)
 				S_PlayActorSound(FLAMETHROWER_INTRO, pact);
 		}
 		break;
@@ -2544,7 +2545,7 @@ static void operateweapon(int snum, ESyncBits actions, int psect)
 		p->kickback_pic++;
 		if (p->kickback_pic == 2) 
 		{
-			if (sector[p->cursectnum].lotag != 2) 
+			if (p->cursector()->lotag != 2) 
 			{
 				p->ammo_amount[FLAMETHROWER_WEAPON]--;
 				if (snum == screenpeek)
@@ -2703,7 +2704,7 @@ void processinput_d(int snum)
 	int j, k, doubvel, fz, cz, truefdist;
 	Collision chz, clz;
 	bool shrunk;
-	short psect, psectlotag;
+	int psect, psectlotag;
 	struct player_struct* p;
 	spritetype* s;
 
@@ -2844,7 +2845,7 @@ void processinput_d(int snum)
 	s->xvel = clamp(ksqrt((p->pos.x - p->bobposx) * (p->pos.x - p->bobposx) + (p->pos.y - p->bobposy) * (p->pos.y - p->bobposy)), 0, 512);
 	if (p->on_ground) p->bobcounter += p->GetActor()->s->xvel >> 1;
 
-	p->backuppos(ud.clipping == 0 && (sector[p->cursectnum].floorpicnum == MIRROR || p->cursectnum < 0 || p->cursectnum >= MAXSECTORS));
+	p->backuppos(ud.clipping == 0 && (p->cursector()->floorpicnum == MIRROR || p->cursectnum < 0 || p->cursectnum >= MAXSECTORS));
 
 	// Shrinking code
 
@@ -2884,9 +2885,9 @@ void processinput_d(int snum)
 
 	if (p->spritebridge == 0)
 	{
-		j = sector[s->sectnum].floorpicnum;
+		j = s->sector()->floorpicnum;
 
-		if (j == PURPLELAVA || sector[s->sectnum].ceilingpicnum == PURPLELAVA)
+		if (j == PURPLELAVA || s->sector()->ceilingpicnum == PURPLELAVA)
 		{
 			if (p->boot_amount > 0)
 			{
@@ -3006,7 +3007,7 @@ HORIZONLY:
 	if (psectlotag == 1 || p->spritebridge == 1) ii = (4L << 8);
 	else ii = (20L << 8);
 
-	if (sector[p->cursectnum].lotag == 2) k = 0;
+	if (p->cursector()->lotag == 2) k = 0;
 	else k = 1;
 
 	Collision clip{};
@@ -3018,9 +3019,7 @@ HORIZONLY:
 		changeactorsect(pact, p->cursectnum);
 	}
 	else
-		clipmove_ex(&p->pos.x, &p->pos.y,
-			&p->pos.z, &p->cursectnum,
-			p->posxv, p->posyv, 164L, (4L << 8), ii, CLIPMASK0, clip);
+		clipmove_ex(&p->pos, &p->cursectnum, p->posxv, p->posyv, 164, (4 << 8), ii, CLIPMASK0, clip);
 
 	if (p->jetpack_on == 0 && psectlotag != 2 && psectlotag != 1 && shrunk)
 		p->pos.z += 32 << 8;
@@ -3060,7 +3059,7 @@ HORIZONLY:
 		}
 	}
 
-	if (truefdist < gs.playerheight && p->on_ground && psectlotag != 1 && shrunk == 0 && sector[p->cursectnum].lotag == 1)
+	if (truefdist < gs.playerheight && p->on_ground && psectlotag != 1 && shrunk == 0 && p->cursector()->lotag == 1)
 		if (!S_CheckActorSoundPlaying(pact, DUKE_ONWATER))
 			S_PlayActorSound(DUKE_ONWATER, pact);
 
@@ -3068,15 +3067,15 @@ HORIZONLY:
 		changeactorsect(pact, p->cursectnum);
 
 	if (ud.clipping == 0)
-		j = (pushmove(&p->pos.x, &p->pos.y, &p->pos.z, &p->cursectnum, 164L, (4L << 8), (4L << 8), CLIPMASK0) < 0 && furthestangle(p->GetActor(), 8) < 512);
+		j = (pushmove(&p->pos, &p->cursectnum, 164L, (4L << 8), (4L << 8), CLIPMASK0) < 0 && furthestangle(p->GetActor(), 8) < 512);
 	else j = 0;
 
 	if (ud.clipping == 0)
 	{
 		if (abs(pact->floorz - pact->ceilingz) < (48 << 8) || j)
 		{
-			if (!(sector[s->sectnum].lotag & 0x8000) && (isanunderoperator(sector[s->sectnum].lotag) ||
-				isanearoperator(sector[s->sectnum].lotag)))
+			if (!(s->sector()->lotag & 0x8000) && (isanunderoperator(s->sector()->lotag) ||
+				isanearoperator(s->sector()->lotag)))
 				fi.activatebysector(s->sectnum, pact);
 			if (j)
 			{

@@ -30,13 +30,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_PS_NS
 
-short NearSector[kMaxSectors] = { 0 };
-
 short nPushBlocks;
 
 // TODO - moveme?
 short overridesect;
-short NearCount = -1;
 
 DExhumedActor* nBodySprite[50];
 
@@ -71,9 +68,7 @@ void SerializeMove(FSerializer& arc)
 {
     if (arc.BeginObject("move"))
     {
-        arc("nearcount", NearCount)
-            .Array("nearsector", NearSector, NearCount)
-            ("pushcount", nPushBlocks)
+        arc ("pushcount", nPushBlocks)
             .Array("blocks", sBlockInfo, nPushBlocks)
             ("chunkcount", nCurChunkNum)
             .Array("chunks", nChunkSprite, kMaxMoveChunks)
@@ -228,19 +223,19 @@ void clipwall()
 
 }
 
-void BuildNear(int x, int y, int walldist, int nSector)
+int BelowNear(DExhumedActor* pActor, int x, int y, int walldist, int nSector)
 {
-    NearSector[0] = nSector;
-    NearCount = 1;
+    unsigned nearstart = GlobalSectorList.Size();
+    GlobalSectorList.Push(nSector);
 
-    int i = 0;
+    unsigned i = nearstart;
 
-    while (i < NearCount)
+    while (i < GlobalSectorList.Size())
     {
-        short nSector = NearSector[i];
+        int nSector = GlobalSectorList[i];
 
-        short nWall = sector[nSector].wallptr;
-        short nWallCount = sector[nSector].wallnum;
+        int nWall = sector[nSector].wallptr;
+        int nWallCount = sector[nSector].wallnum;
 
         while (1)
         {
@@ -255,21 +250,20 @@ void BuildNear(int x, int y, int walldist, int nSector)
 
             if (nNextSector >= 0)
             {
-                int j = 0;
-                for (; j < NearCount; j++)
+                unsigned j = nearstart;
+                for (; j < GlobalSectorList.Size(); j++)
                 {
                     // loc_14F4D:
-                    if (nNextSector == NearSector[j])
+                    if (nNextSector == GlobalSectorList[j])
                         break;
                 }
 
-                if (j >= NearCount)
+                if (j >= GlobalSectorList.Size())
                 {
                     vec2_t pos = { x, y };
                     if (clipinsidebox(&pos, nWall, walldist))
                     {
-                        NearSector[NearCount] = wall[nWall].nextsector;
-                        NearCount++;
+                        GlobalSectorList.Push(wall[nWall].nextsector);
                     }
                 }
             }
@@ -277,12 +271,9 @@ void BuildNear(int x, int y, int walldist, int nSector)
             nWall++;
         }
     }
-}
 
-int BelowNear(DExhumedActor* pActor)
-{
-	auto pSprite = &pActor->s();
-    short nSector = pSprite->sectnum;
+    auto pSprite = &pActor->s();
+    nSector = pSprite->sectnum;
     int z = pSprite->z;
 
     int z2;
@@ -295,13 +286,13 @@ int BelowNear(DExhumedActor* pActor)
     {
         z2 = sector[nSector].floorz + SectDepth[nSector];
 
-        if (NearCount > 0)
+        if (GlobalSectorList.Size() > nearstart)
         {
             short edx;
 
-            for (int i = 0; i < NearCount; i++)
+            for (unsigned i = nearstart; i < GlobalSectorList.Size(); i++)
             {
-                int nSect2 = NearSector[i];
+                int nSect2 = GlobalSectorList[i];
 
                 while (nSect2 >= 0)
                 {
@@ -320,6 +311,7 @@ int BelowNear(DExhumedActor* pActor)
             }
         }
     }
+    GlobalSectorList.Resize(nearstart);
 
     if (z2 < pSprite->z)
     {
@@ -340,7 +332,7 @@ int BelowNear(DExhumedActor* pActor)
 Collision movespritez(DExhumedActor* pActor, int z, int height, int, int clipdist)
 {
     spritetype* pSprite = &pActor->s();
-    short nSector = pSprite->sectnum;
+    int nSector =pSprite->sectnum;
     assert(nSector >= 0 && nSector < kMaxSectors);
 
     overridesect = nSector;
@@ -370,7 +362,7 @@ Collision movespritez(DExhumedActor* pActor, int z, int height, int, int clipdis
     }
 
     // loc_151E7:
-    while (ebp > sector[pSprite->sectnum].floorz && SectBelow[pSprite->sectnum] >= 0)
+    while (ebp > pSprite->sector()->floorz && SectBelow[pSprite->sectnum] >= 0)
     {
         edi = SectBelow[pSprite->sectnum];
 
@@ -394,7 +386,7 @@ Collision movespritez(DExhumedActor* pActor, int z, int height, int, int clipdis
     }
     else
     {
-        while ((ebp < sector[pSprite->sectnum].ceilingz) && (SectAbove[pSprite->sectnum] >= 0))
+        while ((ebp < pSprite->sector()->ceilingz) && (SectAbove[pSprite->sectnum] >= 0))
         {
             edi = SectAbove[pSprite->sectnum];
 
@@ -508,8 +500,7 @@ Collision movespritez(DExhumedActor* pActor, int z, int height, int, int clipdis
 
     if (pSprite->statnum == 100)
     {
-        BuildNear(pSprite->x, pSprite->y, clipdist + (clipdist / 2), pSprite->sectnum);
-        nRet.exbits |= BelowNear(pActor);
+        nRet.exbits |= BelowNear(pActor, pSprite->x, pSprite->y, clipdist + (clipdist / 2), pSprite->sectnum);
     }
 
     return nRet;
@@ -540,7 +531,7 @@ Collision movesprite(DExhumedActor* pActor, int dx, int dy, int dz, int ceildist
 
     int nClipDist = (int8_t)pSprite->clipdist << 2;
 
-    short nSector = pSprite->sectnum;
+    int nSector = pSprite->sectnum;
     assert(nSector >= 0 && nSector < kMaxSectors);
 
     int floorZ = sector[nSector].floorz;
@@ -603,7 +594,7 @@ Collision movesprite(DExhumedActor* pActor, int dx, int dy, int dz, int ceildist
 
             if (pSprite->pal < 5 && !pSprite->hitag)
             {
-                pSprite->pal = sector[pSprite->sectnum].ceilingpal;
+                pSprite->pal = pSprite->sector()->ceilingpal;
             }
         }
     }
@@ -614,7 +605,7 @@ Collision movesprite(DExhumedActor* pActor, int dx, int dy, int dz, int ceildist
 void Gravity(DExhumedActor* actor)
 {
     auto pSprite = &actor->s();
-    short nSector = pSprite->sectnum;
+    int nSector =pSprite->sectnum;
 
     if (SectFlag[nSector] & kSectUnderwater)
     {
@@ -674,7 +665,7 @@ Collision MoveCreatureWithCaution(DExhumedActor* pActor)
 
     auto ecx = MoveCreature(pActor);
 
-    short nSector = pSprite->sectnum;
+    int nSector =pSprite->sectnum;
 
     if (nSector != nSectorPre)
     {
@@ -748,7 +739,7 @@ DExhumedActor* FindPlayer(DExhumedActor* pActor, int nDistance, bool dontengage)
 
     int x = pSprite->x;
     int y = pSprite->y;
-    short nSector = pSprite->sectnum;
+    int nSector =pSprite->sectnum;
 
     int z = pSprite->z - GetActorHeight(pActor);
 
@@ -790,7 +781,7 @@ DExhumedActor* FindPlayer(DExhumedActor* pActor, int nDistance, bool dontengage)
     return pPlayerActor;
 }
 
-void CheckSectorFloor(short nSector, int z, int *x, int *y)
+void CheckSectorFloor(int nSector, int z, int *x, int *y)
 {
     short nSpeed = SectSpeed[nSector];
 
@@ -851,11 +842,12 @@ int GrabPushBlock()
 
 void CreatePushBlock(int nSector)
 {
+    auto sectp = &sector[nSector];
     int nBlock = GrabPushBlock();
     int i;
 
-    int startwall = sector[nSector].wallptr;
-    int nWalls = sector[nSector].wallnum;
+    int startwall = sectp->wallptr;
+    int nWalls = sectp->wallnum;
 
     int xSum = 0;
     int ySum = 0;
@@ -879,7 +871,7 @@ void CreatePushBlock(int nSector)
 
     pSprite->x = xAvg;
     pSprite->y = yAvg;
-    pSprite->z = sector[nSector].floorz - 256;
+    pSprite->z = sectp->floorz - 256;
     pSprite->cstat = 0x8000;
 
     int var_28 = 0;
@@ -906,10 +898,10 @@ void CreatePushBlock(int nSector)
     sBlockInfo[nBlock].field_8 = var_28;
 
     pSprite->clipdist = (var_28 & 0xFF) << 2;
-    sector[nSector].extra = nBlock;
+    sectp->extra = nBlock;
 }
 
-void MoveSector(short nSector, int nAngle, int *nXVel, int *nYVel)
+void MoveSector(int nSector, int nAngle, int *nXVel, int *nYVel)
 {
     if (nSector == -1) {
         return;
@@ -928,14 +920,15 @@ void MoveSector(short nSector, int nAngle, int *nXVel, int *nYVel)
         nXVect = bcos(nAngle, 6);
         nYVect = bsin(nAngle, 6);
     }
+    sectortype *pSector = &sector[nSector];
+ 
 
-    short nBlock = sector[nSector].extra;
+    short nBlock = pSector->extra;
     short nSectFlag = SectFlag[nSector];
 
-    sectortype *pSector = &sector[nSector];
-    int nFloorZ = sector[nSector].floorz;
-    int startwall = sector[nSector].wallptr;
-    int nWalls = sector[nSector].wallnum;
+    int nFloorZ = pSector->floorz;
+    int startwall = pSector->wallptr;
+    int nWalls = pSector->wallnum;
 
     walltype *pStartWall = &wall[startwall];
     short nNextSector = wall[startwall].nextsector;
@@ -950,7 +943,7 @@ void MoveSector(short nSector, int nAngle, int *nXVel, int *nYVel)
     pos.y = sBlockInfo[nBlock].y;
     int y_b = sBlockInfo[nBlock].y;
 
-    short nSectorB = nSector;
+    int nSectorB = nSector;
 
     int nZVal;
 
@@ -958,17 +951,17 @@ void MoveSector(short nSector, int nAngle, int *nXVel, int *nYVel)
 
     if (nSectFlag & kSectUnderwater)
     {
-        nZVal = sector[nSector].ceilingz;
+        nZVal = pSector->ceilingz;
         pos.z = sector[nNextSector].ceilingz + 256;
 
-        sector[nSector].ceilingz = sector[nNextSector].ceilingz;
+        pSector->ceilingz = sector[nNextSector].ceilingz;
     }
     else
     {
-        nZVal = sector[nSector].floorz;
+        nZVal = pSector->floorz;
         pos.z = sector[nNextSector].floorz - 256;
 
-        sector[nSector].floorz = sector[nNextSector].floorz;
+        pSector->floorz = sector[nNextSector].floorz;
     }
 
     clipmove(&pos, &nSectorB, nXVect, nYVect, pBlockInfo->field_8, 0, 0, CLIPMASK1);
@@ -1296,7 +1289,7 @@ Collision AngleChase(DExhumedActor* pActor, DExhumedActor* pActor2, int ebx, int
     return movesprite(pActor, x >> 2, y >> 2, (z >> 13) + bsin(ecx, -5), 0, 0, nClipType);
 }
 
-int GetWallNormal(short nWall)
+int GetWallNormal(int nWall)
 {
     nWall &= kMaxWalls-1;
 
@@ -1306,7 +1299,7 @@ int GetWallNormal(short nWall)
     return (nAngle + 512) & kAngleMask;
 }
 
-void WheresMyMouth(int nPlayer, vec3_t* pos, short *sectnum)
+void WheresMyMouth(int nPlayer, vec3_t* pos, int *sectnum)
 {
     auto pActor = PlayerList[nPlayer].Actor();
 	auto pSprite = &pActor->s();

@@ -40,7 +40,6 @@ BEGIN_DUKE_NS
 void animatesprites_r(spritetype* tsprite, int& spritesortcnt, int x, int y, int a, int smoothratio)
 {
 	int i, j, k, p;
-	short sect;
 	int l, t1, t3, t4;
 	spritetype* s;
 	tspritetype* t;
@@ -119,7 +118,7 @@ void animatesprites_r(spritetype* tsprite, int& spritesortcnt, int x, int y, int
 			}
 		}
 
-		if (sector[t->sectnum].ceilingstat & 1)
+		if (t->sector()->ceilingstat & 1)
 		{
 			if (badguy(s))
 				l = s->shade;
@@ -127,7 +126,7 @@ void animatesprites_r(spritetype* tsprite, int& spritesortcnt, int x, int y, int
 				l = s->shade;
 		}
 		else
-			l = sector[t->sectnum].floorshade;
+			l = t->sector()->floorshade;
 
 		if (l < -127) l = -127;
 		if (l > 128) l = 127;
@@ -174,7 +173,8 @@ void animatesprites_r(spritetype* tsprite, int& spritesortcnt, int x, int y, int
 			t->pos = s->interpolatedvec3(smoothratio);
 		}
 
-		sect = s->sectnum;
+		//sect = s->sectnum;
+		auto sectp = s->sector();
 		t1 = h->temp_data[1];
 		t3 = h->temp_data[3];
 		t4 = h->temp_data[4];
@@ -215,13 +215,11 @@ void animatesprites_r(spritetype* tsprite, int& spritesortcnt, int x, int y, int
 		case FORCESPHERE:
 			if (t->statnum == STAT_MISC && Owner)
 			{
-				short sqa, sqb;
-
-				sqa =
+				int sqa =
 					getangle(
 						Owner->x - ps[screenpeek].pos.x,
 						Owner->y - ps[screenpeek].pos.y);
-				sqb =
+				int sqb =
 					getangle(
 						Owner->x - t->x,
 						Owner->y - t->y);
@@ -452,7 +450,7 @@ void animatesprites_r(spritetype* tsprite, int& spritesortcnt, int x, int y, int
 					else t->cstat &= ~4;
 				}
 
-				if (sector[t->sectnum].lotag == 2) k += 1795 - 1405;
+				if (t->sector()->lotag == 2) k += 1795 - 1405;
 				else if ((h->floorz - s->z) > (64 << 8)) k += 60;
 
 				t->picnum += k;
@@ -461,11 +459,11 @@ void animatesprites_r(spritetype* tsprite, int& spritesortcnt, int x, int y, int
 				goto PALONLY;
 			}
 
-			if (ps[p].on_crane == nullptr && (sector[s->sectnum].lotag & 0x7ff) != 1)
+			if (ps[p].on_crane == nullptr && (s->sector()->lotag & 0x7ff) != 1)
 			{
 				l = s->z - ps[p].GetActor()->floorz + (3 << 8);
 				if (l > 1024 && s->yrepeat > 32 && s->extra > 0)
-					s->yoffset = (signed char)(l / (s->yrepeat << 2));
+					s->yoffset = (int8_t)(l / (s->yrepeat << 2));
 				else s->yoffset = 0;
 			}
 
@@ -487,8 +485,8 @@ void animatesprites_r(spritetype* tsprite, int& spritesortcnt, int x, int y, int
 
 		PALONLY:
 
-			if (sector[sect].floorpal)
-				copyfloorpal(t, &sector[sect]);
+			if (sectp->floorpal)
+				copyfloorpal(t, sectp);
 
 			if (!h->GetOwner()) continue;
 
@@ -619,12 +617,12 @@ void animatesprites_r(spritetype* tsprite, int& spritesortcnt, int x, int y, int
 				t->picnum = s->yvel;
 			else t->picnum += h->temp_data[0];
 
-			if (sector[sect].floorpal)
-				copyfloorpal(t, &sector[sect]);
+			if (sectp->floorpal)
+				copyfloorpal(t, sectp);
 			break;
 
 		case WATERBUBBLE:
-			if (sector[t->sectnum].floorpicnum == FLOORSLIME)
+			if (t->sector()->floorpicnum == FLOORSLIME)
 			{
 				t->pal = 7;
 				break;
@@ -632,8 +630,8 @@ void animatesprites_r(spritetype* tsprite, int& spritesortcnt, int x, int y, int
 		default:
 		default_case:
 
-			if (sector[sect].floorpal)
-				copyfloorpal(t, &sector[sect]);
+			if (sectp->floorpal)
+				copyfloorpal(t, sectp);
 			break;
 		}
 
@@ -742,9 +740,9 @@ void animatesprites_r(spritetype* tsprite, int& spritesortcnt, int x, int y, int
 					{
 						int daz;
 
-						if (isRRRA() && sector[sect].lotag == 160) continue;
-						if ((sector[sect].lotag & 0xff) > 2 || s->statnum == 4 || s->statnum == 5 || s->picnum == DRONE)
-							daz = sector[sect].floorz;
+						if (isRRRA() && sectp->lotag == 160) continue;
+						if ((sectp->lotag & 0xff) > 2 || s->statnum == 4 || s->statnum == 5 || s->picnum == DRONE)
+							daz = sectp->floorz;
 						else
 							daz = h->floorz;
 
@@ -825,7 +823,7 @@ void animatesprites_r(spritetype* tsprite, int& spritesortcnt, int x, int y, int
 		case FIRE:
 		case BURNING:
 			if (Owner && Owner->picnum != TREE1 && Owner->picnum != TREE2)
-				t->z = sector[t->sectnum].floorz;
+				t->z = t->sector()->floorz;
 			t->shade = -127;
 			break;
 		case WALLLIGHT3:
@@ -978,7 +976,7 @@ void animatesprites_r(spritetype* tsprite, int& spritesortcnt, int x, int y, int
 		}
 
 		h->dispicnum = t->picnum;
-		if (sector[t->sectnum].floorpicnum == MIRROR)
+		if (t->sector()->floorpicnum == MIRROR)
 			t->xrepeat = t->yrepeat = 0;
 	}
 }

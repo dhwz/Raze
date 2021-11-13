@@ -9,6 +9,24 @@
 int getincangle(int a, int na);
 binangle getincanglebam(binangle a, binangle na);
 
+
+//---------------------------------------------------------------------------
+//
+// Functions for dividing an input value by current ticrate for angle/horiz scaling.
+//
+//---------------------------------------------------------------------------
+
+inline double getTicrateScale(double const value)
+{
+	return value / GameTicRate;
+}
+
+inline double getTicrateScale(double const value, double const scaleAdjust)
+{
+	return scaleAdjust * getTicrateScale(value);
+}
+
+
 struct PlayerHorizon
 {
 	fixedhoriz horiz, ohoriz, horizoff, ohorizoff;
@@ -34,7 +52,7 @@ struct PlayerHorizon
 	// Commonly used getters.
 	fixedhoriz osum() { return ohoriz + ohorizoff; }
 	fixedhoriz sum() { return horiz + horizoff; }
-	fixedhoriz interpolatedsum(double const smoothratio) { return q16horiz(interpolatedvalue(osum().asq16(), sum().asq16(), smoothratio)); }
+	fixedhoriz interpolatedsum(double const smoothratio) { return interpolatedhorizon(osum(), sum(), smoothratio); }
 
 	// Ticrate playsim adjustment helpers.
 	void addadjustment(double value) { __addadjustment(buildfhoriz(value));	}
@@ -51,6 +69,21 @@ struct PlayerHorizon
 
 	// Draw code helpers.
 	double horizsumfrac(double const smoothratio) { return (!SyncInput() ? sum() : interpolatedsum(smoothratio)).asbuildf() * (1. / 16.); }
+
+	// Ticrate scale helpers.
+	fixedhoriz getscaledhoriz(double const value, double const scaleAdjust = 1., fixedhoriz* const object = nullptr, double const push = 0.)
+	{
+		return buildfhoriz(scaleAdjust * (((object ? object->asbuildf() : 1.) * getTicrateScale(value)) + push));
+	}
+	void scaletozero(fixedhoriz& object, double const value, double const scaleAdjust, double const push = 0.)
+	{
+		if (object.asq16())
+		{
+			auto sgn = Sgn(object.asq16());
+			object  -= getscaledhoriz(value, scaleAdjust, &object, push == 0 ? sgn * (1. / 3.) : push);
+			if (sgn != Sgn(object.asq16())) object = q16horiz(0);
+		}
+	}
 
 	// Ticrate playsim adjustment processor.
 	void processhelpers(double const scaleAdjust)
@@ -157,6 +190,21 @@ struct PlayerAngle
 	double look_anghalf(double const smoothratio) { return (!SyncInput() ? look_ang : interpolatedlookang(smoothratio)).signedbuildf() * 0.5; }
 	double looking_arc(double const smoothratio) { return fabs((!SyncInput() ? look_ang : interpolatedlookang(smoothratio)).signedbuildf()) * (1. / 9.); }
 
+	// Ticrate scale helpers.
+	binangle getscaledangle(double const value, double const scaleAdjust = 1., binangle* const object = nullptr, double const push = 0.)
+	{
+		return buildfang(scaleAdjust * (((object ? object->signedbuildf() : 1.) * getTicrateScale(value)) + push));
+	}
+	void scaletozero(binangle& object, double const value, double const scaleAdjust, double const push = 0.)
+	{
+		if (object.asbam())
+		{
+			auto sgn = Sgn(object.signedbam());
+			object  -= getscaledangle(value, scaleAdjust, &object, push == 0 ? sgn * (1. / 3.) : push);
+			if (sgn != Sgn(object.signedbam())) object = bamang(0);
+		}
+	}
+
 	// Ticrate playsim adjustment processor.
 	void processhelpers(double const scaleAdjust)
 	{
@@ -256,4 +304,4 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, PlayerPosition& w,
 void updateTurnHeldAmt(double const scaleAdjust);
 bool isTurboTurnTime();
 void resetTurnHeldAmt();
-void processMovement(InputPacket* currInput, InputPacket* inputBuffer, ControlInfo* const hidInput, double const scaleAdjust, int const drink_amt = 0, bool const allowstrafe = true, double const turnscale = 1);
+void processMovement(InputPacket* const currInput, InputPacket* const inputBuffer, ControlInfo* const hidInput, double const scaleAdjust, int const drink_amt = 0, bool const allowstrafe = true, double const turnscale = 1);

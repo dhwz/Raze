@@ -287,7 +287,7 @@ static int GetPositionInfo(DDukeActor* actor, int soundNum, int sectNum,
 	{
 		orgsndist = sndist = int(16 * (sndorg - campos).Length());
 
-		if ((userflags & (SF_GLOBAL | SF_DTAG)) != SF_GLOBAL && sp->picnum == MUSICANDSFX && sp->lotag < 999 && (sector[sp->sectnum].lotag & 0xff) < ST_9_SLIDING_ST_DOOR)
+		if ((userflags & (SF_GLOBAL | SF_DTAG)) != SF_GLOBAL && sp->picnum == MUSICANDSFX && sp->lotag < 999 && (sp->sector()->lotag & 0xff) < ST_9_SLIDING_ST_DOOR)
 			sndist = DivScale(sndist, sp->hitag + 1, 14);
 	}
 
@@ -491,7 +491,7 @@ int S_PlaySound3D(int sndnum, DDukeActor* actor, const vec3_t* pos, int channel,
 
 	bool explosion = ((userflags & (SF_GLOBAL | SF_DTAG)) == (SF_GLOBAL | SF_DTAG)) || ((sndnum == PIPEBOMB_EXPLODE || sndnum == LASERTRIP_EXPLODE || sndnum == RPG_EXPLODE));
 
-	bool underwater = ps[screenpeek].cursectnum > -1 && sector[ps[screenpeek].cursectnum].lotag == ST_2_UNDERWATER;
+	bool underwater = ps[screenpeek].cursectnum > -1 && ps[screenpeek].cursector()->lotag == ST_2_UNDERWATER;
 	if (explosion)
 	{
 		if (underwater)
@@ -642,7 +642,7 @@ int S_CheckSoundPlaying(int soundNum)
 void S_MenuSound(void)
 {
 	static int menunum;
-	static const short menusnds[] =
+	static const uint16_t menusnds[] =
 	{
 		LASERTRIP_EXPLODE,
 		DUKE_GRUNT,

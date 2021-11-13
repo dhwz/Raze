@@ -54,12 +54,6 @@ SAVE save;
 
 bool FAF_DebugView = false;
 
-void COVERupdatesector(int32_t x, int32_t y, int16_t* newsector)
-{
-    // ASSERT(*newsector>=0 && *newsector<MAXSECTORS);
-    updatesector(x,y,newsector);
-}
-
 int COVERinsertsprite(short sectnum, short stat)
 {
     short spnum;
@@ -124,7 +118,7 @@ void SetWallWarpHitscan(short sectnum)
     // Travel all the way around loop setting wall bits
     do
     {
-        if ((uint16_t)wall[wall_num].nextwall < MAXWALLS)
+        if (validWallIndex(wall[wall_num].nextwall))
             SET(wall[wall_num].cstat, CSTAT_WALL_WARP_HITSCAN);
         wall_num = wall[wall_num].point2;
     }
@@ -154,7 +148,7 @@ FAFhitscan(int32_t x, int32_t y, int32_t z, int16_t sectnum,
 {
     vec3_t firstpos = { x, y, z };
     int loz, hiz;
-    short newsectnum = sectnum;
+    int newsectnum = sectnum;
     int startclipmask = 0;
     bool plax_found = false;
 
@@ -270,7 +264,7 @@ FAFcansee(int32_t xs, int32_t ys, int32_t zs, int16_t sects,
           int32_t xe, int32_t ye, int32_t ze, int16_t secte)
 {
     int loz, hiz;
-    short newsectnum = sects;
+    int newsectnum = sects;
     int xvect, yvect, zvect;
     short ang;
     hitdata_t hitinfo;
@@ -532,7 +526,7 @@ void FAFgetzrange(vec3_t pos, int16_t sectnum,
 
     if (FAF_ConnectCeiling(sectnum))
     {
-        short uppersect = sectnum;
+        int uppersect = sectnum;
         int newz = *hiz - Z(2);
 
         switch (TEST(*ceilhit, HIT_MASK))
@@ -552,7 +546,7 @@ void FAFgetzrange(vec3_t pos, int16_t sectnum,
     else if (FAF_ConnectFloor(sectnum) && !TEST(sector[sectnum].floorstat, FLOOR_STAT_FAF_BLOCK_HITSCAN))
     //if (FAF_ConnectFloor(sectnum))
     {
-        short lowersect = sectnum;
+        int lowersect = sectnum;
         int newz = *loz + Z(2);
 
         switch (TEST(*florhit, HIT_MASK))
@@ -606,7 +600,7 @@ void FAFgetzrangepoint(int32_t x, int32_t y, int32_t z, int16_t sectnum,
 
     if (FAF_ConnectCeiling(sectnum))
     {
-        short uppersect = sectnum;
+        int uppersect = sectnum;
         int newz = *hiz - Z(2);
         switch (TEST(*ceilhit, HIT_MASK))
         {
@@ -622,7 +616,7 @@ void FAFgetzrangepoint(int32_t x, int32_t y, int32_t z, int16_t sectnum,
     else if (FAF_ConnectFloor(sectnum) && !TEST(sector[sectnum].floorstat, FLOOR_STAT_FAF_BLOCK_HITSCAN))
     //if (FAF_ConnectFloor(sectnum))
     {
-        short lowersect = sectnum;
+        int lowersect = sectnum;
         int newz = *loz + Z(2);
         switch (TEST(*florhit, HIT_MASK))
         {
@@ -1032,7 +1026,7 @@ void CollectPortals()
     testnewrenderer = true;
     TArray<PortalGroup> floorportals;
     TArray<PortalGroup> ceilingportals;
-    FixedBitArray<MAXSECTORS> floordone, ceilingdone;
+    BitArray floordone(numsectors), ceilingdone(numsectors);
 
     for (int i = 0; i < numsectors; i++)
     {

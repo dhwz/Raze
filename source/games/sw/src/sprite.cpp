@@ -48,6 +48,7 @@ Prepared for public release: 03/28/2005 - Charlie Wiederhold, 3D Realms
 #include "quotemgr.h"
 #include "v_text.h"
 #include "gamecontrol.h"
+#include "gamefuncs.h"
 
 BEGIN_SW_NS
 
@@ -1603,8 +1604,8 @@ void PreMapCombineFloors(void)
     int SpriteNum;
     int base_offset;
     int dx,dy;
-    short sectlist[MAXSECTORS];
-    short sectlistplc, sectlistend, dasect, startwall, endwall, nextsector;
+    int dasect, startwall, endwall, nextsector;
+    unsigned sectliststart, sectlistplc;
     short pnum;
 
     typedef struct
@@ -1632,6 +1633,7 @@ void PreMapCombineFloors(void)
         }
     }
 
+    sectliststart = GlobalSectorList.Size();
     for (i = base_offset = 0; i < MAX_FLOORS; i++)
     {
         // blank so continue
@@ -1647,11 +1649,12 @@ void PreMapCombineFloors(void)
         dx = BoundList[base_offset].offset->x - BoundList[i].offset->x;
         dy = BoundList[base_offset].offset->y - BoundList[i].offset->y;
 
-        sectlist[0] = BoundList[i].offset->sectnum;
-        sectlistplc = 0; sectlistend = 1;
-        while (sectlistplc < sectlistend)
+        GlobalSectorList.Resize(sectliststart);
+        GlobalSectorList.Push(BoundList[i].offset->sectnum);
+        sectlistplc = sectliststart;
+        while (sectlistplc < GlobalSectorList.Size())
         {
-            dasect = sectlist[sectlistplc++];
+            dasect = GlobalSectorList[sectlistplc++];
 
             SectIterator it(dasect);
             while ((j = it.NextIndex()) >= 0)
@@ -1670,11 +1673,18 @@ void PreMapCombineFloors(void)
                 nextsector = wall[j].nextsector;
                 if (nextsector < 0) continue;
 
-                for (k=sectlistend-1; k>=0; k--)
-                    if (sectlist[k] == nextsector)
+                // make sure its not on the list
+                for (k = GlobalSectorList.Size() - 1; k >= (int)sectliststart; k--)
+                {
+                    if (GlobalSectorList[k] == nextsector)
                         break;
+                }
+
+                // if its not on the list add it to the end
                 if (k < 0)
-                    sectlist[sectlistend++] = nextsector;
+                {
+                    GlobalSectorList.Push(nextsector);
+                }
             }
 
         }
@@ -1683,9 +1693,9 @@ void PreMapCombineFloors(void)
         {
             PLAYERp pp = &Player[pnum];
             dasect = pp->cursectnum;
-            for (j=0; j<sectlistend; j++)
+            for (unsigned j = sectliststart; j < GlobalSectorList.Size(); j++)
             {
-                if (sectlist[j] == dasect)
+                if (GlobalSectorList[j] == dasect)
                 {
                     pp->posx += dx;
                     pp->posy += dy;
@@ -1704,6 +1714,7 @@ void PreMapCombineFloors(void)
     {
         KillSprite(SpriteNum);
     }
+    GlobalSectorList.Resize(sectliststart);
 }
 
 #if 0
@@ -1711,7 +1722,7 @@ void PreMapCombineFloors(void)
 void TraverseSectors(short start_sect)
 {
     int i, j, k;
-    short sectlist[MAXSECTORS];
+    short sectlist[M AXSECTORS];
     short sectlistplc, sectlistend, sect, startwall, endwall, nextsector;
 
     sectlist[0] = start_sect;
@@ -2633,7 +2644,7 @@ SpriteSetup(void)
                         if (TEST_BOOL5(sp))
                         {
                             uint16_t const nextwall = wall[w].nextwall;
-                            if (nextwall < MAXWALLS)
+                            if (validWallIndex(nextwall))
                             {
                                 wall_shade[wallcount] = wall[wall[w].nextwall].shade;
                                 wallcount++;
@@ -2689,7 +2700,7 @@ SpriteSetup(void)
                         if (TEST_BOOL5(sp))
                         {
                             uint16_t const nextwall = wall[w].nextwall;
-                            if (nextwall < MAXWALLS)
+                            if (validWallIndex(nextwall))
                             {
                                 wall_shade[wallcount] = wall[wall[w].nextwall].shade;
                                 wallcount++;
@@ -2969,7 +2980,7 @@ SpriteSetup(void)
                     do
                     {
                         // DO NOT TAG WHITE WALLS!
-                        if ((uint16_t)wall[wall_num].nextwall < MAXWALLS)
+                        if (validWallIndex(wall[wall_num].nextwall))
                         {
                             SET(wall[wall_num].cstat, CSTAT_WALL_WARP_HITSCAN);
                         }
@@ -3085,7 +3096,7 @@ SpriteSetup(void)
                     {
                         SET(wall[wall_num].cstat, CSTAT_WALL_BLOCK_ACTOR);
                         uint16_t const nextwall = wall[wall_num].nextwall;
-                        if (nextwall < MAXWALLS)
+                        if (validWallIndex(nextwall))
                             SET(wall[nextwall].cstat, CSTAT_WALL_BLOCK_ACTOR);
                         wall_num = wall[wall_num].point2;
                     }
@@ -5021,7 +5032,7 @@ DropAhead(short SpriteNum, short min_height)
 
     SPRITEp sp = &sprite[SpriteNum];
     int dax, day;
-    short newsector;
+    int newsector;
 
     // dax = sp->x + MOVEx(128, sp->ang);
     // day = sp->y + MOVEy(128, sp->ang);
@@ -5030,7 +5041,7 @@ DropAhead(short SpriteNum, short min_height)
     day = sp->y + MOVEy(256, sp->ang);
 
     newsector = sp->sectnum;
-    COVERupdatesector(dax, day, &newsector);
+    updatesector(dax, day, &newsector);
 
     // look straight down for a drop
     if (ActorDrop(SpriteNum, dax, day, sp->z, newsector, min_height))
@@ -5082,10 +5093,8 @@ move_actor(short SpriteNum, int xchange, int ychange, int zchange)
     hi_sectp = u->hi_sectp;
     sectnum = sp->sectnum;
 
-    clipmoveboxtracenum = 1;
     u->ret = move_sprite(SpriteNum, xchange, ychange, zchange,
                          u->ceiling_dist, u->floor_dist, cliptype, ACTORMOVETICS);
-    clipmoveboxtracenum = 3;
 
     ASSERT(sp->sectnum >= 0);
 
@@ -6831,7 +6840,8 @@ int
 move_sprite(int spritenum, int xchange, int ychange, int zchange, int ceildist, int flordist, uint32_t cliptype, int numtics)
 {
     int retval=0, zh;
-    short dasectnum, tempshort;
+	int dasectnum;
+	short tempshort;
     SPRITEp spr;
     USERp u = User[spritenum].Data();
     short lastsectnum;
@@ -6860,12 +6870,10 @@ move_sprite(int spritenum, int xchange, int ychange, int zchange, int ceildist, 
 
 //    ASSERT(inside(spr->x,spr->y,dasectnum));
 
-    clipmoveboxtracenum = 1;
     retval = clipmove(&clippos, &dasectnum,
                       ((xchange * numtics) << 11), ((ychange * numtics) << 11),
-                      (((int) spr->clipdist) << 2), ceildist, flordist, cliptype);
+                      (((int) spr->clipdist) << 2), ceildist, flordist, cliptype, 1);
     spr->pos.vec2 = clippos.vec2;
-    clipmoveboxtracenum = 3;
 
     //if (TEST(retval, HIT_MASK) == HIT_WALL)
     //    {
@@ -6960,7 +6968,7 @@ int pushmove_sprite(short SpriteNum)
 {
     SPRITEp sp = &sprite[SpriteNum];
     USERp u = User[SpriteNum].Data();
-    short sectnum, ret;
+    int sectnum, ret;
 
     sp->z -= u->zclip;
     sectnum = sp->sectnum;
@@ -7078,7 +7086,7 @@ int
 move_missile(int spritenum, int xchange, int ychange, int zchange, int ceildist, int flordist, uint32_t cliptype, int numtics)
 {
     int retval, zh;
-    short dasectnum, tempshort;
+    int dasectnum, tempshort;
     SPRITEp sp;
     USERp u = User[spritenum].Data();
     short lastsectnum;
@@ -7105,12 +7113,10 @@ move_missile(int spritenum, int xchange, int ychange, int zchange, int ceildist,
 
 
 //    ASSERT(inside(sp->x,sp->y,dasectnum));
-    clipmoveboxtracenum = 1;
     retval = clipmove(&clippos, &dasectnum,
                       ((xchange * numtics) << 11), ((ychange * numtics) << 11),
-                      (((int) sp->clipdist) << 2), ceildist, flordist, cliptype);
+                      (((int) sp->clipdist) << 2), ceildist, flordist, cliptype, 1);
     sp->pos.vec2 = clippos.vec2;
-    clipmoveboxtracenum = 3;
 
     if (dasectnum < 0)
     {
@@ -7216,7 +7222,7 @@ move_ground_missile(short spritenum, int xchange, int ychange, int ceildist, int
 {
     int daz;
     int retval=0;
-    short dasectnum;
+    int dasectnum;
     SPRITEp sp;
     USERp u = User[spritenum].Data();
     short lastsectnum;
@@ -7264,12 +7270,10 @@ move_ground_missile(short spritenum, int xchange, int ychange, int ceildist, int
         dasectnum = lastsectnum = sp->sectnum;
         opos = sp->pos;
         opos.z = daz;
-        clipmoveboxtracenum = 1;
         retval = clipmove(&opos, &dasectnum,
                           ((xchange * numtics) << 11), ((ychange * numtics) << 11),
-                          (((int) sp->clipdist) << 2), ceildist, flordist, cliptype);
+                          (((int) sp->clipdist) << 2), ceildist, flordist, cliptype, 1);
         sp->pos.vec2 = opos.vec2;
-        clipmoveboxtracenum = 3;
     }
 
     if (dasectnum < 0)
@@ -7396,24 +7400,10 @@ move_ground_missile(short spritenum, int xchange, int ychange, int ceildist, int
 
 static saveable_code saveable_sprite_code[] =
 {
-    SAVE_CODE(DoActorZrange),
-    SAVE_CODE(DoActorGlobZ),
-    SAVE_CODE(DoStayOnFloor),
     SAVE_CODE(DoGrating),
-    SAVE_CODE(move_ground_missile), // dead entries, kept for savegame compatibility.
-    SAVE_CODE(move_ground_missile),
     SAVE_CODE(DoKey),
     SAVE_CODE(DoCoin),
-    SAVE_CODE(KillGet),
-    SAVE_CODE(KillGetAmmo),
-    SAVE_CODE(KillGetWeapon),
-    SAVE_CODE(DoSpawnItemTeleporterEffect),
     SAVE_CODE(DoGet),
-    SAVE_CODE(SetEnemyActive),
-    SAVE_CODE(SetEnemyInactive),
-    SAVE_CODE(ProcessActiveVars),
-    SAVE_CODE(StateControl),
-    SAVE_CODE(SpriteControl),
 };
 
 static saveable_data saveable_sprite_data[] =

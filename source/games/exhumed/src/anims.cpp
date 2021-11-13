@@ -111,6 +111,8 @@ DExhumedActor* BuildAnim(DExhumedActor* pActor, int val, int val2, int x, int y,
     pActor->nIndex = 0;
     pActor->nIndex2 = SeqOffsets[val] + val2;
     pActor->pTarget = nullptr;
+    pActor->nDamage = pActor->nRun;
+    pActor->nPhase = ITEM_MAGIC;
 
     if (nFlag & 0x80) {
         pSprite->cstat |= 0x2; // set transluscence
@@ -238,7 +240,7 @@ void BuildExplosion(DExhumedActor* pActor)
 {
     auto pSprite = &pActor->s();
  
-    short nSector = pSprite->sectnum;
+    int nSector = pSprite->sectnum;
 
     int edx = 36;
 
@@ -246,7 +248,7 @@ void BuildExplosion(DExhumedActor* pActor)
     {
         edx = 75;
     }
-    else if (pSprite->z == sector[nSector].floorz)
+    else if (pSprite->z == pSprite->sector()->floorz)
     {
         edx = 34;
     }

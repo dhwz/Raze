@@ -256,7 +256,7 @@ void genDudeAttack1(int, DBloodActor* actor)
 
         actFireVector(actor, 0, 0, dx, dy, dz,(VECTOR_TYPE)pExtra->curWeapon);
         if (!playGenDudeSound(actor, kGenDudeSndAttackNormal))
-            sfxPlayVectorSound(pSprite, pExtra->curWeapon);
+            sfxPlayVectorSound(actor, pExtra->curWeapon);
     } 
     else if (pExtra->weaponType == kGenDudeWeaponSummon) 
     {
@@ -292,7 +292,7 @@ void genDudeAttack1(int, DBloodActor* actor)
 
         actFireMissile(actor, 0, 0, dx, dy, dz, pExtra->curWeapon);
         if (!playGenDudeSound(actor, kGenDudeSndAttackNormal))
-            sfxPlayMissileSound(pSprite, pExtra->curWeapon);
+            sfxPlayMissileSound(actor, pExtra->curWeapon);
     }
 }
 
@@ -905,7 +905,7 @@ static void unicultThinkChase(DBloodActor* actor)
                                 VectorScan(pSprite, 0, 0, bcos(pSprite->ang), bsin(pSprite->ang), actor->dudeSlope, dist, 1);
                                 if (actor == gHitInfo.hitactor) break;
                                 
-                                bool immune = nnExtIsImmune(pHSprite, gVectorData[curWeapon].dmgType);
+                                bool immune = nnExtIsImmune(hitactor, gVectorData[curWeapon].dmgType);
                                 if (!(pXHSprite != NULL && (!immune || (immune && pHSprite->statnum == kStatThing && pXHSprite->Vector)) && !pXHSprite->locked)) 
                                 {
                                     if ((approxDist(gHitInfo.hitx - pSprite->x, gHitInfo.hity - pSprite->y) <= 1500 && !blck)
@@ -938,7 +938,7 @@ static void unicultThinkChase(DBloodActor* actor)
                                             else pXSprite->dodgeDir = -1;
                                         }
 
-                                        if (((gSpriteHit[pSprite->extra].hit & 0xc000) == 0x8000) || ((gSpriteHit[pSprite->extra].hit & 0xc000) == 0xc000)) 
+                                        if (actor->hit().hit.type == kHitWall || actor->hit().hit.type == kHitSprite) 
                                         {
                                             if (spriteIsUnderwater(actor)) aiGenDudeNewState(actor, &genDudeChaseW);
                                             else aiGenDudeNewState(actor, &genDudeChaseL);
@@ -1008,7 +1008,7 @@ static void unicultThinkChase(DBloodActor* actor)
                                         // check also for damage resistance (all possible damages missile can use)
                                         for (int i = 0; i < kDmgMax; i++) 
                                         {
-                                            if (gMissileInfoExtra[curWeapon - kMissileBase].dmgType[i] && (failed = nnExtIsImmune(pHSprite, i)) == false)
+                                            if (gMissileInfoExtra[curWeapon - kMissileBase].dmgType[i] && (failed = nnExtIsImmune(hitactor, i)) == false)
                                                 break;
                                         }
                                     }
@@ -1643,7 +1643,7 @@ static void scaleDamage(DBloodActor* actor)
     }
 
     // take in account yrepeat of sprite
-    short yrepeat = sprite[pXSprite->reference].yrepeat;
+    short yrepeat = actor->s().yrepeat;
     if (yrepeat < 64) 
     {
         for (int i = 0; i < kDmgMax; i++) curScale[i] += (64 - yrepeat);
@@ -1654,7 +1654,7 @@ static void scaleDamage(DBloodActor* actor)
     }
 
     // take surface type into account
-    int surfType = tileGetSurfType(sprite[pXSprite->reference].index + 0xc000);
+    int surfType = tileGetSurfType(actor->s().picnum);
     switch (surfType) 
     {
         case 1:  // stone
@@ -1809,9 +1809,8 @@ int getBaseChanceModifier(int baseChance)
 
 int getRecoilChance(DBloodActor* actor) 
 {
-    auto const pSprite = &actor->s();
     auto const pXSprite = &actor->x();
-    int mass = getSpriteMassBySize(pSprite);
+    int mass = getSpriteMassBySize(actor);
     int baseChance = (!dudeIsMelee(actor) ? 0x8000 : 0x4000);
     baseChance = getBaseChanceModifier(baseChance) + pXSprite->data3;
     
@@ -1821,9 +1820,8 @@ int getRecoilChance(DBloodActor* actor)
 
 int getDodgeChance(DBloodActor* actor) 
 {
-    auto const pSprite = &actor->s();
     auto const pXSprite = &actor->x();
-    int mass = getSpriteMassBySize(pSprite);
+    int mass = getSpriteMassBySize(actor);
     int baseChance = (!dudeIsMelee(actor) ? 0x6000 : 0x1000);
     baseChance = getBaseChanceModifier(baseChance) + pXSprite->data3;
 
@@ -2058,7 +2056,7 @@ void genDudeTransform(DBloodActor* actor)
     if (actIncarnation == NULL) 
     {
         if (pXSprite->sysData1 == kGenDudeTransformStatus) pXSprite->sysData1 = 0;
-        trTriggerSprite(pSprite->index, pXSprite, kCmdOff);
+        trTriggerSprite(actor, kCmdOff);
         return;
     }
     
@@ -2075,7 +2073,7 @@ void genDudeTransform(DBloodActor* actor)
     pXIncarnation->triggerOff = false;
 
     // trigger dude death before transform
-    trTriggerSprite(pSprite->index, pXSprite, kCmdOff);
+    trTriggerSprite(actor, kCmdOff);
 
     pSprite->type = pSprite->inittype = pIncarnation->type;
     pSprite->flags = pIncarnation->flags;
@@ -2417,7 +2415,7 @@ bool genDudePrepare(DBloodActor* actor, int propId)
             SPRITEMASS* pMass = &actor->spriteMass;
             pMass->seqId = pMass->picnum = pMass->xrepeat = pMass->yrepeat = pMass->clipdist = 0;
             pMass->mass = pMass->airVel = pMass->fraction = 0;
-            getSpriteMassBySize(pSprite);
+            getSpriteMassBySize(actor);
             if (propId) break;
             [[fallthrough]];
         }

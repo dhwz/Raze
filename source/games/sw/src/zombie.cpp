@@ -843,7 +843,7 @@ SpawnZombie2(short Weapon)
 
     if (FAF_ConnectArea(sp->sectnum))
     {
-        short sectnum = sp->sectnum;
+        int sectnum = sp->sectnum;
         updatesectorz(sp->x, sp->y, sp->z + Z(10), &sectnum);
         if (sectnum >= 0 && SectorIsUnderwaterArea(sectnum))
             return -1;
@@ -981,9 +981,6 @@ int DoZombiePain(DSWActor* actor)
 
 static saveable_code saveable_zombie_code[] =
 {
-    SAVE_CODE(SetupZombie),
-    SAVE_CODE(SpawnZombie),
-    SAVE_CODE(SpawnZombie2),
     SAVE_CODE(DoZombieMove),
     SAVE_CODE(NullZombie),
     SAVE_CODE(DoZombiePain),

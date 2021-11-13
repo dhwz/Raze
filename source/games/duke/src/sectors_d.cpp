@@ -614,9 +614,7 @@ bool checkhitswitch_d(int snum, int ww, DDukeActor *act)
 
 void activatebysector_d(int sect, DDukeActor* activator)
 {
-	short didit;
-
-	didit = 0;
+	int didit = 0;
 
 	DukeSectIterator it(sect);
 	while (auto act = it.Next())
@@ -641,7 +639,7 @@ void activatebysector_d(int sect, DDukeActor* activator)
 
 void checkhitwall_d(DDukeActor* spr, int dawallnum, int x, int y, int z, int atwith)
 {
-	short j, sn = -1, darkestwall;
+	int j, sn = -1, darkestwall;
 	walltype* wal;
 
 	wal = &wall[dawallnum];
@@ -667,8 +665,8 @@ void checkhitwall_d(DDukeActor* spr, int dawallnum, int x, int y, int z, int atw
 	}
 
 	if (((wal->cstat & 16) || wal->overpicnum == BIGFORCE) && wal->nextsector >= 0)
-		if (sector[wal->nextsector].floorz > z)
-			if (sector[wal->nextsector].floorz - sector[wal->nextsector].ceilingz)
+		if (wal->nextSector()->floorz > z)
+			if (wal->nextSector()->floorz - wal->nextSector()->ceilingz)
 				switch (wal->overpicnum)
 				{
 				case W_FORCEFIELD:
@@ -701,8 +699,8 @@ void checkhitwall_d(DDukeActor* spr, int dawallnum, int x, int y, int z, int atw
 					wal->cstat &= 65535 - 65;
 					if (wal->nextwall >= 0)
 					{
-						wall[wal->nextwall].overpicnum = FANSPRITEBROKE;
-						wall[wal->nextwall].cstat &= 65535 - 65;
+						wal->nextWall()->overpicnum = FANSPRITEBROKE;
+						wal->nextWall()->cstat &= 65535 - 65;
 					}
 					S_PlayActorSound(VENT_BUST, spr);
 					S_PlayActorSound(GLASS_BREAKING, spr);
@@ -716,7 +714,7 @@ void checkhitwall_d(DDukeActor* spr, int dawallnum, int x, int y, int z, int atw
 					wal->cstat = 0;
 
 					if (wal->nextwall >= 0)
-						wall[wal->nextwall].cstat = 0;
+						wal->nextWall()->cstat = 0;
 
 					auto spawned = EGS(sn, x, y, z, SECTOREFFECTOR, 0, 0, 0, ps[0].angle.ang.asbuild(), 0, 0, spr, 3);
 					spawned->s->lotag = 128; 
@@ -730,7 +728,7 @@ void checkhitwall_d(DDukeActor* spr, int dawallnum, int x, int y, int z, int atw
 					lotsofcolourglass(spr, dawallnum, 80);
 					wal->cstat = 0;
 					if (wal->nextwall >= 0)
-						wall[wal->nextwall].cstat = 0;
+						wal->nextWall()->cstat = 0;
 					S_PlayActorSound(VENT_BUST, spr);
 					S_PlayActorSound(GLASS_BREAKING, spr);
 					return;
@@ -950,9 +948,10 @@ void checkplayerhurt_d(struct player_struct* p, const Collision& coll)
 
 bool checkhitceiling_d(int sn)
 {
+	auto sectp = &sector[sn];
 	int j;
 
-	switch (sector[sn].ceilingpicnum)
+	switch (sectp->ceilingpicnum)
 	{
 	case WALLLIGHT1:
 	case WALLLIGHT2:
@@ -964,26 +963,26 @@ bool checkhitceiling_d(int sn)
 		ceilingglass(ps[myconnectindex].GetActor(), sn, 10);
 		S_PlayActorSound(GLASS_BREAKING, ps[screenpeek].GetActor());
 
-		if (sector[sn].ceilingpicnum == WALLLIGHT1)
-			sector[sn].ceilingpicnum = WALLLIGHTBUST1;
+		if (sectp->ceilingpicnum == WALLLIGHT1)
+			sectp->ceilingpicnum = WALLLIGHTBUST1;
 
-		if (sector[sn].ceilingpicnum == WALLLIGHT2)
-			sector[sn].ceilingpicnum = WALLLIGHTBUST2;
+		if (sectp->ceilingpicnum == WALLLIGHT2)
+			sectp->ceilingpicnum = WALLLIGHTBUST2;
 
-		if (sector[sn].ceilingpicnum == WALLLIGHT3)
-			sector[sn].ceilingpicnum = WALLLIGHTBUST3;
+		if (sectp->ceilingpicnum == WALLLIGHT3)
+			sectp->ceilingpicnum = WALLLIGHTBUST3;
 
-		if (sector[sn].ceilingpicnum == WALLLIGHT4)
-			sector[sn].ceilingpicnum = WALLLIGHTBUST4;
+		if (sectp->ceilingpicnum == WALLLIGHT4)
+			sectp->ceilingpicnum = WALLLIGHTBUST4;
 
-		if (sector[sn].ceilingpicnum == TECHLIGHT2)
-			sector[sn].ceilingpicnum = TECHLIGHTBUST2;
+		if (sectp->ceilingpicnum == TECHLIGHT2)
+			sectp->ceilingpicnum = TECHLIGHTBUST2;
 
-		if (sector[sn].ceilingpicnum == TECHLIGHT4)
-			sector[sn].ceilingpicnum = TECHLIGHTBUST4;
+		if (sectp->ceilingpicnum == TECHLIGHT4)
+			sectp->ceilingpicnum = TECHLIGHTBUST4;
 
 
-		if (!sector[sn].hitag)
+		if (!sectp->hitag)
 		{
 			DukeSectIterator it(sn);
 			while (auto act = it.Next())
@@ -1005,7 +1004,7 @@ bool checkhitceiling_d(int sn)
 		DukeStatIterator it(STAT_EFFECTOR);
 		while (auto act = it.Next())
 		{
-			if (act->s->hitag == (sector[sn].hitag) && act->s->lotag == 3)
+			if (act->s->hitag == (sectp->hitag) && act->s->lotag == 3)
 			{
 				act->temp_data[2] = j;
 				act->temp_data[4] = 1;
@@ -1129,8 +1128,8 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 	case FANSPRITE:
 		s->picnum = FANSPRITEBROKE;
 		s->cstat &= (65535 - 257);
-		if (sector[s->sectnum].floorpicnum == FANSHADOW)
-			sector[s->sectnum].floorpicnum = FANSHADOWBROKE;
+		if (s->sector()->floorpicnum == FANSHADOW)
+			s->sector()->floorpicnum = FANSHADOWBROKE;
 
 		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
 		for (j = 0; j < 16; j++) RANDOMSCRAP(targ);
@@ -1150,7 +1149,7 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 		if (gs.actorinfo[SHOTSPARK1].scriptaddress && pspr->extra != ScriptCode[gs.actorinfo[SHOTSPARK1].scriptaddress])
 		{
 			for (j = 0; j < 15; j++)
-				EGS(s->sectnum, s->x, s->y, sector[s->sectnum].floorz - (12 << 8) - (j << 9), SCRAP1 + (krand() & 15), -8, 64, 64,
+				EGS(s->sectnum, s->x, s->y, s->sector()->floorz - (12 << 8) - (j << 9), SCRAP1 + (krand() & 15), -8, 64, 64,
 					krand() & 2047, (krand() & 127) + 64, -(krand() & 511) - 256, targ, 5);
 			spawn(targ, EXPLOSION2);
 			deletesprite(targ);
@@ -1305,7 +1304,7 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 		}
 		{
 			auto j = spawn(targ, STEAM);
-			j->s->z = sector[s->sectnum].floorz - (32 << 8);
+			j->s->z = s->sector()->floorz - (32 << 8);
 		}
 		break;
 
@@ -1410,8 +1409,8 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 					if ((s->cstat & 48) == 0)
 						s->ang = (pspr->ang + 1024) & 2047;
 					s->xvel = -(pspr->extra << 2);
-					short j = s->sectnum;
-					pushmove(&s->x, &s->y, &s->z, &j, 128L, (4 << 8), (4 << 8), CLIPMASK0);
+					j = s->sectnum;
+					pushmove(&s->pos, &j, 128L, (4 << 8), (4 << 8), CLIPMASK0);
 					if (j != s->sectnum && j >= 0 && j < MAXSECTORS)
 						changeactorsect(targ, j);
 				}
@@ -1493,37 +1492,37 @@ void checksectors_d(int snum)
 	int i = -1, oldz;
 	struct player_struct* p;
 	int j, hitscanwall;
-	short neartagsector, neartagwall;
+	int neartagsector, neartagwall;
 	DDukeActor* neartagsprite;
 	int neartaghitdist;
 
 	p = &ps[snum];
 	auto pact = p->GetActor();
 
-	switch (sector[p->cursectnum].lotag)
+	switch (p->cursector()->lotag)
 	{
 
 	case 32767:
-		sector[p->cursectnum].lotag = 0;
+		p->cursector()->lotag = 0;
 		FTA(9, p);
 		p->secret_rooms++;
 		SECRET_Trigger(p->cursectnum);
 		return;
 	case -1:
-		sector[p->cursectnum].lotag = 0;
+		p->cursector()->lotag = 0;
 		setnextmap(false);
 		return;
 	case -2:
-		sector[p->cursectnum].lotag = 0;
+		p->cursector()->lotag = 0;
 		p->timebeforeexit = 26 * 8;
-		p->customexitsound = sector[p->cursectnum].hitag;
+		p->customexitsound = p->cursector()->hitag;
 		return;
 	default:
-		if (sector[p->cursectnum].lotag >= 10000 && sector[p->cursectnum].lotag < 16383)
+		if (p->cursector()->lotag >= 10000 && p->cursector()->lotag < 16383)
 		{
 			if (snum == screenpeek || ud.coop == 1)
-				S_PlayActorSound(sector[p->cursectnum].lotag - 10000, pact);
-			sector[p->cursectnum].lotag = 0;
+				S_PlayActorSound(p->cursector()->lotag - 10000, pact);
+			p->cursector()->lotag = 0;
 		}
 		break;
 
@@ -1619,14 +1618,14 @@ void checksectors_d(int snum)
 		}
 
 		if (p->newOwner == nullptr && neartagsprite == nullptr && neartagsector == -1 && neartagwall == -1)
-			if (isanunderoperator(sector[p->GetActor()->s->sectnum].lotag))
+			if (isanunderoperator(p->GetActor()->getSector()->lotag))
 				neartagsector = p->GetActor()->s->sectnum;
 
 		if (neartagsector >= 0 && (sector[neartagsector].lotag & 16384))
 			return;
 
 		if (neartagsprite == nullptr && neartagwall == -1)
-			if (sector[p->cursectnum].lotag == 2)
+			if (p->cursector()->lotag == 2)
 			{
 				DDukeActor* hit;
 				oldz = hitasprite(p->GetActor(), &hit);
@@ -1788,9 +1787,9 @@ void checksectors_d(int snum)
 			}
 			operatesectors(neartagsector, p->GetActor());
 		}
-		else if ((sector[p->GetActor()->s->sectnum].lotag & 16384) == 0)
+		else if ((p->GetActor()->getSector()->lotag & 16384) == 0)
 		{
-			if (isanunderoperator(sector[p->GetActor()->s->sectnum].lotag))
+			if (isanunderoperator(p->GetActor()->getSector()->lotag))
 			{
 				DukeSectIterator it(p->GetActor()->s->sectnum);
 				while (auto act = it.Next())

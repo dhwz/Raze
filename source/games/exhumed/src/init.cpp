@@ -41,7 +41,8 @@ enum
 };
 
 int initx, inity, initz;
-short inita, initsect;
+short inita;
+int initsect;
 
 short nCurChunkNum = 0;
 
@@ -51,7 +52,7 @@ int movefifopos;
 
 short nCurBodyGunNum;
 
-short SectSoundSect[kMaxSectors] = { 0 };
+int SectSoundSect[kMaxSectors] = { 0 };
 short SectSound[kMaxSectors]     = { 0 };
 short SectFlag[kMaxSectors]      = { 0 };
 int   SectDepth[kMaxSectors]     = { 0 };
@@ -104,7 +105,6 @@ uint8_t LoadLevel(MapRecord* map)
         InitPushBlocks();
 		InitPlayer();
         InitItems();
-        InitInput();
 
         if (map->gameflags & LEVEL_EX_COUNTDOWN) {
             InitEnergyTile();
@@ -215,16 +215,16 @@ void SetAbove(short nCurSector, short nAboveSector)
     SectAbove[nCurSector] = nAboveSector;
 }
 
-void SnapSectors(short nSectorA, short nSectorB, short b)
+void SnapSectors(int nSectorA, int nSectorB, int b)
 {
     // edx - nSectorA
     // eax - nSectorB
 
-    short nWallA = sector[nSectorA].wallptr;
-    short nWallB = sector[nSectorB].wallptr;
+    int nWallA = sector[nSectorA].wallptr;
+    int nWallB = sector[nSectorB].wallptr;
 
-    short num1 = sector[nSectorA].wallnum;
-    short num2 = sector[nSectorB].wallnum;
+    int num1 = sector[nSectorA].wallnum;
+    int num2 = sector[nSectorB].wallnum;
 
     int nCount = 0;
 
@@ -631,7 +631,7 @@ void ProcessSpriteTag(DExhumedActor* pActor, short nLotag, short nHitag)
             }
             case 99: // underwater type 2
             {
-                short nSector = pSprite->sectnum;
+                int nSector =pSprite->sectnum;
                 SetAbove(nSector, nHitag);
                 SectFlag[nSector] |= kSectUnderwater;
 
@@ -640,7 +640,7 @@ void ProcessSpriteTag(DExhumedActor* pActor, short nLotag, short nHitag)
             }
             case 98:
             {
-                short nSector = pSprite->sectnum;
+                int nSector =pSprite->sectnum;
                 SetBelow(nSector, nHitag);
                 SnapSectors(nSector, nHitag, 1);
 
@@ -661,7 +661,7 @@ void ProcessSpriteTag(DExhumedActor* pActor, short nLotag, short nHitag)
                     nDamage = 1;
                 }
 
-                short nSector = pSprite->sectnum;
+                int nSector =pSprite->sectnum;
 
                 SectDamage[nSector] = nDamage;
                 SectFlag[nSector] |= kSectLava;
@@ -678,7 +678,7 @@ void ProcessSpriteTag(DExhumedActor* pActor, short nLotag, short nHitag)
             }
             case 94: // water
             {
-                short nSector = pSprite->sectnum;
+                int nSector =pSprite->sectnum;
                 SectDepth[nSector] = nHitag << 8;
 
                 DeleteActor(pActor);
@@ -697,7 +697,7 @@ void ProcessSpriteTag(DExhumedActor* pActor, short nLotag, short nHitag)
             case 79:
             case 89:
             {
-                short nSector = pSprite->sectnum;
+                int nSector =pSprite->sectnum;
 
                 SectSpeed[nSector] = nSpeed;
                 SectFlag[nSector] |= pSprite->ang;
@@ -714,7 +714,7 @@ void ProcessSpriteTag(DExhumedActor* pActor, short nLotag, short nHitag)
             }
             case 80: // underwater
             {
-                short nSector = pSprite->sectnum;
+                int nSector =pSprite->sectnum;
                 SectFlag[nSector] |= kSectUnderwater;
 
                 DeleteActor(pActor);
@@ -724,7 +724,7 @@ void ProcessSpriteTag(DExhumedActor* pActor, short nLotag, short nHitag)
             {
                 AddFlow(pSprite->sectnum, nSpeed, 1, pSprite->ang);
 
-                short nSector = pSprite->sectnum;
+                int nSector =pSprite->sectnum;
                 SectFlag[nSector] |= 0x8000;
 
                 DeleteActor(pActor);
@@ -848,17 +848,18 @@ void LoadObjects()
 
     for (int nSector = 0; nSector < numsectors; nSector++)
     {
-        short hitag = sector[nSector].hitag;
-        short lotag = sector[nSector].lotag;
+        auto sectp = &sector[nSector];
+        short hitag = sectp->hitag;
+        short lotag = sectp->lotag;
 
-        sector[nSector].hitag = 0;
-        sector[nSector].lotag = 0;
-        sector[nSector].extra = -1;
+        sectp->hitag = 0;
+        sectp->lotag = 0;
+        sectp->extra = -1;
 
         if (hitag || lotag)
         {
-            sector[nSector].lotag = runlist_HeadRun() + 1;
-            sector[nSector].hitag = lotag;
+            sectp->lotag = runlist_HeadRun() + 1;
+            sectp->hitag = lotag;
 
             runlist_ProcessSectorTag(nSector, lotag, hitag);
         }

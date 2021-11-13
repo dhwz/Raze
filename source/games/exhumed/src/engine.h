@@ -60,7 +60,7 @@ extern int initx;
 extern int inity;
 extern int initz;
 extern short inita;
-extern short initsect;
+extern int initsect;
 
 extern short nCurChunkNum;
 extern DExhumedActor* nBodyGunSprite[50];
@@ -88,7 +88,7 @@ enum ECounter
 };
 extern int Counters[kNumCounters];
 
-void SnapSectors(short nSectorA, short nSectorB, short b);
+void SnapSectors(int nSectorA, int nSectorB, int b);
 
 extern short SectSound[];
 extern short SectDamage[];
@@ -96,7 +96,7 @@ extern short SectSpeed[];
 extern int SectBelow[];
 extern short SectFlag[];
 extern int SectDepth[];
-extern short SectSoundSect[];
+extern int SectSoundSect[];
 extern int SectAbove[];
 
 void LoadObjects();
@@ -110,7 +110,6 @@ void FixPalette();
 int HavePLURemap();
 uint8_t RemapPLU(uint8_t pal);
 
-//extern unsigned char kenpal[];
 extern short overscanindex;
 
 extern char *origpalookup[];
@@ -129,7 +128,7 @@ void DrawMap(double const smoothratio);
 
 void InitRandom();
 int RandomBit();
-char RandomByte();
+uint8_t RandomByte();
 uint16_t RandomWord();
 int RandomLong();
 int RandomSize(int nSize);

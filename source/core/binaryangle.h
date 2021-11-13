@@ -207,7 +207,7 @@ public:
 inline constexpr binangle bamang(uint32_t v) { return binangle(v); }
 inline constexpr binangle q16ang(uint32_t v) { return binangle(v << 5); }
 inline constexpr binangle buildang(uint32_t v) { return binangle(v << BAMBITS); }
-inline binangle buildfang(double v) { return binangle(xs_CRoundToUInt(v * BAMUNIT)); }
+inline binangle buildfang(double v) { return binangle(xs_ToFixed(BAMBITS, v)); }
 inline binangle radang(double v) { return binangle(xs_CRoundToUInt(v * (0x80000000u / pi::pi()))); }
 inline binangle degang(double v) { return binangle(FloatToAngle(v)); }
 
@@ -404,4 +404,14 @@ inline constexpr binangle interpolatedangle(binangle oang, binangle ang, double 
 inline constexpr binangle interpolatedangle(binangle oang, binangle ang, int const smoothratio, int const scale = 16)
 {
 	return bamang(oang.asbam() + MulScale(((ang.asbam() + 0x80000000 - oang.asbam()) & 0xFFFFFFFF) - 0x80000000, smoothratio, scale));
+}
+
+inline constexpr fixedhoriz interpolatedhorizon(fixedhoriz oval, fixedhoriz val, double const smoothratio, int const scale = 16)
+{
+	return q16horiz(oval.asq16() + MulScale((val - oval).asq16(), int(smoothratio), scale));
+}
+
+inline constexpr fixedhoriz interpolatedhorizon(fixedhoriz oval, fixedhoriz val, int const smoothratio, int const scale = 16)
+{
+	return q16horiz(oval.asq16() + MulScale((val - oval).asq16(), smoothratio, scale));
 }

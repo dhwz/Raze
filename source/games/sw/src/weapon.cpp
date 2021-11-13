@@ -7652,30 +7652,29 @@ short StatBreakList[] =
 
 void TraverseBreakableWalls(short start_sect, int x, int y, int z, short ang, int radius)
 {
-    int WallBreakPosition(short hit_wall, short *sectnum, int *x, int *y, int *z, short *ang);
     int j, k;
-    short sectlist[MAXSECTORS]; // !JIM! Frank, 512 was not big enough for $dozer, was asserting out!
-    short sectlistplc, sectlistend, sect, startwall, endwall, nextsector;
+    int sect, startwall, endwall, nextsector;
+    unsigned sectlistplc, sectliststart;
     int xmid,ymid;
     int dist;
     short break_count;
 
-    short sectnum,wall_ang;
+	int sectnum;
+	short wall_ang;
     int hit_x,hit_y,hit_z;
+    
 
-    sectlist[0] = start_sect;
-    sectlistplc = 0; sectlistend = 1;
+    sectliststart = sectlistplc = GlobalSectorList.Size();
+    GlobalSectorList.Push(start_sect);
 
     // limit radius
     if (radius > 2000)
         radius = 2000;
 
     break_count = 0;
-    while (sectlistplc < sectlistend)
+    while (sectlistplc < GlobalSectorList.Size())
     {
-        sect = sectlist[sectlistplc++];
-
-        ASSERT((uint16_t)sectlistplc < SIZ(sectlist));
+        sect = GlobalSectorList[sectlistplc++];
 
         startwall = sector[sect].wallptr;
         endwall = startwall + sector[sect].wallnum;
@@ -7686,8 +7685,8 @@ void TraverseBreakableWalls(short start_sect, int x, int y, int z, short ang, in
             if (wall[j].lotag == TAG_WALL_BREAK)
             {
                 // find midpoint
-                xmid = DIV2(wall[j].x + wall[j+1].x);
-                ymid = DIV2(wall[j].y + wall[j+1].y);
+                xmid = (wall[j].x + wall[j+1].x) >> 1;
+                ymid = (wall[j].y + wall[j+1].y) >> 1;
 
                 // don't need to go further if wall is too far out
 
@@ -7704,7 +7703,10 @@ void TraverseBreakableWalls(short start_sect, int x, int y, int z, short ang, in
 
                         break_count++;
                         if (break_count > 4)
+                        {
+                            GlobalSectorList.Resize(sectliststart);
                             return;
+                        }
                     }
                 }
             }
@@ -7715,21 +7717,21 @@ void TraverseBreakableWalls(short start_sect, int x, int y, int z, short ang, in
                 continue;
 
             // make sure its not on the list
-            for (k = sectlistend - 1; k >= 0; k--)
+            for (k = GlobalSectorList.Size() - 1; k >= (int)sectliststart; k--)
             {
-                if (sectlist[k] == nextsector)
+                if (GlobalSectorList[k] == nextsector)
                     break;
             }
 
             // if its not on the list add it to the end
             if (k < 0)
             {
-                sectlist[sectlistend++] = nextsector;
-                ASSERT((uint16_t)sectlistend < SIZ(sectlist));
+                GlobalSectorList.Push(nextsector);
             }
         }
 
     }
+    GlobalSectorList.Resize(sectliststart);
 }
 
 
@@ -12210,7 +12212,7 @@ DoBloodWorm(DSWActor* actor)
     int xvect,yvect;
     int bx,by;
     int amt;
-    short sectnum;
+    int sectnum;
 
     u = User[Weapon].Data();
 
@@ -12830,8 +12832,8 @@ DoSerpRing(DSWActor* actor)
             // if ((dist ok and random ok) OR very few skulls left)
             if ((dist < 18000 && (RANDOM_P2(2048<<5)>>5) < 16) || User[sp->owner]->Counter < 4)
             {
-                short sectnum = sp->sectnum;
-                COVERupdatesector(sp->x,sp->y,&sectnum);
+                int sectnum = sp->sectnum;
+                updatesector(sp->x,sp->y,&sectnum);
 
                 // if (valid sector and can see target)
                 if (sectnum != -1 && CanSeePlayer(Weapon))
@@ -17420,7 +17422,7 @@ HitscanSpriteAdjust(short SpriteNum, short hit_wall)
     SPRITEp sp = &sprite[SpriteNum];
     int16_t ang;
     int xvect,yvect;
-    short sectnum;
+    int sectnum;
 
 #if 1
     if (hit_wall >= 0)
@@ -17442,12 +17444,9 @@ HitscanSpriteAdjust(short SpriteNum, short hit_wall)
     xvect = bcos(ang, 4);
     yvect = bsin(ang, 4);
 
-    clipmoveboxtracenum = 1;
-
     // must have this
     sectnum = sp->sectnum;
-    clipmove(&sp->pos, &sectnum, xvect, yvect, 4L, 4L<<8, 4L<<8, CLIPMASK_MISSILE);
-    clipmoveboxtracenum = 3;
+    clipmove(&sp->pos, &sectnum, xvect, yvect, 4L, 4L<<8, 4L<<8, CLIPMASK_MISSILE, 1);
 
     if (sp->sectnum != sectnum)
         changespritesect(SpriteNum, sectnum);
@@ -20208,7 +20207,7 @@ bool TestDontStick(short SpriteNum, short hit_wall)
         return true;
 
     // if blocking red wallo
-    if (TEST(wp->cstat, CSTAT_WALL_BLOCK) && (uint16_t)wp->nextwall < MAXWALLS)
+    if (TEST(wp->cstat, CSTAT_WALL_BLOCK) && validWallIndex(wp->nextwall))
         return true;
 
     return false;
@@ -20265,7 +20264,7 @@ int QueueHole(short hit_sect, short hit_wall, int hit_x, int hit_y, int hit_z)
     short SpriteNum;
     int nx,ny;
     SPRITEp sp;
-    short sectnum;
+    int sectnum;
 
 
     if (TestDontStick(-1,hit_wall))
@@ -20310,9 +20309,7 @@ int QueueHole(short hit_sect, short hit_wall, int hit_x, int hit_y, int hit_z)
 
     sectnum = sp->sectnum;
 
-    clipmoveboxtracenum = 1;
-    clipmove(&sp->pos, &sectnum, nx, ny, 0L, 0L, 0L, CLIPMASK_MISSILE);
-    clipmoveboxtracenum = 3;
+    clipmove(&sp->pos, &sectnum, nx, ny, 0L, 0L, 0L, CLIPMASK_MISSILE, 1);
 
     if (sp->sectnum != sectnum)
         changespritesect(SpriteNum, sectnum);
@@ -20544,7 +20541,7 @@ int QueueWallBlood(short hit_sprite, short ang)
     short SpriteNum;
     int nx,ny;
     SPRITEp sp;
-    short sectnum;
+    int sectnum;
     short rndnum;
     int daz;
     hitdata_t hitinfo;
@@ -20644,9 +20641,7 @@ int QueueWallBlood(short hit_sprite, short ang)
 
     sectnum = sp->sectnum;
 
-    clipmoveboxtracenum = 1;
-    clipmove(&sp->pos, &sectnum, nx, ny, 0L, 0L, 0L, CLIPMASK_MISSILE);
-    clipmoveboxtracenum = 3;
+    clipmove(&sp->pos, &sectnum, nx, ny, 0L, 0L, 0L, CLIPMASK_MISSILE, 1);
 
     if (sp->sectnum != sectnum)
         changespritesect(SpriteNum, sectnum);
@@ -21367,67 +21362,32 @@ int QueueLoWangs(short SpriteNum)
 
 static saveable_code saveable_weapon_code[] =
 {
-    SAVE_CODE(MissileHitMatch),
     SAVE_CODE(SpawnShrapX),
     SAVE_CODE(DoLavaErupt),
-    SAVE_CODE(QueueLoWangs), // dead entry, for savegame compatibility.
-    SAVE_CODE(SpawnShrap),
-    SAVE_CODE(DoShrapMove),
-    SAVE_CODE(DoVomit),
     SAVE_CODE(DoVomit),
     SAVE_CODE(DoVomitSplash),
     SAVE_CODE(DoFastShrapJumpFall),
     SAVE_CODE(DoTracerShrap),
     SAVE_CODE(DoShrapJumpFall),
     SAVE_CODE(DoShrapDamage),
-    SAVE_CODE(SpawnBlood),
-    SAVE_CODE(VehicleMoveHit),
-    SAVE_CODE(WeaponMoveHit),
     SAVE_CODE(DoUziSmoke),
     SAVE_CODE(DoShotgunSmoke),
     SAVE_CODE(DoMineSpark),
     SAVE_CODE(DoFireballFlames),
     SAVE_CODE(DoBreakFlames),
-    SAVE_CODE(SetSuicide),
     SAVE_CODE(DoActorScale),
     SAVE_CODE(DoRipperGrow),
-    SAVE_CODE(ActorChooseDeath),
-    SAVE_CODE(ActorHealth),
-    SAVE_CODE(SopDamage),
-    SAVE_CODE(SopCheckKill),
-    SAVE_CODE(ActorPain),
-    SAVE_CODE(ActorPainPlasma),
-    SAVE_CODE(ActorStdMissile),
-    SAVE_CODE(ActorDamageSlide),
-    SAVE_CODE(PlayerDamageSlide),
-    SAVE_CODE(GetDamage),
-    SAVE_CODE(RadiusGetDamage),
-    SAVE_CODE(PlayerCheckDeath),
-    SAVE_CODE(PlayerTakeDamage),
-    SAVE_CODE(StarBlood),
-    SAVE_CODE(DoDamage),
     SAVE_CODE(DoDamageTest),
-    SAVE_CODE(DoHitscanDamage),
-    SAVE_CODE(DoFlamesDamageTest),
     SAVE_CODE(DoStar),
     SAVE_CODE(DoCrossBolt),
     SAVE_CODE(DoPlasmaDone),
-    SAVE_CODE(MissileSeek),
-    SAVE_CODE(ComboMissileSeek),
-    SAVE_CODE(VectorMissileSeek),
-    SAVE_CODE(VectorWormSeek),
-    SAVE_CODE(DoBlurExtend),
-    SAVE_CODE(InitPlasmaFountain),
     SAVE_CODE(DoPlasmaFountain),
     SAVE_CODE(DoPlasma),
     SAVE_CODE(DoCoolgFire),
     SAVE_CODE(DoEelFire),
     SAVE_CODE(DoGrenade),
     SAVE_CODE(DoVulcanBoulder),
-    SAVE_CODE(OwnerIsPlayer),
-    SAVE_CODE(DoMineRangeTest),
     SAVE_CODE(DoMineStuck),
-    SAVE_CODE(SetMineStuck),
     SAVE_CODE(DoMine),
     SAVE_CODE(DoPuff),
     SAVE_CODE(DoRailPuff),
@@ -21452,26 +21412,9 @@ static saveable_code saveable_weapon_code[] =
     SAVE_CODE(DoElectro),
     SAVE_CODE(DoLavaBoulder),
     SAVE_CODE(DoSpear),
-    SAVE_CODE(SpawnBasicExp),
-    SAVE_CODE(SpawnFireballFlames),
-    SAVE_CODE(SpawnBreakFlames),
-    SAVE_CODE(SpawnBreakStaticFlames),
-    SAVE_CODE(SpawnFireballExp),
-    SAVE_CODE(SpawnGoroFireballExp),
-    SAVE_CODE(SpawnBoltExp),
-    SAVE_CODE(SpawnBunnyExp),
-    SAVE_CODE(SpawnTankShellExp),
-    SAVE_CODE(SpawnNuclearSecondaryExp),
-    SAVE_CODE(SpawnNuclearExp),
-    SAVE_CODE(SpawnTracerExp),
-    SAVE_CODE(SpawnMicroExp),
-    SAVE_CODE(AddSpriteToSectorObject),
-    SAVE_CODE(SpawnBigGunFlames),
-    SAVE_CODE(SpawnGrenadeSecondaryExp),
     SAVE_CODE(SpawnGrenadeSmallExp),
     SAVE_CODE(SpawnGrenadeExp),
     SAVE_CODE(SpawnMineExp),
-    SAVE_CODE(QueueLoWangs), // dead entry, for savegame compatibility.
     SAVE_CODE(DoSectorExp),
     SAVE_CODE(SpawnSectorExp),
     SAVE_CODE(SpawnLargeExp),
@@ -21482,22 +21425,17 @@ static saveable_code saveable_weapon_code[] =
     SAVE_CODE(DoFindGroundPoint),
     SAVE_CODE(DoNapalm),
     SAVE_CODE(DoBloodWorm),
-    SAVE_CODE(DoBloodWorm),
     SAVE_CODE(DoMeteor),
     SAVE_CODE(DoSerpMeteor),
     SAVE_CODE(DoMirvMissile),
     SAVE_CODE(DoMirv),
-    SAVE_CODE(MissileSetPos),
-    SAVE_CODE(TestMissileSetPos),
     SAVE_CODE(DoRing),
-    SAVE_CODE(InitSpellRing),
     SAVE_CODE(DoSerpRing),
     SAVE_CODE(InitLavaFlame),
     SAVE_CODE(InitLavaThrow),
     SAVE_CODE(InitVulcanBoulder),
     SAVE_CODE(InitSerpRing),
     SAVE_CODE(InitSerpRing),
-    //SAVE_CODE(InitSerpRing2),
     SAVE_CODE(InitSpellNapalm),
     SAVE_CODE(InitEnemyNapalm),
     SAVE_CODE(InitSpellMirv),
@@ -21508,35 +21446,16 @@ static saveable_code saveable_weapon_code[] =
     SAVE_CODE(InitSumoSkull),
     SAVE_CODE(InitSumoStompAttack),
     SAVE_CODE(InitMiniSumoClap),
-    SAVE_CODE(WeaponAutoAim),
-    SAVE_CODE(WeaponAutoAimZvel),
-    SAVE_CODE(AimHitscanToTarget),
-    SAVE_CODE(WeaponAutoAimHitscan),
-    SAVE_CODE(WeaponHitscanShootFeet),
-    SAVE_CODE(InitStar),
-    SAVE_CODE(InitHeartAttack),
-    SAVE_CODE(InitHeartAttack),
-    SAVE_CODE(InitShotgun),
-    SAVE_CODE(InitLaser),
-    SAVE_CODE(InitRail),
     SAVE_CODE(InitZillaRail),
-    SAVE_CODE(InitRocket),
-    SAVE_CODE(InitBunnyRocket),
-    SAVE_CODE(InitNuke),
     SAVE_CODE(InitEnemyNuke),
-    SAVE_CODE(InitMicro),
     SAVE_CODE(InitRipperSlash),
     SAVE_CODE(InitBunnySlash),
     SAVE_CODE(InitSerpSlash),
-    SAVE_CODE(WallSpriteInsideSprite),
-    SAVE_CODE(DoBladeDamage),
-    SAVE_CODE(DoStaticFlamesDamage),
     SAVE_CODE(InitCoolgBash),
     SAVE_CODE(InitSkelSlash),
     SAVE_CODE(InitGoroChop),
     SAVE_CODE(InitHornetSting),
     SAVE_CODE(InitSerpSpell),
-    SAVE_CODE(SpawnDemonFist),
     SAVE_CODE(InitSerpMonstSpell),
     SAVE_CODE(DoTeleRipper),
     SAVE_CODE(InitEnemyRocket),
@@ -21555,55 +21474,17 @@ static saveable_code saveable_weapon_code[] =
     SAVE_CODE(InitSpearTrap),
     SAVE_CODE(DoSuicide),
     SAVE_CODE(DoDefaultStat),
-    SAVE_CODE(InitTracerUzi),
-    SAVE_CODE(InitTracerTurret),
-    SAVE_CODE(InitTracerAutoTurret),
-    SAVE_CODE(BulletHitSprite),
-    SAVE_CODE(HitscanSpriteAdjust),
-    SAVE_CODE(InitUzi),
-    SAVE_CODE(InitEMP),
-    SAVE_CODE(InitTankShell),
-    SAVE_CODE(InitTurretMicro),
-    SAVE_CODE(InitTurretRocket),
-    SAVE_CODE(InitTurretFireball),
-    SAVE_CODE(InitTurretRail),
-    SAVE_CODE(InitTurretLaser),
-    SAVE_CODE(InitSobjMachineGun),
-    SAVE_CODE(InitSobjGun),
-    SAVE_CODE(SpawnBoatSparks),
-    SAVE_CODE(SpawnSwordSparks),
-    SAVE_CODE(SpawnTurretSparks),
-    SAVE_CODE(SpawnShotgunSparks),
-    SAVE_CODE(InitTurretMgun),
     SAVE_CODE(InitEnemyUzi),
-    SAVE_CODE(InitGrenade),
     SAVE_CODE(InitSpriteGrenade),
-    SAVE_CODE(InitMine),
     SAVE_CODE(InitEnemyMine),
-    SAVE_CODE(HelpMissileLateral),
-    SAVE_CODE(InitFireball),
     SAVE_CODE(InitEnemyFireball),
-    SAVE_CODE(WarpToUnderwater),
-    SAVE_CODE(WarpToSurface),
-    SAVE_CODE(SpriteWarpToUnderwater),
-    SAVE_CODE(SpriteWarpToSurface),
-    SAVE_CODE(SpawnSplash),
-    SAVE_CODE(SpawnSplashXY),
-    SAVE_CODE(SpawnUnderSplash),
-    SAVE_CODE(MissileHitDiveArea),
-    SAVE_CODE(SpawnBubble),
     SAVE_CODE(DoVehicleSmoke),
     SAVE_CODE(DoWaterSmoke),
     SAVE_CODE(SpawnVehicleSmoke),
     SAVE_CODE(SpawnSmokePuff),
     SAVE_CODE(DoBubble),
-    SAVE_CODE(SpriteQueueDelete),
     SAVE_CODE(DoFloorBlood),
     SAVE_CODE(DoWallBlood),
-    //SAVE_CODE(DoShellShrap),
-    SAVE_CODE(SpawnShell),
-    SAVE_CODE(DoShrapVelocity),
-    SAVE_CODE(ShrapKillSprite),
     SAVE_CODE(DoItemFly),
 };
 

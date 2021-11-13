@@ -96,7 +96,7 @@ static void analyzesprites(spritetype* tsprite, int& spritesortcnt, int x, int y
 
     bestTarget = nullptr;
 
-    short nSector = pPlayerSprite->sectnum;
+    int nSector =pPlayerSprite->sectnum;
 
     int nAngle = (2048 - pPlayerSprite->ang) & kAngleMask;
 
@@ -203,7 +203,7 @@ void DrawView(double smoothRatio, bool sceneonly)
     int playerX;
     int playerY;
     int playerZ;
-    short nSector;
+    int nSector;
     binangle nAngle, rotscrnang;
     fixedhoriz pan;
 
@@ -291,7 +291,7 @@ void DrawView(double smoothRatio, bool sceneonly)
     else
     {
         viewz = playerZ + nQuake[nLocalPlayer];
-        int floorZ = sector[pPlayerSprite->sectnum].floorz;
+        int floorZ = pPlayerSprite->sector()->floorz;
 
         if (viewz > floorZ)
             viewz = floorZ;
@@ -337,9 +337,10 @@ void DrawView(double smoothRatio, bool sceneonly)
 
     if (nFreeze != 3)
     {
-        static uint8_t sectorFloorPal[MAXSECTORS];
-        static uint8_t sectorCeilingPal[MAXSECTORS];
-        static uint8_t wallPal[MAXWALLS];
+        TArray<uint8_t> paldata(numsectors * 2 + numwalls, true);
+        uint8_t* sectorFloorPal = &paldata[0];
+        uint8_t* sectorCeilingPal = &paldata[numsectors];
+        uint8_t* wallPal = &paldata[2*numsectors];
         int const viewingRange = viewingrange;
         int const vr = xs_CRoundToInt(65536. * tan(r_fov * (pi::pi() / 360.)));
 
@@ -366,7 +367,7 @@ void DrawView(double smoothRatio, bool sceneonly)
         if (!testnewrenderer)
         {
             renderSetRollAngle((float)rotscrnang.asbuildf());
-            renderDrawRoomsQ16(nCamerax, nCameray, viewz, nCameraa.asq16(), nCamerapan.asq16(), nSector);
+            renderDrawRoomsQ16(nCamerax, nCameray, viewz, nCameraa.asq16(), nCamerapan.asq16(), nSector, false);
             analyzesprites(pm_tsprite, pm_spritesortcnt, nCamerax, nCameray, viewz, smoothRatio);
             renderDrawMasks();
         }
@@ -485,20 +486,23 @@ void Clip()
 
 void SerializeView(FSerializer& arc)
 {
-    arc("camerax", nCamerax)
-        ("cameray", nCameray)
-        ("cameraz", nCameraz)
-        ("touchfloor", bTouchFloor)
-        ("chunktotal", nChunkTotal)
-        ("cameraa", nCameraa)
-        ("camerapan", nCamerapan)
-        ("camera", bCamera)
-        ("viewz", viewz)
-        ("enemy", pEnemy)
-        ("enemypal", nEnemyPal)
-        .Array("vertpan", dVertPan, countof(dVertPan))
-        .Array("quake", nQuake, countof(nQuake))
-        .EndObject();
+    if (arc.BeginObject("view"))
+    {
+        arc("camerax", nCamerax)
+            ("cameray", nCameray)
+            ("cameraz", nCameraz)
+            ("touchfloor", bTouchFloor)
+            ("chunktotal", nChunkTotal)
+            ("cameraa", nCameraa)
+            ("camerapan", nCamerapan)
+            ("camera", bCamera)
+            ("viewz", viewz)
+            ("enemy", pEnemy)
+            ("enemypal", nEnemyPal)
+            .Array("vertpan", dVertPan, countof(dVertPan))
+            .Array("quake", nQuake, countof(nQuake))
+            .EndObject();
+    }
 }
 
 END_PS_NS

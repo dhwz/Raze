@@ -98,7 +98,7 @@ void RestoreSavePoint(int nPlayer, int *x, int *y, int *z, short *nSector, short
     *nAngle  = PlayerList[nPlayer].sPlayerSave.nAngle;
 }
 
-void SetSavePoint(int nPlayer, int x, int y, int z, short nSector, short nAngle)
+void SetSavePoint(int nPlayer, int x, int y, int z, int nSector, short nAngle)
 {
     PlayerList[nPlayer].sPlayerSave.x = x;
     PlayerList[nPlayer].sPlayerSave.y = y;
@@ -440,7 +440,7 @@ void StartDeathSeq(int nPlayer, int nVal)
 	auto pSprite = &pActor->s();
     PlayerList[nPlayer].nHealth = 0;
 
-    short nLotag = sector[pSprite->sectnum].lotag;
+    short nLotag = pSprite->sector()->lotag;
 
     if (nLotag > 0) {
         runlist_SignalRun(nLotag - 1, nPlayer, &ExhumedAI::EnterSector);
@@ -458,7 +458,7 @@ void StartDeathSeq(int nPlayer, int nVal)
 
             if (nWeapon > kWeaponSword && nWeapon <= kWeaponRing)
             {
-                short nSector = pSprite->sectnum;
+                int nSector =pSprite->sectnum;
                 if (SectBelow[nSector] > -1) {
                     nSector = SectBelow[nSector];
                 }
@@ -864,7 +864,7 @@ void AIPlayer::Tick(RunListEvent* ev)
     }
 
     // loc_1A4E6
-    short nSector = pPlayerSprite->sectnum;
+    int nSector =pPlayerSprite->sectnum;
     short nSectFlag = SectFlag[PlayerList[nPlayer].nPlayerViewSect];
 
     int playerX = pPlayerSprite->x;
@@ -902,13 +902,13 @@ void AIPlayer::Tick(RunListEvent* ev)
         vec3_t pos = { pPlayerSprite->x, pPlayerSprite->y, pPlayerSprite->z };
         setActorPos(pPlayerActor, &pos);
 
-        pPlayerSprite->z = sector[pPlayerSprite->sectnum].floorz;
+        pPlayerSprite->z = pPlayerSprite->sector()->floorz;
     }
     else
     {
         nMove = movesprite(pPlayerActor, x, y, z, 5120, -5120, CLIPMASK0);
 
-        short var_54 = pPlayerSprite->sectnum;
+        int var_54 = pPlayerSprite->sectnum;
 
         pushmove(&pPlayerSprite->pos, &var_54, pPlayerSprite->clipdist << 2, 5120, -5120, CLIPMASK0);
         if (var_54 != pPlayerSprite->sectnum) {
@@ -1298,7 +1298,7 @@ sectdone:
                 ChangeActorSect(pFloorActor, pPlayerSprite->sectnum);
             }
 
-            pFloorSprite->z = sector[pPlayerSprite->sectnum].floorz;
+            pFloorSprite->z = pPlayerSprite->sector()->floorz;
         }
 
         int var_30 = 0;
@@ -1349,8 +1349,11 @@ sectdone:
                     // CHECKME - is order of evaluation correct?
                     if (!mplevel || (var_70 >= 25 && (var_70 <= 25 || var_70 == 50)))
                     {
-                        DestroyItemAnim(pActorB);
-                        DeleteActor(pActorB);
+                        // If this is an anim we need to properly destroy it so we need to do some proper detection and not wild guesses.
+                        if (pActorB->nRun == pActorB->nDamage && pActorB->nRun != 0 && pActorB->nPhase == ITEM_MAGIC)
+                            DestroyAnim(pActorB);
+                        else
+                            DeleteActor(pActorB);
                     }
                     else
                     {
@@ -2237,9 +2240,9 @@ sectdone:
         // CORRECT ? // loc_1BAF9:
         if (bTouchFloor)
         {
-            if (sector[pPlayerSprite->sectnum].lotag > 0)
+            if (pPlayerSprite->sector()->lotag > 0)
             {
-                runlist_SignalRun(sector[pPlayerSprite->sectnum].lotag - 1, nPlayer, &ExhumedAI::TouchFloor);
+                runlist_SignalRun(pPlayerSprite->sector()->lotag - 1, nPlayer, &ExhumedAI::TouchFloor);
             }
         }
 
@@ -2250,9 +2253,9 @@ sectdone:
                 runlist_SignalRun(sector[nSector].lotag - 1, nPlayer, &ExhumedAI::EnterSector);
             }
 
-            if (sector[pPlayerSprite->sectnum].lotag > 0)
+            if (pPlayerSprite->sector()->lotag > 0)
             {
-                runlist_SignalRun(sector[pPlayerSprite->sectnum].lotag - 1, nPlayer, &ExhumedAI::LeaveSector);
+                runlist_SignalRun(pPlayerSprite->sector()->lotag - 1, nPlayer, &ExhumedAI::LeaveSector);
             }
         }
 
@@ -2286,7 +2289,7 @@ sectdone:
             // loc_1BC57:
 
             // CHECKME - are we finished with 'nSector' variable at this point? if so, maybe set it to pPlayerSprite->sectnum so we can make this code a bit neater. Don't assume pPlayerSprite->sectnum == nSector here!!
-            if (nStandHeight > (sector[pPlayerSprite->sectnum].floorz - sector[pPlayerSprite->sectnum].ceilingz)) {
+            if (nStandHeight > (pPlayerSprite->sector()->floorz - pPlayerSprite->sector()->ceilingz)) {
                 var_48 = 1;
             }
 
@@ -2484,7 +2487,7 @@ sectdone:
                     {
                         pPlayerSprite->picnum = seq_GetSeqPicnum(kSeqJoe, 120, 0);
                         pPlayerSprite->cstat = 0;
-                        pPlayerSprite->z = sector[pPlayerSprite->sectnum].floorz;
+                        pPlayerSprite->z = pPlayerSprite->sector()->floorz;
                     }
 
                     // will invalidate nPlayerSprite
@@ -2532,14 +2535,14 @@ sectdone:
         case 16:
             PlayerList[nPlayer].field_2 = SeqSize[var_AC] - 1;
 
-            if (pPlayerSprite->z < sector[pPlayerSprite->sectnum].floorz) {
+            if (pPlayerSprite->z < pPlayerSprite->sector()->floorz) {
                 pPlayerSprite->z += 256;
             }
 
             if (!RandomSize(5))
             {
                 vec3_t pos;
-                short mouthSect;
+                int mouthSect;
                 WheresMyMouth(nPlayer, &pos, &mouthSect);
 
                 BuildAnim(nullptr, 71, 0, pos.x, pos.y, pPlayerSprite->z + 3840, mouthSect, 75, 128);

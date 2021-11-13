@@ -37,7 +37,7 @@ static actionSeq RexSeq[] = {
     {28, 1}
 };
 
-void BuildRex(DExhumedActor* pActor, int x, int y, int z, short nSector, short nAngle, int nChannel)
+void BuildRex(DExhumedActor* pActor, int x, int y, int z, int nSector, short nAngle, int nChannel)
 {
     spritetype* pSprite;
     if (pActor == nullptr)
@@ -50,7 +50,7 @@ void BuildRex(DExhumedActor* pActor, int x, int y, int z, short nSector, short n
         pSprite = &pActor->s();
         x = pSprite->x;
         y = pSprite->y;
-        z = sector[pSprite->sectnum].floorz;
+        z = pSprite->sector()->floorz;
         nAngle = pSprite->ang;
 
         ChangeActorStat(pActor, 119);
@@ -65,7 +65,7 @@ void BuildRex(DExhumedActor* pActor, int x, int y, int z, short nSector, short n
     pSprite->xrepeat = 64;
     pSprite->yrepeat = 64;
     pSprite->picnum = 1;
-    pSprite->pal = sector[pSprite->sectnum].ceilingpal;
+    pSprite->pal = pSprite->sector()->ceilingpal;
     pSprite->xoffset = 0;
     pSprite->yoffset = 0;
     pSprite->ang = nAngle;

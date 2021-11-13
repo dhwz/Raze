@@ -61,7 +61,7 @@ FString GameInterface::GetCoordString()
 
 	out.Format("pos= %d, %d, %d - angle = %2.3f - sector = %d, lotag = %d, hitag = %d",
 		ps[snum].pos.x, ps[snum].pos.y, ps[snum].pos.z, ps[snum].angle.ang.asdeg(), ps[snum].cursectnum,
-		sector[ps[snum].cursectnum].lotag, sector[ps[snum].cursectnum].hitag);
+		ps[snum].cursector()->lotag, ps[snum].cursector()->hitag);
 
 	return out;
 }
@@ -215,7 +215,7 @@ void V_AddBlend (float r, float g, float b, float a, float v_blend[4])
 
 void drawoverlays(double smoothratio)
 {
-	unsigned char fader = 0, fadeg = 0, fadeb = 0, fadef = 0, tintr = 0, tintg = 0, tintb = 0, tintf = 0, dotint = 0;
+	uint8_t fader = 0, fadeg = 0, fadeb = 0, fadef = 0, tintr = 0, tintg = 0, tintb = 0, tintf = 0, dotint = 0;
 
 	struct player_struct* pp;
 	int cposx, cposy, cang;
@@ -252,7 +252,7 @@ void drawoverlays(double smoothratio)
 			{
 				fi.displayweapon(screenpeek, smoothratio);
 				if (pp->over_shoulder_on == 0)
-					fi.displaymasks(screenpeek, pp->GetActor()->s->pal == 1 ? 1 : sector[pp->cursectnum].floorpal, smoothratio);
+					fi.displaymasks(screenpeek, pp->GetActor()->s->pal == 1 ? 1 : pp->cursector()->floorpal, smoothratio);
 			}
 			if (!isRR())
 				moveclouds(smoothratio);
