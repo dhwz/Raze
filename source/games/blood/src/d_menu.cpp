@@ -60,7 +60,6 @@ CGameMenuItemQAV::CGameMenuItemQAV(int a3, int a4, const char* name, bool widesc
 		data = getQAV(fileSystem.GetResourceId(fileSystem.FindFile(name)));
 		if (data)
 		{
-			data->nSprite = -1;
 			data->x = a3;
 			data->y = a4;
 			duration = data->duration;
@@ -83,7 +82,7 @@ void CGameMenuItemQAV::Draw(void)
 			duration = data->duration;
 		}
 		auto currentDuration = data->duration - duration;
-		auto smoothratio = I_GetTimeFrac(data->ticrate) * MaxSmoothRatio;
+		auto smoothratio = !cl_interpolate || cl_capfps? MaxSmoothRatio : I_GetTimeFrac(data->ticrate) * MaxSmoothRatio;
 
 		data->Play(currentDuration - data->ticksPerFrame, currentDuration, -1, NULL);
 

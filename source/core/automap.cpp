@@ -540,9 +540,9 @@ void DrawPlayerArrow(int cposx, int cposy, int cang, int pl_x, int pl_y, int zoo
 		int py2 = DMulScale(arrow[i + 3], pxvect, arrow[i+2], pyvect, 16) + (height << 11);
 
 		int ox1 = px1 - cposx;
-		int oy1 = py1 - cposx;
+		int oy1 = py1 - cposy;
 		int ox2 = px2 - cposx;
-		int oy2 = py2 - cposx;
+		int oy2 = py2 - cposy;
 
 		int sx1 = DMulScale(ox1, xvect, -oy1, yvect, 16) + (width << 11);
 		int sy1 = DMulScale(oy1, xvect, ox1, yvect, 16) + (height << 11);
@@ -680,18 +680,15 @@ void DrawOverheadMap(int pl_x, int pl_y, int pl_angle, double const smoothratio)
 	int y = follow_y;
 	follow_a = am_rotate ? pl_angle : 0;
 	AutomapControl();
-	int width = screen->GetWidth();
 
 	if (automapMode == am_full)
 	{
 		twod->ClearScreen();
 		renderDrawMapView(x, y, gZoom, follow_a);
 	}
-	int32_t tmpydim = (width * 5) / 8;
-
 	drawredlines(x, y, gZoom, follow_a);
 	drawwhitelines(x, y, gZoom, follow_a);
-	if (!gi->DrawAutomapPlayer(x, y, gZoom, follow_a, smoothratio))
+	if (!gi->DrawAutomapPlayer(pl_x, pl_y, x, y, gZoom, follow_a, smoothratio))
 		DrawPlayerArrow(x, y, follow_a, pl_x, pl_y, gZoom, -pl_angle);
 
 }

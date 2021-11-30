@@ -155,7 +155,11 @@ EXTERN int leveltimer;
 
 inline sectortype* spritetype::sector() const
 {
+#ifdef _DEBUG
+    return sectnum < 0? nullptr : &::sector[sectnum];
+#else
     return &::sector[sectnum];
+#endif
 }
 
 inline sectortype* walltype::nextSector() const
@@ -182,6 +186,7 @@ inline walltype* sectortype::firstWall() const
 extern sectortype sectorbackup[MAXSECTORS];
 extern walltype wallbackup[MAXWALLS];
 
+extern bool inpreparemirror;
 
 inline tspriteptr_t renderAddTSpriteFromSprite(spritetype* tsprite, int& spritesortcnt, uint16_t const spritenum)
 {
@@ -377,6 +382,7 @@ int32_t    engineInit(void);
 void   engineUnInit(void);
 void   initspritelists(void);
 
+void allocateMapArrays(int numsprites);
 void ValidateSprite(spritetype& spr);
 void engineLoadBoard(const char *filename, int flags, vec3_t *dapos, int16_t *daang, int *dacursectnum);
 void loadMapBackup(const char* filename);
@@ -411,9 +417,9 @@ inline int hitscan(int x, int y, int z, int16_t sectnum, int32_t vx, int32_t vy,
     vec3_t v{ x,y,z };
     hitdata_t hd{};
     int res = hitscan(&v, sectnum, vx, vy, vz, &hd, cliptype);
-    *hitsect = hd.sect;
-    *hitwall = hd.wall;
-    *hitspr = hd.sprite;
+    if (hitsect) *hitsect = hd.sect;
+    if (hitwall) *hitwall = hd.wall;
+    if (hitspr) *hitspr = hd.sprite;
     *hitx = hd.pos.x;
     *hity = hd.pos.y;
     *hitz = hd.pos.z   ;
@@ -427,20 +433,27 @@ void   neartag(int32_t xs, int32_t ys, int32_t zs, int16_t sectnum, int16_t ange
 int32_t   cansee(int32_t x1, int32_t y1, int32_t z1, int16_t sect1,
                  int32_t x2, int32_t y2, int32_t z2, int16_t sect2);
 int32_t   inside(int32_t x, int32_t y, int sectnum);
-void   dragpoint(int pointhighlight, int32_t dax, int32_t day, uint8_t flags = 0);
+void   dragpoint(int pointhighlight, int32_t dax, int32_t day);
 int32_t try_facespr_intersect(uspriteptr_t const spr, vec3_t const in,
                                      int32_t vx, int32_t vy, int32_t vz,
                                      vec3_t * const intp, int32_t strictly_smaller_than_p);
 
 #define MAXUPDATESECTORDIST 1536
-#define INITIALUPDATESECTORDIST 256
+#define INITIALUPDATESECTORDIST 512 // was 256 which is too low - Exhumed LEV1 has problems with it 
 void updatesector(int const x, int const y, int * const sectnum) ATTRIBUTE((nonnull(3)));
+inline void updatesector(int const x, int const y, sectortype** const sectp)
+{
+	int sectno = *sectp? (*sectp) - sector : -1;
+	updatesector(x, y, &sectno);
+	*sectp = &sector[sectno];
+}
 void updatesectorz(int32_t const x, int32_t const y, int32_t const z, int * const sectnum) ATTRIBUTE((nonnull(4)));
 
-void updatesectorneighbor(int32_t const x, int32_t const y, int * const sectnum, int32_t initialMaxDistance = INITIALUPDATESECTORDIST, int32_t maxDistance = MAXUPDATESECTORDIST) ATTRIBUTE((nonnull(3)));
-void updatesectorneighborz(int32_t const x, int32_t const y, int32_t const z, int * const sectnum, int32_t initialMaxDistance = INITIALUPDATESECTORDIST, int32_t maxDistance = MAXUPDATESECTORDIST) ATTRIBUTE((nonnull(4)));
+void updatesectorneighbor(int32_t const x, int32_t const y, int * const sectnum, int32_t maxDistance = MAXUPDATESECTORDIST) ATTRIBUTE((nonnull(3)));
+void updatesectorneighborz(int32_t const x, int32_t const y, int32_t const z, int * const sectnum, int32_t maxDistance = MAXUPDATESECTORDIST) ATTRIBUTE((nonnull(4)));
 
 int findwallbetweensectors(int sect1, int sect2);
+
 inline int sectoradjacent(int sect1, int sect2) { return findwallbetweensectors(sect1, sect2) != -1; }
 int32_t getsectordist(vec2_t const in, int const sectnum, vec2_t * const out = nullptr);
 extern const int16_t *chsecptr_onextwall;
@@ -683,10 +696,7 @@ extern int32_t rintersect(int32_t x1, int32_t y1, int32_t z1,
 
 extern int32_t(*animateoffs_replace)(int const tilenum, int fakevar);
 extern void(*initspritelists_replace)(void);
-extern int32_t(*insertsprite_replace)(int16_t sectnum, int16_t statnum);
-extern int32_t(*deletesprite_replace)(int16_t spritenum);
 extern int32_t(*changespritesect_replace)(int16_t spritenum, int16_t newsectnum);
-extern int32_t(*changespritestat_replace)(int16_t spritenum, int16_t newstatnum);
 
 // Masking these into the object index to keep it in 16 bit was probably the single most dumbest and pointless thing Build ever did.
 // Gonna be fun to globally replace these to finally lift the limit this imposes on map size.

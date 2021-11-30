@@ -89,12 +89,14 @@ void Job_Init()
 VMFunction* LookupFunction(const char* qname, bool validate)
 {
 	size_t p = strcspn(qname, ".");
-	if (p == 0) I_Error("Call to undefined function %s", qname);
+	if (p == 0) 
+		I_Error("Call to undefined function %s", qname);
 	FString clsname(qname, p);
 	FString funcname = qname + p + 1;
 
 	auto func = PClass::FindFunction(clsname, funcname);
-	if (func == nullptr) I_Error("Call to undefined function %s", qname);
+	if (func == nullptr) 
+		I_Error("Call to undefined function %s", qname);
 	if (validate)
 	{
 		// these conditions must be met by all functions for this interface.
@@ -142,7 +144,6 @@ DObject* CreateRunner(bool clearbefore)
 
 void AddGenericVideo(DObject* runner, const FString& fn, int soundid, int fps)
 {
-	auto obj = runnerclass->CreateNew();
 	auto func = LookupFunction("ScreenJobRunner.AddGenericVideo", false);
 	VMValue val[] = { runner, &fn, soundid, fps };
 	VMCall(func, val, 4, nullptr, 0);
