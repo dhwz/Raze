@@ -1721,7 +1721,7 @@ static void onMotorcycle(int snum, ESyncBits &actions)
 	if (p->MotoSpeed != 0 && p->on_ground == 1)
 	{
 		if (!p->VBumpNow && (krand() & 3) == 2)
-			p->VBumpTarget = short((p->MotoSpeed / 16.) * ((krand() & 7) - 4));
+			p->VBumpTarget = p->MotoSpeed * (1. / 16.) * ((krand() & 7) - 4);
 
 		if (p->vehTurnLeft || p->moto_drink < 0)
 		{
@@ -1757,14 +1757,14 @@ static void onMotorcycle(int snum, ESyncBits &actions)
 		p->VBumpNow += p->moto_bump_fast ? 6 : 1;
 		if (p->VBumpTarget < p->VBumpNow)
 			p->VBumpNow = p->VBumpTarget;
-		horiz = p->VBumpNow / 3.;
+		horiz = p->VBumpNow * (1. / 3.);
 	}
 	else if (p->VBumpTarget < p->VBumpNow)
 	{
 		p->VBumpNow -= p->moto_bump_fast ? 6 : 1;
 		if (p->VBumpTarget > p->VBumpNow)
 			p->VBumpNow = p->VBumpTarget;
-		horiz = p->VBumpNow / 3.;
+		horiz = p->VBumpNow * (1. / 3.);
 	}
 	else
 	{
@@ -1991,7 +1991,7 @@ static void onBoat(int snum, ESyncBits &actions)
 	if (p->MotoSpeed != 0 && p->on_ground == 1)
 	{
 		if (!p->VBumpNow && (krand() & 15) == 14)
-			p->VBumpTarget = short((p->MotoSpeed / 16.) * ((krand() & 3) - 2));
+			p->VBumpTarget = p->MotoSpeed * (1. / 16.) * ((krand() & 3) - 2);
 
 		if (p->vehTurnLeft && p->moto_drink < 0)
 		{
@@ -2025,14 +2025,14 @@ static void onBoat(int snum, ESyncBits &actions)
 		p->VBumpNow += p->moto_bump_fast ? 6 : 1;
 		if (p->VBumpTarget < p->VBumpNow)
 			p->VBumpNow = p->VBumpTarget;
-		horiz = p->VBumpNow / 3.;
+		horiz = p->VBumpNow * (1. / 3.);
 	}
 	else if (p->VBumpTarget < p->VBumpNow)
 	{
 		p->VBumpNow -= p->moto_bump_fast ? 6 : 1;
 		if (p->VBumpTarget > p->VBumpNow)
 			p->VBumpNow = p->VBumpTarget;
-		horiz = p->VBumpNow / 3.;
+		horiz = p->VBumpNow * (1. / 3.);
 	}
 	else
 	{
@@ -2710,7 +2710,7 @@ static void operateweapon(int snum, ESyncBits actions, sectortype* psectp)
 	auto p = &ps[snum];
 	auto pact = p->GetActor();
 	int i, k;
-	int psectlotag = psectp->lotag;
+	int psectlotag = psectp ? psectp->lotag : 857;
 
 	if (!isRRRA() && p->curr_weapon >= MOTORCYCLE_WEAPON) return;
 	switch (p->curr_weapon)
@@ -3651,7 +3651,7 @@ void processinput_r(int snum)
 		p->angle.applyinput(sb_avel, &actions);
 	}
 
-	if (p->spritebridge == 0)
+	if (p->spritebridge == 0 && s->insector())
 	{
 		int j = s->sector()->floorpicnum;
 		k = 0;
