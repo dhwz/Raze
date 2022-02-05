@@ -57,8 +57,6 @@
 #include "engineerrors.h"
 #include "c_dispatch.h"
 
-void Draw2D(F2DDrawer *drawer, FRenderState &state);
-
 EXTERN_CVAR(Bool, r_drawvoxels)
 EXTERN_CVAR(Int, gl_tonemap)
 EXTERN_CVAR(Int, screenblocks)
@@ -392,8 +390,8 @@ void VulkanFrameBuffer::PrecacheMaterial(FMaterial *mat, int translation)
 	int numLayers = mat->NumLayers();
 	for (int i = 1; i < numLayers; i++)
 	{
-		auto systex = static_cast<VkHardwareTexture*>(mat->GetLayer(i, 0, &layer));
-		systex->GetImage(layer->layerTexture, 0, layer->scaleFlags);
+		auto syslayer = static_cast<VkHardwareTexture*>(mat->GetLayer(i, 0, &layer));
+		syslayer->GetImage(layer->layerTexture, 0, layer->scaleFlags);
 	}
 }
 

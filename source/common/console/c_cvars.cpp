@@ -145,6 +145,28 @@ FBaseCVar::~FBaseCVar ()
 	}
 }
 
+void FBaseCVar::SetCallback(void (*callback)(FBaseCVar&))
+{
+	m_Callback = callback;
+	m_UseCallback = true;
+}
+
+void FBaseCVar::ClearCallback()
+{
+	m_Callback = nullptr;
+	m_UseCallback = false;
+}
+
+void FBaseCVar::SetExtraDataPointer(void *pointer)
+{
+	m_ExtraDataPointer = pointer;
+}
+
+void* FBaseCVar::GetExtraDataPointer()
+{
+	return m_ExtraDataPointer;
+}
+
 const char *FBaseCVar::GetHumanString(int precision) const
 {
 	return GetGenericRep(CVAR_String).String;
@@ -1430,12 +1452,12 @@ void C_ArchiveCVars (FConfigFile *f, uint32_t filter)
 		cvar = cvar->m_Next;
 	}
 	qsort(cvarlist.Data(), cvarlist.Size(), sizeof(FBaseCVar*), cvarcmp);
-	for (auto cvar : cvarlist)
+	for (auto cv : cvarlist)
 	{
-		const char* const value = (cvar->Flags & CVAR_ISDEFAULT)
-			? cvar->GetGenericRep(CVAR_String).String
-			: cvar->SafeValue.GetChars();
-		f->SetValueForKey(cvar->GetName(), value);
+		const char* const value = (cv->Flags & CVAR_ISDEFAULT)
+			? cv->GetGenericRep(CVAR_String).String
+			: cv->SafeValue.GetChars();
+		f->SetValueForKey(cv->GetName(), value);
 	}
 }
 

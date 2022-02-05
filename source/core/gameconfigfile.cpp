@@ -90,6 +90,7 @@ FGameConfigFile::FGameConfigFile ()
 		SetValueForKey ("Path", local_app_support + "/NBlood", true);
 		SetValueForKey("Path", local_app_support + "/JFSW", true);
 		SetValueForKey("Path", local_app_support + "/VoidSW", true);
+		SetValueForKey("Path", local_app_support + "/Raze/*", true);
 
 #elif !defined(__unix__)
 		SetValueForKey ("Path", "$PROGDIR", true);
@@ -297,7 +298,7 @@ void FGameConfigFile::DoGameSetup (const char *gamename)
 	sublen = countof(section) - 1 - mysnprintf (section, countof(section), "%s.", gamename);
 	subsection = section + countof(section) - sublen - 1;
 	section[countof(section) - 1] = '\0';
-	
+
 	strncpy (subsection, "UnknownConsoleVariables", sublen);
 	if (SetSection (section))
 	{

@@ -31,6 +31,7 @@ Prepared for public release: 03/21/2003 - Charlie Wiederhold, 3D Realms
 #include "serializer.h"
 #include "savegamehelp.h"
 #include "dukeactor.h"
+#include "interpolate.h"
 
 BEGIN_DUKE_NS
 
@@ -123,24 +124,24 @@ void lava_serialize(FSerializer& arc)
 		("windertime", windertime);
 }
 
-void addtorch(spritetype* s)
+void addtorch(DDukeActor* actor)
 {
 	if (torchcnt >= 64)
 		I_Error("Too many torch effects");
 
-	torchsector[torchcnt] = s->sector();
-	torchsectorshade[torchcnt] = s->sector()->floorshade;
-	torchtype[torchcnt] = s->lotag;
+	torchsector[torchcnt] = actor->sector();
+	torchsectorshade[torchcnt] = actor->sector()->floorshade;
+	torchtype[torchcnt] = actor->spr.lotag;
 	torchcnt++;
 }
 
-void addlightning(spritetype* s)
+void addlightning(DDukeActor* actor)
 {
 	if (lightnincnt >= 64)
 		I_Error("Too many lightnin effects");
 
-	lightninsector[lightnincnt] = s->sector();
-	lightninsectorshade[lightnincnt] = s->sector()->floorshade;
+	lightninsector[lightnincnt] = actor->sector();
+	lightninsectorshade[lightnincnt] = actor->sector()->floorshade;
 	lightnincnt++;
 }
 
@@ -163,6 +164,7 @@ void addjaildoor(int p1, int p2, int iht, int jlt, int p3, sectortype* j)
 	jaildooropen[jaildoorcnt] = 0;
 	jaildoordir[jaildoorcnt] = jlt;
 	jaildoorsound[jaildoorcnt] = p3;
+	setsectinterpolate(j);
 	jaildoorcnt++;
 }
 
@@ -178,6 +180,7 @@ void addminecart(int p1, int p2, sectortype* i, int iht, int p3, sectortype* chi
 	minecartopen[minecartcnt] = 1;
 	minecartsound[minecartcnt] = p3;
 	minecartchildsect[minecartcnt] = childsectnum;
+	setsectinterpolate(i);
 	minecartcnt++;
 }
 
@@ -284,8 +287,8 @@ void dojaildoor(void)
 			{
 				for (auto& wal : wallsofsector(sectp))
 				{
-					int x = wal.x;
-					int y = wal.y;
+					int x = wal.pos.X;
+					int y = wal.pos.Y;
 					switch (jaildoordir[i])
 					{
 						case 10:
@@ -336,24 +339,24 @@ void dojaildoor(void)
 					switch (jaildoordir[i])
 					{
 						default: // make case of bad parameters well defined.
-							x = wal.x;
-							y = wal.y;
+							x = wal.pos.X;
+							y = wal.pos.Y;
 							break;
 						case 10:
-							x = wal.x;
-							y = wal.y + speed;
+							x = wal.pos.X;
+							y = wal.pos.Y + speed;
 							break;
 						case 20:
-							x = wal.x - speed;
-							y = wal.y;
+							x = wal.pos.X - speed;
+							y = wal.pos.Y;
 							break;
 						case 30:
-							x = wal.x;
-							y = wal.y - speed;
+							x = wal.pos.X;
+							y = wal.pos.Y - speed;
 							break;
 						case 40:
-							x = wal.x + speed;
-							y = wal.y;
+							x = wal.pos.X + speed;
+							y = wal.pos.Y;
 							break;
 					}
 					dragpoint(&wal, x, y);
@@ -418,24 +421,24 @@ void moveminecart(void)
 					switch (minecartdir[i])
 					{
 						default: // make case of bad parameters well defined.
-							x = wal.x;
-							y = wal.y;
+							x = wal.pos.X;
+							y = wal.pos.Y;
 							break;
 						case 10:
-							x = wal.x;
-							y = wal.y + speed;
+							x = wal.pos.X;
+							y = wal.pos.Y + speed;
 							break;
 						case 20:
-							x = wal.x - speed;
-							y = wal.y;
+							x = wal.pos.X - speed;
+							y = wal.pos.Y;
 							break;
 						case 30:
-							x = wal.x;
-							y = wal.y - speed;
+							x = wal.pos.X;
+							y = wal.pos.Y - speed;
 							break;
 						case 40:
-							x = wal.x + speed;
-							y = wal.y;
+							x = wal.pos.X + speed;
+							y = wal.pos.Y;
 							break;
 					}
 					dragpoint(&wal, x, y);
@@ -472,24 +475,24 @@ void moveminecart(void)
 					switch (minecartdir[i])
 					{
 						default: // make case of bad parameters well defined.
-							x = wal.x;
-							y = wal.y;
+							x = wal.pos.X;
+							y = wal.pos.Y;
 							break;
 						case 10:
-							x = wal.x;
-							y = wal.y + speed;
+							x = wal.pos.X;
+							y = wal.pos.Y + speed;
 							break;
 						case 20:
-							x = wal.x - speed;
-							y = wal.y;
+							x = wal.pos.X - speed;
+							y = wal.pos.Y;
 							break;
 						case 30:
-							x = wal.x;
-							y = wal.y - speed;
+							x = wal.pos.X;
+							y = wal.pos.Y - speed;
 							break;
 						case 40:
-							x = wal.x + speed;
-							y = wal.y;
+							x = wal.pos.X + speed;
+							y = wal.pos.Y;
 							break;
 					}
 					dragpoint(&wal, x, y);
@@ -501,8 +504,8 @@ void moveminecart(void)
 		min_x = min_y = 0x20000;
 		for (auto& wal : wallsofsector(csect))
 		{
-			x = wal.x;
-			y = wal.y;
+			x = wal.pos.X;
+			y = wal.pos.Y;
 			if (x > max_x)
 				max_x = x;
 			if (y > max_y)
@@ -517,9 +520,8 @@ void moveminecart(void)
 		DukeSectIterator it(csect);
 		while (auto a2 = it.Next())
 		{
-			auto sj = a2->s;
-			if (badguy(sj))
-				setsprite(a2, cx, cy, sj->z);
+			if (badguy(a2))
+				SetActor(a2, { cx, cy, a2->spr.pos.Z });
 		}
 	}
 }
@@ -561,7 +563,7 @@ void thunder(void)
 	{
 		if (testgotpic(RRTILE2577, true))
 		{
-			g_visibility = 256; // this is an engine variable
+			g_relvisibility = 0;
 			if (krand() > 65000)
 			{
 				thunderflash = 1;
@@ -571,7 +573,6 @@ void thunder(void)
 		}
 		else
 		{
-			g_visibility = p->visibility;
 			brightness = ud.brightness >> 2;
 		}
 	}
@@ -583,7 +584,6 @@ void thunder(void)
 			thunderflash = 0;
 			brightness = ud.brightness >> 2;
 			thunder_brightness = brightness;
-			g_visibility = p->visibility;
 		}
 	}
 	if (!winderflash)
@@ -618,24 +618,6 @@ void thunder(void)
 	{
 		r1 = krand() & 4;
 		brightness += r1;
-		switch (r1)
-		{
-		case 0:
-			g_visibility = 2048;
-			break;
-		case 1:
-			g_visibility = 1024;
-			break;
-		case 2:
-			g_visibility = 512;
-			break;
-		case 3:
-			g_visibility = 256;
-			break;
-		default:
-			g_visibility = 4096;
-			break;
-		}
 		if (brightness > 8)
 			brightness = 0;
 		thunder_brightness = brightness;

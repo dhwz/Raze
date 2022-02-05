@@ -35,7 +35,7 @@ struct PlayerHorizon
 
 	// Prototypes for functions in gameinput.cpp.
 	void applyinput(float const horz, ESyncBits* actions, double const scaleAdjust = 1);
-	void calcviewpitch(vec2_t const pos, binangle const ang, bool const aimmode, bool const canslopetilt, int const cursectnum, double const scaleAdjust = 1, bool const climbing = false);
+	void calcviewpitch(vec2_t const pos, binangle const ang, bool const aimmode, bool const canslopetilt, sectortype* const cursectnum, double const scaleAdjust = 1, bool const climbing = false);
 
 	// Interpolation helpers.
 	void backup()
@@ -265,15 +265,15 @@ struct PlayerPosition
 	vec3_t pos, opos;
 
 	// Interpolation helpers.
-	void backupx() { opos.x = pos.x; }
-	void backupy() { opos.y = pos.y; }
-	void backupz() { opos.z = pos.z; }
+	void backupx() { opos.X = pos.X; }
+	void backupy() { opos.Y = pos.Y; }
+	void backupz() { opos.Z = pos.Z; }
 	void backuppos() { opos = pos; }
 
 	// Interpolated points.
-	int32_t interpolatedx(double const smoothratio, int const scale = 16) { return interpolatedvalue(opos.x, pos.x, smoothratio, scale); }
-	int32_t interpolatedy(double const smoothratio, int const scale = 16) { return interpolatedvalue(opos.y, pos.y, smoothratio, scale); }
-	int32_t interpolatedz(double const smoothratio, int const scale = 16) { return interpolatedvalue(opos.z, pos.z, smoothratio, scale); }
+	int32_t interpolatedx(double const smoothratio, int const scale = 16) { return interpolatedvalue(opos.X, pos.X, smoothratio, scale); }
+	int32_t interpolatedy(double const smoothratio, int const scale = 16) { return interpolatedvalue(opos.Y, pos.Y, smoothratio, scale); }
+	int32_t interpolatedz(double const smoothratio, int const scale = 16) { return interpolatedvalue(opos.Z, pos.Z, smoothratio, scale); }
 
 	// Interpolated vectors.
 	vec2_t interpolatedvec2(double const smoothratio, int const scale = 16)

@@ -194,20 +194,7 @@ static void GameTicker()
 		case ga_completed:
 			FX_StopAllSounds();
 			FX_SetReverb(0);
-			if (g_nextmap == currentLevel)
-			{
-				// if the same level is restarted, skip any progression stuff like summary screens or cutscenes.
-				gi->FreeLevelData();
-				gameaction = ga_level;
-				gi->NextLevel(g_nextmap, g_nextskill);
-				ResetStatusBar();
-				Net_ClearFifo();
-			}
-			else
-			{
-				gi->LevelCompleted(g_nextmap, g_nextskill);
-				assert(gameaction != ga_nothing);
-			}
+			gi->LevelCompleted(g_nextmap, g_nextskill);
 			break;
 
 		case ga_nextlevel:
@@ -393,6 +380,7 @@ static void GameTicker()
 // Display
 //
 //==========================================================================
+EXTERN_CVAR(Bool, vid_renderer);
 
 void Display()
 {
@@ -455,7 +443,8 @@ void Display()
 	}
 	DrawRateStuff();
 
-	videoShowFrame(1);
+	if (vid_renderer == 0) videoShowFrame(1);
+	else screen->Update();
 }
 
 //==========================================================================
@@ -556,7 +545,7 @@ void TryRunTics (void)
 		counts = realtics;
 	else
 		counts = availabletics;
-	
+
 	// Uncapped framerate needs seprate checks
 	if (counts == 0 && !doWait)
 	{
