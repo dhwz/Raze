@@ -182,6 +182,11 @@ public:
 		return binangle(value - other.value);
 	}
 
+	constexpr binangle operator- () const
+	{
+		return binangle(0 - value);
+	}
+
 	constexpr binangle &operator<<= (const uint8_t shift)
 	{
 		value = tosigned() << shift;
@@ -360,7 +365,7 @@ inline FSerializer &Serialize(FSerializer &arc, const char *key, fixedhoriz &obj
 //
 //---------------------------------------------------------------------------
 
-inline binangle bvectangbam(int32_t x, int32_t y)
+inline binangle bvectangbam(double x, double y)
 {
 	return radang(atan2(y, x));
 }

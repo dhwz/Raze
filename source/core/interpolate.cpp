@@ -74,8 +74,8 @@ void Set(int index, DCoreActor* actor, int type, double val)
 	case Interp_Sect_CeilingPanX:       sector[index].ceilingxpan_ = float(val); break;
 	case Interp_Sect_CeilingPanY:       sector[index].ceilingypan_ = float(val); break;
 
-	case Interp_Wall_X:                 old = wall[index].pos.X; wall[index].pos.X = xs_CRoundToInt(val); if (wall[index].pos.X != old) wall[index].moved(); break;
-	case Interp_Wall_Y:                 old = wall[index].pos.Y; wall[index].pos.Y = xs_CRoundToInt(val); if (wall[index].pos.Y != old) wall[index].moved(); break;
+	case Interp_Wall_X:                 old = wall[index].pos.X; wall[index].pos.X = val; if (wall[index].pos.X != old) wall[index].moved(); break;
+	case Interp_Wall_Y:                 old = wall[index].pos.Y; wall[index].pos.Y = val; if (wall[index].pos.Y != old) wall[index].moved(); break;
 	case Interp_Wall_PanX:              wall[index].xpan_ = float(val);  break;
 	case Interp_Wall_PanY:              wall[index].ypan_ = float(val);  break;
                                         

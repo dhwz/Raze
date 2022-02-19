@@ -449,24 +449,24 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 	for (auto&sect: sector)
 	{
 		auto sectp = &sect;
-		if (sectp->ceilingpicnum == RRTILE2577)
+		if (sectp->ceilingpicnum == RRTHUNDERSKY)
 			thunderon = 1;
 
 		switch (sectp->lotag)
 		{
-		case 41:
+		case ST_41_JAILDOOR:
 		{
 			DukeSectIterator it(sectp);
 			dist = 0;
 			while (auto act = it.Next())
 			{
-				if (act->spr.picnum == RRTILE11)
+				if (act->spr.picnum == RRJAILDOOR)
 				{
-					dist = act->spr.lotag << 4;
+					dist = act->spr.lotag;
 					speed = act->spr.hitag;
 					deletesprite(act);
 				}
-				if (act->spr.picnum == RRTILE38)
+				if (act->spr.picnum == RRJAILDOORSOUND)
 				{
 					sound = act->spr.lotag;
 					deletesprite(act);
@@ -483,7 +483,7 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 			}
 			break;
 		}
-		case 42:
+		case ST_42_MINECART:
 		{
 			sectortype* childsectnum = nullptr;
 			dist = 0;
@@ -491,14 +491,14 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 			DukeSectIterator it(sectp);
 			while (auto act = it.Next())
 			{
-				if (act->spr.picnum == RRTILE64)
+				if (act->spr.picnum == RRMINECART)
 				{
-					dist = act->spr.lotag << 4;
+					dist = act->spr.lotag;
 					speed = act->spr.hitag;
 					DukeSpriteIterator itt;
 					while(auto act1 = itt.Next())
 					{
-						if (act1->spr.picnum == RRTILE66)
+						if (act1->spr.picnum == RRMINECARTINNER)
 							if (act1->spr.lotag == act->sectno()) // bad map format design... Should have used a tag instead...
 							{
 								childsectnum = act1->sector();
@@ -507,7 +507,7 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 					}
 					deletesprite(act);
 				}
-				if (act->spr.picnum == RRTILE65)
+				if (act->spr.picnum == RRMINECARTSOUND)
 				{
 					sound = act->spr.lotag;
 					deletesprite(act);
@@ -605,15 +605,15 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 						if (actor2->spr.hitag == 1)
 						{
 							geosectorwarp[geocnt] = actor2->sector();
-							geox[geocnt] = actor->spr.pos.X - actor2->spr.pos.X;
-							geoy[geocnt] = actor->spr.pos.Y - actor2->spr.pos.Y;
+							geox[geocnt] = actor->float_pos().X - actor2->float_pos().X;
+							geoy[geocnt] = actor->float_pos().Y - actor2->float_pos().Y;
 							//geoz[geocnt] = actor->spr.z - actor2->spr.z;
 						}
 						if (actor2->spr.hitag == 2)
 						{
 							geosectorwarp2[geocnt] = actor2->sector();
-							geox2[geocnt] = actor->spr.pos.X - actor2->spr.pos.X;
-							geoy2[geocnt] = actor->spr.pos.Y - actor2->spr.pos.Y;
+							geox2[geocnt] = actor->float_pos().X - actor2->float_pos().X;
+							geoy2[geocnt] = actor->float_pos().Y - actor2->float_pos().Y;
 							//geoz2[geocnt] = actor->spr.z - actor2->spr.z;
 						}
 					}
@@ -730,7 +730,7 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 		switch (wal->overpicnum)
 		{
 		case FANSPRITE:
-			wal->cstat |= CSTAT_WALL_BLOCK | CSTAT_WALL_BLOCK_HITSCAN;
+			//wal.cstat |= CSTAT_WALL_BLOCK | CSTAT_WALL_BLOCK_HITSCAN; Original code assigned this to 'wall', i.e. wall[0]
 			animwall[numanimwalls].wall = wal;
 			numanimwalls++;
 			break;

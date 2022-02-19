@@ -100,7 +100,7 @@ int DoWallMove(DSWActor* actor)
 
     for(auto& wal : wall)
     {
-        if (wal.pos.X == actor->spr.pos.X && wal.pos.Y == actor->spr.pos.Y)
+        if (wal.wall_int_pos().X == actor->spr.pos.X && wal.wall_int_pos().Y == actor->spr.pos.Y)
         {
             found = true;
 
@@ -115,7 +115,7 @@ int DoWallMove(DSWActor* actor)
             }
             else
             {
-                wal.move(actor->spr.pos.X + nx, actor->spr.pos.Y + ny);
+                wal.movexy(actor->spr.pos.X + nx, actor->spr.pos.Y + ny);
             }
 
             if (shade1)

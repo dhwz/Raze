@@ -124,7 +124,7 @@ void WallSetupDontMove(void)
             {
                 for(auto& wal : wall)
                 {
-                    if (wal.pos.X < jActor->spr.pos.X && wal.pos.X > iActor->spr.pos.X && wal.pos.Y < jActor->spr.pos.Y && wal.pos.Y > iActor->spr.pos.Y)
+                    if (wal.wall_int_pos().X < jActor->spr.pos.X && wal.wall_int_pos().X > iActor->spr.pos.X && wal.wall_int_pos().Y < jActor->spr.pos.Y && wal.wall_int_pos().Y > iActor->spr.pos.Y)
                     {
                         wal.extra |= WALLFX_DONT_MOVE;
                     }
@@ -299,9 +299,9 @@ void WallSetup(void)
                 wall_num->extra |= WALLFX_DONT_STICK;
 
                 if (!sw->type)
-                    sw->orig_xy = wall_num->pos.Y - (sw->range >> 2);
+                    sw->orig_xy = wall_num->wall_int_pos().Y - (sw->range >> 2);
                 else
-                    sw->orig_xy = wall_num->pos.X - (sw->range >> 2);
+                    sw->orig_xy = wall_num->wall_int_pos().X - (sw->range >> 2);
 
                 sw->sintable_ndx = cnt * (2048 / num_points);
             }
@@ -379,7 +379,7 @@ void SectorSetup(void)
         SectorObject[ndx].mid_sector = nullptr;
         SectorObject[ndx].op_main_sector = nullptr;
         SectorObject[ndx].morph_wall_point = nullptr;
-        SectorObject[ndx].pmid.X = INT32_MAX;
+        SectorObject[ndx].pmid.X = MAXSO;
     }
 
     memset(SineWaveFloor, 0, sizeof(SineWaveFloor));
@@ -592,8 +592,8 @@ void SectorMidPoint(sectortype* sectp, int *xmid, int *ymid, int *zmid)
 
     for(auto& wal : wallsofsector(sectp))
     {
-        xsum += wal.pos.X;
-        ysum += wal.pos.Y;
+        xsum += wal.wall_int_pos().X;
+        ysum += wal.wall_int_pos().Y;
     }
 
     *xmid = xsum / (sectp->wallnum);
@@ -2381,7 +2381,7 @@ void DoSineWaveFloor(void)
                     wal = sect->firstWall() + 2;
 
                     //Pass (Sector, x, y, z)
-                    alignflorslope(sect,wal->pos.X,wal->pos.Y, wal->nextSector()->floorz);
+                    alignflorslope(sect,wal->wall_int_pos().X,wal->wall_int_pos().Y, wal->nextSector()->floorz);
                 }
             }
         }
@@ -2395,7 +2395,7 @@ void DoSineWaveWall(void)
     int New;
     short sw_num;
 
-    for (sw_num = 0; sw_num < MAX_SINE_WAVE; sw_num++)
+    for (sw_num = 0; sw_num < MAX_SINE_WALL; sw_num++)
     {
         for (sw = &SineWall[sw_num][0]; sw->wallp != nullptr && sw < &SineWall[sw_num][MAX_SINE_WALL_POINTS]; sw++)
         {
@@ -2406,12 +2406,12 @@ void DoSineWaveWall(void)
             if (!sw->type)
             {
                 New = sw->orig_xy + MulScale(sw->range, bsin(sw->sintable_ndx), 14);
-                dragpoint(wal, wal->pos.X, New);
+                dragpoint(wal, wal->wall_int_pos().X, New);
             }
             else
             {
                 New = sw->orig_xy + MulScale(sw->range, bsin(sw->sintable_ndx), 14);
-                dragpoint(wal, New, wal->pos.Y);
+                dragpoint(wal, New, wal->wall_int_pos().Y);
             }
         }
     }

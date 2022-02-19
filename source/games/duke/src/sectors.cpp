@@ -277,30 +277,64 @@ int findotherplayer(int p, int* d)
 //
 //---------------------------------------------------------------------------
 
-int* animateptr(int type, int index, bool write)
+double getanimatevalue(int type, int index)
+{
+	switch (type)
+	{
+	case anim_floorz:
+		return sector[index].floorz;
+	case anim_ceilingz:
+		return sector[index].ceilingz;
+	case anim_vertexx:
+		return wall[index].wall_int_pos().X;
+	case anim_vertexy:
+		return wall[index].wall_int_pos().Y;
+	default:
+		assert(false);
+		return 0;
+	}
+}
+
+double getanimatevalue(int i)
+{
+	return getanimatevalue(animatetype[i], animatetarget[i]);
+}
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
+void setanimatevalue(int type, int index, double value)
 {
 	static int scratch;
 	switch (type)
 	{
 	case anim_floorz:
-		return sector[index].floorzptr(!write);
+		sector[index].setfloorz((int)value);
+		break;
 	case anim_ceilingz:
-		return sector[index].ceilingzptr(!write);
+		sector[index].setceilingz((int)value);
+		break;
 	case anim_vertexx:
-		if (write) wall[index].moved();
-		return &wall[index].pos.X;
+
+		wall[index].pos.X = value * inttoworld;
+		wall[index].moved();
+		break;
 	case anim_vertexy:
-		if (write) wall[index].moved();
-		return &wall[index].pos.Y;
+
+		wall[index].pos.Y = value * inttoworld;
+		wall[index].moved();
+		break;
 	default:
 		assert(false);
-		return &scratch;
 	}
 }
 
-int* animateptr(int i, bool write)
+void setanimatevalue(int i, double value)
 {
-	return animateptr(animatetype[i], animatetarget[i], write);
+	return setanimatevalue(animatetype[i], animatetarget[i], value);
 }
 
 //---------------------------------------------------------------------------
@@ -315,7 +349,7 @@ void doanimations(void)
 
 	for (i = animatecnt - 1; i >= 0; i--)
 	{
-		a = *animateptr(i, false);
+		a = (int)getanimatevalue(i);
 		v = animatevel[i] * TICSPERFRAME;
 		auto dasectp = animatesect[i];
 
@@ -365,8 +399,7 @@ void doanimations(void)
 				}
 			}
 		}
-
-		*animateptr(i, true) = a;
+		setanimatevalue(i, a);
 	}
 }
 
@@ -412,12 +445,12 @@ static int dosetanimation(sectortype* animsect, int animtype, int animtarget, in
 			break;
 		}
 
-	auto animptr = animateptr(animtype, animtarget, false);
+	auto animval = (int)getanimatevalue(animtype, animtarget);
 	animatesect[j] = animsect;
 	animatetype[j] = animtype;
 	animatetarget[j] = animtarget;
 	animategoal[j] = thegoal;
-	if (thegoal >= *animptr)
+	if (thegoal >= animval)
 		animatevel[j] = thevel;
 	else
 		animatevel[j] = -thevel;
@@ -506,8 +539,8 @@ static void handle_st09(sectortype* sptr, DDukeActor* actor)
 	dax = 0L, day = 0L;
 	for (auto& wal : wallsofsector(sptr))
 	{
-		dax += wal.pos.X;
-		day += wal.pos.Y;
+		dax += wal.wall_int_pos().X;
+		day += wal.wall_int_pos().Y;
 	}
 	dax /= sptr->wallnum;
 	day /= sptr->wallnum;
@@ -517,7 +550,7 @@ static void handle_st09(sectortype* sptr, DDukeActor* actor)
 	wallfind[0] = nullptr;
 	wallfind[1] = nullptr;
 	for (auto& wal : wallsofsector(sptr))
-		if ((wal.pos.X == dax) || (wal.pos.Y == day))
+		if ((wal.wall_int_pos().X == dax) || (wal.wall_int_pos().Y == day))
 		{
 			if (wallfind[0] == nullptr)
 				wallfind[0] = &wal;
@@ -533,33 +566,33 @@ static void handle_st09(sectortype* sptr, DDukeActor* actor)
 		auto prevwall = wal - 1;
 		if (prevwall < sptr->firstWall()) prevwall += sptr->wallnum;
 
-		if ((wal->pos.X == dax) && (wal->pos.Y == day))
+		if ((wal->wall_int_pos().X == dax) && (wal->wall_int_pos().Y == day))
 		{
-			dax2 = ((prevwall->pos.X + wal->point2Wall()->pos.X) >> 1) - wal->pos.X;
-			day2 = ((prevwall->pos.Y + wal->point2Wall()->pos.Y) >> 1) - wal->pos.Y;
+			dax2 = ((prevwall->wall_int_pos().X + wal->point2Wall()->wall_int_pos().X) >> 1) - wal->wall_int_pos().X;
+			day2 = ((prevwall->wall_int_pos().Y + wal->point2Wall()->wall_int_pos().Y) >> 1) - wal->wall_int_pos().Y;
 			if (dax2 != 0)
 			{
-				dax2 = wal->point2Wall()->point2Wall()->pos.X;
-				dax2 -= wal->point2Wall()->pos.X;
-				setanimation(sptr, anim_vertexx, wal, wal->pos.X + dax2, sp);
-				setanimation(sptr, anim_vertexx, prevwall, prevwall->pos.X + dax2, sp);
-				setanimation(sptr, anim_vertexx, wal->point2Wall(), wal->point2Wall()->pos.X + dax2, sp);
+				dax2 = wal->point2Wall()->point2Wall()->wall_int_pos().X;
+				dax2 -= wal->point2Wall()->wall_int_pos().X;
+				setanimation(sptr, anim_vertexx, wal, wal->wall_int_pos().X + dax2, sp);
+				setanimation(sptr, anim_vertexx, prevwall, prevwall->wall_int_pos().X + dax2, sp);
+				setanimation(sptr, anim_vertexx, wal->point2Wall(), wal->point2Wall()->wall_int_pos().X + dax2, sp);
 				callsound(sptr, actor);
 			}
 			else if (day2 != 0)
 			{
-				day2 = wal->point2Wall()->point2Wall()->pos.Y;
-				day2 -= wal->point2Wall()->pos.Y;
-				setanimation(sptr, anim_vertexy, wal, wal->pos.Y + day2, sp);
-				setanimation(sptr, anim_vertexy, prevwall, prevwall->pos.Y + day2, sp);
-				setanimation(sptr, anim_vertexy, wal->point2Wall(), wal->point2Wall()->pos.Y + day2, sp);
+				day2 = wal->point2Wall()->point2Wall()->wall_int_pos().Y;
+				day2 -= wal->point2Wall()->wall_int_pos().Y;
+				setanimation(sptr, anim_vertexy, wal, wal->wall_int_pos().Y + day2, sp);
+				setanimation(sptr, anim_vertexy, prevwall, prevwall->wall_int_pos().Y + day2, sp);
+				setanimation(sptr, anim_vertexy, wal->point2Wall(), wal->point2Wall()->wall_int_pos().Y + day2, sp);
 				callsound(sptr, actor);
 			}
 		}
 		else
 		{
-			dax2 = ((prevwall->pos.X + wal->point2Wall()->pos.X) >> 1) - wal->pos.X;
-			day2 = ((prevwall->pos.Y + wal->point2Wall()->pos.Y) >> 1) - wal->pos.Y;
+			dax2 = ((prevwall->wall_int_pos().X + wal->point2Wall()->wall_int_pos().X) >> 1) - wal->wall_int_pos().X;
+			day2 = ((prevwall->wall_int_pos().Y + wal->point2Wall()->wall_int_pos().Y) >> 1) - wal->wall_int_pos().Y;
 			if (dax2 != 0)
 			{
 				setanimation(sptr, anim_vertexx, wal, dax, sp);
@@ -974,8 +1007,8 @@ void operatesectors(sectortype* sptr, DDukeActor *actor)
 		if (!isRR()) break;
 		for (auto& wal : wallsofsector(sptr))
 		{
-			setanimation(sptr, anim_vertexx, &wal, wal.pos.X + 1024, 4);
-			if (wal.twoSided()) setanimation(sptr, anim_vertexx, wal.nextWall(), wal.nextWall()->pos.X + 1024, 4);
+			setanimation(sptr, anim_vertexx, &wal, wal.wall_int_pos().X + 1024, 4);
+			if (wal.twoSided()) setanimation(sptr, anim_vertexx, wal.nextWall(), wal.nextWall()->wall_int_pos().X + 1024, 4);
 		}
 		break;
 

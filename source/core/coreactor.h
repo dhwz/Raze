@@ -30,6 +30,8 @@ public:
 	vec3_t opos;
 	int time;
 	int16_t oang;
+	int16_t spritesetindex;
+
 
 	DCoreActor() = default;
 	virtual ~DCoreActor() = default;
@@ -52,6 +54,11 @@ public:
 		// This is only identical with the sprite index for items spawned at map start.
 		return time; 
 	}	
+
+	DVector3 float_pos() const
+	{
+		return { spr.pos.X * inttoworld, spr.pos.Y * inttoworld, spr.pos.Z * zinttoworld };
+	}
 
 	int32_t interpolatedx(double const smoothratio, int const scale = 16)
 	{

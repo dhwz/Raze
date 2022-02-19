@@ -53,8 +53,8 @@ static int16_t radarang[1280];
 // adapted from build.c
 static void getclosestpointonwall_internal(vec2_t const p, int32_t const dawall, vec2_t *const closest)
 {
-    vec2_t const w  = wall[dawall].pos;
-    vec2_t const w2 = wall[dawall].point2Wall()->pos;
+    vec2_t const w  = wall[dawall].wall_int_pos();
+    vec2_t const w2 = wall[dawall].point2Wall()->wall_int_pos();
     vec2_t const d  = { w2.X - w.X, w2.Y - w.Y };
 
     int64_t i = d.X * ((int64_t)p.X - w.X) + d.Y * ((int64_t)p.Y - w.Y);
@@ -284,37 +284,6 @@ int32_t rintersect(int32_t x1, int32_t y1, int32_t z1,
     return t;
 }
 
-//
-// inside
-//
-// See http://fabiensanglard.net/duke3d/build_engine_internals.php,
-// "Inside details" for the idea behind the algorithm.
-
-int32_t inside(int32_t x, int32_t y, const sectortype* sect)
-{
-	if (sect)
-    {
-        unsigned cnt = 0;
-        vec2_t xy = { x, y };
-        for(auto& wal : wallsofsector(sect))
-        {
-            vec2_t v1 = wal.pos - xy;
-            vec2_t v2 = wal.point2Wall()->pos - xy;
-
-            // If their signs differ[*], ...
-            //
-            // [*] where '-' corresponds to <0 and '+' corresponds to >=0.
-            // Equivalently, the branch is taken iff
-            //   y1 != y2 AND y_m <= y < y_M,
-            // where y_m := min(y1, y2) and y_M := max(y1, y2).
-            if ((v1.Y^v2.Y) < 0)
-                cnt ^= (((v1.X^v2.X) >= 0) ? v1.X : (v1.X*v2.Y-v2.X*v1.Y)^v2.Y);
-        }
-        return cnt>>31;
-    }
-    return -1;
-}
-
 
 int32_t getangle(int32_t xvect, int32_t yvect)
 {
@@ -415,8 +384,8 @@ int cansee(int x1, int y1, int z1, sectortype* sect1, int x2, int y2, int z2, se
         for (cnt=sec->wallnum,wal=sec->firstWall(); cnt>0; cnt--,wal++)
         {
             auto const wal2 = wal->point2Wall();
-            const int32_t x31 = wal->pos.X-x1, x34 = wal->pos.X-wal2->pos.X;
-            const int32_t y31 = wal->pos.Y-y1, y34 = wal->pos.Y-wal2->pos.Y;
+            const int32_t x31 = wal->wall_int_pos().X-x1, x34 = wal->wall_int_pos().X-wal2->wall_int_pos().X;
+            const int32_t y31 = wal->wall_int_pos().Y-y1, y34 = wal->wall_int_pos().Y-wal2->wall_int_pos().Y;
 
             int32_t x, y, z, t, bot;
             int32_t cfz[2];
@@ -484,7 +453,7 @@ void neartag(const vec3_t& sv, sectortype* sect, int ange, HitInfoBase& result, 
             auto const wal2 = wal->point2Wall();
             const auto nextsect = wal->nextSector();
 
-            const int32_t x1 = wal->pos.X, y1 = wal->pos.Y, x2 = wal2->pos.X, y2 = wal2->pos.Y;
+            const int32_t x1 = wal->wall_int_pos().X, y1 = wal->wall_int_pos().Y, x2 = wal2->wall_int_pos().X, y2 = wal2->wall_int_pos().Y;
             int32_t intx, inty, intz, good = 0;
 
             if (wal->twoSided())

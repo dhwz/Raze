@@ -233,8 +233,8 @@ void DrawMirrors(int x, int y, int z, fixed_t a, fixed_t horiz, int smooth, int 
                 int cx, cy, ca;
                 if (pWall->type == kWallStack)
                 {
-                    cx = x - (wall[pWall->hitag].pos.X - pWall->point2Wall()->pos.X);
-                    cy = y - (wall[pWall->hitag].pos.Y - pWall->point2Wall()->pos.Y);
+                    cx = x - (wall[pWall->hitag].wall_int_pos().X - pWall->point2Wall()->wall_int_pos().X);
+                    cy = y - (wall[pWall->hitag].wall_int_pos().Y - pWall->point2Wall()->wall_int_pos().Y);
                     ca = a;
                 }
                 else

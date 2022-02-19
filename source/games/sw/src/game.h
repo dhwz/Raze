@@ -100,6 +100,7 @@ enum
 
 
 #define PRODUCTION_ASSERT(f) \
+    assert(f);\
     do { \
         if (!(f)) \
             I_FatalError("Assertion failed: %s %s, line %u", #f, __FILE__, __LINE__); \
@@ -1303,7 +1304,7 @@ struct SINE_WAVE_FLOOR
 
 enum
 {
-    MAX_SINE_WAVE = 6,
+    MAX_SINE_WAVE = 12,
     MAX_SINE_WALL = 10,
     MAX_SINE_WALL_POINTS = 64,
 };
@@ -1394,7 +1395,7 @@ enum
 {
     TF_TRACK_OCCUPIED = BIT(0),
     MAX_TRACKS = 100,
-    MAX_SO_SECTOR = 40,
+    MAX_SO_SECTOR = 50,
     MAX_SO_POINTS = (MAX_SO_SECTOR*15),
     MAX_SO_SPRITE = 60,
     MAX_CLIPBOX = 32
@@ -1563,10 +1564,10 @@ enum
     SO_TURRET = 97,
     SO_VEHICLE = 98,
     // #define SO_SPEED_BOAT 99
-    MAXSO = INT32_MAX
+    MAXSO = INT32_MAX / 2
 };
 
-inline bool SO_EMPTY(SECTOR_OBJECT* sop) { return (sop->pmid.X == INT32_MAX); }
+inline bool SO_EMPTY(SECTOR_OBJECT* sop) { return (sop->pmid.X == MAXSO); }
 
 extern SECTOR_OBJECT SectorObject[MAX_SECTOR_OBJECTS];
 

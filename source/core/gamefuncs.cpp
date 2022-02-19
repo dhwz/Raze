@@ -170,7 +170,7 @@ void calcSlope(const sectortype* sec, float xpos, float ypos, float* pceilz, flo
 		int len = wal->Length();
 		if (len != 0)
 		{
-			float fac = (wal->deltax() * (float(ypos - wal->pos.Y)) - wal->deltay() * (float(xpos - wal->pos.X))) * (1.f / 256.f) / len;
+			float fac = (wal->deltax() * (float(ypos - wal->wall_int_pos().Y)) - wal->deltay() * (float(xpos - wal->wall_int_pos().X))) * (1.f / 256.f) / len;
 			if (pceilz && sec->ceilingstat & CSTAT_SECTOR_SLOPE) *pceilz += (sec->ceilingheinum * fac);
 			if (pflorz && sec->floorstat & CSTAT_SECTOR_SLOPE) *pflorz += (sec->floorheinum * fac);
 		}
@@ -185,7 +185,7 @@ void calcSlope(const sectortype* sec, float xpos, float ypos, float* pceilz, flo
 
 void PlanesAtPoint(const sectortype* sec, float dax, float day, float* pceilz, float* pflorz)
 {
-	calcSlope(sec, dax, day, pceilz, pflorz);
+	calcSlope(sec, dax * worldtoint, day * worldtoint, pceilz, pflorz);
 	if (pceilz) *pceilz *= -(1 / 256.f);
 	if (pflorz) *pflorz *= -(1 / 256.f);
 }
@@ -228,7 +228,7 @@ int getslopeval(sectortype* sect, int x, int y, int z, int basez)
 {
 	auto wal = sect->firstWall();
 	auto delta = wal->delta();
-	int i = (y - wal->pos.Y) * delta.X - (x - wal->pos.X) * delta.Y;
+	int i = (y - wal->wall_int_pos().Y) * delta.X - (x - wal->wall_int_pos().X) * delta.Y;
 	return i == 0? 0 : Scale((z - basez) << 8, wal->Length(), i);
 }
 
@@ -399,9 +399,70 @@ void dragpoint(walltype* startwall, int newx, int newy)
 {
 	vertexscan(startwall, [&](walltype* wal)
 	{
-		wal->move(newx, newy);
+		wal->movexy(newx, newy);
 		wal->sectorp()->exflags |= SECTOREX_DRAGGED;
 	});
+}
+
+void dragpoint(walltype* startwall, const DVector2& pos)
+{
+	vertexscan(startwall, [&](walltype* wal)
+		{
+			wal->move(pos);
+			wal->sectorp()->exflags |= SECTOREX_DRAGGED;
+		});
+}
+
+//==========================================================================
+//
+// 
+//
+//==========================================================================
+
+DVector2 rotatepoint(const DVector2& pivot, const DVector2& point, binangle angle)
+{
+	auto cosang = g_cosbam(angle.asbam());
+	auto sinang = g_sinbam(angle.asbam());
+	auto p = point - pivot;
+	return {
+		p.X * cosang - p.Y * sinang + pivot.X,
+		p.Y * cosang + p.X * sinang + pivot.Y };
+}
+
+//==========================================================================
+//
+// 
+//
+//==========================================================================
+
+int inside(double x, double y, const sectortype* sect)
+{
+	if (sect)
+	{
+		int64_t acc = 1;
+		for (auto& wal : wallsofsector(sect))
+		{
+			// Perform the checks here in 48.16 fixed point.
+			// Doing it directly with floats and multiplications does not work reliably.
+			// Unfortunately, due to the conversions, this is a bit slower. :(
+			int64_t xs = int64_t(0x10000 * (wal.pos.X - x));
+			int64_t ys = int64_t(0x10000 * (wal.pos.Y - y));
+			auto wal2 = wal.point2Wall();
+			int64_t xe = int64_t(0x10000 * (wal2->pos.X - x));
+			int64_t ye = int64_t(0x10000 * (wal2->pos.Y - y));
+
+			if ((ys ^ ye) < 0)
+			{
+				int64_t val;
+
+				if ((xs ^ xe) >= 0) val = xs;
+				else val = ((xs * ye) - xe * ys) ^ ye;
+				acc ^= val;
+			}
+		}
+		return acc < 0;
+	}
+	return -1;
 }
 
 //==========================================================================

@@ -139,9 +139,8 @@ void vertexscan(walltype* startwall, func mark)
 	while (true)
 	{
 		auto thelastwall = wal->lastWall();
-		// thelastwall can be null here if the map is bogus.
-		if (!thelastwall || !thelastwall->twoSided()) break;
-
+		// thelastwall can be null here if the map is bogus. 
+		if (!thelastwall || thelastwall->nextwall < 0) break;
 		wal = thelastwall->nextWall();
 		if (walbitmap.Check(wall.IndexOf(wal))) break;
 		mark(wal);
@@ -169,6 +168,10 @@ void GetFlatSpritePosition(const tspritetype* spr, vec2_t pos, vec2_t* out, int*
 void checkRotatedWalls();
 bool sectorsConnected(int sect1, int sect2);
 void dragpoint(walltype* wal, int newx, int newy);
+void dragpoint(walltype* wal, const DVector2& pos);
+DVector2 rotatepoint(const DVector2& pivot, const DVector2& point, binangle angle);
+int32_t inside(double x, double y, const sectortype* sect);
+
 
 // y is negated so that the orientation is the same as in GZDoom, in order to use its utilities.
 // The render code should NOT use Build coordinates for anything!
@@ -185,32 +188,32 @@ inline double RenderY(int y)
 
 inline double WallStartX(int wallnum)
 {
-	return wall[wallnum].pos.X * (1 / 16.);
+	return wall[wallnum].pos.X;
 }
 
 inline double WallStartY(int wallnum)
 {
-	return wall[wallnum].pos.Y * (1 / -16.);
+	return -wall[wallnum].pos.Y;
 }
 
 inline double WallEndX(int wallnum)
 {
-	return wall[wallnum].point2Wall()->pos.X * (1 / 16.);
+	return wall[wallnum].point2Wall()->pos.X;
 }
 
 inline double WallEndY(int wallnum)
 {
-	return wall[wallnum].point2Wall()->pos.Y * (1 / -16.);
+	return -wall[wallnum].point2Wall()->pos.Y;
 }
 
 inline double WallStartX(const walltype* wallnum)
 {
-	return wallnum->pos.X * (1 / 16.);
+	return wallnum->pos.X;
 }
 
 inline double WallStartY(const walltype* wallnum)
 {
-	return wallnum->pos.Y * (1 / -16.);
+	return -wallnum->pos.Y;
 }
 
 inline DVector2 WallStart(const walltype* wallnum)
@@ -220,12 +223,12 @@ inline DVector2 WallStart(const walltype* wallnum)
 
 inline double WallEndX(const walltype* wallnum)
 {
-	return wallnum->point2Wall()->pos.X * (1 / 16.);
+	return wallnum->point2Wall()->pos.X;
 }
 
 inline double WallEndY(const walltype* wallnum)
 {
-	return wallnum->point2Wall()->pos.Y * (1 / -16.);
+	return -wallnum->point2Wall()->pos.Y;
 }
 
 inline DVector2 WallEnd(const walltype* wallnum)
@@ -299,6 +302,17 @@ inline int32_t tspriteGetZOfSlope(const tspritetype* tspr, int dax, int day)
 	return tspr->pos.Z + MulScale(heinum, j, 18);
 }
 
+inline int inside(int x, int y, const sectortype* sect)
+{
+	return inside(x * inttoworld, y * inttoworld, sect);
+}
+
+// still needed by some parts in the engine.
+inline int inside_p(int x, int y, int sectnum) { return (sectnum >= 0 && inside(x, y, &sector[sectnum]) == 1); }
+// this one is for template substitution.
+inline int inside_p0(int32_t const x, int32_t const y, int32_t const z, int const sectnum) { return inside_p(x, y, sectnum); }
+
+
 
 inline int I_GetBuildTime()
 {
@@ -308,8 +322,8 @@ inline int I_GetBuildTime()
 inline int32_t getangle(walltype* wal)
 {
 	return getangle(
-		wal->point2Wall()->pos.X - wal->pos.X,
-		wal->point2Wall()->pos.Y - wal->pos.Y);
+		wal->point2Wall()->wall_int_pos().X - wal->wall_int_pos().X,
+		wal->point2Wall()->wall_int_pos().Y - wal->wall_int_pos().Y);
 }
 
 inline TArrayView<walltype> wallsofsector(const sectortype* sec)

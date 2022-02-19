@@ -36,6 +36,14 @@ Prepared for public release: 03/21/2003 - Charlie Wiederhold, 3D Realms
 
 void MarkVerticesForSector(int sector);
 
+static constexpr double maptoworld = (1 / 16.);	// this for necessary conversions to convert map data to floating point representation.
+static constexpr double inttoworld = (1 / 16.); // this is for conversions needed to make floats coexist with existing code.
+static constexpr double worldtoint = 16.;
+
+static constexpr double zmaptoworld = (1 / 256.);	// this for necessary conversions to convert map data to floating point representation.
+static constexpr double zinttoworld = (1 / 256.); // this is for conversions needed to make floats coexist with existing code.
+static constexpr double zworldtoint = 256.;
+
 //=============================================================================
 //
 // Constants
@@ -358,7 +366,10 @@ struct sectortype
 
 struct walltype
 {
-	vec2_t pos;
+	DVector2 pos;
+
+	vec2_t wall_int_pos() const { return vec2_t(pos.X * worldtoint, pos.Y * worldtoint); };
+	void setPosFromLoad(int x, int y) { pos = { x * maptoworld, y * maptoworld }; }
 
 	int32_t point2;
 	int32_t nextwall;
@@ -391,7 +402,7 @@ struct walltype
 
 	// Blood is the only game which extends the wall struct.
 	Blood::XWALL* _xw;
-	vec2_t baseWall;
+	DVector2 baseWall;
 
 	int xpan() const { return int(xpan_); }
 	int ypan() const { return int(ypan_); }
@@ -404,14 +415,20 @@ struct walltype
 	walltype* nextWall() const;
 	walltype* lastWall(bool fast  = true) const;
 	walltype* point2Wall() const;
-	vec2_t delta() const { return point2Wall()->pos - pos; }
-	vec2_t center() const { return(point2Wall()->pos + pos) / 2; }
-	int deltax() const { return point2Wall()->pos.X - pos.X; }
-	int deltay() const { return point2Wall()->pos.Y - pos.Y; }
+	vec2_t delta() const { return point2Wall()->wall_int_pos() - wall_int_pos(); }
+	vec2_t center() const { return(point2Wall()->wall_int_pos() + wall_int_pos()) / 2; }
+	int deltax() const { return point2Wall()->wall_int_pos().X - wall_int_pos().X; }
+	int deltay() const { return point2Wall()->wall_int_pos().Y - wall_int_pos().Y; }
 	bool twoSided() const { return nextsector >= 0; }
 	int Length();
 	void calcLength();	// this is deliberately not inlined and stored in a file where it can't be found at compile time.
-	void move(int newx, int newy);
+	void movexy(int newx, int newy);
+	void move(const DVector2& vec)
+	{
+		pos = vec;
+		moved();
+	}
+
 	void moved();
 
 	Blood::XWALL& xw() const { return *_xw; }
@@ -547,10 +564,10 @@ inline void walltype::moved()
 	sectorp()->dirty = EDirty::AllDirty;
 }
 
-inline void walltype::move(int newx, int newy)
+inline void walltype::movexy(int newx, int newy)
 {
-	pos.X = newx;
-	pos.Y = newy;
+	pos.X = newx * inttoworld;
+	pos.Y = newy * inttoworld;
 	lengthflags = 3;
 	sectorp()->dirty = EDirty::AllDirty;
 }

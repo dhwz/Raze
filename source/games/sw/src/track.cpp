@@ -754,7 +754,7 @@ void SectorObjectSetupBounds(SECTOR_OBJECT* sop)
         for(auto& wal : wallsofsector(sect))
         {
             // all walls have to be in bounds to be in sector object
-            if (!(wal.pos.X > xlow && wal.pos.X < xhigh && wal.pos.Y > ylow && wal.pos.Y < yhigh))
+            if (!(wal.wall_int_pos().X > xlow && wal.wall_int_pos().X < xhigh && wal.wall_int_pos().Y > ylow && wal.wall_int_pos().Y < yhigh))
             {
                 SectorInBounds = false;
                 break;
@@ -1400,8 +1400,8 @@ void PlaceSectorObjectsOnTracks(void)
             // move all walls in sectors
             for (auto& wal : wallsofsector(sop->sectp[j]))
             {
-                sop->xorig[sop->num_walls] = sop->pmid.X - wal.pos.X;
-                sop->yorig[sop->num_walls] = sop->pmid.Y - wal.pos.Y;
+                sop->xorig[sop->num_walls] = sop->pmid.X - wal.wall_int_pos().X;
+                sop->yorig[sop->num_walls] = sop->pmid.Y - wal.wall_int_pos().Y;
                 sop->num_walls++;
             }
         }
@@ -1610,6 +1610,8 @@ void MovePoints(SECTOR_OBJECT* sop, short delta_ang, int nx, int ny)
     if ((sop->flags & SOBJ_ZMID_FLOOR))
         sop->pmid.Z = sop->mid_sector->floorz;
 
+    DVector2 pivot = { sop->pmid.X * inttoworld, sop->pmid.Y * inttoworld };
+    DVector2 move = { nx * inttoworld, ny * inttoworld };
     for (sectp = sop->sectp, j = 0; *sectp; sectp++, j++)
     {
         if ((sop->flags & (SOBJ_SPRITE_OBJ | SOBJ_DONT_ROTATE)))
@@ -1623,11 +1625,11 @@ void MovePoints(SECTOR_OBJECT* sop, short delta_ang, int nx, int ny)
 
             if (wal.extra && (wal.extra & WALLFX_LOOP_OUTER))
             {
-                dragpoint(&wal, wal.pos.X + nx, wal.pos.Y + ny);
+                dragpoint(&wal, wal.pos + move);
             }
             else
             {
-                wal.move(wal.pos.X + nx, wal.pos.Y + ny);
+                wal.move(wal.pos + move);
             }
 
             rot_ang = delta_ang;
@@ -1641,15 +1643,15 @@ void MovePoints(SECTOR_OBJECT* sop, short delta_ang, int nx, int ny)
             if ((wal.extra & WALLFX_LOOP_SPIN_4X))
                 rot_ang = NORM_ANGLE(rot_ang * 4);
 
-            rotatepoint(sop->pmid.vec2, wal.pos, rot_ang, &rxy);
+            auto vec = rotatepoint(pivot, wal.pos, buildang(rot_ang));
 
             if (wal.extra && (wal.extra & WALLFX_LOOP_OUTER))
             {
-                dragpoint(&wal, rxy.X, rxy.Y);
+                dragpoint(&wal, vec);
             }
             else
             {
-                wal.move(rxy.X, rxy.Y);
+                wal.move(vec);
             }
         }
 
@@ -1870,7 +1872,7 @@ void RefreshPoints(SECTOR_OBJECT* sop, int nx, int ny, bool dynamic)
                     }
                     else
                     {
-                        wal.move(dx, dy);
+                        wal.movexy(dx, dy);
                     }
                 }
 
@@ -2018,7 +2020,7 @@ void CollapseSectorObject(SECTOR_OBJECT* sop, int nx, int ny)
                 }
                 else
                 {
-                    wal.move(nx, ny);
+                    wal.movexy(nx, ny);
                 }
             }
         }
@@ -2664,24 +2666,6 @@ void VehicleSetSmoke(SECTOR_OBJECT* sop, ANIMATOR* animator)
             }
         }
     }
-}
-
-
-void KillSectorObject(SECTOR_OBJECT* sop)
-{
-    int newx = MAXSO;
-    int newy = MAXSO;
-    short newang = 0;
-
-    if (sop->track < SO_OPERATE_TRACK_START)
-        return;
-
-    sop->ang_tgt = sop->ang_moving = newang;
-
-    sop->spin_ang = 0;
-    sop->ang = sop->ang_tgt;
-
-    RefreshPoints(sop, newx - sop->pmid.X, newy - sop->pmid.Y, false);
 }
 
 

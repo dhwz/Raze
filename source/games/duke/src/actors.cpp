@@ -2713,7 +2713,7 @@ void handle_se00(DDukeActor* actor)
 		DukeSectIterator itp(actor->sector());
 		while (auto act2 = itp.Next())
 		{
-			if (act2->spr.statnum != STAT_MISC && act2->spr.statnum != STAT_PROJECTILE && !actorflag(act2, SFLAG2_NOROTATEWITHSECTOR))
+			if (act2->spr.statnum != STAT_EFFECTOR && act2->spr.statnum != STAT_PROJECTILE && !actorflag(act2, SFLAG2_NOROTATEWITHSECTOR))
 			{
 				if (act2->isPlayer() && act2->GetOwner())
 				{
@@ -2914,7 +2914,8 @@ void handle_se14(DDukeActor* actor, bool checkstat, int RPG, int JIBS6)
 		}
 
 		ms(actor);
-		SetActor(actor, actor->spr.pos);
+		// I have no idea why this is here, but the SE's sector must never, *EVER* change, or the map will corrupt.
+		//SetActor(actor, actor->spr.pos);
 
 		if ((sc->floorz - sc->ceilingz) < (108 << 8))
 		{
@@ -3078,7 +3079,7 @@ void handle_se30(DDukeActor *actor, int JIBS6)
 		}
 
 		ms(actor);
-		SetActor(actor, actor->spr.pos);
+		//SetActor(actor, actor->spr.pos);
 
 		if ((sc->floorz - sc->ceilingz) < (108 << 8))
 		{
@@ -3197,7 +3198,7 @@ void handle_se02(DDukeActor* actor)
 			}
 		}
 		ms(actor);
-		SetActor(actor, actor->spr.pos);
+		//SetActor(actor, actor->spr.pos);
 	}
 }
 
@@ -3404,7 +3405,7 @@ void handle_se05(DDukeActor* actor, int FIRELASER)
 	sc->addceilingz(actor->spr.zvel);
 	sector[actor->temp_data[0]].addceilingz(actor->spr.zvel);
 	ms(actor);
-	SetActor(actor, actor->spr.pos);
+	//SetActor(actor, actor->spr.pos);
 }
 
 //---------------------------------------------------------------------------
@@ -3561,7 +3562,7 @@ void handle_se11(DDukeActor *actor)
 		actor->temp_data[2] += k;
 		actor->temp_data[4] += k;
 		ms(actor);
-		SetActor(actor, actor->spr.pos);
+		//SetActor(actor, actor->spr.pos);
 
 		for(auto& wal : wallsofsector(sc))
 		{
@@ -3574,7 +3575,7 @@ void handle_se11(DDukeActor *actor)
 					actor->temp_data[2] -= k;
 					actor->temp_data[4] -= k;
 					ms(actor);
-					SetActor(actor, actor->spr.pos);
+					//SetActor(actor, actor->spr.pos);
 					return;
 				}
 			}
@@ -3585,7 +3586,7 @@ void handle_se11(DDukeActor *actor)
 			actor->temp_data[4] = 0;
 			actor->temp_data[2] &= 0xffffff00;
 			ms(actor);
-			SetActor(actor, actor->spr.pos);
+			//SetActor(actor, actor->spr.pos);
 		}
 	}
 }
@@ -3775,7 +3776,7 @@ void handle_se15(DDukeActor* actor)
 		}
 
 		ms(actor);
-		SetActor(actor, actor->spr.pos);
+		//SetActor(actor, actor->spr.pos);
 	}
 }
 
@@ -3819,7 +3820,7 @@ void handle_se16(DDukeActor* actor, int REACTOR, int REACTOR2)
 	else sc->addceilingz(-512);
 
 	ms(actor);
-	SetActor(actor, actor->spr.pos);
+	//SetActor(actor, actor->spr.pos);
 }
 
 //---------------------------------------------------------------------------
@@ -4189,8 +4190,8 @@ void handle_se20(DDukeActor* actor)
 		}
 
 		auto& wal = actor->temp_walls;
-		dragpoint(wal[0], wal[0]->pos.X + x, wal[0]->pos.Y + l);
-		dragpoint(wal[1], wal[1]->pos.X + x, wal[1]->pos.Y + l);
+		dragpoint(wal[0], wal[0]->wall_int_pos().X + x, wal[0]->wall_int_pos().Y + l);
+		dragpoint(wal[1], wal[1]->wall_int_pos().X + x, wal[1]->wall_int_pos().Y + l);
 
 		for (int p = connecthead; p >= 0; p = connectpoint2[p])
 			if (ps[p].cursector == actor->sector() && ps[p].on_ground)
@@ -4313,7 +4314,7 @@ void handle_se26(DDukeActor* actor)
 		}
 
 	ms(actor);
-	SetActor(actor, actor->spr.pos);
+	//SetActor(actor, actor->spr.pos);
 }
 
 //---------------------------------------------------------------------------

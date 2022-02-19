@@ -2573,8 +2573,8 @@ void DoPlayerMoveVehicle(PLAYER* pp)
             {
                 if (wal.extra && (wal.extra & (WALLFX_LOOP_OUTER|WALLFX_LOOP_OUTER_SECONDARY)) == WALLFX_LOOP_OUTER)
                 {
-                    x[count] = wal.pos.X;
-                    y[count] = wal.pos.Y;
+                    x[count] = wal.wall_int_pos().X;
+                    y[count] = wal.wall_int_pos().Y;
 
                     ox[count] = sop->pmid.X - sop->xorig[wallcount];
                     oy[count] = sop->pmid.Y - sop->yorig[wallcount];
@@ -3830,7 +3830,7 @@ int PlayerCanDiveNoWarp(PLAYER* pp)
 int GetOverlapSector(int x, int y, sectortype** over, sectortype** under)
 {
     int i, found = 0;
-    sectortype* sf[2]= {nullptr,nullptr};                       // sectors found
+    sectortype* sf[3]= {nullptr,nullptr};                       // sectors found
     auto secto = *over;
     auto sectu = *under;
 
@@ -3859,7 +3859,7 @@ int GetOverlapSector(int x, int y, sectortype** over, sectortype** under)
             {
                 sf[found] = &sect;
                 found++;
-                PRODUCTION_ASSERT(found <= 2);
+                if (found > 2) return 0;
             }
         }
     }

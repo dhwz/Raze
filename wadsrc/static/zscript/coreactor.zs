@@ -4,7 +4,7 @@ class CoreActor native
 	//native readonly sectortype sectp;
 
 	native int16 cstat;
-	native int16 picnum;
+	//native int16 picnum; // access is disabled to allow later refactoring.
 	native readonly int16 statnum;
 	native int16 ang;
 	native int16 xvel;
@@ -29,10 +29,20 @@ class CoreActor native
 	native uint mdanimtims;
 	native int16 mdanimcur;
 	native int16 angoff, pitch, roll;
-	//native vec3 pivot_offset, position_offset;
+	//native vec3 pivot_offset, position_offset; // no access needed - these are display only.
 	native uint8 renderflags;
 	native float alpha;
 
+	native readonly int16 spritesetpic;
 	native readonly int spawnindex;
+
+	// note that the pos vector is not directly accessible here.
+	// Its mixed fixed point format should be hidden from scripting, plus we need to wrap the setters to ensure proper sector linking anyway.
+	native Vector3 pos();
+	native void setpos(Vector3 newpos, bool relink = true);
+	native void move(Vector3 newpos, bool relink = true);
+	native void setz(double newz);
+	native void addz(double amount);
+	native void setSpritePic(int index);	// index into actor's spriteset.
 }
 
