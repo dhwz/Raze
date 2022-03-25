@@ -357,10 +357,12 @@ void spawnactors(SpawnSpriteDef& sprites)
         auto sprt = &sprites.sprites[i];
         auto actor = insertActor(sprt->sectp, sprt->statnum);
         actor->spr = sprites.sprites[i];
+        actor->time = i;
         if (sprites.sprext.Size()) actor->sprext = sprites.sprext[i];
         else actor->sprext = {};
         actor->spsmooth = {};
     }
+    leveltimer = sprites.sprites.Size();
 }
 
 
@@ -406,6 +408,7 @@ void InitLevel(MapRecord *maprec)
 
     SECRET_SetMapName(currentLevel->DisplayName(), currentLevel->name);
     STAT_NewLevel(currentLevel->fileName);
+    TITLE_InformName(currentLevel->name);
     Player[0].angle.ang = buildang(ang);
 
     auto vissect = &sector[0]; // hack alert!
