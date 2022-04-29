@@ -51,7 +51,6 @@
 #include "s_music.h"
 #include "m_argv.h"
 #include "i_interface.h"
-#include "gamecontrol.h"
 
 CVAR(Bool, inter_subtitles, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG);
 
@@ -313,16 +312,14 @@ bool StartCutscene(CutsceneDef& cs, int flags, const CompletionFunc& completion_
 			cs.Create(runner);
 			if (!ScreenJobValidate())
 			{
-				runner->Destroy();
-				runner = nullptr;
+				DeleteScreenJob();
 				return false;
 			}
 			if (sysCallbacks.StartCutscene) sysCallbacks.StartCutscene(flags & SJ_BLOCKUI);
 		}
 		catch (...)
 		{
-			if (runner) runner->Destroy();
-			runner = nullptr;
+			DeleteScreenJob();
 			throw;
 		}
 		return true;
@@ -335,6 +332,21 @@ bool StartCutscene(const char* s, int flags, const CompletionFunc& completion)
 	CutsceneDef def;
 	def.function = s;
 	return StartCutscene(def, flags, completion);
+}
+
+//=============================================================================
+//
+// initiates a screen wipe. Needs to call the game code for it.
+//
+//=============================================================================
+
+DEFINE_ACTION_FUNCTION(DScreenJobRunner, setTransition)
+{
+	PARAM_PROLOGUE;
+	PARAM_INT(type);
+	
+	if (type && sysCallbacks.SetTransition) sysCallbacks.SetTransition(type);
+	return 0;
 }
 
 //=============================================================================
