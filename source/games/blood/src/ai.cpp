@@ -35,7 +35,7 @@ void RecoilDude(DBloodActor* actor);
 AISTATE genIdle = { kAiStateGenIdle, 0, -1, 0, NULL, NULL, NULL, NULL };
 AISTATE genRecoil = { kAiStateRecoil, 5, -1, 20, NULL, NULL, NULL, &genIdle };
 
-const int dword_138BB0[5] = { 0x2000, 0x4000, 0x8000, 0xa000, 0xe000 };
+const int gCultTeslaFireChance[5] = { 0x2000, 0x4000, 0x8000, 0xa000, 0xe000 };
 
 //---------------------------------------------------------------------------
 //
@@ -987,7 +987,7 @@ int aiDamageSprite(DBloodActor* source, DBloodActor* actor, DAMAGE_TYPE nDmgType
 
 				PLAYER* pPlayer = getPlayerById(source->spr.type);
 				if (!pPlayer) return nDamage;
-				if (powerupCheck(pPlayer, kPwUpShadowCloak)) pPlayer->pwUpTime[kPwUpShadowCloak] = 0;
+				//if (powerupCheck(pPlayer, kPwUpShadowCloak)) pPlayer->pwUpTime[kPwUpShadowCloak] = 0;
 				if (readyForCrit(source, actor)) 
 				{
 					nDamage += aiDamageSprite(actor, source, nDmgType, nDamage * (10 - gGameOptions.nDifficulty));
@@ -1111,7 +1111,7 @@ int aiDamageSprite(DBloodActor* source, DBloodActor* actor, DAMAGE_TYPE nDmgType
 			DUDEEXTRA* pDudeExtra = &actor->dudeExtra;
 			pDudeExtra->teslaHit = 0;
 		}
-		const bool fixRandomCultist = !cl_bloodvanillaenemies && (actor->spr.inittype >= kDudeBase) && (actor->spr.inittype < kDudeMax) && !VanillaMode(); // fix burning cultists randomly switching types underwater
+		const bool fixRandomCultist = !cl_bloodvanillaenemies && (actor->spr.inittype >= kDudeBase) && (actor->spr.inittype < kDudeMax)  && (actor->spr.inittype != actor->spr.type) && !VanillaMode(); // fix burning cultists randomly switching types underwater
 		switch (actor->spr.type)
 		{
 		case kDudeCultistTommy:
@@ -1694,7 +1694,7 @@ void aiInitSprite(DBloodActor* actor)
 	pDudeExtraE->active = 0;
 
 #ifdef NOONE_EXTENSIONS
-	int stateTimer = -1;
+	unsigned int stateTimer = 0;
 	int targetX = 0, targetY = 0, targetZ = 0;
 	DBloodActor* pTargetMarker = nullptr;
 
@@ -1757,6 +1757,7 @@ void aiInitSprite(DBloodActor* actor)
 	case kDudeZombieAxeBuried: {
 		pDudeExtraE->thinkTime = 0;
 		aiNewState(actor, &zombieEIdle);
+		actor->spr.flags &= ~1;
 		break;
 	}
 	case kDudeGargoyleFlesh:

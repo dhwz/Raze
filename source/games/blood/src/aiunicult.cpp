@@ -257,7 +257,7 @@ void genDudeAttack1(int, DBloodActor* actor)
 						aiActivateDude(spawned);
 				}
 
-				gKillMgr.AddNewKill(1);
+				gKillMgr.AddKill(spawned);
 				pExtra->slave[pExtra->slaveCount++] = spawned;
 				if (!playGenDudeSound(actor, kGenDudeSndAttackNormal))
 					sfxPlay3DSoundCP(actor, 379, 1, 0, 0x10000 - Random3(0x3000));
@@ -796,7 +796,7 @@ static void unicultThinkChase(DBloodActor* actor)
 							if (hitactor->IsDudeActor() && (weaponType != kGenDudeWeaponHitscan || hscn))
 							{
 								// dodge a bit in sides
-								if (hitactor->GetTarget() != actor)
+								if (hitactor->xspr.health > 0 && hitactor->GetTarget() != actor)
 								{
 									if (pExtra->baseDispersion < 1024 && weaponType != kGenDudeWeaponMissile)
 									{
@@ -1215,6 +1215,10 @@ void aiGenDudeNewState(DBloodActor* actor, AISTATE* pAIState)
 	{
 		return;
 	}
+	
+	if (actor->xspr.health <= 0 || actor->xspr.sysData1 == kGenDudeTransformStatus)
+		return;
+
 
 	// redirect dudes which cannot walk to non-walk states
 	if (!actor->genDudeExtra.canWalk)
@@ -1950,7 +1954,7 @@ DBloodActor* genDudeSpawn(DBloodActor* source, DBloodActor* actor, int nDist)
 		spawned->spr.yrepeat = source->spr.yrepeat;
 	}
 
-	gKillMgr.AddNewKill(1);
+	gKillMgr.AddKill(spawned);
 	aiInitSprite(spawned);
 	return spawned;
 }
@@ -2532,7 +2536,7 @@ void aiGenDudeInitSprite(DBloodActor* actor)
 	case kDudeModernCustom:
 	{
 		DUDEEXTRA_STATS* pDudeExtraE = &actor->dudeExtra.stats;
-		pDudeExtraE->active = 0;
+		pDudeExtraE->active = pDudeExtraE->thinkTime = 0;
 		aiGenDudeNewState(actor, &genDudeIdleL);
 		break;
 	}

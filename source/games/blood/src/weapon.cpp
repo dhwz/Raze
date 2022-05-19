@@ -145,7 +145,7 @@ enum
 //
 //---------------------------------------------------------------------------
 
-bool checkFired6or7(PLAYER* pPlayer)
+bool checkLitSprayOrTNT(PLAYER* pPlayer)
 {
 	switch (pPlayer->curWeapon)
 	{
@@ -743,7 +743,7 @@ void WeaponRaise(PLAYER* pPlayer)
 void WeaponLower(PLAYER* pPlayer)
 {
 	assert(pPlayer != NULL);
-	if (checkFired6or7(pPlayer))
+	if (checkLitSprayOrTNT(pPlayer))
 		return;
 	pPlayer->throwPower = 0;
 	int prevState = pPlayer->weaponState;
@@ -1197,6 +1197,7 @@ void ThrowCan(int, PLAYER* pPlayer)
 	if (spawned)
 	{
 		sfxPlay3DSound(spawned, 441, 0, 0);
+		spawned->spr.shade = -128;
 		evPostActor(spawned, pPlayer->fuseTime, kCmdOn);
 		spawned->xspr.Impact = 1;
 		UseAmmo(pPlayer, 6, gAmmoItemData[0].count);
@@ -1870,7 +1871,7 @@ void FireTesla(int nTrigger, PLAYER* pPlayer)
 			}
 		}
 		playerFireMissile(pPlayer, pMissile->offset, pPlayer->aim.dx, pPlayer->aim.dy, pPlayer->aim.dz, pMissile->id);
-		UseAmmo(pPlayer, 7, pMissile->ammouse);
+		UseAmmo(pPlayer, pPlayer->weaponAmmo, pMissile->ammouse);
 		sfxPlay3DSound(pPlayer->actor, pMissile->sound, 1, 0);
 		pPlayer->visibility = pMissile->light;
 		pPlayer->flashEffect = pMissile->flash;
@@ -1995,7 +1996,6 @@ void AltFireLifeLeech(int, PLAYER* pPlayer)
 		missile->xspr.Push = 1;
 		missile->xspr.Proximity = 1;
 		missile->xspr.DudeLockout = 1;
-		missile->xspr.data4 = ClipHigh(pPlayer->ammoCount[4], 12);
 		missile->xspr.stateTimer = 1;
 		evPostActor(missile, 120, kCallbackLeechStateTimer);
 		if (gGameOptions.nGameType <= 1)
@@ -2058,7 +2058,7 @@ static const uint8_t gWeaponUpgrade[][13] = {
 int WeaponUpgrade(PLAYER* pPlayer, int newWeapon)
 {
 	int weapon = pPlayer->curWeapon;
-	if (!checkFired6or7(pPlayer) && (cl_weaponswitch & 1) && (gWeaponUpgrade[pPlayer->curWeapon][newWeapon] || (cl_weaponswitch & 2)))
+	if (!checkLitSprayOrTNT(pPlayer) && (cl_weaponswitch & 1) && (gWeaponUpgrade[pPlayer->curWeapon][newWeapon] || (cl_weaponswitch & 2)))
 		weapon = newWeapon;
 	return weapon;
 }
@@ -2147,7 +2147,7 @@ static int WeaponFindLoaded(PLAYER* pPlayer, int* a2)
 			}
 		}
 	}
-	else if (a2)
+	if (a2)
 		*a2 = v14;
 	return v4;
 }
@@ -2259,9 +2259,9 @@ static bool processProxy(PLAYER* pPlayer)
 			pPlayer->weaponState = 8;
 			StartQAV(pPlayer, kQAVPROXTHRO, nClientThrowProx);
 		}
-		break;
+		return true;
 	}
-	return 0;
+	return false;
 }
 
 //---------------------------------------------------------------------------
@@ -2281,9 +2281,9 @@ static bool processRemote(PLAYER* pPlayer)
 			pPlayer->weaponState = 11;
 			StartQAV(pPlayer, kQAVREMTHRO, nClientThrowRemote);
 		}
-		break;
+		return true;
 	}
-	return 0;
+	return false;
 }
 
 //---------------------------------------------------------------------------
@@ -2380,7 +2380,7 @@ void WeaponProcess(PLAYER* pPlayer) {
 	}
 	if (pPlayer->isUnderwater && BannedUnderwater(pPlayer->curWeapon))
 	{
-		if (checkFired6or7(pPlayer))
+		if (checkLitSprayOrTNT(pPlayer))
 		{
 			if (pPlayer->curWeapon == kWeapSpraycan)
 			{
@@ -2570,7 +2570,7 @@ void WeaponProcess(PLAYER* pPlayer) {
 	}
 	if (pPlayer->newWeapon)
 	{
-		if (pPlayer->isUnderwater && BannedUnderwater(pPlayer->newWeapon) && !checkFired6or7(pPlayer) && !VanillaMode()) // skip banned weapons when underwater and using next/prev weapon key inputs
+		if (pPlayer->isUnderwater && BannedUnderwater(pPlayer->newWeapon) && !checkLitSprayOrTNT(pPlayer) && !VanillaMode()) // skip banned weapons when underwater and using next/prev weapon key inputs
 		{
 			if (prevNewWeaponVal == WeaponSel_Next || prevNewWeaponVal == WeaponSel_Prev) // if player switched weapons
 			{
@@ -2636,7 +2636,7 @@ void WeaponProcess(PLAYER* pPlayer) {
 			pPlayer->newWeapon = kWeapNone;
 			return;
 		}
-		if (pPlayer->isUnderwater && BannedUnderwater(pPlayer->newWeapon) && !checkFired6or7(pPlayer))
+		if (pPlayer->isUnderwater && BannedUnderwater(pPlayer->newWeapon) && !checkLitSprayOrTNT(pPlayer))
 		{
 			pPlayer->newWeapon = kWeapNone;
 			return;

@@ -242,7 +242,7 @@ void LifeLeechOperate(DBloodActor* actor, EVENT event)
 				pPlayer->hasWeapon[kWeapLifeLeech] = 1;
 				if (pPlayer->curWeapon != kWeapLifeLeech)
 				{
-					if (!VanillaMode() && checkFired6or7(pPlayer)) // if tnt/spray is actively used, do not switch weapon
+					if (!VanillaMode() && checkLitSprayOrTNT(pPlayer)) // if tnt/spray is actively used, do not switch weapon
 						break;
 					pPlayer->weaponState = 0;
 					pPlayer->nextWeapon = kWeapLifeLeech;
@@ -495,10 +495,11 @@ void OperateSprite(DBloodActor* actor, EVENT event)
 		{
 			auto spawned = actSpawnDude(actor, actor->xspr.data1, -1, 0);
 			if (spawned) {
-				gKillMgr.AddNewKill(1);
+				gKillMgr.AddKill(spawned);
 				switch (actor->xspr.data1) {
 				case kDudeBurningInnocent:
 				case kDudeBurningCultist:
+				case kDudeBurningZombieAxe:
 				case kDudeBurningZombieButcher:
 				case kDudeBurningTinyCaleb:
 				case kDudeBurningBeast: {
@@ -679,7 +680,7 @@ void SetupGibWallState(walltype* pWall, XWALL* pXWall)
 		pWall->cstat |= CSTAT_WALL_BLOCK_HITSCAN;
 	if (pWall2)
 	{
-		pWall2->cstat |= CSTAT_WALL_BLOCK;
+		pWall2->cstat &= ~CSTAT_WALL_BLOCK;
 		if (bVector)
 			pWall2->cstat |= CSTAT_WALL_BLOCK_HITSCAN;
 		pWall->cstat |= CSTAT_WALL_MASKED;
@@ -833,7 +834,7 @@ void PathSound(sectortype* pSector, int nSound)
 //
 //---------------------------------------------------------------------------
 
-void TranslateSector(sectortype* pSector, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, char a12)
+void TranslateSector(sectortype* pSector, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, char bAllWalls)
 {
 	int x, y;
 	XSECTOR* pXSector = &pSector->xs();
@@ -865,7 +866,7 @@ void TranslateSector(sectortype* pSector, int a2, int a3, int a4, int a5, int a6
 			});
 	};
 
-	if (a12)
+	if (bAllWalls)
 	{
 		for (auto& wal : wallsofsector(pSector))
 		{
@@ -966,7 +967,7 @@ void ZTranslateSector(sectortype* pSector, XSECTOR* pXSector, int a3, int a4)
 	{
 		int oldZ = pSector->floorz;
 		pSector->setfloorz((pSector->baseFloor = pXSector->offFloorZ + MulScale(dz, GetWaveValue(a3, a4), 16)));
-		pSector->velFloor += (pSector->floorz - oldZ) << 8;
+		pSector->velFloor += (pSector->floorz - oldZ);
 
 		BloodSectIterator it(pSector);
 		while (auto actor = it.Next())
@@ -1028,9 +1029,9 @@ DBloodActor* GetHighestSprite(sectortype* pSector, int nStatus, int* z)
 		{
 			int top, bottom;
 			GetActorExtents(actor, &top, &bottom);
-			if (top - actor->spr.pos.Z > *z)
+			if (actor->spr.pos.Z - top > *z)
 			{
-				*z = top - actor->spr.pos.Z;
+				*z = actor->spr.pos.Z - top;
 				found = actor;
 			}
 		}
@@ -2303,6 +2304,14 @@ void trInit(TArray<DBloodActor*>& actors)
 	}
 
 	evSendGame(kChannelLevelStart, kCmdOn);
+#ifdef NOONE_EXTENSIONS
+	if (gModernMap)
+	{
+		evSendGame(kChannelLevelStartRAZE, kCmdOn);
+	}
+#endif
+
+
 	switch (gGameOptions.nGameType) {
 	case 1:
 		evSendGame(kChannelLevelStartCoop, kCmdOn);

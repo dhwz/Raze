@@ -2468,6 +2468,9 @@ static void actInitDudes()
 				case kDudeModernCustom:
 				case kDudeModernCustomBurning:
 					act->spr.cstat |= CSTAT_SPRITE_BLOOD_BIT1 | CSTAT_SPRITE_BLOCK_ALL;
+					if (act->xspr.data2 > 0 && getSequence(act->xspr.data2))
+						seqStartId = act->xspr.data2; //  Custom Dude stores it's SEQ in data2
+
 					seqStartId = genDudeSeqStartId(act); //  Custom Dude stores its SEQ in data2
 					act->xspr.sysData1 = act->xspr.data3; // move sndStartId to sysData1, because data3 used by the game;
 					act->xspr.data3 = 0;
@@ -5023,7 +5026,7 @@ void MoveDude(DBloodActor* actor)
 					break;
 				case kDudeBurningCultist:
 				{
-					const bool fixRandomCultist = !cl_bloodvanillaenemies && (actor->spr.inittype >= kDudeBase) && (actor->spr.inittype < kDudeMax) && !VanillaMode(); // fix burning cultists randomly switching types underwater
+					const bool fixRandomCultist = !cl_bloodvanillaenemies && (actor->spr.inittype >= kDudeBase) && (actor->spr.inittype < kDudeMax) && (actor->spr.inittype != actor->spr.type) && !VanillaMode(); // fix burning cultists randomly switching types underwater
 					if (Chance(chance))
 						actor->spr.type = kDudeCultistTommy;
 					else
@@ -6262,6 +6265,8 @@ DBloodActor* actSpawnDude(DBloodActor* source, int nType, int a3, int a4)
 		y = source->spr.pos.Y + mulscale30r(Sin(angle), a3);
 	}
 	spawned->spr.type = nType;
+	if (!VanillaMode())
+		 spawned->spr.inittype = nType;
 	spawned->spr.ang = angle;
 	vec3_t pos = { x, y, z };
 	SetActor(spawned, &pos);
@@ -6375,7 +6380,7 @@ DBloodActor* actSpawnThing(sectortype* pSector, int x, int y, int z, int nThingT
 		actor->xspr.data1 = (nThingType == kThingBloodBits) ? 19 : 8;
 		actor->xspr.data2 = 0;
 		actor->xspr.data3 = 0;
-		actor->xspr.data4 = 318;
+		actor->xspr.data4 = 319;
 		actor->xspr.TargetPos.X = PlayClock + 180;
 		actor->xspr.locked = 1;
 		actor->xspr.state = 1;
