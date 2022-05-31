@@ -1944,21 +1944,20 @@ BEGIN_SW_NS
 // OVER and UNDER water macros
 inline bool SectorIsDiveArea(sectortype* sect)
 {
-    return (sect->extra & SECTFX_DIVE_AREA) ? true : false;
+    return sect->extra & SECTFX_DIVE_AREA;
 }
 
 inline bool SectorIsUnderwaterArea(sectortype* sect)
 {
-    if (!sect) return false;
-    return (sect->extra & (SECTFX_UNDERWATER | SECTFX_UNDERWATER2)) ? true : false;
+    return sect ? sect->extra & (SECTFX_UNDERWATER | SECTFX_UNDERWATER2) : false;
 }
 
-inline int PlayerFacingRange(PLAYER* pp, DSWActor* a, int range)
+inline bool PlayerFacingRange(PLAYER* pp, DSWActor* a, int range)
 {
     return (abs(getincangle(getangle(a->spr.pos.X - (pp)->pos.X, a->spr.pos.Y - (pp)->pos.Y), (pp)->angle.ang.asbuild())) < (range));
 }
 
-inline int FacingRange(DSWActor* a1, DSWActor* a2, int range)
+inline bool FacingRange(DSWActor* a1, DSWActor* a2, int range)
 {
     return (abs(getincangle(getangle(a1->spr.pos.X - a2->spr.pos.X, a1->spr.pos.Y - a2->spr.pos.Y), a2->spr.ang)) < (range));
 }
@@ -2007,8 +2006,8 @@ inline int16_t& SP_TAG5(DSWActor* actor) { return actor->spr.xvel; }
 inline int16_t& SP_TAG6(DSWActor* actor) { return actor->spr.yvel; }
 inline uint8_t& SP_TAG7(DSWActor* actor) { return MSB_VAR(actor->spr.zvel); }
 inline uint8_t& SP_TAG8(DSWActor* actor) { return LSB_VAR(actor->spr.zvel); }
-inline uint8_t& SP_TAG9(DSWActor* actor) { return MSB_VAR(actor->spr.owner); }
-inline uint8_t& SP_TAG10(DSWActor* actor) { return LSB_VAR(actor->spr.owner); }
+inline uint8_t& SP_TAG9(DSWActor* actor) { return MSB_VAR(actor->spr.intowner); }
+inline uint8_t& SP_TAG10(DSWActor* actor) { return LSB_VAR(actor->spr.intowner); }
 inline int8_t& SP_TAG11(DSWActor* actor) { return actor->spr.shade; }
 inline uint8_t& SP_TAG12(DSWActor* actor) { return actor->spr.pal; }
 inline int16_t SP_TAG13(DSWActor* actor) { return int16_t(uint8_t(actor->spr.xoffset) + (actor->spr.yoffset << 8)); }
@@ -2066,7 +2065,7 @@ inline int ActorSizeY(DSWActor* sp)
     return MulScale(tileHeight(sp->spr.picnum), sp->spr.yrepeat, 6);
 }
 
-inline int Facing(DSWActor* actor1, DSWActor* actor2)
+inline bool Facing(DSWActor* actor1, DSWActor* actor2)
 {
     return (abs(getincangle(getangle(actor1->spr.pos.X - actor2->spr.pos.X, actor1->spr.pos.Y - actor2->spr.pos.Y), actor2->spr.ang)) < 512);
 }
@@ -2079,12 +2078,12 @@ inline int GetRepeatFromHeight(DSWActor* sp, int zh)
 
 inline bool SpriteInDiveArea(DSWActor* a)
 {
-    return (a->sector()->extra & SECTFX_DIVE_AREA) ? true : false;
+    return a->sector()->extra & SECTFX_DIVE_AREA;
 }
 
 inline bool SpriteInUnderwaterArea(DSWActor* a)
 {
-    return (a->sector()->extra & (SECTFX_UNDERWATER | SECTFX_UNDERWATER2)) ? true : false;
+    return a->sector()->extra & (SECTFX_UNDERWATER | SECTFX_UNDERWATER2);
 }
 
 

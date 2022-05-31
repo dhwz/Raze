@@ -344,7 +344,7 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 			{
 				ps[iPlayer].sync.actions &= ~SB_CENTERVIEW;
 			}
-			ps[iPlayer].horizon.settarget(lValue);
+			ps[iPlayer].horizon.settarget(buildhoriz(lValue));
 		}
 		else SetGameVarID(lVar2, ps[iPlayer].horizon.horiz.asbuild(), sActor, sPlayer);
 		break;
@@ -472,7 +472,7 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_ANG:
-		if (bSet) ps[iPlayer].angle.settarget(lValue);
+		if (bSet) ps[iPlayer].angle.settarget(buildang(lValue));
 		else SetGameVarID(lVar2, ps[iPlayer].angle.ang.asbuild(), sActor, sPlayer);
 		break;
 
@@ -1244,8 +1244,8 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 		break;
 	case ACTOR_OWNER:
 		// there is no way to handle this well because we do not know whether this is an actor or not. Pity.
-		if (bSet) act->spr.owner = lValue;
-		else SetGameVarID(lVar2, act->spr.owner, sActor, sPlayer);
+		if (bSet) act->spr.intowner = lValue;
+		else SetGameVarID(lVar2, act->spr.intowner, sActor, sPlayer);
 		break;
 	case ACTOR_XVEL:
 		if (bSet) act->spr.xvel = lValue;

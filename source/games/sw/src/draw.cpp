@@ -333,14 +333,13 @@ void DoShadows(tspritetype* tsprite, int& spritesortcnt, tspritetype* tsp, int v
         tSpr->clipdist |= TSPR_FLAGS_MDHACK;
         tSpr->cstat |= CSTAT_SPRITE_TRANS_FLIP;
     }
-    else if (!vid_renderer)
+    else
     {
         // Alter the shadow's position so that it appears behind the sprite itself.
         int look = getangle(tSpr->pos.X - Player[screenpeek].si.X, tSpr->pos.Y - Player[screenpeek].si.Y);
         tSpr->pos.X += bcos(look, -9);
         tSpr->pos.Y += bsin(look, -9);
     }
-    else tSpr->time = 1;
 
     // Check for voxel items and use a round generic pic if so
     //DoVoxelShadow(New);
@@ -1534,7 +1533,7 @@ void drawscreen(PLAYER* pp, double smoothratio, bool sceneonly)
                 if (actor->spr.cstat & (CSTAT_SPRITE_ALIGNMENT_FLOOR))
                 {
                     actor->spr.cstat &= ~(CSTAT_SPRITE_ALIGNMENT_FLOOR);
-                    actor->spr.owner = -2;
+                    actor->spr.intowner = -2;
                 }
             }
         }
@@ -1545,10 +1544,10 @@ void drawscreen(PLAYER* pp, double smoothratio, bool sceneonly)
     while (auto actor = it.Next())
     {
         // Don't show sprites tagged with 257
-        if (actor->spr.lotag == 257 && actor->spr.owner == -2)
+        if (actor->spr.lotag == 257 && actor->spr.intowner == -2)
         {
             actor->spr.cstat |= (CSTAT_SPRITE_ALIGNMENT_FLOOR);
-            actor->spr.owner = -1;
+            actor->spr.intowner = -1;
         }
     }
 

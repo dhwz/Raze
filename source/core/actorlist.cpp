@@ -396,6 +396,10 @@ void DCoreActor::OnDestroy()
 		assert(prevSect == nullptr && nextSect == nullptr);
 	}
 	Numsprites--;
+	
+	if (wallspriteinfo) delete wallspriteinfo;
+	wallspriteinfo = nullptr;
+
 }
 
 //==========================================================================
@@ -500,7 +504,7 @@ DEFINE_FIELD_NAMED(DCoreActor, spr.xrepeat, xrepeat)
 DEFINE_FIELD_NAMED(DCoreActor, spr.yrepeat, yrepeat)
 DEFINE_FIELD_NAMED(DCoreActor, spr.xoffset, xoffset)
 DEFINE_FIELD_NAMED(DCoreActor, spr.yoffset, yoffset)
-DEFINE_FIELD_NAMED(DCoreActor, spr.owner, owner)
+DEFINE_FIELD_NAMED(DCoreActor, spr.intowner, owner)
 DEFINE_FIELD_NAMED(DCoreActor, sprext.mdanimtims, mdanimtims)
 DEFINE_FIELD_NAMED(DCoreActor, sprext.mdanimcur, mdanimcur)
 DEFINE_FIELD_NAMED(DCoreActor, sprext.angoff, angoff)

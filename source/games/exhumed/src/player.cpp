@@ -213,7 +213,7 @@ void InitPlayerInventory(int nPlayer)
 
 int GetPlayerFromActor(DExhumedActor* pActor)
 {
-    return RunData[pActor->spr.owner].nObjIndex;
+    return RunData[pActor->spr.intowner].nObjIndex;
 }
 
 void RestartPlayer(int nPlayer)
@@ -226,7 +226,7 @@ void RestartPlayer(int nPlayer)
 
 	if (pActor)
 	{
-        runlist_DoSubRunRec(pActor->spr.owner);
+        runlist_DoSubRunRec(pActor->spr.intowner);
 		runlist_FreeRun(pActor->spr.lotag - 1);
 
 		ChangeActorStat(pActor, 0);
@@ -240,7 +240,7 @@ void RestartPlayer(int nPlayer)
 
 		if (pDopSprite)
 		{
-			runlist_DoSubRunRec(pDopSprite->spr.owner);
+			runlist_DoSubRunRec(pDopSprite->spr.intowner);
 			runlist_FreeRun(pDopSprite->spr.lotag - 1);
             DeleteActor(pDopSprite);
 		}
@@ -396,8 +396,8 @@ void RestartPlayer(int nPlayer)
 
 	plr->nTauntTimer = RandomSize(3) + 3;
 
-	pDActor->spr.owner = runlist_AddRunRec(pDActor->spr.lotag - 1, nPlayer, 0xA0000);
-	pActor->spr.owner = runlist_AddRunRec(pActor->spr.lotag - 1, nPlayer, 0xA0000);
+	pDActor->spr.intowner = runlist_AddRunRec(pDActor->spr.lotag - 1, nPlayer, 0xA0000);
+	pActor->spr.intowner = runlist_AddRunRec(pActor->spr.lotag - 1, nPlayer, 0xA0000);
 
 	if (plr->nRun < 0) {
 		plr->nRun = runlist_AddRunRec(NewRun, nPlayer, 0xA0000);
@@ -935,10 +935,10 @@ void AIPlayer::Tick(RunListEvent* ev)
         if (nTotalPlayers <= 1)
         {
             auto ang = GetAngleToSprite(pPlayerActor, pSpiritSprite) & kAngleMask;
-            PlayerList[nPlayer].angle.settarget(ang, true);
+            PlayerList[nPlayer].angle.setvalue(buildang(ang));
             pPlayerActor->spr.ang = ang;
 
-            PlayerList[nPlayer].horizon.settarget(0, true);
+            PlayerList[nPlayer].horizon.setvalue(buildhoriz(0));
 
             lPlayerXVel = 0;
             lPlayerYVel = 0;
@@ -955,7 +955,7 @@ void AIPlayer::Tick(RunListEvent* ev)
                 InitSpiritHead();
 
                 PlayerList[nPlayer].nDestVertPan = q16horiz(0);
-                PlayerList[nPlayer].horizon.settarget(currentLevel->ex_ramses_horiz);
+                PlayerList[nPlayer].horizon.settarget(buildhoriz(currentLevel->ex_ramses_horiz));
             }
         }
         else
@@ -2445,7 +2445,7 @@ sectdone:
             double nVertPan = (pPlayer->nDestVertPan - pPlayer->horizon.horiz).asbuildf() * 0.25;
             if (nVertPan != 0)
             {
-                pPlayer->horizon.addadjustment(abs(nVertPan) >= 4 ? clamp(nVertPan, -4., 4.) : nVertPan * 2.);
+                pPlayer->horizon.addadjustment(buildfhoriz(abs(nVertPan) >= 4 ? clamp(nVertPan, -4., 4.) : nVertPan * 2.));
             }
         }
     }
@@ -2568,16 +2568,16 @@ sectdone:
         {
             if (PlayerList[nPlayer].horizon.horiz.asq16() < 0)
             {
-                PlayerList[nPlayer].horizon.settarget(0);
+                PlayerList[nPlayer].horizon.settarget(buildhoriz(0));
                 PlayerList[nPlayer].eyelevel -= (dVertPan[nPlayer] << 8);
             }
             else
             {
-                PlayerList[nPlayer].horizon.addadjustment(dVertPan[nPlayer]);
+                PlayerList[nPlayer].horizon.addadjustment(buildhoriz(dVertPan[nPlayer]));
 
                 if (PlayerList[nPlayer].horizon.horiz.asq16() > gi->playerHorizMax())
                 {
-                    PlayerList[nPlayer].horizon.settarget(gi->playerHorizMax());
+                    PlayerList[nPlayer].horizon.settarget(q16horiz(gi->playerHorizMax()));
                 }
                 else if (PlayerList[nPlayer].horizon.horiz.asq16() <= 0)
                 {

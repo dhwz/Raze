@@ -1086,6 +1086,38 @@ void HWWall::Process(HWDrawInfo* di, walltype* wal, sectortype* frontsector, sec
 	}
 }
 
+//==========================================================================
+//
+// checks if the wall sprite has changed since the last call.
+// Returns:
+//  0 if identical or only render style changed
+//  1 if vertical orientation changed
+//  2 if horizontal orientation changed
+//  3 if positioning changed
+//
+//==========================================================================
+
+int HWWall::CheckWallSprite(tspritetype* spr, tspritetype* last)
+{
+	// If the position changed we need to recalculate everything.
+	if (spr->pos.X != last->pos.X || spr->pos.Y != last->pos.Y || spr->sectp != last->sectp || spr->ang != last->ang) return 3;
+	
+	// if the horizontal orientation changes we need to recalculate the walls this attaches to, but not the positioning.
+	if (spr->xrepeat != last->xrepeat || spr->xoffset != last->xoffset || spr->picnum != last->picnum || ((spr->cstat ^ last->cstat) & CSTAT_SPRITE_XFLIP)) return 2;
+	
+	// only y-positioning changed - we need to re-check the wall tiers this sprite attaches to
+	if(spr->yrepeat != last->yrepeat || spr->yoffset != last->yoffset || ((spr->cstat ^ last->cstat) & (CSTAT_SPRITE_YFLIP|CSTAT_SPRITE_YCENTER))) return 1;
+
+	// all remaining properties only affect the render style which is not relevant for positioning a wall sprite
+	return 0;
+}
+
+//==========================================================================
+//
+//
+//
+//==========================================================================
+
 void HWWall::ProcessWallSprite(HWDrawInfo* di, tspritetype* spr, sectortype* sector)
 {
 	auto tex = tileGetTexture(spr->picnum);
@@ -1181,13 +1213,13 @@ void HWWall::ProcessWallSprite(HWDrawInfo* di, tspritetype* spr, sectortype* sec
 		tcs[UPLFT].v = tcs[UPRGT].v = 1.f - tcs[UPLFT].v;
 		tcs[LOLFT].v = tcs[LORGT].v = 1.f - tcs[LOLFT].v;
 	}
-
+	
 	// Clip sprites to ceilings/floors
 	if (!(sector->ceilingstat & CSTAT_SECTOR_SKY))
 	{
 		float polyh = (ztop[0] - zbottom[0]);
 		float ceilingz = sector->ceilingz * (1 / -256.f);
-		if (ceilingz < ztop[0] && ceilingz > zbottom[0])
+		if (ceilingz < ztop[0] && ceilingz >= zbottom[0])
 		{
 			float newv = (ceilingz - zbottom[0]) / polyh;
 			tcs[UPLFT].v = tcs[UPRGT].v = tcs[LOLFT].v + newv * (tcs[UPLFT].v - tcs[LOLFT].v);
@@ -1198,13 +1230,15 @@ void HWWall::ProcessWallSprite(HWDrawInfo* di, tspritetype* spr, sectortype* sec
 	{
 		float polyh = (ztop[0] - zbottom[0]);
 		float floorz = sector->floorz * (1 / -256.f);
-		if (floorz < ztop[0] && floorz > zbottom[0])
+		if (floorz <= ztop[0] && floorz > zbottom[0])
 		{
 			float newv = (floorz - zbottom[0]) / polyh;
 			tcs[LOLFT].v = tcs[LORGT].v = tcs[LOLFT].v + newv * (tcs[UPLFT].v - tcs[LOLFT].v);
 			zbottom[0] = zbottom[1] = floorz;
 		}
 	}
+	if (zbottom[0] >= ztop[0])
+		return; // nothing left to render.
 
 	// If the sprite is backward, flip it around so that we have guaranteed orientation when this is about to be sorted.
 	if (PointOnLineSide(di->Viewpoint.Pos.XY(), DVector2(glseg.x1, glseg.y1), DVector2(glseg.x2, glseg.y2)) < 0)
