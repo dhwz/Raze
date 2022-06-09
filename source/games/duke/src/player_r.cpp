@@ -1335,7 +1335,11 @@ int doincrements_r(struct player_struct* p)
 	if (p->invdisptime > 0)
 		p->invdisptime--;
 
-	if (p->tipincs > 0) p->tipincs--;
+	if (p->tipincs > 0)
+	{
+		p->otipincs = p->tipincs;
+		p->tipincs--;
+	}
 
 	if (p->last_pissed_time > 0)
 	{
@@ -1392,6 +1396,7 @@ int doincrements_r(struct player_struct* p)
 
 	if (p->access_incs && p->GetActor()->spr.pal != 1)
 	{
+		p->oaccess_incs = p->access_incs;
 		p->access_incs++;
 		if (p->GetActor()->spr.extra <= 0)
 			p->access_incs = 12;
@@ -1422,7 +1427,7 @@ int doincrements_r(struct player_struct* p)
 
 		if (p->access_incs > 20)
 		{
-			p->access_incs = 0;
+			p->oaccess_incs = p->access_incs = 0;
 			p->oweapon_pos = p->weapon_pos = 10;
 			p->okickback_pic = p->kickback_pic = 0;
 		}
@@ -3515,8 +3520,15 @@ void processinput_r(int snum)
 
 	p->last_extra = pact->spr.extra;
 
-	if (p->loogcnt > 0) p->loogcnt--;
-	else p->loogcnt = 0;
+	if (p->loogcnt > 0)
+	{
+		p->oloogcnt = p->loogcnt;
+		p->loogcnt--;
+	}
+	else
+	{
+		p->oloogcnt = p->loogcnt = 0;
+	}
 
 	if (p->fist_incs)
 	{
@@ -3533,6 +3545,12 @@ void processinput_r(int snum)
 	{
 		playerisdead(snum, psectlotag, fz, cz);
 		return;
+	}
+
+	if (p->GetActor()->spr.xrepeat < 8 && p->jetpack_on == 0)
+	{
+		p->ofistsign = p->fistsign;
+		p->fistsign += p->GetActor()->spr.xvel;
 	}
 
 	if (p->transporter_hold > 0)

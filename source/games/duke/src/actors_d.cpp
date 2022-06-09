@@ -3510,7 +3510,7 @@ void moveeffectors_d(void)   //STATNUM 3
 		auto sc = act->sector();
 		if (sc->wallnum != 4) continue;
 		auto wal = sc->firstWall() + 2;
-		alignflorslope(act->sector(), wal->wall_int_pos().X, wal->wall_int_pos().Y, wal->nextSector()->floorz);
+		if (wal->nextSector()) alignflorslope(act->sector(), wal->wall_int_pos().X, wal->wall_int_pos().Y, wal->nextSector()->floorz);
 	}
 }
 
@@ -3687,15 +3687,18 @@ void move_d(DDukeActor *actor, int playernum, int xvel)
 			}
 			else if (actor->spr.picnum != DRONE && actor->spr.picnum != SHARK && actor->spr.picnum != COMMANDER)
 			{
-				if (actor->opos.Z != actor->spr.pos.Z || (ud.multimode < 2 && ud.player_skill < 2))
+				if (!*(moveptr + 1))
 				{
-					if ((actor->temp_data[0] & 1) || ps[playernum].actorsqu == actor) return;
-					else daxvel <<= 1;
-				}
-				else
-				{
-					if ((actor->temp_data[0] & 3) || ps[playernum].actorsqu == actor) return;
-					else daxvel <<= 2;
+					if (actor->opos.Z != actor->spr.pos.Z || (ud.multimode < 2 && ud.player_skill < 2))
+					{
+						if ((actor->temp_data[0] & 1) || ps[playernum].actorsqu == actor) return;
+						else daxvel <<= 1;
+					}
+					else
+					{
+						if ((actor->temp_data[0] & 3) || ps[playernum].actorsqu == actor) return;
+						else daxvel <<= 2;
+					}
 				}
 			}
 		}

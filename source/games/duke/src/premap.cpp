@@ -89,7 +89,7 @@ void resetplayerstats(int snum)
 	p->subweapon        = 0;
 	p->last_full_weapon = 0;
 	p->ftq              = 0;
-	p->tipincs          = 0;
+	p->otipincs = p->tipincs = 0;
 	p->buttonpalette    = 0;
 	p->actorsqu         =nullptr;
 	p->invdisptime      = 0;
@@ -99,7 +99,7 @@ void resetplayerstats(int snum)
 	p->pycount          = 0;
 	p->pyoff            = 0;
 	p->opyoff           = 0;
-	p->loogcnt          = 0;
+	p->oloogcnt = p->loogcnt = 0;
 	p->psectlotag       = 0;
 	p->weapon_sway      = 0;
 //    p->select_dir       = 0;
@@ -167,8 +167,8 @@ void resetplayerstats(int snum)
 	p->weapon_ang        = 0;
 
 	p->knuckle_incs      = 1;
-	p->fist_incs = 0;
-	p->knee_incs         = 0;
+	p->ofist_incs = p->fist_incs = 0;
+	p->oknee_incs = p->knee_incs = 0;
 	p->stairs = 0;
 	p->noise.X = 0;
 	p->noise.Y = 0;

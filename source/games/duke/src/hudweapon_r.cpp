@@ -87,13 +87,13 @@ void displaymasks_r(int snum, int p, double smoothratio)
 //
 //---------------------------------------------------------------------------
 
-void ShowMotorcycle(double x, double y, int tilenum, int shade, int orientation, int p, double a)
+inline static void ShowMotorcycle(double x, double y, int tilenum, int shade, int orientation, int p, double a)
 {
 	hud_drawsprite(x, y, 34816, a, tilenum, shade, p, 2 | orientation);
 }
 
 
-void ShowBoat(double x, double y, int tilenum, int shade, int orientation, int p, double a)
+inline static void ShowBoat(double x, double y, int tilenum, int shade, int orientation, int p, double a)
 {
 	hud_drawsprite(x, y, 66048, a, tilenum, shade, p, 2 | orientation);
 }
@@ -291,19 +291,7 @@ void displayweapon_r(int snum, double smoothratio)
 
 	if (p->GetActor()->spr.xrepeat < 8)
 	{
-		static int fistsign;
-		if (p->jetpack_on == 0)
-		{
-			i = p->GetActor()->spr.xvel;
-			looking_arc += 32 - (i >> 1);
-			fistsign += i >> 1;
-		}
-		double owo = weapon_xoffset;
-		weapon_xoffset += bsinf(fistsign, -10);
-		hud_draw(weapon_xoffset + 250 - look_anghalf, looking_arc + 258 - abs(bsinf(fistsign, -8)),	FIST, shade, o);
-		weapon_xoffset = owo;
-		weapon_xoffset -= bsinf(fistsign, -10);
-		hud_draw(weapon_xoffset + 40 - look_anghalf, looking_arc + 200 + abs(bsinf(fistsign, -8)), FIST, shade, o | 4);
+		animateshrunken(p, weapon_xoffset, looking_arc, look_anghalf, FIST, shade, o, smoothratio);
 	}
 	else
 	{

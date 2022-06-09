@@ -224,7 +224,7 @@ struct player_struct
 	short psectlotag;
 
 	// From here on it is unaltered from JFDuke with the exception of a few fields that are no longer needed and were removed.
-	int numloogs, loogcnt;
+	int numloogs, oloogcnt, loogcnt;
 	int invdisptime;
 	int pyoff, opyoff;
 	int last_pissed_time, truefz, truecz;
@@ -243,12 +243,12 @@ struct player_struct
 	short last_extra, subweapon;
 	short ammo_amount[MAX_WEAPONS], frag, fraggedself;
 
-	short curr_weapon, last_weapon, tipincs, wantweaponfire;
+	short curr_weapon, last_weapon, otipincs, tipincs, wantweaponfire;
 	short holoduke_amount, hurt_delay, hbomb_hold_delay;
-	short jumping_counter, airleft, knee_incs, access_incs;
+	short jumping_counter, airleft, oknee_incs, knee_incs, oaccess_incs, access_incs;
 	short ftq;
 	short got_access, weapon_ang, firstaid_amount;
-	short over_shoulder_on, fist_incs;
+	short over_shoulder_on, ofist_incs, fist_incs;
 	short cheat_phase;
 	short extra_extra8, quick_kick, last_quick_kick;
 	short heat_amount, timebeforeexit, customexitsound;

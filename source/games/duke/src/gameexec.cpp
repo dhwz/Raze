@@ -321,7 +321,7 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_LOOGCNT:
-		if (bSet) ps[iPlayer].loogcnt = lValue;
+		if (bSet) ps[iPlayer].oloogcnt = ps[iPlayer].loogcnt = lValue;
 		else SetGameVarID(lVar2, ps[iPlayer].loogcnt, sActor, sPlayer);
 		break;
 
@@ -536,7 +536,7 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_TIPINCS:
-		if (bSet) ps[iPlayer].tipincs = lValue;
+		if (bSet) ps[iPlayer].otipincs = ps[iPlayer].tipincs = lValue;
 		else SetGameVarID(lVar2, ps[iPlayer].tipincs, sActor, sPlayer);
 		break;
 
@@ -576,12 +576,12 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_KNEE_INCS:
-		if (bSet) ps[iPlayer].knee_incs = lValue;
+		if (bSet) ps[iPlayer].oknee_incs = ps[iPlayer].knee_incs = lValue;
 		else SetGameVarID(lVar2, ps[iPlayer].knee_incs, sActor, sPlayer);
 		break;
 
 	case PLAYER_ACCESS_INCS:
-		if (bSet) ps[iPlayer].access_incs = lValue;
+		if (bSet) ps[iPlayer].oaccess_incs = ps[iPlayer].access_incs = lValue;
 		else SetGameVarID(lVar2, ps[iPlayer].access_incs, sActor, sPlayer);
 		break;
 
@@ -645,7 +645,7 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_FIST_INCS:
-		if (bSet) 	ps[iPlayer].fist_incs = lValue;
+		if (bSet) ps[iPlayer].ofist_incs = ps[iPlayer].fist_incs = lValue;
 		else SetGameVarID(lVar2, ps[iPlayer].fist_incs, sActor, sPlayer);
 		break;
 
