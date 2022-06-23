@@ -957,13 +957,6 @@ int RunGame()
 {
 	GameStartupInfo.FgColor = 0xffffff;
 
-	auto wad = BaseFileSearch(ENGINERES_FILE, NULL, true, GameConfig);
-	if (wad == NULL)
-	{
-		I_FatalError("Cannot find " ENGINERES_FILE);
-	}
-	LoadHexFont(wad);	// load hex font early so we have it during startup.
-
 	// Set up the console before anything else so that it can receive text.
 	C_InitConsole(1024, 768, true);
 
@@ -980,6 +973,14 @@ int RunGame()
 	I_DetectOS();
 	userConfig.ProcessOptions();
 	G_LoadConfig();
+
+	auto wad = BaseFileSearch(ENGINERES_FILE, NULL, true, GameConfig);
+	if (wad == NULL)
+	{
+		I_FatalError("Cannot find " ENGINERES_FILE);
+	}
+	LoadHexFont(wad);	// load hex font early so we have it during startup.
+
 	GetGames();
 	auto usedgroups = SetupGame();
 
