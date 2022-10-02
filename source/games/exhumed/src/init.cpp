@@ -241,7 +241,7 @@ void SnapSectors(sectortype* pSectorA, sectortype* pSectorB, int b)
     }
 
     if (b) {
-        pSectorB->setceilingz(pSectorA->floorz);
+        pSectorB->set_int_ceilingz(pSectorA->int_floorz());
     }
 
     if (pSectorA->Flag & 0x1000) {
@@ -749,9 +749,7 @@ void ExamineSprites(TArray<DExhumedActor*>& actors)
     {
         auto pActor = insertActor(initsectp, 0);
 
-        pActor->spr.pos.X = initx;
-        pActor->spr.pos.Y = inity;
-        pActor->spr.pos.Z = initz;
+        pActor->set_int_pos({ initx, inity, initz });
         pActor->spr.cstat = CSTAT_SPRITE_INVISIBLE;
         nNetStartSprite[nNetStartSprites] = pActor;
         nNetStartSprites++;

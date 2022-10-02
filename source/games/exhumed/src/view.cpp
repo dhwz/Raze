@@ -32,8 +32,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "render.h"
 #include <string.h>
 
-EXTERN_CVAR(Bool, vid_renderer)
-
 BEGIN_PS_NS
 
 bool bSubTitles = true;
@@ -61,25 +59,21 @@ int viewz;
 
 
 // We cannot drag these through the entire event system... :(
-tspritetype* mytsprite;
-int* myspritesortcnt;
+tspriteArray* mytspriteArray;
 
 // NOTE - not to be confused with Ken's analyzesprites()
-static void analyzesprites(tspritetype* tsprite, int& spritesortcnt, int x, int y, int z, double const smoothratio)
+static void analyzesprites(tspriteArray& tsprites, int x, int y, int z, double const smoothratio)
 {
-    tspritetype *pTSprite;
+    mytspriteArray = &tsprites;
 
-    mytsprite = tsprite;
-    myspritesortcnt = &spritesortcnt;
-
-    for (int i = 0; i < spritesortcnt; i++) {
-        validateTSpriteSize(tsprite, spritesortcnt);
-        pTSprite = &tsprite[i];
+    for (unsigned i = 0; i < tsprites.Size(); i++) 
+    {
+        auto pTSprite = tsprites.get(i);
 
         if (pTSprite->ownerActor)
         {
             // interpolate sprite position
-            pTSprite->pos = pTSprite->ownerActor->interpolatedvec3(smoothratio);
+            pTSprite->set_int_pos(pTSprite->ownerActor->interpolatedvec3(smoothratio));
             pTSprite->ang = pTSprite->ownerActor->interpolatedang(smoothratio);
         }
     }
@@ -96,12 +90,9 @@ static void analyzesprites(tspritetype* tsprite, int& spritesortcnt, int x, int 
 
     int nAngle = (2048 - pPlayerActor->spr.ang) & kAngleMask;
 
-    int nTSprite;
-
-//	int var_20 = var_24;
-
-    for (nTSprite = spritesortcnt-1, pTSprite = &tsprite[nTSprite]; nTSprite >= 0; nTSprite--, pTSprite--)
+    for (int nTSprite = int(tsprites.Size()-1); nTSprite >= 0; nTSprite--)
     {
+        auto pTSprite = tsprites.get(nTSprite);
         auto pActor = static_cast<DExhumedActor*>(pTSprite->ownerActor);
 
         if (pTSprite->sectp != nullptr)
@@ -119,7 +110,7 @@ static void analyzesprites(tspritetype* tsprite, int& spritesortcnt, int x, int 
         {
             pTSprite->cstat |= CSTAT_SPRITE_YCENTER;
             int nTileY = (tileHeight(pTSprite->picnum) * pTSprite->yrepeat) * 2;
-            pTSprite->pos.Z -= nTileY;
+            pTSprite->add_int_z(-nTileY);
         }
 
         if (pTSprite->pal == 4 && pTSprite->shade >= numshades) pTSprite->shade = numshades - 1;
@@ -132,8 +123,8 @@ static void analyzesprites(tspritetype* tsprite, int& spritesortcnt, int x, int 
 
             if ((pActor->spr.statnum < 150) && (pActor->spr.cstat & CSTAT_SPRITE_BLOCK_ALL) && (pActor != pPlayerActor))
             {
-                int xval = pActor->spr.pos.X - x;
-                int yval = pActor->spr.pos.Y - y;
+                int xval = pActor->int_pos().X - x;
+                int yval = pActor->int_pos().Y - y;
 
                 int vcos = bcos(nAngle);
                 int vsin = bsin(nAngle);
@@ -172,14 +163,13 @@ static void analyzesprites(tspritetype* tsprite, int& spritesortcnt, int x, int 
     {
         nCreepyTimer = kCreepyCount;
 
-        if (!cansee(x, y, z, pSector, targ->spr.pos.X, targ->spr.pos.Y, targ->spr.pos.Z - GetActorHeight(targ), targ->sector()))
+        if (!cansee(x, y, z, pSector, targ->int_pos().X, targ->int_pos().Y, targ->int_pos().Z - GetActorHeight(targ), targ->sector()))
         {
             bestTarget = nullptr;
         }
     }
 
-    mytsprite = nullptr;
-    myspritesortcnt = nullptr;
+    mytspriteArray = nullptr;
 
 }
 
@@ -207,7 +197,6 @@ void DrawView(double smoothRatio, bool sceneonly)
     zbob = bsin(2 * bobangle, -3);
 
     DoInterpolations(smoothRatio / 65536.);
-    pm_smoothratio = (int)smoothRatio;
 
     auto pPlayerActor = PlayerList[nLocalPlayer].pActor;
     auto nPlayerOldCstat = pPlayerActor->spr.cstat;
@@ -218,9 +207,9 @@ void DrawView(double smoothRatio, bool sceneonly)
     {
         DExhumedActor* pActor = SnakeList[nSnakeCam].pSprites[0];
 
-        playerX = pActor->spr.pos.X;
-        playerY = pActor->spr.pos.Y;
-        playerZ = pActor->spr.pos.Z;
+        playerX = pActor->int_pos().X;
+        playerY = pActor->int_pos().Y;
+        playerZ = pActor->int_pos().Z;
         pSector = pActor->sector();
         nAngle = buildang(pActor->spr.ang);
         rotscrnang = buildang(0);
@@ -285,7 +274,7 @@ void DrawView(double smoothRatio, bool sceneonly)
     else
     {
         viewz = playerZ + nQuake[nLocalPlayer];
-        int floorZ = pPlayerActor->sector()->floorz;
+        int floorZ = pPlayerActor->sector()->int_floorz();
 
         if (viewz > floorZ)
             viewz = floorZ;
@@ -308,10 +297,10 @@ void DrawView(double smoothRatio, bool sceneonly)
 
     if (pSector != nullptr)
     {
-        int Z = pSector->ceilingz + 256;
+        int Z = pSector->int_ceilingz() + 256;
         if (Z <= viewz)
         {
-            Z = pSector->floorz - 256;
+            Z = pSector->int_floorz() - 256;
 
             if (Z < viewz)
                 viewz = Z;
@@ -326,7 +315,8 @@ void DrawView(double smoothRatio, bool sceneonly)
     if (nFreeze == 2 || nFreeze == 1)
     {
         nSnakeCam = -1;
-        videoSetViewableArea(0, 0, xdim - 1, ydim - 1);
+        //???
+        viewport3d = { 0, 0, screen->GetWidth(), screen->GetHeight() };
     }
 
     UpdateMap();
@@ -354,25 +344,9 @@ void DrawView(double smoothRatio, bool sceneonly)
             }
         }
 
-        if (!vid_renderer)
-        {
-            // this little block of code is Exhumed's entire interface to Polymost.
-            int const vr = xs_CRoundToInt(65536. * tan(r_fov * (pi::pi() / 360.)));
-            videoSetCorrectedAspect();
-            renderSetAspect(MulScale(vr, viewingrange, 16), yxaspect);
-            renderSetRollAngle((float)rotscrnang.asbuildf());
-            renderDrawRoomsQ16(nCamerax, nCameray, viewz, nCameraa.asq16(), nCamerapan.asq16(), sectnum(pSector), false);
-            analyzesprites(pm_tsprite, pm_spritesortcnt, nCamerax, nCameray, viewz, smoothRatio);
-            renderDrawMasks();
-            if (!nFreeze && !sceneonly)
-                DrawWeapons(smoothRatio);
-        }
-        else
-        {
-            if (!nFreeze && !sceneonly)
-                DrawWeapons(smoothRatio);
-            render_drawrooms(nullptr, { nCamerax, nCameray, viewz }, sectnum(pSector), nCameraa, nCamerapan, rotscrnang, smoothRatio);
-        }
+        if (!nFreeze && !sceneonly)
+            DrawWeapons(smoothRatio);
+        render_drawrooms(nullptr, { nCamerax, nCameray, viewz }, sectnum(pSector), nCameraa, nCamerapan, rotscrnang, smoothRatio);
 
         if (HavePLURemap())
         {
@@ -468,9 +442,9 @@ bool GameInterface::GenerateSavePic()
     return true;
 }
 
-void GameInterface::processSprites(tspritetype* tsprite, int& spritesortcnt, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio)
+void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio)
 {
-    analyzesprites(tsprite, spritesortcnt, viewx, viewy, viewz, smoothRatio);
+    analyzesprites(tsprites, viewx, viewy, viewz, smoothRatio);
 }
 
 

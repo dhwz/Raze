@@ -61,6 +61,17 @@ struct picanm_t
 		extra = sf = 0;
 		num = 0;
 	}
+
+	int speed()
+	{
+		return sf & PICANM_ANIMSPEED_MASK;
+	}
+
+	int type()
+	{
+		return sf & PICANM_ANIMTYPE_MASK;
+	}
+
 };
 picanm_t    tileConvertAnimFormat(int32_t const picanmdisk, int* lo, int* to);
 
@@ -461,18 +472,25 @@ inline rottile_t& RotTile(int tile)
 }
 
 
-int32_t animateoffs(int const tilenum, int fakevar);
+int tileAnimateOfs(int tilenum, int randomize = -1);
+
+inline void tileUpdatePicnum(int* const tileptr, bool mayrotate = false, int randomize = -1)
+{
+	auto& tile = *tileptr;
+
+	if (picanm[tile].type())
+		tile += tileAnimateOfs(tile, randomize);
+
+	if (mayrotate && RotTile(tile).newtile != -1)
+		tile = RotTile(tile).newtile;
+}
+
 
 inline FGameTexture* tileGetTexture(int tile, bool animate = false)
 {
 	assert((unsigned)tile < MAXTILES);
 	if (tile < 0 || tile >= MAXTILES) return nullptr;
-	if (animate)
-	{
-		if (TileFiles.tiledata[tile].picanm.sf & PICANM_ANIMTYPE_MASK)
-			tile += animateoffs(tile, 0);
-
-	}
+	if (animate) tileUpdatePicnum(&tile);
 	return TileFiles.tiledata[tile].texture;
 }
 
@@ -508,6 +526,7 @@ struct SetAnim
 void processSetAnim(const char* cmd, FScriptPosition& pos, SetAnim& imp);
 class FGameTexture;
 bool PickTexture(FGameTexture* tex, int paletteid, TexturePick& pick, bool wantindexed = false);
+FCanvasTexture* tileGetCanvas(int tilenum);
 
 inline FixedBitArray<MAXTILES> gotpic;
 

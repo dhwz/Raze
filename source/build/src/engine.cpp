@@ -14,7 +14,6 @@
 #include "automap.h"
 
 #include "imagehelpers.h"
-#include "engine_priv.h"
 #include "palette.h"
 #include "gamecvars.h"
 #include "c_console.h"
@@ -35,115 +34,20 @@
 
 #ifdef USE_OPENGL
 # include "mdsprite.h"
-# include "polymost.h"
 #include "v_video.h"
-#include "../../glbackend/glbackend.h"
 #include "gl_renderer.h"
 #endif
 
 int32_t mdtims, omdtims;
 
-float fcosglobalang, fsinglobalang;
-float fydimen, fviewingrange;
-
 uint8_t globalr = 255, globalg = 255, globalb = 255;
 
 static int16_t radarang[1280];
-
-// adapted from build.c
-static void getclosestpointonwall_internal(vec2_t const p, int32_t const dawall, vec2_t *const closest)
-{
-    vec2_t const w  = wall[dawall].wall_int_pos();
-    vec2_t const w2 = wall[dawall].point2Wall()->wall_int_pos();
-    vec2_t const d  = { w2.X - w.X, w2.Y - w.Y };
-
-    int64_t i = d.X * ((int64_t)p.X - w.X) + d.Y * ((int64_t)p.Y - w.Y);
-
-    if (i <= 0)
-    {
-        *closest = w;
-        return;
-    }
-
-    int64_t const j = (int64_t)d.X * d.X + (int64_t)d.Y * d.Y;
-
-    if (i >= j)
-    {
-        *closest = w2;
-        return;
-    }
-
-    i = ((i << 15) / j) << 15;
-
-    *closest = { (int32_t)(w.X + ((d.X * i) >> 30)), (int32_t)(w.Y + ((d.Y * i) >> 30)) };
-}
-
-int32_t xdimen = -1, xdimenscale, xdimscale;
-float fxdimen = -1.f;
-int32_t ydimen;
-
-int32_t globalposx, globalposy, globalposz;
-fixed_t qglobalhoriz;
-float fglobalposx, fglobalposy, fglobalposz;
-int16_t globalang, globalcursectnum;
-fixed_t qglobalang;
-int32_t globalpal, globalfloorpal, cosglobalang, singlobalang;
-int32_t cosviewingrangeglobalang, sinviewingrangeglobalang;
-
-int32_t viewingrangerecip;
-
-int32_t globalshade, globalorientation;
-int16_t globalpicnum;
-
-
-static int32_t globaly1, globalx2;
-
-int16_t pointhighlight=-1, linehighlight=-1, highlightcnt=0;
-
-static int16_t numhits;
-
 
 
 //
 // Internal Engine Functions
 //
-
-BEGIN_BLD_NS
-int qanimateoffs(int a1, int a2);
-END_BLD_NS
-
-//
-// animateoffs (internal)
-//
-int32_t animateoffs(int const tilenum, int fakevar)
-{
-    if (isBlood())
-    {
-        return Blood::qanimateoffs(tilenum, fakevar);
-    }
-
-    int const animnum = picanm[tilenum].num;
-
-    if (animnum <= 0)
-        return 0;
-
-    int const i = (int) I_GetBuildTime() >> (picanm[tilenum].sf & PICANM_ANIMSPEED_MASK);
-    int offs = 0;
-
-    switch (picanm[tilenum].sf & PICANM_ANIMTYPE_MASK)
-    {
-        case PICANM_ANIMTYPE_OSC:
-        {
-            int k = (i % (animnum << 1));
-            offs = (k < animnum) ? k : (animnum << 1) - k;
-        }
-        break;
-        case PICANM_ANIMTYPE_FWD: offs = i % (animnum + 1); break;
-        case PICANM_ANIMTYPE_BACK: offs = -(i % (animnum + 1)); break;
-    }
-
-    return offs;
-}
 
 void engineInit(void)
 {
@@ -307,60 +211,6 @@ int32_t getangle(int32_t xvect, int32_t yvect)
 }
 
 
-// Gets the BUILD unit height and z offset of a sprite.
-// Returns the z offset, 'height' may be NULL.
-int32_t spriteheightofsptr(DCoreActor* spr, int32_t *height, int32_t alsotileyofs)
-{
-    int32_t hei, zofs=0;
-    const int32_t picnum=spr->spr.picnum, yrepeat=spr->spr.yrepeat;
-
-    hei = (tileHeight(picnum)*yrepeat)<<2;
-    if (height != NULL)
-        *height = hei;
-
-    if (spr->spr.cstat & CSTAT_SPRITE_YCENTER)
-        zofs = hei>>1;
-
-    // NOTE: a positive per-tile yoffset translates the sprite into the
-    // negative world z direction (i.e. upward).
-    if (alsotileyofs)
-        zofs -= tileTopOffset(picnum) *yrepeat<<2;
-
-    return zofs;
-}
-
-//
-// nextsectorneighborz
-//
-// -1: ceiling or up
-//  1: floor or down
-sectortype* nextsectorneighborzptr(sectortype* sectp, int refz, int topbottom, int direction)
-{
-    int nextz = (direction==1) ? INT32_MAX : INT32_MIN;
-    sectortype* sectortouse = nullptr;
-
-    for(auto& wal : wallsofsector(sectp))
-    {
-        if (wal.twoSided())
-        {
-            auto ns = wal.nextSector();
-
-            const int32_t testz = (topbottom == 1) ? ns->floorz : ns->ceilingz;
-
-            const int32_t update = (direction == 1) ?
-                (nextz > testz && testz > refz) :
-                (nextz < testz && testz < refz);
-
-            if (update)
-            {
-                nextz = testz;
-                sectortouse = ns;
-            }
-        }
-    }
-    return sectortouse;
-}
-
 
 //
 // cansee
@@ -507,143 +357,6 @@ void neartag(const vec3_t& sv, sectortype* sect, int ange, HitInfoBase& result, 
 }
 
 
-////////// UPDATESECTOR* FAMILY OF FUNCTIONS //////////
-
-/* Different "is inside" predicates.
- * NOTE: The redundant bound checks are expected to be optimized away in the
- * inlined code. */
-
-/* NOTE: no bound check */
-static inline int inside_z_p(int32_t const x, int32_t const y, int32_t const z, int const sectnum)
-{
-    int32_t cz, fz;
-    getzsofslopeptr(&sector[sectnum], x, y, &cz, &fz);
-    return (z >= cz && z <= fz && inside_p(x, y, sectnum));
-}
-
-int32_t getwalldist(vec2_t const in, int const wallnum)
-{
-    vec2_t closest;
-    getclosestpointonwall_internal(in, wallnum, &closest);
-    return abs(closest.X - in.X) + abs(closest.Y - in.Y);
-}
-
-int32_t getwalldist(vec2_t const in, int const wallnum, vec2_t * const out)
-{
-    getclosestpointonwall_internal(in, wallnum, out);
-    return abs(out->X - in.X) + abs(out->Y - in.Y);
-}
-
-
-int32_t getsectordist(vec2_t const in, int const sectnum, vec2_t * const out /*= nullptr*/)
-{
-    if (inside_p(in.X, in.Y, sectnum))
-    {
-        if (out)
-            *out = in;
-        return 0;
-    }
-
-    int32_t distance = INT32_MAX;
-
-    vec2_t     closest = {};
-
-    for (auto& wal : wallsofsector(sectnum))
-    {
-        vec2_t p;
-        int32_t const walldist = getwalldist(in, wallnum(&wal), &p);
-
-        if (walldist < distance)
-        {
-            distance = walldist;
-            closest = p;
-        }
-    }
-
-    if (out)
-        *out = closest;
-
-    return distance;
-}
-
-
-template<class Inside>
-void updatesectorneighborz(int32_t const x, int32_t const y, int32_t const z, int* const sectnum, int32_t maxDistance, Inside checker)
-{
-    int const initialsectnum = *sectnum;
-
-    if ((validSectorIndex(initialsectnum)))
-    {
-        if (checker(x, y, z, initialsectnum))
-            return;
-
-        BFSSearch search(sector.Size(), *sectnum);
-
-        int iter = 0;
-        for (unsigned listsectnum; (listsectnum = search.GetNext()) != BFSSearch::EOL;)
-        {
-            if (checker(x, y, z, listsectnum))
-            {
-                *sectnum = listsectnum;
-                return;
-            }
-
-            for (auto& wal : wallsofsector(listsectnum))
-            {
-                if (wal.nextsector >= 0 && (iter == 0 || getsectordist({ x, y }, wal.nextsector) <= maxDistance))
-                    search.Add(wal.nextsector);
-            }
-            iter++;
-        }
-    }
-
-    *sectnum = -1;
-}
-
-void updatesectorneighbor(int32_t const x, int32_t const y, int* const sectnum, int32_t maxDistance)
-{
-    updatesectorneighborz(x, y, 0, sectnum, maxDistance, inside_p0);
-}
-
-
-//
-// updatesector[z]
-//
-void updatesector(int32_t const x, int32_t const y, int * const sectnum)
-{
-    int sect = *sectnum;
-
-    updatesectorneighbor(x, y, &sect, MAXUPDATESECTORDIST);
-    if (sect != -1)
-        SET_AND_RETURN(*sectnum, sect);
-
-    // we need to support passing in a sectnum of -1, unfortunately
-
-    for (int i = (int)sector.Size() - 1; i >= 0; --i)
-        if (inside_p(x, y, i))
-            SET_AND_RETURN(*sectnum, i);
-
-    *sectnum = -1;
-}
-
-
-void updatesectorz(int32_t const x, int32_t const y, int32_t const z, int* const sectnum)
-{
-    int sect = *sectnum;
-
-    updatesectorneighborz(x, y, z, &sect, MAXUPDATESECTORDIST, inside_z_p);
-    if (sect != -1)
-        SET_AND_RETURN(*sectnum, sect);
-
-
-    // we need to support passing in a sectnum of -1, unfortunately
-    for (int i = (int)sector.Size() - 1; i >= 0; --i)
-        if (inside_z_p(x, y, z, i))
-            SET_AND_RETURN(*sectnum, i);
-
-    *sectnum = -1;
-}
-
 
 //
 // rotatepoint
@@ -658,91 +371,9 @@ void rotatepoint(vec2_t const pivot, vec2_t p, int16_t const daang, vec2_t * con
     p2->Y = DMulScale(p.Y, dacos, p.X, dasin, 14) + pivot.Y;
 }
 
-//
-// setview
-//
-void videoSetViewableArea(int32_t x1, int32_t y1, int32_t x2, int32_t y2)
-{
-    windowxy1.X = x1;
-    windowxy1.Y = y1;
-    windowxy2.X = x2;
-    windowxy2.Y = y2;
-
-    xdimen = (x2-x1)+1;
-    ydimen = (y2-y1)+1;
-
-    fxdimen = (float) xdimen;
-    fydimen = (float) ydimen;
-    videoSetCorrectedAspect();
-}
-
-
-
-#include "v_2ddrawer.h"
-
-
-
-//MUST USE RESTOREFORDRAWROOMS AFTER DRAWING
-
-static int32_t setviewcnt = 0; // interface layers use this now
-static int32_t bakxsiz, bakysiz;
-static vec2_t bakwindowxy1, bakwindowxy2;
-
-//
-// setviewtotile
-//
-FCanvasTexture* renderSetTarget(int16_t tilenume)
-{
-    auto tex = tileGetTexture(tilenume);
-    if (!tex || !tex->isHardwareCanvas()) return nullptr;
-    auto canvas = static_cast<FCanvasTexture*>(tex->GetTexture());
-    if (!canvas) return nullptr;
-    int xsiz = tex->GetTexelWidth(), ysiz = tex->GetTexelHeight();
-    if (setviewcnt > 0 || xsiz <= 0 || ysiz <= 0)
-        return nullptr;
-
-    //DRAWROOMS TO TILE BACKUP&SET CODE
-    bakxsiz = xdim; bakysiz = ydim;
-    bakwindowxy1 = windowxy1;
-    bakwindowxy2 = windowxy2;
-
-    setviewcnt++;
-
-    xdim = ysiz;
-    ydim = xsiz;
-    videoSetViewableArea(0,0,ysiz-1,xsiz-1);
-    renderSetAspect(65536,65536);
-    return canvas;
-}
-
-
-//
-// setviewback
-//
-void renderRestoreTarget()
-{
-    if (setviewcnt <= 0) return;
-    setviewcnt--;
-
-    xdim = bakxsiz;
-    ydim = bakysiz;
-    videoSetViewableArea(bakwindowxy1.X,bakwindowxy1.Y,
-            bakwindowxy2.X,bakwindowxy2.Y);
-
-}
-
-
 int tilehasmodelorvoxel(int const tilenume, int pal)
 {
     return
         (mdinited && hw_models && tile2model[Ptile2tile(tilenume, pal)].modelid != -1) ||
         (r_voxels && tiletovox[tilenume] != -1);
-}
-
-
-CCMD(updatesectordebug)
-{
-    int sect = 319;
-    updatesector(1792, 24334, &sect);
-    int blah = sect;
 }

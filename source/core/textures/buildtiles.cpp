@@ -42,6 +42,7 @@
 #include "m_crc32.h"
 #include "build.h"
 #include "gamecontrol.h"
+#include "gamefuncs.h"
 #include "palettecontainer.h"
 #include "texturemanager.h"
 #include "c_dispatch.h"
@@ -802,6 +803,41 @@ void tileCopySection(int tilenum1, int sx1, int sy1, int xsiz, int ysiz, int til
 
 //==========================================================================
 //
+//  Retrieve animation offset
+//
+//==========================================================================
+
+int tileAnimateOfs(int tilenum, int randomize)
+{
+	int framecount = picanm[tilenum].num;
+	if (framecount > 0)
+	{
+		int frametime = !isBlood() ? I_GetBuildTime() : PlayClock;
+	
+		if (isBlood() && randomize)
+		{
+			frametime += Bcrc32(&randomize, 2, 0);
+		}
+	
+		int curframe = (frametime & 0x7fffffff) >> (picanm[tilenum].speed());
+		
+		switch (picanm[tilenum].type())
+		{
+		case PICANM_ANIMTYPE_FWD:
+			return curframe % (framecount + 1);
+		case PICANM_ANIMTYPE_BACK:
+			return -(curframe % (framecount + 1));
+		case PICANM_ANIMTYPE_OSC:
+			curframe = curframe % (framecount << 1);
+			if (curframe >= framecount) return (framecount << 1) - curframe;
+			else return curframe;
+		}
+	}
+	return 0;
+}
+
+//==========================================================================
+//
 //  Check if two tiles are the same
 //
 //==========================================================================
@@ -834,9 +870,9 @@ void tileUpdateAnimations()
 {
 	for (int i = 0; i < MAXTILES; i++)
 	{
-		if (TileFiles.tiledata[i].picanm.sf & PICANM_ANIMTYPE_MASK)
+		if (TileFiles.tiledata[i].picanm.type())
 		{
-			int j = i + animateoffs(i, 0);
+			int j = i + tileAnimateOfs(i);
 
 			auto id1 = TileFiles.tiledata[i].texture->GetID();
 			auto id2 = TileFiles.tiledata[j].texture->GetID();
@@ -844,6 +880,26 @@ void tileUpdateAnimations()
 		}
 	}
 }
+
+//===========================================================================
+// 
+//	validates the texture for rendering to a given tilenum
+//
+//===========================================================================
+
+FCanvasTexture* tileGetCanvas(int tilenum)
+{
+	auto tex = tileGetTexture(tilenum);
+	if (!tex || !tex->isHardwareCanvas()) return nullptr;
+	auto canvas = static_cast<FCanvasTexture*>(tex->GetTexture());
+	if (!canvas) return nullptr;
+	int xsiz = tex->GetTexelWidth(), ysiz = tex->GetTexelHeight();
+	if (xsiz <= 0 || ysiz <= 0)
+		return nullptr;
+	return canvas;
+}
+
+
 
 //===========================================================================
 // 

@@ -6,27 +6,15 @@
 #include "gamestruct.h"
 #include "packet.h"
 
-int getincangle(int a, int na);
-binangle getincanglebam(binangle a, binangle na);
-
-
-//---------------------------------------------------------------------------
-//
-// Function for dividing an input value by current ticrate for angle/horiz scaling.
-//
-//---------------------------------------------------------------------------
-
-inline double getTicrateScale(double const value)
+inline constexpr binangle getincanglebam(binangle a, binangle na)
 {
-	return value / GameTicRate;
+	return na-a;
 }
 
-inline double getPushScale(double const scaleAdjust)
+inline constexpr int getincangle(int a, int na)
 {
-	return (2. / 9.) * ((scaleAdjust < 1.) ? ((1. - scaleAdjust * 0.5) * 1.5) : (1.));
+	return getincanglebam(buildang(a), buildang(na)).signedbuild();
 }
-
-
 
 struct PlayerHorizon
 {
@@ -66,21 +54,6 @@ struct PlayerHorizon
 
 	// Draw code helpers.
 	double horizsumfrac(double const smoothratio) { return (!SyncInput() ? sum() : interpolatedsum(smoothratio)).asbuildf() * (1. / 16.); }
-
-	// Ticrate scale helpers.
-	fixedhoriz getscaledhoriz(double const value, double const scaleAdjust = 1., fixedhoriz* const object = nullptr, double const push = 0.)
-	{
-		return buildfhoriz(scaleAdjust * (((object ? object->asbuildf() : 1.) * getTicrateScale(value)) + push));
-	}
-	void scaletozero(fixedhoriz& object, double const value, double const scaleAdjust, double const push = DBL_MAX)
-	{
-		if (object.asq16())
-		{
-			auto sgn = Sgn(object.asq16());
-			object  -= getscaledhoriz(value, scaleAdjust, &object, push == DBL_MAX ? sgn * getPushScale(scaleAdjust) : push);
-			if (sgn != Sgn(object.asq16())) object = q16horiz(0);
-		}
-	}
 
 	// Ticrate playsim adjustment setters and processor.
 	void addadjustment(fixedhoriz const value)
@@ -182,21 +155,6 @@ struct PlayerAngle
 	// Draw code helpers.
 	double look_anghalf(double const smoothratio) { return (!SyncInput() ? look_ang : interpolatedlookang(smoothratio)).signedbuildf() * 0.5; }
 	double looking_arc(double const smoothratio) { return fabs((!SyncInput() ? look_ang : interpolatedlookang(smoothratio)).signedbuildf()) * (1. / 9.); }
-
-	// Ticrate scale helpers.
-	binangle getscaledangle(double const value, double const scaleAdjust = 1., binangle* const object = nullptr, double const push = 0.)
-	{
-		return buildfang(scaleAdjust * (((object ? object->signedbuildf() : 1.) * getTicrateScale(value)) + push));
-	}
-	void scaletozero(binangle& object, double const value, double const scaleAdjust, double const push = DBL_MAX)
-	{
-		if (object.asbam())
-		{
-			auto sgn = Sgn(object.signedbam());
-			object  -= getscaledangle(value, scaleAdjust, &object, push == DBL_MAX ? sgn * getPushScale(scaleAdjust) : push);
-			if (sgn != Sgn(object.signedbam())) object = bamang(0);
-		}
-	}
 
 	// Ticrate playsim adjustment setters and processor.
 	void addadjustment(binangle const value)

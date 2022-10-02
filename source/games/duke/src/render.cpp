@@ -34,15 +34,10 @@ Modifications for JonoF's port by Jonathon Fowler (jf@jonof.id.au)
 #include "dukeactor.h"
 #include "interpolate.h"
 #include "render.h"
-#include "glbackend/glbackend.h"
-
-#include "_polymost.cpp"
 
 // temporary hack to pass along RRRA's global fog. Needs to be done better later.
 extern PalEntry GlobalMapFog;
 extern float GlobalFogDensity;
-
-EXTERN_CVAR(Bool, vid_renderer)
 
 BEGIN_DUKE_NS
 
@@ -64,25 +59,10 @@ BEGIN_DUKE_NS
 //
 //---------------------------------------------------------------------------
 
-void renderView(DDukeActor* playersprite, sectortype* sect, int x, int y, int z, binangle a, fixedhoriz h, binangle rotscrnang, double smoothratio, bool sceneonly)
+void renderView(DDukeActor* playersprite, sectortype* sect, int x, int y, int z, binangle a, fixedhoriz h, binangle rotscrnang, double smoothratio, bool sceneonly, float fov)
 {
-	if (!vid_renderer)
-	{
-		// do screen rotation.
-		renderSetRollAngle((float)rotscrnang.asbuildf());
-
-		se40code(x, y, z, a, h, smoothratio);
-		renderMirror(x, y, z, a, h, smoothratio);
-		renderDrawRoomsQ16(x, y, z, a.asq16(), h.asq16(), sect, false);
-		fi.animatesprites(pm_tsprite, pm_spritesortcnt, x, y, a.asbuild(), smoothratio);
-		if (!sceneonly) drawweapon(smoothratio);
-		renderDrawMasks();
-	}
-	else
-	{
-		if (!sceneonly) drawweapon(smoothratio);
-		render_drawrooms(playersprite, { x, y, z }, sectnum(sect), a, h, rotscrnang, smoothratio);
-	}
+	if (!sceneonly) drawweapon(smoothratio);
+	render_drawrooms(playersprite, { x, y, z }, sectnum(sect), a, h, rotscrnang, smoothratio, fov);
 }
 
 //---------------------------------------------------------------------------
@@ -106,7 +86,7 @@ void GameInterface::UpdateCameras(double smoothratio)
 		auto tex = tileGetTexture(camsprite->spr.picnum);
 		TileFiles.MakeCanvas(TILE_VIEWSCR, (int)tex->GetDisplayWidth(), (int)tex->GetDisplayHeight());
 
-		auto canvas = renderSetTarget(TILE_VIEWSCR);
+		auto canvas = tileGetCanvas(TILE_VIEWSCR);
 		if (!canvas) return;
 
 		screen->RenderTextureView(canvas, [=](IntRect& rect)
@@ -114,23 +94,12 @@ void GameInterface::UpdateCameras(double smoothratio)
 				auto camera = camsprite->GetOwner();
 				auto ang = buildang(camera->interpolatedang(smoothratio));
 				display_mirror = 1; // should really be 'display external view'.
-				if (!vid_renderer)
-				{
-					// Note: no ROR or camera here - Polymost has no means to detect these things before rendering the scene itself.
-					renderDrawRoomsQ16(camera->spr.pos.X, camera->spr.pos.Y, camera->spr.pos.Z, ang.asq16(), IntToFixed(camera->spr.shade), camera->sector(), false); // why 'shade'...?
-					fi.animatesprites(pm_tsprite, pm_spritesortcnt, camera->spr.pos.X, camera->spr.pos.Y, ang.asbuild(), (int)smoothratio);
-					renderDrawMasks();
-				}
-				else
-				{
-					auto cstat = camera->spr.cstat;
-					camera->spr.cstat = CSTAT_SPRITE_INVISIBLE;
-					render_camtex(camera, camera->spr.pos, camera->sector(), ang, buildhoriz(camera->spr.shade), buildang(0), tex, rect, smoothratio);
-					camera->spr.cstat = cstat;
-				}
+				auto cstat = camera->spr.cstat;
+				camera->spr.cstat = CSTAT_SPRITE_INVISIBLE;
+				render_camtex(camera, camera->int_pos(), camera->sector(), ang, buildhoriz(camera->spr.shade), buildang(0), tex, rect, smoothratio);
+				camera->spr.cstat = cstat;
 				display_mirror = 0;
 			});
-		renderRestoreTarget();
 	}
 }
 
@@ -260,7 +229,6 @@ void displayrooms(int snum, double smoothratio, bool sceneonly)
 	struct player_struct* p;
 
 	p = &ps[snum];
-	pm_smoothratio = (int)smoothratio;
 
 	if (automapMode == am_full || !p->insector())
 		return;
@@ -274,17 +242,15 @@ void displayrooms(int snum, double smoothratio, bool sceneonly)
 	g_visibility = ud.const_visibility;
 	g_relvisibility = p->visibility - ud.const_visibility;
 
-	videoSetCorrectedAspect();
-
 	auto sect = p->cursector;
 
 	GlobalMapFog = fogactive ? 0x999999 : 0;
 	GlobalFogDensity = fogactive ? 350.f : 0.f;
-	GLInterface.SetMapFog(fogactive != 0);
 	DoInterpolations(smoothratio / 65536.);
 
 	setgamepalette(BASEPAL);
-	if (!vid_renderer) gi->UpdateCameras(smoothratio);	// Only Polymost does this here. The new renderer calls this internally.
+
+	float fov = r_fov;
 
 	if (ud.cameraactor)
 	{
@@ -298,16 +264,18 @@ void displayrooms(int snum, double smoothratio, bool sceneonly)
 		auto bh = buildhoriz(act->spr.yvel);
 		auto cstat = act->spr.cstat;
 		act->spr.cstat = CSTAT_SPRITE_INVISIBLE;
-		renderView(act, act->sector(), act->spr.pos.X, act->spr.pos.Y, act->spr.pos.Z - (4 << 8), cang, bh, buildang(0), smoothratio, sceneonly);
+		renderView(act, act->sector(), act->int_pos().X, act->int_pos().Y, act->int_pos().Z - (4 << 8), cang, bh, buildang(0), smoothratio, sceneonly, fov);
 		act->spr.cstat = cstat;
 
 	}
 	else
 	{
-		// Fixme: This should get the aspect ratio from the backend, not the current viewport size.
-		int i = DivScale(1, isRR() ? 64 : p->GetActor()->spr.yrepeat + 28, 22);
-		int viewingaspect = !isRRRA() || !p->DrugMode ? xs_CRoundToInt(double(i) * tan(r_fov * (pi::pi() / 360.))) : getdrugmode(p, i);
-		renderSetAspect(MulScale(viewingaspect, viewingrange, 16), yxaspect);
+		if (isRRRA() && p->DrugMode)
+		{
+			double fovdelta = atan(getdrugmode(p, 65536) * (1. / 65536.)) * (360. / pi::pi()) - 90.;
+			fov = (float)clamp<double>(r_fov + fovdelta * 0.6, r_fov, 150.);
+		}
+
 
 		// The camera texture must be rendered with the base palette, so this is the only place where the current global palette can be set.
 		// The setting here will be carried over to the rendering of the weapon sprites, but other 2D content will always default to the main palette.
@@ -361,9 +329,9 @@ void displayrooms(int snum, double smoothratio, bool sceneonly)
 			auto act = p->newOwner;
 			cang = buildang(act->interpolatedang(smoothratio));
 			choriz = buildhoriz(act->spr.shade);
-			cposx = act->spr.pos.X;
-			cposy = act->spr.pos.Y;
-			cposz = act->spr.pos.Z;
+			cposx = act->int_pos().X;
+			cposy = act->int_pos().Y;
+			cposz = act->int_pos().Z;
 			sect = act->sector();
 			rotscrnang = buildang(0);
 			smoothratio = MaxSmoothRatio;
@@ -415,15 +383,7 @@ void displayrooms(int snum, double smoothratio, bool sceneonly)
 
 		auto cstat = viewer->spr.cstat;
 		if (camview) viewer->spr.cstat = CSTAT_SPRITE_INVISIBLE;
-		if (isRR() && sect->lotag == 848 && !vid_renderer)
-		{
-			renderSetRollAngle((float)rotscrnang.asbuildf());
-			geometryEffect(cposx, cposy, cposz, cang, choriz, sectnum(sect), (int)smoothratio);
-		}
-		else
-		{
-			renderView(viewer, sect, cposx, cposy, cposz, cang, choriz, rotscrnang, smoothratio, sceneonly);
-		}
+		renderView(viewer, sect, cposx, cposy, cposz, cang, choriz, rotscrnang, smoothratio, sceneonly, fov);
 		viewer->spr.cstat = cstat;
 	}
 	//GLInterface.SetMapFog(false);
@@ -446,9 +406,9 @@ bool GameInterface::GenerateSavePic()
 	return true;
 }
 
-void GameInterface::processSprites(tspritetype* tsprite, int& spritesortcnt, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio)
+void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio)
 {
-	fi.animatesprites(tsprite, spritesortcnt, viewx, viewy, viewang.asbuild(), int(smoothRatio));
+	fi.animatesprites(tsprites, viewx, viewy, viewang.asbuild(), int(smoothRatio));
 }
 
 

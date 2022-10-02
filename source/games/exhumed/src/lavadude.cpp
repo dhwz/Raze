@@ -41,9 +41,7 @@ DExhumedActor* BuildLavaLimb(DExhumedActor* pActor, int move, int ebx)
 {
     auto pLimbActor = insertActor(pActor->sector(), 118);
 
-    pLimbActor->spr.pos.X = pActor->spr.pos.X;
-    pLimbActor->spr.pos.Y = pActor->spr.pos.Y;
-    pLimbActor->spr.pos.Z = pActor->spr.pos.Z - RandomLong() % ebx;
+    pLimbActor->set_int_pos({ pActor->int_pos().X, pActor->int_pos().Y, pActor->int_pos().Z - RandomLong() % ebx });
     pLimbActor->spr.cstat = 0;
     pLimbActor->spr.shade = -127;
     pLimbActor->spr.pal = 1;
@@ -109,15 +107,13 @@ void BuildLava(DExhumedActor* pActor, int x, int y, int, sectortype* pSector, in
     {
         pSector = pActor->sector();
         nAngle = pActor->spr.ang;
-        x = pActor->spr.pos.X;
-        y = pActor->spr.pos.Y;
+        x = pActor->int_pos().X;
+        y = pActor->int_pos().Y;
 
         ChangeActorStat(pActor, 118);
     }
 
-    pActor->spr.pos.X = x;
-    pActor->spr.pos.Y = y;
-    pActor->spr.pos.Z = pSector->floorz;
+    pActor->set_int_pos({ x, y, pSector->int_floorz() });
     pActor->spr.cstat = CSTAT_SPRITE_INVISIBLE;
     pActor->spr.xrepeat = 200;
     pActor->spr.yrepeat = 200;
@@ -282,9 +278,9 @@ void AILavaDude::Tick(RunListEvent* ev)
             }
         }
 
-        int x = pActor->spr.pos.X;
-        int y = pActor->spr.pos.Y;
-        int z = pActor->spr.pos.Z;
+        int x = pActor->int_pos().X;
+        int y = pActor->int_pos().Y;
+        int z = pActor->int_pos().Z;
         auto pSector =pActor->sector();
 
         auto coll = movesprite(pActor, pActor->spr.xvel << 8, pActor->spr.yvel << 8, 0, 0, 0, CLIPMASK0);
@@ -292,9 +288,7 @@ void AILavaDude::Tick(RunListEvent* ev)
         if (pSector != pActor->sector())
         {
             ChangeActorSect(pActor, pSector);
-            pActor->spr.pos.X = x;
-            pActor->spr.pos.Y = y;
-            pActor->spr.pos.Z = z;
+            pActor->set_int_pos({ x, y, z });
 
             pActor->spr.ang = (pActor->spr.ang + ((RandomWord() & 0x3FF) + 1024)) & kAngleMask;
             pActor->spr.xvel = bcos(pActor->spr.ang);
@@ -317,7 +311,7 @@ void AILavaDude::Tick(RunListEvent* ev)
         {
             if (coll.actor() == pTarget)
             {
-                int nAng = getangle(pTarget->spr.pos.X - pActor->spr.pos.X, pTarget->spr.pos.Y - pActor->spr.pos.Y);
+                int nAng = getangle(pTarget->int_pos().X - pActor->int_pos().X, pTarget->int_pos().Y - pActor->int_pos().Y);
                 if (AngleDiff(pActor->spr.ang, nAng) < 64)
                 {
                     pActor->nAction = 2;

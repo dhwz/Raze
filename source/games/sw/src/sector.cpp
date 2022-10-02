@@ -124,7 +124,7 @@ void WallSetupDontMove(void)
             {
                 for(auto& wal : wall)
                 {
-                    if (wal.wall_int_pos().X < jActor->spr.pos.X && wal.wall_int_pos().X > iActor->spr.pos.X && wal.wall_int_pos().Y < jActor->spr.pos.Y && wal.wall_int_pos().Y > iActor->spr.pos.Y)
+                    if (wal.wall_int_pos().X < jActor->int_pos().X && wal.wall_int_pos().X > iActor->int_pos().X && wal.wall_int_pos().Y < jActor->int_pos().Y && wal.wall_int_pos().Y > iActor->int_pos().Y)
                     {
                         wal.extra |= WALLFX_DONT_MOVE;
                     }
@@ -498,8 +498,8 @@ void SectorSetup(void)
             swf->sectp = sectp;
             ASSERT(swf->sectp->hitag != 0);
             swf->range = range = Z(swf->sectp->hitag);
-            swf->floor_origz = swf->sectp->floorz - (range >> 2);
-            swf->ceiling_origz = swf->sectp->ceilingz - (range >> 2);
+            swf->floor_origz = swf->sectp->int_floorz() - (range >> 2);
+            swf->ceiling_origz = swf->sectp->int_ceilingz() - (range >> 2);
 
             // look for the rest by distance
             auto near_sectp = sectp, base_sectp = sectp;
@@ -519,8 +519,8 @@ void SectorSetup(void)
                         peak_dist = near_sectp->hitag;
 
                     swf->sectp = near_sectp;
-                    swf->floor_origz = swf->sectp->floorz - (range >> 2);
-                    swf->ceiling_origz = swf->sectp->ceilingz - (range >> 2);
+                    swf->floor_origz = swf->sectp->int_floorz() - (range >> 2);
+                    swf->ceiling_origz = swf->sectp->int_ceilingz() - (range >> 2);
                     range -= range_diff;
                     swf->range = range;
 
@@ -573,8 +573,8 @@ void SectorSetup(void)
                         swf->range = Z(4);
 
                     // reset origz's based on new range
-                    swf->floor_origz = swf->sectp->floorz - (swf->range >> 2);
-                    swf->ceiling_origz = swf->sectp->ceilingz - (swf->range >> 2);
+                    swf->floor_origz = swf->sectp->int_floorz() - (swf->range >> 2);
+                    swf->ceiling_origz = swf->sectp->int_ceilingz() - (swf->range >> 2);
                 }
             }
 
@@ -601,7 +601,7 @@ void SectorMidPoint(sectortype* sectp, int *xmid, int *ymid, int *zmid)
     *xmid = xsum / (sectp->wallnum);
     *ymid = ysum / (sectp->wallnum);
 
-    *zmid = (sectp->floorz + sectp->ceilingz) >> 1;
+    *zmid = (sectp->int_floorz() + sectp->int_ceilingz()) >> 1;
 }
 
 
@@ -630,7 +630,7 @@ void DoSpringBoardDown(void)
             {
                 int destz;
 
-                destz = safenextsectorneighborzptr(sbp->sectp, sbp->sectp->floorz, 1, 1)->floorz;
+				destz = nextsectorneighborzptr(sbp->sectp, sbp->sectp->int_floorz(), Find_FloorDown | Find_Safe)->int_floorz();
 
                 AnimSet(ANIM_Floorz, sbp->sectp, destz, 256);
 
@@ -835,20 +835,13 @@ void SectorExp(DSWActor* actor, sectortype* sectp, short orig_ang, int zh)
 
     actor->spr.cstat &= ~(CSTAT_SPRITE_ALIGNMENT_WALL|CSTAT_SPRITE_ALIGNMENT_FLOOR);
     SectorMidPoint(sectp, &x, &y, &z);
-    actor->spr.ang = orig_ang;
-    actor->spr.pos.X = x;
-    actor->spr.pos.Y = y;
-    actor->spr.pos.Z = z;
-
     // randomize the explosions
-    actor->spr.ang += RANDOM_P2(256) - 128;
-    actor->spr.pos.X += RANDOM_P2(1024) - 512;
-    actor->spr.pos.Y += RANDOM_P2(1024) - 512;
-    actor->spr.pos.Z = zh;
-
+    actor->spr.ang = orig_ang + RANDOM_P2(256) - 128;
+    actor->set_int_pos({ x + RANDOM_P2(256) - 128, y + RANDOM_P2(1024) - 512, zh });
+    
     // setup vars needed by SectorExp
     ChangeActorSect(actor, sectp);
-    getzsofslopeptr(actor->sector(), actor->spr.pos.X, actor->spr.pos.Y, &actor->user.hiz, &actor->user.loz);
+    getzsofslopeptr(actor->sector(), actor->int_pos().X, actor->int_pos().Y, &actor->user.hiz, &actor->user.loz);
 
     // spawn explosion
     auto exp = SpawnSectorExp(actor);
@@ -881,7 +874,7 @@ void DoExplodeSector(short match)
 
         sectp = actor->sector();
 
-        sectp->addceilingz(-Z(SP_TAG4(actor)));
+        sectp->add_int_ceilingz(-Z(SP_TAG4(actor)));
 
         if (SP_TAG5(actor))
         {
@@ -893,7 +886,7 @@ void DoExplodeSector(short match)
             sectp->setceilingslope(SP_TAG6(actor));
         }
 
-        for (zh = sectp->ceilingz; zh < sectp->floorz; zh += Z(60))
+        for (zh = sectp->int_ceilingz(); zh < sectp->int_floorz(); zh += Z(60))
         {
             SectorExp(actor, actor->sector(), orig_ang, zh + Z(RANDOM_P2(64)) - Z(32));
         }
@@ -936,7 +929,7 @@ void DoSpawnSpotsForKill(short match)
             change_actor_stat(actor, STAT_NO_STATE);
             actor->user.ActorActionFunc = DoSpawnSpot;
             actor->user.WaitTics = SP_TAG5(actor) * 15;
-            SetActorZ(actor, &actor->spr.pos);
+            SetActorZ(actor, actor->int_pos());
             // setting for Killed
             actor->user.LastDamage = 1;
         }
@@ -1140,7 +1133,7 @@ void WeaponExplodeSectorInRange(DSWActor* wActor)
     while (auto actor = it.Next())
     {
         // test to see if explosion is close to crack sprite
-        dist = FindDistance3D(wActor->spr.pos - actor->spr.pos);
+        dist = FindDistance3D(wActor->int_pos() - actor->int_pos());
 
         if (actor->spr.clipdist == 0)
             continue;
@@ -1150,7 +1143,7 @@ void WeaponExplodeSectorInRange(DSWActor* wActor)
         if ((unsigned int)dist > (wActor->user.Radius/2) + radius)
             continue;
 
-        if (!FAFcansee(wActor->spr.pos.X,wActor->spr.pos.Y,wActor->spr.pos.Z,wActor->sector(),actor->spr.pos.X,actor->spr.pos.Y,actor->spr.pos.Z,actor->sector()))
+        if (!FAFcansee(wActor->int_pos().X,wActor->int_pos().Y,wActor->int_pos().Z,wActor->sector(),actor->int_pos().X,actor->int_pos().Y,actor->int_pos().Z,actor->sector()))
             continue;
 
 
@@ -1207,8 +1200,8 @@ void DoDeleteSpriteMatch(short match)
             if (actor->spr.lotag == match)
             {
                 found = actor;
-                del_x = actor->spr.pos.X;
-                del_y = actor->spr.pos.Y;
+                del_x = actor->int_pos().X;
+                del_y = actor->int_pos().Y;
                 break;
             }
         }
@@ -1221,7 +1214,7 @@ void DoDeleteSpriteMatch(short match)
             it.Reset(StatList[stat]);
             while (auto actor = it.Next())
             {
-                if (del_x == actor->spr.pos.X && del_y == actor->spr.pos.Y)
+                if (del_x == actor->int_pos().X && del_y == actor->int_pos().Y)
                 {
                     // special case lighting delete of Fade On/off after fades
                     if (StatList[stat] == STAT_LIGHTING)
@@ -1257,7 +1250,7 @@ void DoChangorMatch(short match)
         if (TEST_BOOL1(actor))
         {
             sectp->ceilingpicnum = SP_TAG4(actor);
-            sectp->addceilingz(Z(SP_TAG5(actor)));
+            sectp->add_int_ceilingz(Z(SP_TAG5(actor)));
             sectp->ceilingheinum += SP_TAG6(actor);
 
             if (sectp->ceilingheinum)
@@ -1271,7 +1264,7 @@ void DoChangorMatch(short match)
         else
         {
             sectp->floorpicnum = SP_TAG4(actor);
-            sectp->addfloorz(Z(SP_TAG5(actor)));
+            sectp->add_int_floorz(Z(SP_TAG5(actor)));
             sectp->floorheinum += SP_TAG6(actor);
 
             if (sectp->floorheinum)
@@ -1387,7 +1380,7 @@ int OperateSprite(DSWActor* actor, short player_is_operating)
     {
         pp = GlobPlayerP;
 
-        if (!FAFcansee(pp->pos.X, pp->pos.Y, pp->pos.Z, pp->cursector, actor->spr.pos.X, actor->spr.pos.Y, actor->spr.pos.Z - (ActorSizeZ(actor) >> 1), actor->sector()))
+        if (!FAFcansee(pp->pos.X, pp->pos.Y, pp->pos.Z, pp->cursector, actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - (ActorSizeZ(actor) >> 1), actor->sector()))
             return false;
     }
 
@@ -1844,7 +1837,7 @@ void OperateTripTrigger(PLAYER* pp)
         {
             if (actor->user.Flags & (SPR_WAIT_FOR_TRIGGER))
             {
-                if (Distance(actor->spr.pos.X, actor->spr.pos.Y, pp->pos.X, pp->pos.Y) < dist)
+                if (Distance(actor->int_pos().X, actor->int_pos().Y, pp->pos.X, pp->pos.Y) < dist)
                 {
                     actor->user.targetActor = pp->actor;
                     actor->user.Flags &= ~(SPR_WAIT_FOR_TRIGGER);
@@ -2135,7 +2128,7 @@ int DoPlayerGrabStar(PLAYER* pp)
         auto actor = StarQueue[i];
         if (actor != nullptr)
         {
-            if (FindDistance3D(actor->spr.pos.X - pp->pos.X, actor->spr.pos.Y - pp->pos.Y, actor->spr.pos.Z - pp->pos.Z + Z(12)) < 500)
+            if (FindDistance3D(actor->int_pos().X - pp->pos.X, actor->int_pos().Y - pp->pos.Y, actor->int_pos().Z - pp->pos.Z + Z(12)) < 500)
             {
                 break;
             }
@@ -2212,8 +2205,8 @@ void PlayerOperateEnv(PLAYER* pp)
                 int z[3];
                 DSWActor* plActor = pp->actor;
 
-                z[0] = plActor->spr.pos.Z - ActorSizeZ(plActor) - Z(10);
-                z[1] = plActor->spr.pos.Z;
+                z[0] = plActor->int_pos().Z - ActorSizeZ(plActor) - Z(10);
+                z[1] = plActor->int_pos().Z;
                 z[2] = (z[0] + z[1]) >> 1;
 
                 for (unsigned i = 0; i < SIZ(z); i++)
@@ -2249,7 +2242,7 @@ void PlayerOperateEnv(PLAYER* pp)
                         pp->KeyPressBits &= ~SB_OPEN;
 
                         // crude and very awful hack for wd secret area
-                        if (pp->cursector == &sector[491] && currentLevel->levelNumber == 11 && sector[715].lotag == TAG_SECRET_AREA_TRIGGER) 
+                        if  (sector.Size() > 715 && pp->cursector == &sector[491] && currentLevel->levelNumber == 11 && sector[715].lotag == TAG_SECRET_AREA_TRIGGER) 
                         {
                             TriggerSecret(&sector[715], pp);
                         }
@@ -2300,7 +2293,7 @@ void PlayerOperateEnv(PLAYER* pp)
         {
             PlayerTakeSectorDamage(pp);
         }
-        else if ((ActorZOfBottom(pp->actor) >= sectp->floorz) && !(pp->Flags & PF_DIVING))
+        else if ((ActorZOfBottom(pp->actor) >= sectp->int_floorz()) && !(pp->Flags & PF_DIVING))
         {
             PlayerTakeSectorDamage(pp);
         }
@@ -2355,13 +2348,13 @@ void DoSineWaveFloor(void)
             if ((flags & SINE_FLOOR))
             {
                 newz = swf->floor_origz + MulScale(swf->range, bsin(swf->sintable_ndx), 14);
-                swf->sectp->setfloorz(newz);
+                swf->sectp->set_int_floorz(newz);
             }
 
             if ((flags & SINE_CEILING))
             {
                 newz = swf->ceiling_origz + MulScale(swf->range, bsin(swf->sintable_ndx), 14);
-                swf->sectp->setceilingz(newz);
+                swf->sectp->set_int_ceilingz(newz);
             }
 
         }
@@ -2370,7 +2363,7 @@ void DoSineWaveFloor(void)
     /*  SLOPED SIN-WAVE FLOORS:
 
     It's best to program sloped sin-wave floors in 2 steps:
-       1.  First set the floorz of the floor as the sin code normally does it.
+       1.  First set the floor z of the floor as the sin code normally does it.
        2.  Adjust the slopes by calling alignflorslope once for each sector.
 
     Note:  For this to work, the first wall of each sin-wave sector must be
@@ -2394,7 +2387,7 @@ void DoSineWaveFloor(void)
                     wal = sect->firstWall() + 2;
 
                     //Pass (Sector, x, y, z)
-                    alignflorslope(sect,wal->wall_int_pos().X,wal->wall_int_pos().Y, wal->nextSector()->floorz);
+                    alignflorslope(sect,wal->wall_int_pos().X,wal->wall_int_pos().Y, wal->nextSector()->int_floorz());
                 }
             }
         }
@@ -2432,11 +2425,11 @@ void DoSineWaveWall(void)
 
 void DoAnim(int numtics)
 {
-    int i, animval;
+    int i;
 
     for (i = AnimCnt - 1; i >= 0; i--)
     {
-        animval = Anim[i].Addr(true);
+        double animval = Anim[i].getValue();
 
         // if LESS THAN goal
         if (animval < Anim[i].goal)
@@ -2462,7 +2455,7 @@ void DoAnim(int numtics)
                 animval = Anim[i].goal;
         }
 
-        Anim[i].Addr(true) =animval;
+        Anim[i].setValue(animval);
 
         // EQUAL this entry has finished
         if (animval == Anim[i].goal)

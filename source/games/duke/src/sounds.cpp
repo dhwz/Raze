@@ -54,6 +54,8 @@ CVAR(Bool, wt_commentary, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 
 BEGIN_DUKE_NS
 
+int32_t g_cdTrack = -1;
+
 static FSoundID currentCommentarySound;
 
 void UnmuteSounds()
@@ -252,7 +254,7 @@ inline bool S_IsAmbientSFX(DDukeActor* actor)
 //==========================================================================
 
 static int GetPositionInfo(DDukeActor* actor, int soundNum, sectortype* sect,
-							 const vec3_t *cam, const vec3_t *pos, int *distPtr, FVector3 *sndPos)
+							 const vec3_t *cam, const vec3_t &pos, int *distPtr, FVector3 *sndPos)
 {
 	// There's a lot of hackery going on here that could be mapped to rolloff and attenuation parameters.
 	// However, ultimately rolloff would also just reposition the sound source so this can remain as it is.
@@ -276,7 +278,7 @@ static int GetPositionInfo(DDukeActor* actor, int soundNum, sectortype* sect,
 	sndist += dist_adjust;
 	if (sndist < 0) sndist = 0;
 
-	if (sect!= nullptr && sndist && actor->spr.picnum != MUSICANDSFX && !cansee(cam->X, cam->Y, cam->Z - (24 << 8), sect, actor->spr.pos.X, actor->spr.pos.Y, actor->spr.pos.Z - (24 << 8), actor->sector()))
+	if (sect!= nullptr && sndist && actor->spr.picnum != MUSICANDSFX && !cansee(cam->X, cam->Y, cam->Z - (24 << 8), sect, actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - (24 << 8), actor->sector()))
 		sndist += sndist >> (isRR() ? 2 : 5);
 
 	// Here the sound distance was clamped to a minimum of 144*4. 
@@ -310,18 +312,18 @@ static int GetPositionInfo(DDukeActor* actor, int soundNum, sectortype* sect,
 //
 //==========================================================================
 
-void S_GetCamera(vec3_t** c, int32_t* ca, sectortype** cs)
+void S_GetCamera(vec3_t* c, int32_t* ca, sectortype** cs)
 {
 	if (ud.cameraactor == nullptr)
 	{
 		auto p = &ps[screenpeek];
-		if (c) *c = &p->pos;
+		if (c) *c = p->pos;
 		if (cs) *cs = p->cursector;
 		if (ca) *ca = p->angle.ang.asbuild();
 	}
 	else
 	{
-		if (c) *c =  &ud.cameraactor->spr.pos;
+		if (c) *c =  ud.cameraactor->int_pos();
 		if (cs) *cs = ud.cameraactor->sector();
 		if (ca) *ca = ud.cameraactor->spr.ang;
 	}
@@ -339,7 +341,7 @@ void DukeSoundEngine::CalcPosVel(int type, const void* source, const float pt[3]
 {
 	if (pos != nullptr)
 	{
-		vec3_t* campos;
+		vec3_t campos;
 		sectortype* camsect;
 
 		S_GetCamera(&campos, nullptr, &camsect);
@@ -356,7 +358,7 @@ void DukeSoundEngine::CalcPosVel(int type, const void* source, const float pt[3]
 			auto aactor = (DDukeActor*)source;
 			if (aactor != nullptr)
 			{
-				GetPositionInfo(aactor, chanSound - 1, camsect, campos, &aactor->spr.pos, nullptr, pos);
+				GetPositionInfo(aactor, chanSound - 1, camsect, &campos, aactor->int_pos(), nullptr, pos);
 				/*
 				if (vel) // DN3D does not properly maintain this.
 				{
@@ -367,9 +369,9 @@ void DukeSoundEngine::CalcPosVel(int type, const void* source, const float pt[3]
 				*/
 			}
 		}
-		if ((chanflags & CHANF_LISTENERZ) && campos != nullptr && type != SOURCE_None)
+		if ((chanflags & CHANF_LISTENERZ) && type != SOURCE_None)
 		{
-			pos->Y = campos->Z / 256.f;
+			pos->Y = campos.Z / 256.f;
 		}
 	}
 }
@@ -384,7 +386,7 @@ void DukeSoundEngine::CalcPosVel(int type, const void* source, const float pt[3]
 void GameInterface::UpdateSounds(void)
 {
 	SoundListener listener;
-	vec3_t* c;
+	vec3_t c;
 	int32_t ca;
 	sectortype* cs;
 
@@ -393,27 +395,16 @@ void GameInterface::UpdateSounds(void)
 
 	S_GetCamera(&c, &ca, &cs);
 
-	if (c != nullptr)
-	{
-		listener.angle = -float(ca * BAngRadian); // Build uses a period of 2048.
-		listener.velocity.Zero();
-		listener.position = GetSoundPos(c);
-		listener.underwater = false; 
-		// This should probably use a real environment instead of the pitch hacking in S_PlaySound3D.
-		// listenactor->waterlevel == 3;
-		//assert(primaryLevel->Zones.Size() > listenactor->Sector->ZoneNumber);
-		listener.Environment = 0;// primaryLevel->Zones[listenactor->Sector->ZoneNumber].Environment;
-		listener.valid = true;
-	}
-	else
-	{ 
-		listener.angle = 0;
-		listener.position.Zero();
-		listener.velocity.Zero();
-		listener.underwater = false;
-		listener.Environment = nullptr;
-		listener.valid = false;
-	}
+	listener.angle = -float(ca * BAngRadian); // Build uses a period of 2048.
+	listener.velocity.Zero();
+	listener.position = GetSoundPos(c);
+	listener.underwater = false; 
+	// This should probably use a real environment instead of the pitch hacking in S_PlaySound3D.
+	// listenactor->waterlevel == 3;
+	//assert(primaryLevel->Zones.Size() > listenactor->Sector->ZoneNumber);
+	listener.Environment = 0;// primaryLevel->Zones[listenactor->Sector->ZoneNumber].Environment;
+	listener.valid = true;
+
 	listener.ListenerObject = ud.cameraactor == nullptr ? nullptr : ud.cameraactor.Get();
 	soundEngine->SetListener(listener);
 }
@@ -425,7 +416,7 @@ void GameInterface::UpdateSounds(void)
 //
 //==========================================================================
 
-int S_PlaySound3D(int sndnum, DDukeActor* actor, const vec3_t* pos, int channel, EChanFlags flags)
+int S_PlaySound3D(int sndnum, DDukeActor* actor, const vec3_t& pos, int channel, EChanFlags flags)
 {
 	auto const pl = &ps[myconnectindex];
 	if (!soundEngine->isValidSoundId(sndnum+1) || !SoundEnabled() || actor == nullptr || !playrunning() ||
@@ -463,11 +454,11 @@ int S_PlaySound3D(int sndnum, DDukeActor* actor, const vec3_t* pos, int channel,
 	int32_t sndist;
 	FVector3 sndpos;    // this is in sound engine space.
 
-	vec3_t* campos;
+	vec3_t campos;
 	sectortype* camsect;
 
 	S_GetCamera(&campos, nullptr, &camsect);
-	GetPositionInfo(actor, sndnum, camsect, campos, pos, &sndist, &sndpos);
+	GetPositionInfo(actor, sndnum, camsect, &campos, pos, &sndist, &sndpos);
 	int pitch = S_GetPitch(sndnum);
 
 	bool explosion = ((userflags & (SF_GLOBAL | SF_DTAG)) == (SF_GLOBAL | SF_DTAG)) || ((sndnum == PIPEBOMB_EXPLODE || sndnum == LASERTRIP_EXPLODE || sndnum == RPG_EXPLODE));
@@ -547,7 +538,7 @@ int S_PlaySound(int sndnum, int channel, EChanFlags flags, float vol)
 int S_PlayActorSound(int soundNum, DDukeActor* actor, int channel, EChanFlags flags)
 {
 	return (actor == nullptr ? S_PlaySound(soundNum, channel, flags) :
-		S_PlaySound3D(soundNum, actor, &actor->spr.pos, channel, flags));
+		S_PlaySound3D(soundNum, actor, actor->int_pos(), channel, flags));
 }
 
 void S_StopSound(int sndNum, DDukeActor* actor, int channel)
@@ -704,8 +695,6 @@ void S_PlaySpecialMusic(unsigned int m)
 
 void S_PlayRRMusic(int newTrack)
 {
-	static int32_t g_cdTrack = -1;
-
 	if (!isRR() || !mus_redbook || cd_disabled || currentLevel->music.IsNotEmpty())
 		return;
 	Mus_Stop();

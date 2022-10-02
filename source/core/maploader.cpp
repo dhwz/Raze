@@ -98,8 +98,9 @@ static void ReadSectorV7(FileReader& fr, sectortype& sect)
 {
 	sect.wallptr = fr.ReadInt16();
 	sect.wallnum = fr.ReadInt16();
-	sect.setceilingz(fr.ReadInt32(), true);
-	sect.setfloorz(fr.ReadInt32(), true);
+	int c = fr.ReadInt32();
+	int f = fr.ReadInt32();
+	sect.setzfrommap(c, f);
 	sect.ceilingstat = ESectorFlags::FromInt(fr.ReadUInt16());
 	sect.floorstat = ESectorFlags::FromInt(fr.ReadUInt16());
 	sect.ceilingpicnum = fr.ReadUInt16();
@@ -129,8 +130,9 @@ static void ReadSectorV6(FileReader& fr, sectortype& sect)
 	sect.floorpicnum = fr.ReadUInt16();
 	sect.ceilingheinum = clamp(fr.ReadInt16() << 5, -32768, 32767);
 	sect.floorheinum = clamp(fr.ReadInt16() << 5, -32768, 32767);
-	sect.setceilingz(fr.ReadInt32(), true);
-	sect.setfloorz(fr.ReadInt32(), true);
+	int c = fr.ReadInt32();
+	int f = fr.ReadInt32();
+	sect.setzfrommap(c, f);
 	sect.ceilingshade = fr.ReadInt8();
 	sect.floorshade = fr.ReadInt8();
 	sect.ceilingxpan_ = fr.ReadUInt8();
@@ -156,8 +158,9 @@ static void ReadSectorV5(FileReader& fr, sectortype& sect)
 	sect.floorpicnum = fr.ReadUInt16();
 	sect.ceilingheinum = clamp(fr.ReadInt16() << 5, -32768, 32767);
 	sect.floorheinum = clamp(fr.ReadInt16() << 5, -32768, 32767);
-	sect.setceilingz(fr.ReadInt32(), true);
-	sect.setfloorz(fr.ReadInt32(), true);
+	int c = fr.ReadInt32();
+	int f = fr.ReadInt32();
+	sect.setzfrommap(c, f);
 	sect.ceilingshade = fr.ReadInt8();
 	sect.floorshade = fr.ReadInt8();
 	sect.ceilingxpan_ = fr.ReadUInt8();
@@ -180,7 +183,7 @@ static void ReadWallV7(FileReader& fr, walltype& wall)
 {
 	int x = fr.ReadInt32();
 	int y = fr.ReadInt32();
-	wall.setPosFromLoad(x, y);
+	wall.setPosFromMap(x, y);
 	wall.point2 = fr.ReadInt16();
 	wall.nextwall = fr.ReadInt16();
 	wall.nextsector = fr.ReadInt16();
@@ -202,7 +205,7 @@ static void ReadWallV6(FileReader& fr, walltype& wall)
 {
 	int x = fr.ReadInt32();
 	int y = fr.ReadInt32();
-	wall.setPosFromLoad(x, y);
+	wall.setPosFromMap(x, y);
 	wall.point2 = fr.ReadInt16();
 	wall.nextsector = fr.ReadInt16();
 	wall.nextwall = fr.ReadInt16();
@@ -224,7 +227,7 @@ static void ReadWallV5(FileReader& fr, walltype& wall)
 {
 	int x = fr.ReadInt32();
 	int y = fr.ReadInt32();
-	wall.setPosFromLoad(x, y);
+	wall.setPosFromMap(x, y);
 	wall.point2 = fr.ReadInt16();
 	wall.picnum = fr.ReadInt16();
 	wall.overpicnum = fr.ReadInt16();
@@ -257,45 +260,47 @@ static void SetWallPalV5()
 	}
 }
 
-void validateSprite(spritetype& spr, int sectnum, int index)
+void validateSprite(spritetype& spri, int sectnum, int index)
 {
+	auto pos = spri.int_pos();
 	bool bugged = false;
-	if ((unsigned)spr.statnum >= MAXSTATUS)
+	if ((unsigned)spri.statnum >= MAXSTATUS)
 	{
-		Printf("Sprite #%d (%d,%d) has invalid statnum %d.\n", index, spr.pos.X, spr.pos.Y, spr.statnum);
+		Printf("Sprite #%d (%d,%d) has invalid statnum %d.\n", index, pos.X, pos.Y, spri.statnum);
 		bugged = true;
 	}
-	else if ((unsigned)spr.picnum >= MAXTILES)
+	else if ((unsigned)spri.picnum >= MAXTILES)
 	{
-		Printf("Sprite #%d (%d,%d) has invalid picnum %d.\n", index, spr.pos.X, spr.pos.Y, spr.picnum);
+		Printf("Sprite #%d (%d,%d) has invalid picnum %d.\n", index, pos.X, pos.Y, spri.picnum);
 		bugged = true;
 	}
 	else if (!validSectorIndex(sectnum))
 	{
 		sectnum = -1;
-		updatesector(spr.pos.X, spr.pos.Y, &sectnum);
+		updatesector(pos.X, pos.Y, &sectnum);
 		bugged = sectnum < 0;
 
-		if (!DPrintf(DMSG_WARNING, "Sprite #%d (%d,%d) with invalid sector %d was corrected to sector %d\n", index, spr.pos.X, spr.pos.Y, sectnum, sectnum))
+		if (!DPrintf(DMSG_WARNING, "Sprite #%d (%d,%d) with invalid sector %d was corrected to sector %d\n", index, pos.X, pos.Y, sectnum, sectnum))
 		{
-			if (bugged) Printf("Sprite #%d (%d,%d) with invalid sector %d\n", index, spr.pos.X, spr.pos.Y, sectnum);
+			if (bugged) Printf("Sprite #%d (%d,%d) with invalid sector %d\n", index, pos.X, pos.Y, sectnum);
 		}
 	}
 	if (bugged)
 	{
-		spr = {};
-		spr.statnum = MAXSTATUS;
+		spri = {};
+		spri.statnum = MAXSTATUS;
 		sectnum = -1;
 	}
-	if (sectnum >= 0) spr.sectp = &sector[sectnum];
-	else spr.sectp = nullptr;
+	if (sectnum >= 0) spri.sectp = &sector[sectnum];
+	else spri.sectp = nullptr;
 }
 
 static void ReadSpriteV7(FileReader& fr, spritetype& spr, int& secno)
 {
-	spr.pos.X = fr.ReadInt32();
-	spr.pos.Y = fr.ReadInt32();
-	spr.pos.Z = fr.ReadInt32();
+	int x = fr.ReadInt32();
+	int y = fr.ReadInt32();
+	int z = fr.ReadInt32();
+	spr.SetMapPos(x, y, z);
 	spr.cstat = ESpriteFlags::FromInt(fr.ReadUInt16());
 	spr.picnum = fr.ReadInt16();
 	spr.shade = fr.ReadInt8();
@@ -321,9 +326,10 @@ static void ReadSpriteV7(FileReader& fr, spritetype& spr, int& secno)
 
 static void ReadSpriteV6(FileReader& fr, spritetype& spr, int& secno)
 {
-	spr.pos.X = fr.ReadInt32();
-	spr.pos.Y = fr.ReadInt32();
-	spr.pos.Z = fr.ReadInt32();
+	int x = fr.ReadInt32();
+	int y = fr.ReadInt32();
+	int z = fr.ReadInt32();
+	spr.SetMapPos(x, y, z);
 	spr.cstat = ESpriteFlags::FromInt(fr.ReadUInt16());
 	spr.shade = fr.ReadInt8();
 	spr.pal = fr.ReadUInt8();
@@ -351,9 +357,10 @@ static void ReadSpriteV6(FileReader& fr, spritetype& spr, int& secno)
 
 static void ReadSpriteV5(FileReader& fr, spritetype& spr, int& secno)
 {
-	spr.pos.X = fr.ReadInt32();
-	spr.pos.Y = fr.ReadInt32();
-	spr.pos.Z = fr.ReadInt32();
+	int x = fr.ReadInt32();
+	int y = fr.ReadInt32();
+	int z = fr.ReadInt32();
+	spr.SetMapPos(x, y, z);
 	spr.cstat = ESpriteFlags::FromInt(fr.ReadUInt16());
 	spr.shade = fr.ReadInt8();
 	spr.xrepeat = fr.ReadUInt8();
@@ -527,7 +534,7 @@ void loadMap(const char* filename, int flags, vec3_t* pos, int16_t* ang, int* cu
 	guniqhudid = 0;
 	fr.Seek(0, FileReader::SeekSet);
 	auto buffer = fr.Read();
-	unsigned char md4[16];
+	uint8_t md4[16];
 	md4once(buffer.Data(), buffer.Size(), md4);
 	loadMapHack(filename, md4, sprites);
 	setWallSectors();
@@ -655,7 +662,7 @@ static void P_LoadBloodMapWalls(uint8_t* data, size_t len, TArray<walltype>& lwa
 
 		int x = LittleLong(load.x);
 		int y = LittleLong(load.y);
-		pWall->setPosFromLoad(x, y);
+		pWall->setPosFromMap(x, y);
 		pWall->point2 = LittleShort(load.point2);
 		pWall->nextwall = LittleShort(load.nextwall);
 		pWall->nextsector = LittleShort(load.nextsector);
@@ -707,7 +714,7 @@ TArray<walltype> loadMapWalls(const char* filename)
 }
 
 
-void qloadboard(const char* filename, char flags, vec3_t* dapos, int16_t* daang);
+void qloadboard(const char* filename, uint8_t flags, vec3_t* dapos, int16_t* daang);
 
 
 // loads a map into the backup buffer.
@@ -787,7 +794,6 @@ void setWallSectors()
 	for(auto& sect: sector)
 	{
 		sect.dirty = EDirty::AllDirty;
-		sect.exflags = 0;
 		for (auto& wal : wallsofsector(&sect))
 		{
 			if (wal.sector == -1)

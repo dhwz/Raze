@@ -103,7 +103,7 @@ enum
 	DTA_CellX,			// horizontal size of character cell
 	DTA_CellY,			// vertical size of character cell
 
-	// New additions. 
+	// New additions.
 	DTA_Color,
 	DTA_FlipY,			// bool: flip image vertically
 	DTA_SrcX,			// specify a source rectangle (this supersedes the poorly implemented DTA_WindowLeft/Right
@@ -247,21 +247,26 @@ int GetUIScale(F2DDrawer* drawer, int altval);
 int GetConScale(F2DDrawer* drawer, int altval);
 
 EXTERN_CVAR(Int, uiscale);
+EXTERN_CVAR(Int, con_scale);
 
 inline int active_con_scale(F2DDrawer *drawer)
 {
-	// this sets the threshold for upscaling the console font to 2560 x 1440.
-	int vscale = drawer->GetHeight() / 720;
-	int hscale = drawer->GetWidth() / 1280;
-	return max(1, min(vscale, hscale));
+	return GetConScale(drawer, con_scale);
 }
 
 #ifdef DrawText
 #undef DrawText	// See WinUser.h for the definition of DrawText as a macro
 #endif
 
+enum
+{
+	DrawTexture_Normal,
+	DrawTexture_Text,
+	DrawTexture_Fill,
+};
+
 template<class T>
-bool ParseDrawTextureTags(F2DDrawer *drawer, FGameTexture* img, double x, double y, uint32_t tag, T& tags, DrawParms* parms, bool fortext);
+bool ParseDrawTextureTags(F2DDrawer *drawer, FGameTexture* img, double x, double y, uint32_t tag, T& tags, DrawParms* parms, int type, PalEntry fill = ~0u, double fillalpha = 0.0);
 
 template<class T>
 void DrawTextCommon(F2DDrawer *drawer, FFont* font, int normalcolor, double x, double y, const T* string, DrawParms& parms);
@@ -274,6 +279,7 @@ void DrawText(F2DDrawer* drawer, FFont* font, int normalcolor, double x, double 
 void DrawChar(F2DDrawer* drawer, FFont* font, int normalcolor, double x, double y, int character, int tag_first, ...);
 
 void DrawTexture(F2DDrawer* drawer, FGameTexture* img, double x, double y, int tags_first, ...);
+void DrawTexture(F2DDrawer *drawer, FTextureID texid, bool animate, double x, double y, int tags_first, ...);
 
 void DoDim(F2DDrawer* drawer, PalEntry color, float amount, int x1, int y1, int w, int h, FRenderStyle* style = nullptr);
 void Dim(F2DDrawer* drawer, PalEntry color, float damount, int x1, int y1, int w, int h, FRenderStyle* style = nullptr);
@@ -329,3 +335,4 @@ public:
 };
 
 void Draw2D(F2DDrawer* drawer, FRenderState& state);
+void Draw2D(F2DDrawer* drawer, FRenderState& state, int x, int y, int width, int height);

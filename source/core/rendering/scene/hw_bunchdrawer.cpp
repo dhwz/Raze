@@ -278,7 +278,7 @@ int BunchDrawer::ClipLine(int aline, bool portal)
 	if (cline->partner == -1 || (wall[line].cstat & CSTAT_WALL_1WAY) || CheckClip(&wall[line], &topclip, &bottomclip))
 	{
 		// one-sided
-		if (!portal && !dontclip)
+		if (!portal && !dontclip && !(sector[sections[section].sector].exflags & SECTOREX_DONTCLIP))
 		{
 			clipper->AddClipRange(startAngle, endAngle);
 			//Printf("\nWall %d from %2.3f - %2.3f (blocking)\n", line, bamang(startAngle).asdeg(), bamang(endAngle).asdeg());
@@ -676,7 +676,7 @@ void BunchDrawer::ProcessSection(int sectionnum, bool portal)
 			if ((actor->spr.cstat & CSTAT_SPRITE_INVISIBLE) || actor->spr.xrepeat == 0 || actor->spr.yrepeat == 0) // skip invisible sprites
 				continue;
 
-			int sx = actor->spr.pos.X - iview.X, sy = actor->spr.pos.Y - int(iview.Y);
+			int sx = actor->int_pos().X - iview.X, sy = actor->int_pos().Y - int(iview.Y);
 
 			// this checks if the sprite is it behind the camera, which will not work if the pitch is high enough to necessitate a FOV of more than 180°.
 			//if ((actor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) || (hw_models && tile2model[actor->spr.picnum].modelid >= 0) || ((sx * gcosang) + (sy * gsinang) > 0)) 
@@ -685,7 +685,7 @@ void BunchDrawer::ProcessSection(int sectionnum, bool portal)
 					(r_voxels && tiletovox[actor->spr.picnum] >= 0 && voxmodels[tiletovox[actor->spr.picnum]]) ||
 					(r_voxels && gi->Voxelize(actor->spr.picnum) > -1) ||
 					DMulScale(bcos(actor->spr.ang), -sx, bsin(actor->spr.ang), -sy, 6) > 0)
-					if (!renderAddTsprite(di->tsprite, di->spritesortcnt, actor))
+					if (!renderAddTsprite(di->tsprites, actor))
 						break;
 			}
 		}

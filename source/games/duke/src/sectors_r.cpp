@@ -313,7 +313,7 @@ void operaterespawns_r(int low)
 			if (badguypic(act->spr.hitag) && ud.monsters_off) break;
 
 			auto star = spawn(act, TRANSPORTERSTAR);
-			if (star) star->spr.pos.Z -= (32 << 8);
+			if (star) star->add_int_z(-(32 << 8));
 
 			act->spr.extra = 66 - 12;   // Just a way to killit
 			break;
@@ -359,8 +359,8 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 		lotag = act->spr.lotag;
 		if (lotag == 0) return 0;
 		hitag = act->spr.hitag;
-		sx = act->spr.pos.X;
-		sy = act->spr.pos.Y;
+		sx = act->int_pos().X;
+		sy = act->int_pos().Y;
 		picnum = act->spr.picnum;
 		switchpal = act->spr.pal;
 	}
@@ -700,17 +700,17 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 			if (picnum == ALIENSWITCH || picnum == ALIENSWITCH + 1)
 			{
 				if (act)
-					S_PlaySound3D(ALIEN_SWITCH1, act, &v);
-				else S_PlaySound3D(ALIEN_SWITCH1, ps[snum].GetActor(), &v);
+					S_PlaySound3D(ALIEN_SWITCH1, act, v);
+				else S_PlaySound3D(ALIEN_SWITCH1, ps[snum].GetActor(), v);
 			}
 			else
 			{
 				if (act)
-					S_PlaySound3D(SWITCH_ON, act, &v);
-				else S_PlaySound3D(SWITCH_ON, ps[snum].GetActor(), &v);
+					S_PlaySound3D(SWITCH_ON, act, v);
+				else S_PlaySound3D(SWITCH_ON, ps[snum].GetActor(), v);
 			}
 			if (numdips != correctdips) break;
-			S_PlaySound3D(END_OF_LEVEL_WARN, ps[snum].GetActor(), &v);
+			S_PlaySound3D(END_OF_LEVEL_WARN, ps[snum].GetActor(), v);
 		}
 		goto goOn2;
 	case MULTISWITCH2:
@@ -788,7 +788,7 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 				{
 					DDukeActor* switches[3];
 					int switchcount = 0, j;
-					S_PlaySound3D(SWITCH_ON, act, &v);
+					S_PlaySound3D(SWITCH_ON, act, v);
 					DukeSpriteIterator itr;
 					while (auto actt = itr.Next())
 					{
@@ -810,7 +810,7 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 						if (switches[0]->GetIndex() > switches[2]->GetIndex()) std::swap(switches[0], switches[2]);
 						if (switches[1]->GetIndex() > switches[2]->GetIndex()) std::swap(switches[1], switches[2]);
 
-						S_PlaySound3D(78, act, &v);
+						S_PlaySound3D(78, act, v);
 						for (j = 0; j < switchcount; j++)
 						{
 							switches[j]->spr.hitag = 0;
@@ -880,15 +880,15 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 		if (hitag == 0 && fi.isadoorwall(picnum) == 0)
 		{
 			if (act)
-				S_PlaySound3D(SWITCH_ON, act, &v);
-			else S_PlaySound3D(SWITCH_ON, ps[snum].GetActor(), &v);
+				S_PlaySound3D(SWITCH_ON, act, v);
+			else S_PlaySound3D(SWITCH_ON, ps[snum].GetActor(), v);
 		}
 		else if (hitag != 0)
 		{
 			auto flags = S_GetUserFlags(hitag);
 
 			if (act && (flags & SF_TALK) == 0)
-				S_PlaySound3D(hitag, act, &v);
+				S_PlaySound3D(hitag, act, v);
 			else
 				S_PlayActorSound(hitag, ps[snum].GetActor());
 		}
@@ -939,7 +939,7 @@ static void lotsofpopcorn(DDukeActor *actor, walltype* wal, int n)
 		for (j = n - 1; j >= 0; j--)
 		{
 			a = actor->spr.ang - 256 + (krand() & 511) + 1024;
-			EGS(actor->sector(), actor->spr.pos.X, actor->spr.pos.Y, actor->spr.pos.Z, POPCORN, -32, 36, 36, a, 32 + (krand() & 63), 1024 - (krand() & 1023), actor, 5);
+			EGS(actor->sector(), actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, POPCORN, -32, 36, 36, a, 32 + (krand() & 63), 1024 - (krand() & 1023), actor, 5);
 		}
 		return;
 	}
@@ -965,9 +965,9 @@ static void lotsofpopcorn(DDukeActor *actor, walltype* wal, int n)
 		updatesector(x1, y1, &sect);
 		if (sect)
 		{
-			z = sect->floorz - (krand() & (abs(sect->ceilingz - sect->floorz)));
+			z = sect->int_floorz() - (krand() & (abs(sect->int_ceilingz() - sect->int_floorz())));
 			if (z < -(32 << 8) || z >(32 << 8))
-				z = actor->spr.pos.Z - (32 << 8) + (krand() & ((64 << 8) - 1));
+				z = actor->int_pos().Z - (32 << 8) + (krand() & ((64 << 8) - 1));
 			a = actor->spr.ang - 1024;
 			EGS(actor->sector(), x1, y1, z, POPCORN, -32, 36, 36, a, 32 + (krand() & 63), -(krand() & 1023), actor, 5);
 		}
@@ -996,8 +996,8 @@ void checkhitwall_r(DDukeActor* spr, walltype* wal, int x, int y, int z, int atw
 	}
 
 	if (((wal->cstat & CSTAT_WALL_MASKED) || wal->overpicnum == BIGFORCE) && wal->twoSided())
-		if (wal->nextSector()->floorz > z)
-			if (wal->nextSector()->floorz - wal->nextSector()->ceilingz)
+		if (wal->nextSector()->int_floorz() > z)
+			if (wal->nextSector()->int_floorz() - wal->nextSector()->int_ceilingz())
 				switch (wal->overpicnum)
 				{
 				case FANSPRITE:
@@ -2059,7 +2059,7 @@ void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 		lotsofglass(targ, nullptr, 10);
 		targ->spr.picnum++;
 		for (k = 0; k < 6; k++)
-			EGS(targ->sector(), targ->spr.pos.X, targ->spr.pos.Y, targ->spr.pos.Z - (8 << 8), SCRAP6 + (krand() & 15), -8, 48, 48, krand() & 2047, (krand() & 63) + 64, -(krand() & 4095) - (targ->spr.zvel >> 2), targ, 5);
+			EGS(targ->sector(), targ->int_pos().X, targ->int_pos().Y, targ->int_pos().Z - (8 << 8), SCRAP6 + (krand() & 15), -8, 48, 48, krand() & 2047, (krand() & 63) + 64, -(krand() & 4095) - (targ->spr.zvel >> 2), targ, 5);
 		break;
 	case BOWLINGBALL:
 		proj->spr.xvel = (targ->spr.xvel >> 1) + (targ->spr.xvel >> 2);
@@ -2077,7 +2077,7 @@ void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 		{
 			proj->spr.xvel = (targ->spr.xvel >> 1) + (targ->spr.xvel >> 2);
 			proj->spr.ang -= (targ->spr.ang << 1) + 1024;
-			targ->spr.ang = getangle(targ->spr.pos.X - proj->spr.pos.X, targ->spr.pos.Y - proj->spr.pos.Y) - 512;
+			targ->spr.ang = getangle(targ->int_pos().X - proj->int_pos().X, targ->int_pos().Y - proj->int_pos().Y) - 512;
 			if (S_CheckSoundPlaying(POOLBALLHIT) < 2)
 				S_PlayActorSound(POOLBALLHIT, targ);
 		}
@@ -2126,7 +2126,7 @@ void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 		{
 			for (k = 0; k < 64; k++)
 			{
-				auto spawned = EGS(targ->sector(), targ->spr.pos.X, targ->spr.pos.Y, targ->spr.pos.Z - (krand() % (48 << 8)), SCRAP6 + (krand() & 3), -8, 48, 48, krand() & 2047, (krand() & 63) + 64, -(krand() & 4095) - (targ->spr.zvel >> 2), targ, 5);
+				auto spawned = EGS(targ->sector(), targ->int_pos().X, targ->int_pos().Y, targ->int_pos().Z - (krand() % (48 << 8)), SCRAP6 + (krand() & 3), -8, 48, 48, krand() & 2047, (krand() & 63) + 64, -(krand() & 4095) - (targ->spr.zvel >> 2), targ, 5);
 				if (spawned) spawned->spr.pal = 8;
 			}
 
@@ -2158,7 +2158,7 @@ void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 		if (gs.actorinfo[SHOTSPARK1].scriptaddress && proj->spr.extra != ScriptCode[gs.actorinfo[SHOTSPARK1].scriptaddress])
 		{
 			for (j = 0; j < 15; j++)
-				EGS(targ->sector(), targ->spr.pos.X, targ->spr.pos.Y, targ->sector()->floorz - (12 << 8) - (j << 9), SCRAP1 + (krand() & 15), -8, 64, 64,
+				EGS(targ->sector(), targ->int_pos().X, targ->int_pos().Y, targ->sector()->int_floorz() - (12 << 8) - (j << 9), SCRAP1 + (krand() & 15), -8, 64, 64,
 					krand() & 2047, (krand() & 127) + 64, -(krand() & 511) - 256, targ, 5);
 			spawn(targ, EXPLOSION2);
 			deletesprite(targ);
@@ -2284,7 +2284,7 @@ void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 		}
 		{
 			auto spawned = spawn(targ, STEAM);
-			if (spawned) spawned->spr.pos.Z = targ->sector()->floorz - (32 << 8);
+			if (spawned) spawned->set_int_z(targ->sector()->int_floorz() - (32 << 8));
 		}
 		break;
 
@@ -2330,7 +2330,7 @@ void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 							{
 								if (proj->spr.pal == 6)
 									spawned->spr.pal = 6;
-								spawned->spr.pos.Z += (4 << 8);
+								spawned->add_int_z(4 << 8);
 								spawned->spr.xvel = 16;
 								spawned->spr.xrepeat = spawned->spr.yrepeat = 24;
 								spawned->spr.ang += 32 - (krand() & 63);

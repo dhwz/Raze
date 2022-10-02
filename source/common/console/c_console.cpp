@@ -45,7 +45,7 @@
 #include "filesystem.h"
 #include "d_gui.h"
 #include "cmdlib.h"
-#include "d_event.h"
+#include "d_eventbase.h"
 #include "c_consolebuffer.h"
 #include "utf8.h"
 #include "v_2ddrawer.h"
@@ -95,7 +95,6 @@ static FTextureID conflat;
 static uint32_t conshade;
 static bool conline;
 
-extern int chatmodeon;
 extern FBaseCVar *CVars;
 extern FConsoleCommand *Commands[FConsoleCommand::HASH_SIZE];
 
@@ -104,7 +103,9 @@ bool		vidactive = false;
 bool		cursoron = false;
 int			ConBottom, ConScroll, RowAdjust;
 uint64_t	CursorTicker;
-constate_e	ConsoleState = c_up;
+uint8_t		ConsoleState = c_up;
+
+DEFINE_GLOBAL(ConsoleState)
 
 static int TopLine, InsertLine;
 
@@ -127,6 +128,11 @@ static GameAtExit *ExitCmdList;
 // Buffer for AddToConsole()
 static char *work = NULL;
 static int worklen = 0;
+
+CUSTOM_CVAR(Int, con_scale, 0, CVAR_ARCHIVE)
+{
+	if (self < 0) self = 0;
+}
 
 CUSTOM_CVAR(Float, con_alpha, 0.75f, CVAR_ARCHIVE)
 {
@@ -600,7 +606,7 @@ void C_DrawConsole ()
 
 		if (conback.isValid() && gamestate != GS_FULLCONSOLE)
 		{
-			DrawTexture (twod, TexMan.GetGameTexture(conback), 0, visheight - screen->GetHeight(),
+			DrawTexture (twod, conback, false, 0, visheight - screen->GetHeight(),
 				DTA_DestWidth, twod->GetWidth(),
 				DTA_DestHeight, twod->GetHeight(),
 				DTA_ColorOverlay, conshade,

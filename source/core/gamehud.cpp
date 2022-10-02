@@ -56,8 +56,7 @@ void hud_drawsprite(double sx, double sy, double sz, double a, int picnum, int d
 	alpha *= (dastat & RS_TRANS1)? glblend[0].def[!!(dastat & RS_TRANS2)].alpha : 1.;
 	int palid = TRANSLATION(Translation_Remap + curbasepal, dapalnum);
 
-	if (picanm[picnum].sf & PICANM_ANIMTYPE_MASK)
-		picnum += animateoffs(picnum, 0);
+	tileUpdatePicnum(&picnum);
 
 	auto tex = tileGetTexture(picnum);
 
@@ -65,8 +64,8 @@ void hud_drawsprite(double sx, double sy, double sz, double a, int picnum, int d
 		DTA_ScaleX, sz, DTA_ScaleY, sz,
 		DTA_Color, shadeToLight(dashade),
 		DTA_TranslationIndex, palid,
-		DTA_ViewportX, windowxy1.X, DTA_ViewportY, windowxy1.Y,
-		DTA_ViewportWidth, windowxy2.X - windowxy1.X + 1, DTA_ViewportHeight, windowxy2.Y - windowxy1.Y + 1,
+		DTA_ViewportX, viewport3d.Left(), DTA_ViewportY, viewport3d.Top(),
+		DTA_ViewportWidth, viewport3d.Width(), DTA_ViewportHeight, viewport3d.Height(),
 		DTA_FullscreenScale, (dastat & RS_STRETCH)? FSMode_ScaleToScreen: FSMode_ScaleToHeight, DTA_VirtualWidth, 320, DTA_VirtualHeight, 200,
 		DTA_CenterOffsetRel, (dastat & (RS_TOPLEFT | RS_CENTER))? 0:2,
 		DTA_TopLeft, !!(dastat & RS_TOPLEFT),
@@ -88,7 +87,7 @@ void hud_drawsprite(double sx, double sy, double sz, double a, int picnum, int d
 // Draws the fps counter, dot ticker, and palette debug.
 //
 //==========================================================================
-CVAR(Bool, vid_fps, false, 0)
+EXTERN_CVAR(Bool, vid_fps)
 
 
 static FString statFPS()

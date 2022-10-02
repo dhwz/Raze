@@ -61,6 +61,8 @@ DEFINE_FIELD_X(sectortype, sectortype, floorpal)
 DEFINE_FIELD_X(sectortype, sectortype, visibility)
 DEFINE_FIELD_X(sectortype, sectortype, fogpal)
 DEFINE_FIELD_X(sectortype, sectortype, exflags)
+DEFINE_FIELD_X(sectortype, sectortype, floorz)
+DEFINE_FIELD_X(sectortype, sectortype, ceilingz)
 
 DEFINE_FIELD_NAMED_X(walltype, walltype, xpan_, xpan)
 DEFINE_FIELD_NAMED_X(walltype, walltype, ypan_, ypan)
@@ -104,37 +106,13 @@ DEFINE_FIELD_X(tspritetype, tspritetype, time)
 DEFINE_GLOBAL(wall)
 DEFINE_GLOBAL(sector)
 
-double sector_floorz(sectortype* sect)
-{
-	if (!sect) ThrowAbortException(X_READ_NIL, nullptr);
-	return sect->floorz * zinttoworld;
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(_sectortype, floorz, sector_floorz)
-{
-	PARAM_SELF_STRUCT_PROLOGUE(sectortype);
-	ACTION_RETURN_FLOAT(self->floorz * zinttoworld);
-}
-
-double sector_ceilingz(sectortype* sect)
-{
-	if (!sect) ThrowAbortException(X_READ_NIL, nullptr);
-	return sect->ceilingz * zinttoworld;
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(_sectortype, ceilingz, sector_ceilingz)
-{
-	PARAM_SELF_STRUCT_PROLOGUE(sectortype);
-	ACTION_RETURN_FLOAT(self->ceilingz * zinttoworld);
-}
-
 void sector_setfloorz(sectortype* sect, double val)
 {
 	if (!sect) ThrowAbortException(X_READ_NIL, nullptr);
-	sect->setfloorz(int(val * zworldtoint));
+	sect->setfloorz(val);
 }
 
-DEFINE_ACTION_FUNCTION_NATIVE(_sectortype, setfloorz, sector_floorz)
+DEFINE_ACTION_FUNCTION_NATIVE(_sectortype, setfloorz, sector_setfloorz)
 {
 	PARAM_SELF_STRUCT_PROLOGUE(sectortype);
 	PARAM_FLOAT(z);
@@ -145,10 +123,10 @@ DEFINE_ACTION_FUNCTION_NATIVE(_sectortype, setfloorz, sector_floorz)
 void sector_setceilingz(sectortype* sect, double val)
 {
 	if (!sect) ThrowAbortException(X_READ_NIL, nullptr);
-	sect->setceilingz(int(val * zworldtoint));
+	sect->setceilingz(val);
 }
 
-DEFINE_ACTION_FUNCTION_NATIVE(_sectortype, setceilingz, sector_ceilingz)
+DEFINE_ACTION_FUNCTION_NATIVE(_sectortype, setceilingz, sector_setceilingz)
 {
 	PARAM_SELF_STRUCT_PROLOGUE(sectortype);
 	PARAM_FLOAT(z);
@@ -159,10 +137,10 @@ DEFINE_ACTION_FUNCTION_NATIVE(_sectortype, setceilingz, sector_ceilingz)
 void sector_addfloorz(sectortype* sect, double val)
 {
 	if (!sect) ThrowAbortException(X_READ_NIL, nullptr);
-	sect->addfloorz(int(val * zworldtoint));
+	sect->addfloorz(val);
 }
 
-DEFINE_ACTION_FUNCTION_NATIVE(_sectortype, addfloorz, sector_floorz)
+DEFINE_ACTION_FUNCTION_NATIVE(_sectortype, addfloorz, sector_addfloorz)
 {
 	PARAM_SELF_STRUCT_PROLOGUE(sectortype);
 	PARAM_FLOAT(z);
@@ -173,10 +151,10 @@ DEFINE_ACTION_FUNCTION_NATIVE(_sectortype, addfloorz, sector_floorz)
 void sector_addceilingz(sectortype* sect, double val)
 {
 	if (!sect) ThrowAbortException(X_READ_NIL, nullptr);
-	sect->addceilingz(int(val * zworldtoint));
+	sect->addceilingz(val);
 }
 
-DEFINE_ACTION_FUNCTION_NATIVE(_sectortype, addceilingz, sector_ceilingz)
+DEFINE_ACTION_FUNCTION_NATIVE(_sectortype, addceilingz, sector_addceilingz)
 {
 	PARAM_SELF_STRUCT_PROLOGUE(sectortype);
 	PARAM_FLOAT(z);
@@ -530,57 +508,3 @@ DEFINE_ACTION_FUNCTION_NATIVE(_walltype, twosided, wall_twosided)
 	PARAM_SELF_STRUCT_PROLOGUE(walltype);
 	ACTION_RETURN_BOOL(self->twoSided());
 }
-
-
-//=============================================================================
-
-DEFINE_ACTION_FUNCTION(_tspritetype, pos)
-{
-	PARAM_SELF_STRUCT_PROLOGUE(tspritetype);
-	ACTION_RETURN_VEC3(DVector3(self->pos.X * inttoworld, self->pos.Y * inttoworld, self->pos.Z * zinttoworld));
-}
-
-void tsprite_setpos(tspritetype* tsp, double x, double y, double z)
-{
-	if (!tsp) ThrowAbortException(X_READ_NIL, nullptr);
-	tsp->pos.X = int(x * worldtoint);
-	tsp->pos.Y = int(y * worldtoint);
-	tsp->pos.Z = int(z * zworldtoint);
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(_tspritetype, setpos, tsprite_setpos)
-{
-	PARAM_SELF_STRUCT_PROLOGUE(tspritetype);
-	PARAM_FLOAT(x);
-	PARAM_FLOAT(y);
-	PARAM_FLOAT(z);
-	tsprite_setpos(self, x, y, z);
-	return 0;
-}
-
-void tsprite_addpos(tspritetype* tsp, double x, double y, double z)
-{
-	if (!tsp) ThrowAbortException(X_READ_NIL, nullptr);
-	tsp->pos.X = int(x * worldtoint);
-	tsp->pos.Y = int(y * worldtoint);
-	tsp->pos.Z = int(z * zworldtoint);
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(_tspritetype, addpos, tsprite_addpos)
-{
-	PARAM_SELF_STRUCT_PROLOGUE(tspritetype);
-	PARAM_FLOAT(x);
-	PARAM_FLOAT(y);
-	PARAM_FLOAT(z);
-	tsprite_addpos(self, x, y, z);
-	return 0;
-}
-
-#if 0
-
-struct tsprite
-{
-	void setPic(string texture);
-}
-
-#endif

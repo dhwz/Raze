@@ -122,7 +122,6 @@ struct HWDrawInfo;
 class HWWall
 {
 public:
-	static const char passflag[];
 
 	enum
 	{
@@ -180,7 +179,7 @@ public:
 		HWSkyInfo * sky;			// for normal sky
 		//HWHorizonInfo * horizon;	// for horizon information
 		PortalDesc * portal;			// stacked sector portals
-		const int * planemirror;	// for plane mirrors
+		const double * planemirror;	// for plane mirrors
 	};
 
 	unsigned int vertindex;

@@ -95,9 +95,16 @@ int callsound(sectortype* sn, DDukeActor* whatsprite, bool endstate)
 			}
 			else if (act->spr.hitag < 1000)
 			{
+				// The original code performed these two actions in reverse order which in case of a looped sound being stopped
+				// being the same as the sound about to be started, the newly started sound would fall through some cracks in the sound system and be rejected.
+				// Here this case needs to be simulated.
+				bool stopped = false;
 				if ((flags & SF_LOOP) || (act->spr.hitag && act->spr.hitag != act->spr.lotag))
+				{
 					S_StopSound(act->spr.lotag, act->temp_actor);
-				if (act->spr.hitag) S_PlayActorSound(act->spr.hitag, whatsprite);
+					if (act->spr.hitag == act->spr.lotag) stopped = true;
+				}
+				if (act->spr.hitag && !stopped) S_PlayActorSound(act->spr.hitag, whatsprite);
 				act->temp_data[0] = 0;
 				act->temp_actor = whatsprite;
 			}
@@ -216,11 +223,11 @@ int findplayer(const DDukeActor* actor, int* d)
 {
 	int j, closest_player;
 	int x, closest;
-	auto s = &actor->spr.pos;
+	const auto s = actor->int_pos();
 
 	if (ud.multimode < 2)
 	{
-		if (d) *d = abs(ps[myconnectindex].opos.X - s->X) + abs(ps[myconnectindex].opos.Y - s->Y) + ((abs(ps[myconnectindex].opos.Z - s->Z + (28 << 8))) >> 4);
+		if (d) *d = abs(ps[myconnectindex].opos.X - s.X) + abs(ps[myconnectindex].opos.Y - s.Y) + ((abs(ps[myconnectindex].opos.Z - s.Z + (28 << 8))) >> 4);
 		return myconnectindex;
 	}
 
@@ -229,7 +236,7 @@ int findplayer(const DDukeActor* actor, int* d)
 
 	for (j = connecthead; j >= 0; j = connectpoint2[j])
 	{
-		x = abs(ps[j].opos.X - s->X) + abs(ps[j].opos.Y - s->Y) + ((abs(ps[j].opos.Z - s->Z + (28 << 8))) >> 4);
+		x = abs(ps[j].opos.X - s.X) + abs(ps[j].opos.Y - s.Y) + ((abs(ps[j].opos.Z - s.Z + (28 << 8))) >> 4);
 		if (x < closest && ps[j].GetActor()->spr.extra > 0)
 		{
 			closest_player = j;
@@ -282,9 +289,9 @@ double getanimatevalue(int type, int index)
 	switch (type)
 	{
 	case anim_floorz:
-		return sector[index].floorz;
+		return sector[index].int_floorz();
 	case anim_ceilingz:
-		return sector[index].ceilingz;
+		return sector[index].int_ceilingz();
 	case anim_vertexx:
 		return wall[index].wall_int_pos().X;
 	case anim_vertexy:
@@ -312,10 +319,10 @@ void setanimatevalue(int type, int index, double value)
 	switch (type)
 	{
 	case anim_floorz:
-		sector[index].setfloorz((int)value);
+		sector[index].set_int_floorz((int)value);
 		break;
 	case anim_ceilingz:
-		sector[index].setceilingz((int)value);
+		sector[index].set_int_ceilingz((int)value);
 		break;
 	case anim_vertexx:
 
@@ -381,7 +388,7 @@ void doanimations(void)
 		{
 			for (p = connecthead; p >= 0; p = connectpoint2[p])
 				if (ps[p].cursector == dasectp)
-					if ((dasectp->floorz - ps[p].pos.Z) < (64 << 8))
+					if ((dasectp->int_floorz() - ps[p].pos.Z) < (64 << 8))
 						if (ps[p].GetActor()->GetOwner() != nullptr)
 						{
 							ps[p].pos.Z += v;
@@ -394,8 +401,8 @@ void doanimations(void)
 				if (act->spr.statnum != STAT_EFFECTOR)
 				{
 					act->backupz();
-					act->spr.pos.Z += v;
-					act->floorz = dasectp->floorz + v;
+					act->add_int_z(v);
+					act->floorz = dasectp->int_floorz() + v;
 				}
 			}
 		}
@@ -491,7 +498,7 @@ bool activatewarpelevators(DDukeActor* actor, int d) //Parm = sectoreffectornum
 	{
 		if (act2->spr.lotag == SE_17_WARP_ELEVATOR || (isRRRA() && act2->spr.lotag == SE_18_INCREMENTAL_SECTOR_RISE_FALL))
 			if (act2->spr.hitag == actor->spr.hitag)
-				if ((abs(sect->floorz - actor->temp_data[2]) > act2->spr.yvel) ||
+				if ((abs(sect->int_floorz() - actor->temp_data[2]) > act2->spr.yvel) ||
 					(act2->sector()->hitag == (sect->hitag - d)))
 					break;
 	}
@@ -640,7 +647,7 @@ static void handle_st15(sectortype* sptr, DDukeActor* actor)
 	}
 	else
 	{
-		if (sptr->floorz > a2->spr.pos.Z)
+		if (sptr->int_floorz() > a2->int_pos().Z)
 			activatewarpelevators(a2, -1);
 		else
 			activatewarpelevators(a2, 1);
@@ -660,16 +667,16 @@ static void handle_st16(sectortype* sptr, DDukeActor* actor)
 
 	if (i == -1)
 	{
-		sectp = nextsectorneighborzptr(sptr, sptr->floorz, 1, 1);
+		sectp = nextsectorneighborzptr(sptr, sptr->int_floorz(), Find_FloorDown);
 		if (sectp == nullptr)
 		{
-			sectp = nextsectorneighborzptr(sptr, sptr->floorz, 1, -1);
+			sectp = nextsectorneighborzptr(sptr, sptr->int_floorz(), Find_FloorUp);
 			if (sectp == nullptr) return;
-			setanimation(sptr, anim_floorz, sptr, sectp->floorz, sptr->extra);
+			setanimation(sptr, anim_floorz, sptr, sectp->int_floorz(), sptr->extra);
 		}
 		else
 		{
-			setanimation(sptr, anim_floorz, sptr, sectp->floorz, sptr->extra);
+			setanimation(sptr, anim_floorz, sptr, sectp->int_floorz(), sptr->extra);
 		}
 		callsound(sptr, actor);
 	}
@@ -687,12 +694,12 @@ static void handle_st18(sectortype* sptr, DDukeActor* actor)
 
 	if (i == -1)
 	{
-		auto sectp = nextsectorneighborzptr(sptr, sptr->floorz, 1, -1);
-		if (sectp == nullptr) sectp = nextsectorneighborzptr(sptr, sptr->floorz, 1, 1);
+		auto sectp = nextsectorneighborzptr(sptr, sptr->int_floorz(), Find_FloorUp);
+		if (sectp == nullptr) sectp = nextsectorneighborzptr(sptr, sptr->int_floorz(), Find_FloorDown);
 		if (sectp == nullptr) return;
-		int j = sectp->floorz;
+		int j = sectp->int_floorz();
 		int q = sptr->extra;
-		int l = sptr->ceilingz - sptr->floorz;
+		int l = sptr->int_ceilingz() - sptr->int_floorz();
 		setanimation(sptr, anim_floorz, sptr, j, q);
 		setanimation(sptr, anim_ceilingz, sptr, j + l, q);
 		callsound(sptr, actor);
@@ -710,9 +717,9 @@ static void handle_st29(sectortype* sptr, DDukeActor* actor)
 	int j;
 
 	if (sptr->lotag & 0x8000)
-		j = safenextsectorneighborzptr(sptr, sptr->ceilingz, 1, 1)->floorz;
+		j = nextsectorneighborzptr(sptr, sptr->int_ceilingz(), Find_FloorDown | Find_Safe)->int_floorz();
 	else
-		j = safenextsectorneighborzptr(sptr, sptr->ceilingz, -1, -1)->ceilingz;
+		j = nextsectorneighborzptr(sptr, sptr->int_ceilingz(), Find_CeilingUp | Find_Safe)->int_ceilingz();
 
 	DukeStatIterator it(STAT_EFFECTOR);
 	while (auto act2 = it.Next())
@@ -753,18 +760,18 @@ REDODOOR:
 		{
 			if (a2->spr.statnum == 3 && a2->spr.lotag == 9)
 			{
-				j = a2->spr.pos.Z;
+				j = a2->int_pos().Z;
 				break;
 			}
 		}
 		if (a2 == nullptr)
-			j = sptr->floorz;
+			j = sptr->int_floorz();
 	}
 	else
 	{
-		auto sectp = nextsectorneighborzptr(sptr, sptr->ceilingz, -1, -1);
+		auto sectp = nextsectorneighborzptr(sptr, sptr->int_ceilingz(), Find_CeilingUp);
 
-		if (sectp) j = sectp->ceilingz;
+		if (sectp) j = sectp->int_ceilingz();
 		else
 		{
 			sptr->lotag |= 32768;
@@ -790,16 +797,16 @@ static void handle_st21(sectortype* sptr, DDukeActor* actor)
 	int j;
 	if (i >= 0)
 	{
-		if (animategoal[i] == sptr->ceilingz)
-			animategoal[i] = safenextsectorneighborzptr(sptr, sptr->ceilingz, 1, 1)->floorz;
-		else animategoal[i] = sptr->ceilingz;
+		if (animategoal[i] == sptr->int_ceilingz())
+			animategoal[i] = nextsectorneighborzptr(sptr, sptr->int_ceilingz(), Find_FloorDown | Find_Safe)->int_floorz();
+		else animategoal[i] = sptr->int_ceilingz();
 		j = animategoal[i];
 	}
 	else
 	{
-		if (sptr->ceilingz == sptr->floorz)
-			j = safenextsectorneighborzptr(sptr, sptr->ceilingz, 1, 1)->floorz;
-		else j = sptr->ceilingz;
+		if (sptr->int_ceilingz() == sptr->int_floorz())
+			j = nextsectorneighborzptr(sptr, sptr->int_ceilingz(), Find_FloorDown | Find_Safe)->int_floorz();
+		else j = sptr->int_ceilingz();
 
 		sptr->lotag ^= 0x8000;
 
@@ -819,15 +826,15 @@ static void handle_st22(sectortype* sptr, DDukeActor* actor)
 	int j, q;
 	if ((sptr->lotag & 0x8000))
 	{
-		q = (sptr->ceilingz + sptr->floorz) >> 1;
+		q = (sptr->int_ceilingz() + sptr->int_floorz()) >> 1;
 		j = setanimation(sptr, anim_floorz, sptr, q, sptr->extra);
 		j = setanimation(sptr, anim_ceilingz, sptr, q, sptr->extra);
 	}
 	else
 	{
-		q = safenextsectorneighborzptr(sptr, sptr->floorz, 1, 1)->floorz;
+		q = nextsectorneighborzptr(sptr, sptr->int_floorz(), Find_FloorDown | Find_Safe)->int_floorz();
 		j = setanimation(sptr, anim_floorz, sptr, q, sptr->extra);
-		q = safenextsectorneighborzptr(sptr, sptr->ceilingz, -1, -1)->ceilingz;
+		q = nextsectorneighborzptr(sptr, sptr->int_ceilingz(), Find_CeilingUp | Find_Safe)->int_ceilingz();
 		j = setanimation(sptr, anim_ceilingz, sptr, q, sptr->extra);
 	}
 
@@ -1154,13 +1161,13 @@ void operateactivators(int low, int plnum)
 				case 0:
 					break;
 				case 1:
-					if (act->sector()->floorz != act->sector()->ceilingz)
+					if (act->sector()->int_floorz() != act->sector()->int_ceilingz())
 					{
 						continue;
 					}
 					break;
 				case 2:
-					if (act->sector()->floorz == act->sector()->ceilingz)
+					if (act->sector()->int_floorz() == act->sector()->int_ceilingz())
 					{
 						continue;
 					}
@@ -1276,8 +1283,8 @@ void allignwarpelevators(void)
 			{
 				if ((act2->spr.lotag) == SE_17_WARP_ELEVATOR && act != act2 && act->spr.hitag == act2->spr.hitag)
 				{
-					act2->sector()->setfloorz(act->sector()->floorz);
-					act2->sector()->setceilingz(act->sector()->ceilingz);
+					act2->sector()->set_int_floorz(act->sector()->int_floorz());
+					act2->sector()->set_int_ceilingz(act->sector()->int_ceilingz());
 				}
 			}
 		}
@@ -1303,17 +1310,9 @@ void moveclouds(double smoothratio)
 		cloudy += (float)ps[screenpeek].angle.ang.fsin() * 0.5f;
 		for (int i = 0; i < numclouds; i++)
 		{
-			if (!vid_renderer)
-			{
-				clouds[i]->setceilingxpan(cloudx);
-				clouds[i]->setceilingypan(cloudy);
-			}
-			else
-			{ 
-				// no clamping here!
-				clouds[i]->ceilingxpan_ = cloudx;
-				clouds[i]->ceilingypan_ = cloudy;
-			}
+			// no clamping here!
+			clouds[i]->ceilingxpan_ = cloudx;
+			clouds[i]->ceilingypan_ = cloudy;
 			clouds[i]->exflags |= SECTOREX_CLOUDSCROLL;
 		}
 	}

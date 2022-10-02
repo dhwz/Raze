@@ -47,13 +47,13 @@
 #include "src/messages.cpp"
 #include "src/mirrors.cpp"
 #include "src/misc.cpp"
+#include "src/nnsprinsect.cpp"
 #include "src/nnexts.cpp"
 #include "src/osdcmd.cpp"
 #include "src/player.cpp"
 #include "src/prediction.cpp"
 #include "src/preload.cpp"
 #include "src/qav.cpp"
-#include "src/replace.cpp"
 #include "src/sbar.cpp"
 #include "src/sectorfx.cpp"
 #include "src/seq.cpp"
@@ -65,8 +65,6 @@
 #include "src/view.cpp"
 #include "src/warp.cpp"
 #include "src/weapon.cpp"
-
-#include "src/_polymost.cpp"
 
 // This includes the VM so it is last
 #include "src/d_menu.cpp"

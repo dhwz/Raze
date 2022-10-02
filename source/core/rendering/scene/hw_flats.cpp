@@ -104,7 +104,7 @@ void HWFlat::MakeVertices(HWDrawInfo* di)
 
 		auto ret = screen->mVertexData->AllocVertices(pIndices->Size());
 		auto vp = ret.first;
-		float base = (plane == 0 ? sec->floorz : sec->ceilingz) * (1 / -256.f);
+		float base = (plane == 0 ? sec->int_floorz() : sec->int_ceilingz()) * (1 / -256.f);
 		for (unsigned i = 0; i < pIndices->Size(); i++)
 		{
 			auto ii = (*pIndices)[i];
@@ -124,7 +124,7 @@ void HWFlat::MakeVertices(HWDrawInfo* di)
 		int ofsz[4];
 		auto cstat = Sprite->cstat;
 		if (tspriteGetSlope(Sprite)) cstat &= ~CSTAT_SPRITE_YFLIP;	// NBlood doesn't y-flip slope sprites.
-		GetFlatSpritePosition(Sprite, Sprite->pos.vec2, pos, ofsz, true);
+		GetFlatSpritePosition(Sprite, Sprite->int_pos().vec2, pos, ofsz, true);
 		Sprite->cstat = cstat;
 
 		auto ret = screen->mVertexData->AllocVertices(6);
@@ -177,7 +177,7 @@ void HWFlat::MakeVertices(HWDrawInfo* di)
 		auto svp = &di->SlopeSpriteVertices[svi];
 
 		auto& vpt = di->Viewpoint;
-		depth = (float)((Sprite->pos.X * (1/16.f) - vpt.Pos.X) * vpt.TanCos + (Sprite->pos.Y * (1 / -16.f) - vpt.Pos.Y) * vpt.TanSin);
+		depth = (float)((Sprite->int_pos().X * (1/16.f) - vpt.Pos.X) * vpt.TanCos + (Sprite->int_pos().Y * (1 / -16.f) - vpt.Pos.Y) * vpt.TanSin);
 
 		for (unsigned j = 0; j < 4; j++)
 		{
@@ -355,7 +355,7 @@ void HWFlat::ProcessSector(HWDrawInfo *di, sectortype * frontsector, int section
 		{
 			int tilenum = frontsector->floorpicnum;
 			gotpic.Set(tilenum);
-			tileUpdatePicnum(&tilenum, tilenum, 0);
+			tileUpdatePicnum(&tilenum);
 			texture = tileGetTexture(tilenum);
 			if (texture && texture->isValid())
 			{
@@ -399,7 +399,7 @@ void HWFlat::ProcessSector(HWDrawInfo *di, sectortype * frontsector, int section
 
 			int tilenum = frontsector->ceilingpicnum;
 			gotpic.Set(tilenum);
-			tileUpdatePicnum(&tilenum, tilenum, 0);
+			tileUpdatePicnum(&tilenum);
 			texture = tileGetTexture(tilenum);
 			if (texture && texture->isValid())
 			{
@@ -421,12 +421,12 @@ void HWFlat::ProcessFlatSprite(HWDrawInfo* di, tspritetype* sprite, sectortype* 
 	int tilenum = sprite->picnum;
 	texture = tileGetTexture(tilenum);
 	bool belowfloor = false;
-	if (sprite->pos.Z > sprite->sectp->floorz)
+	if (sprite->int_pos().Z > sprite->sectp->int_floorz())
 	{
 		belowfloor = true;
-		sprite->pos.Z = sprite->sectp->floorz;
+		sprite->set_int_z(sprite->sectp->int_floorz());
 	}
-	z = sprite->pos.Z * (1 / -256.f);
+	z = sprite->int_pos().Z * (1 / -256.f);
 	if (z == di->Viewpoint.Pos.Z) return; // looking right at the edge.
 	dynlightindex = -1;
 

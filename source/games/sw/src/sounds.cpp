@@ -375,12 +375,12 @@ static void UpdateAmbients()
     for (auto& amb : ambients)
     {
         auto spot = amb->spot;
-        auto sdist = SoundDist(spot->spr.pos.X, spot->spr.pos.Y, spot->spr.pos.Z, voc[amb->vocIndex].voc_distance);
+        auto sdist = SoundDist(spot->int_pos().X, spot->int_pos().Y, spot->int_pos().Z, voc[amb->vocIndex].voc_distance);
 
         if (sdist < 255 && amb->vocIndex == DIGI_WHIPME)
         {
             PLAYER* pp = Player + screenpeek;
-            if (!FAFcansee(spot->spr.pos.X, spot->spr.pos.Y, spot->spr.pos.Z, spot->sector(), pp->pos.X, pp->pos.Y, pp->pos.Z, pp->cursector))
+            if (!FAFcansee(spot->int_pos().X, spot->int_pos().Y, spot->int_pos().Z, spot->sector(), pp->pos.X, pp->pos.Y, pp->pos.Z, pp->cursector))
             {
                 sdist = 255;
             }
@@ -519,8 +519,9 @@ void SWSoundEngine::CalcPosVel(int type, const void* source, const float pt[3], 
     if (pos != nullptr)
     {
         PLAYER* pp = Player + screenpeek;
-        FVector3 campos = GetSoundPos(&pp->pos);
-        vec3_t *vpos = nullptr;
+        FVector3 campos = GetSoundPos(pp->pos);
+        vec3_t vpos = {};
+        bool pancheck = false;
 
         if (vel) vel->Zero();
 
@@ -532,14 +533,15 @@ void SWSoundEngine::CalcPosVel(int type, const void* source, const float pt[3], 
         }
         else if (type == SOURCE_Actor || type == SOURCE_Player)
         {
-            vpos = type == SOURCE_Actor ? &((DSWActor*)source)->spr.pos : &((PLAYER*)source)->pos;
+            vpos = type == SOURCE_Actor ? ((DSWActor*)source)->spr.int_pos() : ((PLAYER*)source)->pos;
+            pancheck = true;
             FVector3 npos = GetSoundPos(vpos);
 
             *pos = npos;
-            if (!(chanflags & CHANEXF_NODOPPLER) && vel)
+#if 0
+            if (vel)
             {
-                // Hack alert. Velocity may only be set if a) the sound is already running and b) an actual sound channel is modified.
-                // It remains to be seen if this is actually workable. I have my doubts. The velocity should be taken from a stable source.
+                // We do not do doppler effects because none of these old games are set up for it.
                 if (chan && !(chanflags & (CHANF_JUSTSTARTED | CHANF_EVICTED)))
                 {
                     *vel = (npos - FVector3(pt[0], pt[1], pt[2])) * 40; // SW ticks 40 times a second.
@@ -548,17 +550,19 @@ void SWSoundEngine::CalcPosVel(int type, const void* source, const float pt[3], 
                     chan->Point[2] = npos.Z;
                 }
             }
+#endif
         }
         else if (type == SOURCE_Ambient)
         {
             auto spot = ((AmbientSound*)source)->spot;
-            vpos = &spot->spr.pos;
+            vpos = spot->spr.int_pos();
             FVector3 npos = GetSoundPos(vpos);
+            pancheck = true;
 
             // Can the ambient sound see the player?  If not, tone it down some.
             if ((chanflags & CHANF_LOOP))
             {
-                if (!FAFcansee(vpos->X, vpos->Y, vpos->Z, spot->sector(), pp->pos.X, pp->pos.Y, pp->pos.Z, pp->cursector))
+                if (!FAFcansee(vpos.X, vpos.Y, vpos.Z, spot->sector(), pp->pos.X, pp->pos.Y, pp->pos.Z, pp->cursector))
                 {
                     auto distvec = npos - campos;
                     npos = campos + distvec * 1.75f;  // Play more quietly
@@ -567,11 +571,11 @@ void SWSoundEngine::CalcPosVel(int type, const void* source, const float pt[3], 
             *pos = npos;
         }
 
-        if (vpos && chanflags & CHANEXF_DONTPAN)
+        if (pancheck && chanflags & CHANEXF_DONTPAN)
         {
             // For unpanned sounds the volume must be set directly and the position taken from the listener.
             *pos = campos;
-            auto sdist = SoundDist(vpos->X, vpos->Y, vpos->Z, voc[chanSound].voc_distance);
+            auto sdist = SoundDist(vpos.X, vpos.Y, vpos.Z, voc[chanSound].voc_distance);
             if (chan) SetVolume(chan, (255 - sdist) * (1 / 255.f));
         }
 
@@ -607,7 +611,7 @@ void GameInterface::UpdateSounds(void)
 
     listener.angle = float(-tang.asrad());
     listener.velocity.Zero();
-    listener.position = GetSoundPos(&pp->pos);
+    listener.position = GetSoundPos(pp->pos);
     listener.underwater = false;
     // This should probably use a real environment instead of the pitch hacking in S_PlaySound3D.
     // listenactor->waterlevel == 3;
@@ -627,33 +631,35 @@ void GameInterface::UpdateSounds(void)
 //
 //==========================================================================
 
-int _PlaySound(int num, DSWActor* actor, PLAYER* pp, vec3_t* pos, int flags, int channel, EChanFlags cflags)
+int _PlaySound(int num, DSWActor* actor, PLAYER* pp, vec3_t* ppos, int flags, int channel, EChanFlags cflags)
 {
     if (Prediction || !SoundEnabled() || !soundEngine->isValidSoundId(num))
         return -1;
 
     auto sps = actor;
+    auto pos = ppos ? *ppos : vec3_t(0, 0, 0);
 
     auto vp = &voc[num];
     int sourcetype = SOURCE_None;
     cflags |= channel == 8 ? CHANF_OVERLAP : CHANF_NONE;  // for the default channel we do not want to have sounds stopping each other.
     void* source = nullptr;
-    // If the sound is not supposd to be positioned, it may not be linked to the launching actor.
-    if (!(flags & v3df_follow))
+	
+    // If the sound is not supposed to be positioned, it may not be linked to the launching actor.
+    if (!(flags & v3df_follow)) // use if this is so intermittent that using the flag would break 3D sound.
     {
-        if (actor && !pos)
+        if (actor && !ppos)
         {
-            pos = &actor->spr.pos;
+            pos = actor->int_pos();
             actor = nullptr;
         }
-        else if (pp && !pos)
+        else if (pp && !ppos)
         {
-            pos = &pp->pos;
+            pos = pp->pos;
             pp = nullptr;
         }
     }
 
-    if (pos != nullptr)
+    if (ppos != nullptr)
     {
         sourcetype = SOURCE_Unattached;
     }
@@ -669,8 +675,8 @@ int _PlaySound(int num, DSWActor* actor, PLAYER* pp, vec3_t* pos, int flags, int
     }
     // Otherwise it's an unpositioned sound.
 
-    if (flags & v3df_doppler) cflags |= EChanFlags::FromInt(CHANEXF_NODOPPLER);    // this must ensure that CalcPosVel always zeros the velocity.
-    if (flags & v3df_dontpan) cflags |= EChanFlags::FromInt(CHANEXF_DONTPAN);      // beware of hackery to emulate this. 
+    //if (flags & v3df_doppler) cflags |= EChanFlags::FromInt(CHANEXF_NODOPPLER);    // intentionally not implemented
+    //if (flags & v3df_dontpan) cflags |= EChanFlags::FromInt(CHANEXF_DONTPAN);      // disabled due to poor use
     if (vp->voc_flags & vf_loop) cflags |= CHANF_LOOP;                               // with the new sound engine these can just be started and don't have to be stopped ever.
 
     int pitch = 0;
@@ -678,7 +684,7 @@ int _PlaySound(int num, DSWActor* actor, PLAYER* pp, vec3_t* pos, int flags, int
     else if (vp->pitch_hi != vp->pitch_lo) pitch = vp->pitch_lo + (StdRandomRange(vp->pitch_hi - vp->pitch_lo));
 
     auto rolloff = GetRolloff(vp->voc_distance);
-    FVector3 spos = pos ? GetSoundPos(pos) : FVector3(0, 0, 0);
+    FVector3 spos = GetSoundPos(pos);
     auto chan = soundEngine->StartSound(sourcetype, source, &spos, channel, cflags, num, 1.f, ATTN_NORM, &rolloff, S_ConvertPitch(pitch));
     if (chan && sourcetype == SOURCE_Unattached) chan->Source = sps; // needed for sound termination.
     return 1;

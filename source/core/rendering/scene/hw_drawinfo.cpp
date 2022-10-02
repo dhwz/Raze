@@ -202,15 +202,15 @@ void HWDrawInfo::ClearBuffers()
 angle_t HWDrawInfo::FrustumAngle()
 {
 	float WidescreenRatio = (float)screen->GetWidth() / screen->GetHeight();
-	float tilt = fabs(Viewpoint.HWAngles.Pitch.Degrees);
+	float tilt = fabs(Viewpoint.HWAngles.Pitch.Degrees());
 
 	// If the pitch is larger than this you can look all around at a FOV of 90°
 	if (tilt > 46.0f) return 0xffffffff;
 
 	// ok, this is a gross hack that barely works...
 	// but at least it doesn't overestimate too much...
-	double floatangle = 2.0 + (45.0 + ((tilt / 1.9)))*Viewpoint.FieldOfView.Degrees*48.0 / AspectMultiplier(WidescreenRatio) / 90.0;
-	angle_t a1 = DAngle(floatangle).BAMs();
+	double floatangle = 2.0 + (45.0 + ((tilt / 1.9)))*Viewpoint.FieldOfView.Degrees() * 48.0 / AspectMultiplier(WidescreenRatio) / 90.0;
+	angle_t a1 = DAngle::fromDeg(floatangle).BAMs();
 	if (a1 >= ANGLE_90) return 0xffffffff; // it's either below 90 or bust.
 	return a1;
 }
@@ -227,9 +227,9 @@ void HWDrawInfo::SetViewMatrix(const FRotator &angles, float vx, float vy, float
 	float planemult = planemirror ? -1 : 1;// Level->info->pixelstretch : Level->info->pixelstretch;
 
 	VPUniforms.mViewMatrix.loadIdentity();
-	VPUniforms.mViewMatrix.rotate(angles.Roll.Degrees, 0.0f, 0.0f, 1.0f);
-	VPUniforms.mViewMatrix.rotate(angles.Pitch.Degrees, 1.0f, 0.0f, 0.0f);
-	VPUniforms.mViewMatrix.rotate(angles.Yaw.Degrees, 0.0f, mult, 0.0f);
+	VPUniforms.mViewMatrix.rotate(angles.Roll.Degrees(), 0.0f, 0.0f, 1.0f);
+	VPUniforms.mViewMatrix.rotate(angles.Pitch.Degrees(), 1.0f, 0.0f, 0.0f);
+	VPUniforms.mViewMatrix.rotate(angles.Yaw.Degrees(), 0.0f, mult, 0.0f);
 	VPUniforms.mViewMatrix.translate(vx * mult, -vz * planemult, -vy);
 	VPUniforms.mViewMatrix.scale(-mult, planemult, 1);
 }
@@ -273,9 +273,9 @@ HWPortal * HWDrawInfo::FindPortal(const void * src)
 
 void HWDrawInfo::DispatchSprites()
 {
-	for (int i = 0; i < spritesortcnt; i++)
+	for (unsigned i = 0; i < tsprites.Size(); i++)
 	{
-		auto tspr = &tsprite[i];
+		auto tspr = tsprites.get(i);
 		int tilenum = tspr->picnum;
 		auto actor = tspr->ownerActor;
 
@@ -285,7 +285,7 @@ void HWDrawInfo::DispatchSprites()
 		actor->spr.cstat2 |= CSTAT2_SPRITE_MAPPED;
 
 		if ((tspr->cstat & CSTAT_SPRITE_ALIGNMENT_MASK) != CSTAT_SPRITE_ALIGNMENT_SLAB)
-			tileUpdatePicnum(&tilenum, (actor->GetIndex() & 16383) + 32768, 0);
+			tileUpdatePicnum(&tilenum, false, (actor->GetIndex() & 16383));
 		tspr->picnum = tilenum;
 		gotpic.Set(tilenum);
 
@@ -318,13 +318,13 @@ void HWDrawInfo::DispatchSprites()
 
 		if (actor->sprext.renderflags & SPREXT_AWAY1)
 		{
-			tspr->pos.X += bcos(tspr->ang, -13);
-			tspr->pos.Y += bsin(tspr->ang, -13);
+			tspr->add_int_x(bcos(tspr->ang, -13));
+			tspr->add_int_y(bsin(tspr->ang, -13));
 		}
 		else if (actor->sprext.renderflags & SPREXT_AWAY2)
 		{
-			tspr->pos.X -= bcos(tspr->ang, -13);
-			tspr->pos.Y -= bsin(tspr->ang, -13);
+			tspr->add_int_x(-bcos(tspr->ang, -13));
+			tspr->add_int_y(-bsin(tspr->ang, -13));
 		}
 
 		switch (tspr->cstat & CSTAT_SPRITE_ALIGNMENT_MASK)
@@ -378,8 +378,7 @@ void HWDrawInfo::CreateScene(bool portal)
 	screen->mVertexData->Map();
 	screen->mLights->Map();
 
-	memset(tsprite, 0, sizeof(tsprite));
-	spritesortcnt = 0;
+	tsprites.clear();
 	ingeo = false;
 	geoofs = { 0,0 };
 
@@ -395,7 +394,7 @@ void HWDrawInfo::CreateScene(bool portal)
 		mDrawer.RenderScene(&vp.SectCount, 1, portal);
 
 	SetupSprite.Clock();
-	gi->processSprites(tsprite, spritesortcnt, view.X, view.Y, vp.Pos.Z * -256, bamang(vp.RotAngle), vp.TicFrac * 65536);
+	gi->processSprites(tsprites, view.X, view.Y, vp.Pos.Z * -256, bamang(vp.RotAngle), vp.TicFrac * 65536);
 	DispatchSprites();
 	SetupSprite.Unclock();
 
@@ -528,6 +527,27 @@ void HWDrawInfo::RenderScene(FRenderState &state)
 	drawlists[GLDL_MASKEDWALLSS].DrawWalls(this, state, false);
 
 	// Each list must draw both its passes before the next one to ensure proper depth buffer contents.
+	auto& list = drawlists[GLDL_MASKEDWALLSD].drawitems;
+	unsigned i = 0;
+	RenderWall.Clock();
+	while (i < list.Size())
+	{
+		unsigned j;
+		auto check = drawlists[GLDL_MASKEDWALLSD].walls[list[i].index]->walldist;
+		state.SetDepthMask(false);
+		for (j = i; j < list.Size() && drawlists[GLDL_MASKEDWALLSD].walls[list[j].index]->walldist == check; j++)
+		{
+			drawlists[GLDL_MASKEDWALLSD].walls[list[j].index]->DrawWall(this, state, false);
+		}
+		state.SetDepthMask(true);
+		for (unsigned k = i; k < j; k++)
+		{
+			drawlists[GLDL_MASKEDWALLSD].walls[list[k].index]->DrawWall(this, state, false);
+		}
+		i = j;
+	}
+	RenderWall.Unclock();
+
 	state.SetDepthMask(false);
 	drawlists[GLDL_MASKEDWALLSD].DrawWalls(this, state, false);
 	state.SetDepthMask(true);

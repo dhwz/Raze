@@ -59,6 +59,15 @@ float GlobalFogDensity = 350.f;
 TArray<PortalDesc> allPortals;
 void Draw2D(F2DDrawer* drawer, FRenderState& state);
 
+CVARD(Bool, hw_hightile, true, CVAR_ARCHIVE | CVAR_GLOBALCONFIG, "enable/disable hightile texture rendering")
+bool hw_int_useindexedcolortextures;
+CUSTOM_CVARD(Bool, hw_useindexedcolortextures, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG, "enable/disable indexed color texture rendering")
+{
+	if (screen) screen->SetTextureFilterMode();
+}
+CVARD(Bool, hw_models, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG, "enable/disable model rendering")
+
+
 
 #if 0
 void CollectLights(FLevelLocals* Level)
@@ -141,12 +150,12 @@ void RenderViewpoint(FRenderViewpoint& mainvp, IntRect* bounds, float fov, float
 
 		di->Set3DViewport(RenderState);
 		float flash = 8.f / (r_scenebrightness + 8.f);
-		di->Viewpoint.FieldOfView = fov;	// Set the real FOV for the current scene (it's not necessarily the same as the global setting in r_viewpoint)
+		di->Viewpoint.FieldOfView = FAngle::fromDeg(fov);	// Set the real FOV for the current scene (it's not necessarily the same as the global setting in r_viewpoint)
 
 		// Stereo mode specific perspective projection
 		di->VPUniforms.mProjectionMatrix = eye.GetProjection(fov, ratio, fovratio);
 		// Stereo mode specific viewpoint adjustment
-		vp.Pos += eye.GetViewShift(vp.HWAngles.Yaw.Degrees);
+		vp.Pos += eye.GetViewShift(vp.HWAngles.Yaw.Degrees());
 		di->SetupView(RenderState, vp.Pos.X, vp.Pos.Y, vp.Pos.Z, false, false);
 
 		di->ProcessScene(toscreen);
@@ -183,20 +192,20 @@ void RenderViewpoint(FRenderViewpoint& mainvp, IntRect* bounds, float fov, float
 //
 //===========================================================================
 
-FRenderViewpoint SetupViewpoint(DCoreActor* cam, const vec3_t& position, int sectnum, binangle angle, fixedhoriz horizon, binangle rollang)
+FRenderViewpoint SetupViewpoint(DCoreActor* cam, const vec3_t& position, int sectnum, binangle angle, fixedhoriz horizon, binangle rollang, float fov = -1)
 {
 	FRenderViewpoint r_viewpoint{};
 	r_viewpoint.CameraActor = cam;
 	r_viewpoint.SectNums = nullptr;
 	r_viewpoint.SectCount = sectnum;
 	r_viewpoint.Pos = { position.X / 16.f, position.Y / -16.f, position.Z / -256.f };
-	r_viewpoint.HWAngles.Yaw = -90.f + angle.asdeg();
-	r_viewpoint.HWAngles.Pitch = -horizon.aspitch();
-	r_viewpoint.HWAngles.Roll = -rollang.asdeg();
-	r_viewpoint.FieldOfView = (float)r_fov;
+	r_viewpoint.HWAngles.Yaw = FAngle::fromDeg(- 90.f + angle.asdeg());
+	r_viewpoint.HWAngles.Pitch = FAngle::fromDeg(-horizon.aspitch());
+	r_viewpoint.HWAngles.Roll = FAngle::fromDeg(-rollang.asdeg());
+	r_viewpoint.FieldOfView = FAngle::fromDeg(fov > 0? fov :  (float)r_fov);
 	r_viewpoint.RotAngle = angle.asbam();
 	double FocalTangent = tan(r_viewpoint.FieldOfView.Radians() / 2);
-	DAngle an = 270. - r_viewpoint.HWAngles.Yaw.Degrees;
+	DAngle an = DAngle::fromDeg(270. - r_viewpoint.HWAngles.Yaw.Degrees());
 	r_viewpoint.TanSin = FocalTangent * an.Sin();
 	r_viewpoint.TanCos = FocalTangent * an.Cos();
 	r_viewpoint.ViewVector = an.ToVector();
@@ -229,34 +238,15 @@ void DoWriteSavePic(FileWriter* file, uint8_t* scr, int width, int height, bool 
 bool writingsavepic;
 FileWriter* savefile;
 int savewidth, saveheight;
-void PM_WriteSavePic(FileWriter* file, int width, int height);
-EXTERN_CVAR(Bool, vid_renderer);
 
 void WriteSavePic(FileWriter* file, int width, int height)
 {
-	if (!vid_renderer)
-	{
-		PM_WriteSavePic(file, width, height);
-		return;
-	}
-	int oldx = xdim;
-	int oldy = ydim;
-	auto oldwindowxy1 = windowxy1;
-	auto oldwindowxy2 = windowxy2;
-
-	xdim = width;
-	ydim = height;
-	videoSetViewableArea(0, 0, width - 1, height - 1);
-
 	writingsavepic = true;
 	savefile = file;
 	savewidth = width;
 	saveheight = height;
 	/*bool didit =*/ gi->GenerateSavePic();
 	writingsavepic = false;
-	xdim = oldx;
-	ydim = oldy;
-	videoSetViewableArea(oldwindowxy1.X, oldwindowxy1.Y, oldwindowxy2.X, oldwindowxy2.Y);
 }
 
 void RenderToSavePic(FRenderViewpoint& vp, FileWriter* file, int width, int height)
@@ -282,7 +272,7 @@ void RenderToSavePic(FRenderViewpoint& vp, FileWriter* file, int width, int heig
 
 	twodpsp.Clear();
 
-	RenderViewpoint(vp, &bounds, vp.FieldOfView.Degrees, 1.333f, 1.333f, true, false);
+	RenderViewpoint(vp, &bounds, vp.FieldOfView.Degrees(), 1.333f, 1.333f, true, false);
 
 
 	int numpixels = width * height;
@@ -315,7 +305,7 @@ static void CheckTimer(FRenderState &state, uint64_t ShaderStartTime)
 void animatecamsprite(double s);
 
 
-void render_drawrooms(DCoreActor* playersprite, const vec3_t& position, int sectnum, binangle angle, fixedhoriz horizon, binangle rollang, double smoothratio)
+void render_drawrooms(DCoreActor* playersprite, const vec3_t& position, int sectnum, binangle angle, fixedhoriz horizon, binangle rollang, double smoothratio, float fov)
 {
 	checkRotatedWalls();
 
@@ -329,7 +319,7 @@ void render_drawrooms(DCoreActor* playersprite, const vec3_t& position, int sect
 	ResetProfilingData();
 
 	// Get this before everything else
-	FRenderViewpoint r_viewpoint = SetupViewpoint(playersprite, position, sectnum, angle, horizon, rollang);
+	FRenderViewpoint r_viewpoint = SetupViewpoint(playersprite, position, sectnum, angle, horizon, rollang, fov);
 	if (cl_capfps) r_viewpoint.TicFrac = 1.;
 	else r_viewpoint.TicFrac = smoothratio * (1/65536.);
 
@@ -366,7 +356,7 @@ void render_drawrooms(DCoreActor* playersprite, const vec3_t& position, int sect
 
 	screen->ImageTransitionScene(true); // Only relevant for Vulkan.
 
-	RenderViewpoint(r_viewpoint, nullptr, r_viewpoint.FieldOfView.Degrees, ratio, fovratio, true, true);
+	RenderViewpoint(r_viewpoint, nullptr, r_viewpoint.FieldOfView.Degrees(), ratio, fovratio, true, true);
 	All.Unclock();
 }
 
@@ -383,7 +373,7 @@ void render_camtex(DCoreActor* playersprite, const vec3_t& position, sectortype*
 	FRenderViewpoint r_viewpoint = SetupViewpoint(playersprite, position, sectnum(sect), angle, horizon, rollang);
 	if (cl_capfps) r_viewpoint.TicFrac = smoothratio;
 
-	RenderViewpoint(r_viewpoint, &rect, r_viewpoint.FieldOfView.Degrees, ratio, ratio, false, false);
+	RenderViewpoint(r_viewpoint, &rect, r_viewpoint.FieldOfView.Degrees(), ratio, ratio, false, false);
 	All.Unclock();
 }
 

@@ -57,6 +57,7 @@ public:
 	virtual void BeginPlay() {}
 	void OnDestroy() override;
 	size_t PropagateMark() override;
+	int GetOffsetAndHeight(int& height);
 
 	bool exists() const
 	{
@@ -67,26 +68,80 @@ public:
 	{ 
 		// This is only identical with the sprite index for items spawned at map start.
 		return time; 
-	}	
+	}
+	
+	const vec3_t int_pos() const
+	{
+		return { int(spr.pos.X * worldtoint), int(spr.pos.Y * worldtoint), int(spr.pos.Z * zworldtoint) };
+	}
+
+	void set_int_z(int z)
+	{
+		spr.pos.Z = z * zinttoworld;
+	}
+
+	void add_int_z(int z)
+	{
+		spr.pos.Z += z * zinttoworld;
+	}
+
+	void add_int_pos(const vec3_t& add)
+	{
+		spr.pos += { add.X* inttoworld, add.Y* inttoworld, add.Z* zinttoworld };
+	}
+
+	void set_int_pos(const vec3_t& add)
+	{
+		spr.pos = { add.X* inttoworld, add.Y* inttoworld, add.Z* zinttoworld };
+	}
+
+	void copyXY(DCoreActor* other)
+	{
+		spr.pos.X = other->spr.pos.X;
+		spr.pos.Y = other->spr.pos.Y;
+	}
+
+	void set_int_xy(int x, int y)
+	{
+		spr.pos.X = x * inttoworld;
+		spr.pos.Y = y * inttoworld;
+	}
 
 	DVector3 float_pos() const
 	{
-		return { spr.pos.X * inttoworld, spr.pos.Y * inttoworld, spr.pos.Z * zinttoworld };
+		return spr.pos;
+	}
+	
+	void set_float_z(int z)
+	{
+		spr.pos.Z = z;
+	}
+
+	void add_float_z(int z)
+	{
+		spr.pos.Z += z;
+	}
+
+
+	// Same as above but with invertex y and z axes to match the renderer's coordinate system.
+	DVector3 render_pos() const
+	{
+		return { spr.pos.X, -spr.pos.Y, -spr.pos.Z };
 	}
 
 	int32_t interpolatedx(double const smoothratio, int const scale = 16)
 	{
-		return interpolatedvalue(opos.X, spr.pos.X, smoothratio, scale);
+		return interpolatedvalue(opos.X, spr.int_pos().X, smoothratio, scale);
 	}
 
 	int32_t interpolatedy(double const smoothratio, int const scale = 16)
 	{
-		return interpolatedvalue(opos.Y, spr.pos.Y, smoothratio, scale);
+		return interpolatedvalue(opos.Y, spr.int_pos().Y, smoothratio, scale);
 	}
 
 	int32_t interpolatedz(double const smoothratio, int const scale = 16)
 	{
-		return interpolatedvalue(opos.Z, spr.pos.Z, smoothratio, scale);
+		return interpolatedvalue(opos.Z, spr.int_pos().Z, smoothratio, scale);
 	}
 
 	vec2_t interpolatedvec2(double const smoothratio, int const scale = 16)
@@ -115,27 +170,27 @@ public:
 
 	void backupx()
 	{
-		opos.X = spr.pos.X;
+		opos.X = spr.int_pos().X;
 	}
 
 	void backupy()
 	{
-		opos.Y = spr.pos.Y;
+		opos.Y = spr.int_pos().Y;
 	}
 
 	void backupz()
 	{
-		opos.Z = spr.pos.Z;
+		opos.Z = spr.int_pos().Z;
 	}
 
 	void backupvec2()
 	{
-		opos.vec2 = spr.pos.vec2;
+		opos.vec2 = spr.int_pos().vec2;
 	}
 
 	void backuppos()
 	{
-		opos = spr.pos;
+		opos = spr.int_pos();
 	}
 
 	void backupang()
@@ -438,6 +493,10 @@ inline void SetActor(DCoreActor* actor, const vec3_t& newpos)
 	SetActor(actor, &newpos);
 }
 
+inline void SetActorZ(DCoreActor* actor, const vec3_t& newpos)
+{
+	SetActorZ(actor, &newpos);
+}
 
 
 inline int clipmove(vec3_t& pos, sectortype** const sect, int xvect, int yvect,
@@ -458,11 +517,18 @@ inline int pushmove(vec3_t* const vect, sectortype** const sect, int32_t const w
 	return res;
 }
 
-tspritetype* renderAddTsprite(tspritetype* tsprite, int& spritesortcnt, DCoreActor* actor);
-inline void validateTSpriteSize(tspritetype*& tsprite, int& spritesortcnt)
+inline int pushmove(DCoreActor* actor, sectortype** const sect, int32_t const walldist, int32_t const ceildist, int32_t const flordist,
+	uint32_t const cliptype, bool clear = true)
 {
-
+	auto vect = actor->int_pos();
+	int sectno = *sect ? sector.IndexOf(*sect) : -1;
+	int res = pushmove_(&vect, &sectno, walldist, ceildist, flordist, cliptype, clear);
+	actor->set_int_pos(vect);
+	*sect = sectno == -1 ? nullptr : &sector[sectno];
+	return res;
 }
+
+tspritetype* renderAddTsprite(tspriteArray& tsprites, DCoreActor* actor);
 
 inline PClassActor* PClass::FindActor(FName name)
 {

@@ -63,7 +63,7 @@ void pinsectorresetdown(sectortype* sec)
 
 	if (j == -1)
 	{
-		j = sec->floorz;
+		j = sec->int_floorz();
 		setanimation(sec, anim_ceilingz, sec, j, 64);
 	}
 }
@@ -74,7 +74,7 @@ int pinsectorresetup(sectortype* sec)
 
 	if (j == -1)
 	{
-		j = safenextsectorneighborzptr(sec, sec->ceilingz, -1, -1)->ceilingz;
+		j = nextsectorneighborzptr(sec, sec->int_ceilingz(), Find_CeilingUp | Find_Safe)->int_ceilingz();
 		setanimation(sec, anim_ceilingz, sec, j, 64);
 		return 1;
 	}

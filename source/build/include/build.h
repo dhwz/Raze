@@ -44,7 +44,6 @@ enum
 
     MAXVOXELS = 1024,
     // Maximum number of component tiles in a multi-psky:
-    MAXSPRITESONSCREEN = 4096,
     MAXUNIQHUDID = 256, //Extra slots so HUD models can store animation state without messing game sprites
 
     TSPR_TEMP = 99,
@@ -87,7 +86,6 @@ enum {
 #include "maptypes.h"
 #include "clip.h"
 
-int32_t getwalldist(vec2_t const in, int const wallnum);
 int32_t getwalldist(vec2_t const in, int const wallnum, vec2_t * const out);
 
 EXTERN int32_t guniqhudid;
@@ -100,9 +98,6 @@ struct usermaphack_t
 };
 
 EXTERN int leveltimer;
-
-EXTERN int32_t xdim, ydim;
-EXTERN int32_t yxaspect, viewingrange;
 
 EXTERN int32_t Numsprites;
 EXTERN int32_t display_mirror;
@@ -119,15 +114,6 @@ enum {
 
 inline int32_t g_visibility = 512, g_relvisibility = 0;
 
-EXTERN vec2_t windowxy1, windowxy2;
-
-// last sprite in the freelist, that is the spritenum for which 
-//   .statnum==MAXSTATUS && nextspritestat[spritenum]==-1
-// (or -1 if freelist is empty):
-EXTERN int16_t tailspritefree;
-
-extern uint32_t drawlinepat;
-
 extern uint8_t globalr, globalg, globalb;
 
 enum {
@@ -141,13 +127,6 @@ EXTERN int32_t enginecompatibility_mode;
 
 
 void engineInit(void);
-
-void   videoSetCorrectedAspect();
-void   videoSetViewableArea(int32_t x1, int32_t y1, int32_t x2, int32_t y2);
-void   renderSetAspect(int32_t daxrange, int32_t daaspect);
-
-FCanvasTexture *renderSetTarget(int16_t tilenume);
-void   renderRestoreTarget();
 
 void setVideoMode();
 
@@ -169,30 +148,7 @@ int32_t try_facespr_intersect(DCoreActor* spr, vec3_t const in,
                                      int32_t vx, int32_t vy, int32_t vz,
                                      vec3_t * const intp, int32_t strictly_smaller_than_p);
 
-#define MAXUPDATESECTORDIST 1536
-#define INITIALUPDATESECTORDIST 512 // was 256 which is too low - Exhumed LEV1 has problems with it 
-void updatesector(int const x, int const y, int * const sectnum) ATTRIBUTE((nonnull(3)));
-inline void updatesector(int const x, int const y, sectortype** const sectp)
-{
-	int sectno = *sectp? sector.IndexOf(*sectp) : -1;
-	updatesector(x, y, &sectno);
-	*sectp = sectno == -1? nullptr : &sector[sectno];
-}
-void updatesectorz(int32_t const x, int32_t const y, int32_t const z, int * const sectnum) ATTRIBUTE((nonnull(4)));
 
-inline void updatesectorz(int32_t const x, int32_t const y, int32_t const z, sectortype** const sectp)
-{
-    int sectno = *sectp ? sector.IndexOf(*sectp) : -1;
-    updatesectorz(x, y, z, &sectno);
-    *sectp = sectno == -1 ? nullptr : &sector[sectno];
-}
-
-
-
-void updatesectorneighbor(int32_t const x, int32_t const y, int * const sectnum, int32_t maxDistance = MAXUPDATESECTORDIST) ATTRIBUTE((nonnull(3)));
-
-
-int32_t getsectordist(vec2_t const in, int const sectnum, vec2_t * const out = nullptr);
 extern const int16_t *chsecptr_onextwall;
 
 inline int32_t krand(void)
@@ -219,53 +175,22 @@ inline constexpr uint32_t uhypsq(int32_t const dx, int32_t const dy)
 
 void rotatepoint(vec2_t const pivot, vec2_t p, int16_t const daang, vec2_t * const p2) ATTRIBUTE((nonnull(4)));
 
-sectortype* nextsectorneighborzptr(sectortype* sectp, int refz, int topbottom, int direction);
-inline sectortype* safenextsectorneighborzptr(sectortype* sectp, int refz, int topbottom, int direction)
-{
-    auto sect = nextsectorneighborzptr(sectp, refz, topbottom, direction);
-    return sect == nullptr ? sectp : sect;
-}
-
-int getceilzofslopeptr(const sectortype* sec, int dax, int day) ATTRIBUTE((nonnull(1)));
-int getflorzofslopeptr(const sectortype* sec, int dax, int day) ATTRIBUTE((nonnull(1)));
-void getzsofslopeptr(const sectortype* sec, int dax, int day, int *ceilz, int *florz) ATTRIBUTE((nonnull(1,4,5)));
-
-inline void getcorrectzsofslope(int sectnum, int32_t dax, int32_t day, int32_t *ceilz, int32_t *florz)
-{
-    vec2_t closest = { dax, day };
-    getsectordist(closest, sectnum, &closest);
-    getzsofslopeptr(&sector[sectnum], closest.X, closest.Y, ceilz, florz);
-}
-
-void   alignceilslope(sectortype* dasect, int32_t x, int32_t y, int32_t z);
-void   alignflorslope(sectortype* dasect, int32_t x, int32_t y, int32_t z);
-
 int32_t lintersect(int32_t originX, int32_t originY, int32_t originZ,
                    int32_t destX, int32_t destY, int32_t destZ,
                    int32_t lineStartX, int32_t lineStartY, int32_t lineEndX, int32_t lineEndY,
                    int32_t *intersectionX, int32_t *intersectionY, int32_t *intersectionZ);
 
-int32_t spriteheightofsptr(DCoreActor* spr, int32_t *height, int32_t alsotileyofs);
 
-int videoCaptureScreen();
-
-void Polymost_Startup();
-
-EXTERN_CVAR(Bool, hw_animsmoothing)
 EXTERN_CVAR(Bool, hw_hightile)
 EXTERN_CVAR(Bool, hw_models)
-EXTERN_CVAR(Float, hw_shadescale)
 EXTERN_CVAR(Float, gl_texture_filter_anisotropic)
 EXTERN_CVAR(Int, gl_texture_filter)
 extern bool hw_int_useindexedcolortextures;
 EXTERN_CVAR(Bool, hw_useindexedcolortextures)
-EXTERN_CVAR(Bool, hw_parallaxskypanning)
 EXTERN_CVAR(Bool, r_voxels)
 
 extern int32_t mdtims, omdtims;
 
-extern int32_t r_rortexture;
-extern int32_t r_rortexturerange;
 extern int32_t r_rorphase;
 
 // flags bitset: 1 = don't compress
@@ -291,7 +216,7 @@ typedef struct
     uint16_t    smoothduration;
     hudtyp      hudmem[2];
     int8_t      skinnum;
-    char        pal;
+    uint8_t     pal;
 } tile2model_t;
 
 # define EXTRATILES (MAXTILES/8)
@@ -318,12 +243,6 @@ int32_t md_definehud (int32_t modelid, int32_t tilex, FVector3 add,
 int32_t md_undefinetile(int32_t tile);
 int32_t md_undefinemodel(int32_t modelid);
 
-#ifdef USE_OPENGL
-# include "polymost.h"
-#endif
-
-extern int skiptile;
-
 static vec2_t const zerovec = { 0, 0 };
 
 #define SET_AND_RETURN(Lval, Rval) \
@@ -346,16 +265,5 @@ extern int32_t rintersect(int32_t x1, int32_t y1, int32_t z1,
 
 
 void updateModelInterpolation();
-
-inline void tileUpdatePicnum(int* const tileptr, int const obj, int stat)
-{
-    auto& tile = *tileptr;
-
-    if (picanm[tile].sf & PICANM_ANIMTYPE_MASK)
-        tile += animateoffs(tile, obj);
-
-    if (((obj & 16384) == 16384) && (stat & CSTAT_WALL_ROTATE_90) && RotTile(tile).newtile != -1)
-        tile = RotTile(tile).newtile;
-}
 
 #endif // build_h_

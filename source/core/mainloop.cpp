@@ -77,7 +77,6 @@
 #include "c_console.h"
 #include "uiinput.h"
 #include "v_video.h"
-#include "glbackend/glbackend.h"
 #include "palette.h"
 #include "build.h"
 #include "g_input.h"
@@ -89,6 +88,7 @@
 #include "v_draw.h"
 #include "gamehud.h"
 #include "wipe.h"
+#include "i_interface.h"
 
 CVAR(Bool, vid_activeinbackground, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 CVAR(Bool, r_ticstability, true, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
@@ -100,7 +100,6 @@ ticcmd_t playercmds[MAXPLAYERS];
 static uint64_t stabilityticduration = 0;
 static uint64_t stabilitystarttime = 0;
 
-bool pauseext;
 bool r_NoInterpolate;
 int entertic;
 int oldentertics;
@@ -397,7 +396,6 @@ void DrawOverlays()
 // Display
 //
 //==========================================================================
-EXTERN_CVAR(Bool, vid_renderer);
 
 void Display()
 {
@@ -442,7 +440,6 @@ void Display()
 			screen->SetSceneRenderTarget(gl_ssao != 0);
 			updateModelInterpolation();
 			gi->Render();
-			if (vid_renderer == 0) videoShowFrame();
 			DrawFullscreenBlends();
 			drawMapTitle();
 			break;

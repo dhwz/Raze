@@ -55,7 +55,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "v_text.h"
 #include "resourcefile.h"
 #include "c_dispatch.h"
-#include "glbackend/glbackend.h"
 #include "engineerrors.h"
 #include "gamestate.h"
 #include "gstrings.h"
@@ -82,25 +81,19 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "wipe.h"
 #include "findfile.h"
 #include "version.h"
+#include "hw_material.h"
 
 void LoadHexFont(const char* filename);
 
 CVAR(Bool, autoloadlights, true, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 CVAR(Bool, autoloadbrightmaps, true, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 CVAR(Bool, autoloadwidescreen, true, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
-CVAR (Bool, i_soundinbackground, false, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
-CVAR (Bool, i_pauseinbackground, true, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 
 // Note: For the automap label there is a separate option "am_textfont".
 CVARD(Bool, hud_textfont, false, CVAR_ARCHIVE, "Use the regular text font as replacement for the tiny 3x5 font for HUD messages whenever possible")
 
 EXTERN_CVAR(Bool, ui_generic)
-
-CUSTOM_CVAR(String, language, "auto", CVAR_ARCHIVE | CVAR_NOINITCALL | CVAR_GLOBALCONFIG)
-{
-	GStrings.UpdateLanguage(self);
-	UpdateGenericUI(ui_generic);
-}
+EXTERN_CVAR(String, language)
 
 CUSTOM_CVAR(Int, mouse_capturemode, 1, CVAR_GLOBALCONFIG | CVAR_ARCHIVE)
 {
@@ -136,7 +129,6 @@ extern bool pauseext;
 
 cycle_t thinktime, actortime, gameupdatetime, drawtime;
 
-gamestate_t gamestate = GS_STARTUP;
 gameaction_t gameaction = ga_nothing;
 // gameaction state
 MapRecord* g_nextmap;
@@ -145,8 +137,6 @@ int g_bossexit;
 
 
 FILE* hashfile;
-
-FStartupInfo GameStartupInfo;
 
 InputState inputState;
 int ShowStartupWindow(TArray<GrpEntry> &);
@@ -166,22 +156,22 @@ void MarkMap();
 void BuildFogTable();
 void ParseGLDefs();
 void I_UpdateDiscordPresence(bool SendPresence, const char* curstatus, const char* appid, const char* steamappid);
+bool G_Responder(event_t* ev);
+void HudScaleChanged();
+bool M_SetSpecialMenu(FName& menu, int param);
+void OnMenuOpen(bool makeSound);
 
 DStatusBarCore* StatusBar;
-
-
-bool AppActive = true;
 
 FString currentGame;
 FString LumpFilter;
 
-CVAR(Bool, queryiwad, true, CVAR_ARCHIVE | CVAR_GLOBALCONFIG);
-CVAR(String, defaultiwad, "", CVAR_ARCHIVE | CVAR_GLOBALCONFIG);
+EXTERN_CVAR(Bool, queryiwad);
+EXTERN_CVAR(String, defaultiwad);
 CVAR(Bool, disableautoload, false, CVAR_ARCHIVE | CVAR_NOINITCALL | CVAR_GLOBALCONFIG)
 
 extern int hud_size_max;
 
-int paused;
 bool pausedWithKey;
 
 bool gamesetinput = false;
@@ -257,10 +247,10 @@ static bool System_DisableTextureFilter()
 
 static IntRect System_GetSceneRect()
 {
-	int viewbottom = windowxy2.Y + 1;
-	int viewheight = viewbottom - windowxy1.Y;
-	int viewright = windowxy2.X + 1;
-	int viewwidth = viewright - windowxy1.X;
+	int viewbottom = viewport3d.Bottom();
+	int viewheight = viewport3d.Height();
+	int viewright = viewport3d.Right();
+	int viewwidth = viewport3d.Width();
 
 	int renderheight;
 
@@ -268,8 +258,8 @@ static IntRect System_GetSceneRect()
 	else renderheight = (viewwidth * screen->GetHeight() / screen->GetWidth()) & ~7;
 
 	IntRect mSceneViewport;
-	mSceneViewport.left = windowxy1.X;
-	mSceneViewport.top = screen->GetHeight() - (renderheight + windowxy1.Y - ((renderheight - viewheight) / 2));
+	mSceneViewport.left = viewport3d.Left();
+	mSceneViewport.top = screen->GetHeight() - (renderheight + viewport3d.Top() - ((renderheight - viewheight) / 2));
 	mSceneViewport.width = viewwidth;
 	mSceneViewport.height = renderheight;
 	return mSceneViewport;
@@ -553,6 +543,8 @@ static void System_SetTransition(int type)
 	nextwipe = type;
 }
 
+
+
 void I_StartupJoysticks();
 void I_ShutdownInput();
 int RunGame();
@@ -566,6 +558,7 @@ int GameMain()
 	SetConsoleNotifyBuffer();
 	sysCallbacks =
 	{
+		G_Responder,
 		System_WantGuiCapture,
 		System_WantLeftButton,
 		System_NetGame,
@@ -591,6 +584,13 @@ int GameMain()
 		System_ToggleFullConsole,
 		System_StartCutscene,
 		System_SetTransition,
+		CheckCheatmode,
+		HudScaleChanged,
+		M_SetSpecialMenu,
+		OnMenuOpen,
+		nullptr,
+		nullptr,
+		[]() ->FConfigFile* { return GameConfig; }
 	};
 
 	try
@@ -773,9 +773,20 @@ static TArray<GrpEntry> SetupGame()
 					stuff.Path = ExtractFileBase(found.FileName);
 					wads.Push(stuff);
 				}
-				pick = I_PickIWad(&wads[0], (int)wads.Size(), queryiwad, pick);
+
+				int flags = 0;
+				if (disableautoload) flags |= 1;
+				if (autoloadlights) flags |= 2;
+				if (autoloadbrightmaps) flags |= 4;
+				if (autoloadwidescreen) flags |= 8;
+
+				pick = I_PickIWad(&wads[0], (int)wads.Size(), queryiwad, pick, flags);
 				if (pick >= 0)
 				{
+					disableautoload = !!(flags & 1);
+					autoloadlights = !!(flags & 2);
+					autoloadbrightmaps = !!(flags & 4);
+					autoloadwidescreen = !!(flags & 8);
 					// The newly selected IWAD becomes the new default
 					defaultiwad = groups[pick].FileName;
 				}
@@ -957,6 +968,8 @@ int RunGame()
 {
 	GameStartupInfo.FgColor = 0xffffff;
 
+	G_LoadConfig();
+
 	auto wad = BaseFileSearch(ENGINERES_FILE, NULL, true, GameConfig);
 	if (wad == NULL)
 	{
@@ -979,7 +992,6 @@ int RunGame()
 	}
 	I_DetectOS();
 	userConfig.ProcessOptions();
-	G_LoadConfig();
 	GetGames();
 	auto usedgroups = SetupGame();
 
@@ -1129,7 +1141,6 @@ int RunGame()
 	setVideoMode();
 
 	LoadVoxelModels();
-	GLInterface.Init(screen->GetWidth());
 	screen->BeginFrame();
 	screen->SetTextureFilterMode();
 	setViewport(hud_size);
@@ -1184,10 +1195,10 @@ void LoadVoxelModels(void);
 
 void setVideoMode()
 {
-	xdim = screen->GetWidth();
-	ydim = screen->GetHeight();
+	int xdim = screen->GetWidth();
+	int ydim = screen->GetHeight();
 	V_UpdateModeSize(xdim, ydim);
-	videoSetViewableArea(0, 0, xdim - 1, ydim - 1);
+	viewport3d = { 0, 0, xdim, ydim };
 }
 
 //==========================================================================
@@ -1240,92 +1251,6 @@ CCMD(snd_reset)
 	Mus_Stop();
 	if (soundEngine) soundEngine->Reset();
 	Mus_ResumeSaved();
-}
-
-//==========================================================================
-//
-// S_PauseSound
-//
-// Stop music and sound effects, during game PAUSE.
-//
-//==========================================================================
-
-void S_PauseSound (bool notmusic, bool notsfx)
-{
-	if (!notmusic)
-	{
-		S_PauseMusic();
-	}
-	if (!notsfx)
-	{
-		soundEngine->SetPaused(true);
-		GSnd->SetSfxPaused (true, 0);
-		S_PauseAllCustomStreams(true);
-	}
-}
-
-//==========================================================================
-//
-// S_ResumeSound
-//
-// Resume music and sound effects, after game PAUSE.
-//
-//==========================================================================
-
-void S_ResumeSound (bool notsfx)
-{
-	S_ResumeMusic();
-	if (!notsfx)
-	{
-		soundEngine->SetPaused(false);
-		GSnd->SetSfxPaused (false, 0);
-		S_PauseAllCustomStreams(false);
-	}
-}
-
-//==========================================================================
-//
-// S_SetSoundPaused
-//
-// Called with state non-zero when the app is active, zero when it isn't.
-//
-//==========================================================================
-
-void S_SetSoundPaused(int state)
-{
-	if (!netgame && (i_pauseinbackground)
-#if 0 //ifdef _DEBUG
-		&& !demoplayback
-#endif
-		)
-	{
-		pauseext = !state;
-	}
-
-	if ((state || i_soundinbackground) && !pauseext)
-	{
-		if (paused == 0)
-		{
-			S_ResumeSound(true);
-			if (GSnd != nullptr)
-			{
-				GSnd->SetInactive(SoundRenderer::INACTIVE_Active);
-			}
-		}
-	}
-	else
-	{
-		if (paused == 0)
-		{
-			S_PauseSound(false, true);
-			if (GSnd != nullptr)
-			{
-				GSnd->SetInactive(gamestate == GS_LEVEL || gamestate == GS_TITLELEVEL ?
-					SoundRenderer::INACTIVE_Complete :
-					SoundRenderer::INACTIVE_Mute);
-			}
-		}
-	}
 }
 
 
@@ -1460,7 +1385,7 @@ void DrawCrosshair(int deftile, int health, double xdelta, double ydelta, double
 				double crosshair_scale = crosshairscale * scale;
 				DrawTexture(twod, tile, 160 + xdelta, 100 + ydelta, DTA_Color, color,
 					DTA_FullscreenScale, FSMode_Fit320x200, DTA_ScaleX, crosshair_scale, DTA_ScaleY, crosshair_scale, DTA_CenterOffsetRel, true,
-					DTA_ViewportX, windowxy1.X, DTA_ViewportY, windowxy1.Y, DTA_ViewportWidth, windowxy2.X - windowxy1.X + 1, DTA_ViewportHeight, windowxy2.Y - windowxy1.Y + 1, TAG_DONE);
+					DTA_ViewportX, viewport3d.Left(), DTA_ViewportY, viewport3d.Top(), DTA_ViewportWidth, viewport3d.Width(), DTA_ViewportHeight, viewport3d.Height(), TAG_DONE);
 
 				return;
 			}
@@ -1468,8 +1393,8 @@ void DrawCrosshair(int deftile, int health, double xdelta, double ydelta, double
 		// 0 means 'game provided crosshair' - use type 2 as fallback.
 		ST_LoadCrosshair(crosshair == 0 ? 2 : *crosshair, false);
 
-		double xpos = (windowxy1.X + windowxy2.X) / 2 + xdelta * (windowxy2.Y - windowxy1.Y) / 240.;
-		double ypos = (windowxy1.Y + windowxy2.Y) / 2;
+		double xpos = viewport3d.Width() * 0.5 + xdelta * viewport3d.Height() / 240.;
+		double ypos = viewport3d.Height() * 0.5;
 		ST_DrawCrosshair(health, xpos, ypos, 1);
 	}
 }
@@ -1573,10 +1498,10 @@ bool validFilter(const char* str)
 DEFINE_ACTION_FUNCTION(_Screen, GetViewWindow)
 {
 	PARAM_PROLOGUE;
-	if (numret > 0) ret[0].SetInt(windowxy1.X);
-	if (numret > 1) ret[1].SetInt(windowxy1.Y);
-	if (numret > 2) ret[2].SetInt(windowxy2.X - windowxy1.X + 1);
-	if (numret > 3) ret[3].SetInt(windowxy2.Y - windowxy1.Y + 1);
+	if (numret > 0) ret[0].SetInt(viewport3d.Left());
+	if (numret > 1) ret[1].SetInt(viewport3d.Top());
+	if (numret > 2) ret[2].SetInt(viewport3d.Width());
+	if (numret > 3) ret[3].SetInt(viewport3d.Height());
 	return min(numret, 4);
 }
 

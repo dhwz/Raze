@@ -114,6 +114,7 @@ struct sectortype native
 	native readonly float ceilingypan;
 	native readonly float floorxpan;
 	native readonly float floorypan;
+	native readonly double ceilingz, floorz;
 
 	native readonly int wallptr;
 	native readonly int16 wallnum;
@@ -188,8 +189,6 @@ struct sectortype native
 	}
 */
 
-	native double floorz();
-	native double ceilingz();
 	native void setceilingz(double cc, bool temp = false);
 	native void setfloorz(double cc, bool temp = false);
 	native void addceilingz(double cc, bool temp = false);
@@ -298,11 +297,7 @@ struct tspritetype native
 	native int8 yoffset;
 	native CoreActor ownerActor;
 	native int time;
-	
-	//void setPic(string texture);
-	native Vector3 pos();
-	native void setPos(Vector3 pos);
-	native void addPos(Vector3 pos);
+
 }
 
 enum ESprextFlags

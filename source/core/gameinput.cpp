@@ -25,44 +25,52 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "gameinput.h"
 #include "gamestruct.h"
 #include "serializer.h"
-#include "build.h"
-
-CVARD(Bool, invertmousex, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG, "invert horizontal mouse movement")
-CVARD(Bool, invertmouse, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG, "invert vertical mouse movement")
+#include "gamefuncs.h"
 
 //---------------------------------------------------------------------------
 //
-// code fron gameexec/conrun
+// Input scale helper functions.
 //
 //---------------------------------------------------------------------------
 
-int getincangle(int a, int na)
+inline static double getTicrateScale(const double value)
 {
-	a &= 2047;
-	na &= 2047;
-
-	if(abs(a-na) >= 1024)
-	{
-		if(na > 1024) na -= 2048;
-		if(a > 1024) a -= 2048;
-	}
-
-	return na-a;
+	return value * (1. / GameTicRate);
 }
 
-binangle getincanglebam(binangle a, binangle na)
+inline static double getPushScale(const double scaleAdjust)
 {
-	int64_t cura = a.asbam();
-	int64_t newa = na.asbam();
-
-	if(abs(cura-newa) > INT32_MAX)
-	{
-		if(newa > INT32_MAX) newa -= UINT32_MAX;
-		if(cura > INT32_MAX) cura -= UINT32_MAX;
-	}
-
-	return bamang(uint32_t(newa-cura));
+	return (2. / 9.) * (scaleAdjust < 1. ? (1. - scaleAdjust * 0.5) * 1.5 : 1.);
 }
+
+inline static fixedhoriz getscaledhoriz(const double value, const double scaleAdjust, const fixedhoriz& object, const double push)
+{
+	return buildfhoriz(scaleAdjust * ((object.asbuildf() * getTicrateScale(value)) + push));
+}
+
+inline static binangle getscaledangle(const double value, const double scaleAdjust, const binangle& object, const double push)
+{
+	return buildfang(scaleAdjust * ((object.signedbuildf() * getTicrateScale(value)) + push));
+}
+
+inline static void scaletozero(fixedhoriz& object, const double value, const double scaleAdjust, const double push = DBL_MAX)
+{
+	if (auto sgn = Sgn(object.asq16()))
+	{
+		object  -= getscaledhoriz(value, scaleAdjust, object, push == DBL_MAX ? sgn * getPushScale(scaleAdjust) : push);
+		if (sgn != Sgn(object.asq16())) object = q16horiz(0);
+	}
+}
+
+inline static void scaletozero(binangle& object, const double value, const double scaleAdjust, const double push = DBL_MAX)
+{
+	if (auto sgn = Sgn(object.signedbam()))
+	{
+		object  -= getscaledangle(value, scaleAdjust, object, push == DBL_MAX ? sgn * getPushScale(scaleAdjust) : push);
+		if (sgn != Sgn(object.signedbam())) object = bamang(0);
+	}
+}
+
 
 //---------------------------------------------------------------------------
 //
@@ -102,6 +110,7 @@ void resetTurnHeldAmt()
 	turnheldtime = 0;
 }
 
+
 //---------------------------------------------------------------------------
 //
 // Player's movement function, called from game's ticker or from gi->GetInput() as required.
@@ -131,110 +140,98 @@ SW:   3 * 1.40625 * 40 = 168.75; // Precisely, ((((3 * 12) + ((3 * 12) / 4)) * 3
 Average: 234.375;
 */
 
-enum
-{
-	RUNNINGTURNBASE = 1549,
-	NORMALTURNBASE = 891,
-	PREAMBLEBASE = 234,
-};
+static constexpr double RUNNINGTURNBASE = 1548.75;
+static constexpr double NORMALTURNBASE = 890.625;
+static constexpr double PREAMBLEBASE = 234.375;
+static constexpr double PREAMBLESCALE = PREAMBLEBASE / NORMALTURNBASE;
 
 void processMovement(InputPacket* const currInput, InputPacket* const inputBuffer, ControlInfo* const hidInput, double const scaleAdjust, int const drink_amt, bool const allowstrafe, double const turnscale)
 {
 	// set up variables
 	int const running = !!(inputBuffer->actions & SB_RUN);
 	int const keymove = gi->playerKeyMove() << running;
+	bool const strafing = buttonMap.ButtonDown(gamefunc_Strafe) && allowstrafe;
 	float const mousevelscale = keymove * (1.f / 160.f);
 	double const hidprescale = g_gameType & GAMEFLAG_PSEXHUMED ? 5. : 1.;
-	double const hidspeed = getTicrateScale(running ? RUNNINGTURNBASE : NORMALTURNBASE) * BAngToDegree;
+	double const hidspeed = getTicrateScale(RUNNINGTURNBASE) * turnscale * BAngToDegree;
 
 	// process mouse and initial controller input.
-	if (buttonMap.ButtonDown(gamefunc_Strafe) && allowstrafe)
-		currInput->svel -= xs_CRoundToInt(((hidInput->mousemovex * mousevelscale) + (scaleAdjust * hidInput->dyaw * keymove)) * hidprescale);
+	if (!strafing)
+		currInput->avel += float(hidInput->mouseturnx + (scaleAdjust * hidInput->dyaw * hidspeed));
 	else
-		currInput->avel += float(hidInput->mouseturnx + (scaleAdjust * hidInput->dyaw * hidspeed * turnscale));
+		currInput->svel -= int16_t(((hidInput->mousemovex * mousevelscale) + (scaleAdjust * hidInput->dyaw * keymove)) * hidprescale);
 
 	if (!(inputBuffer->actions & SB_AIMMODE))
 		currInput->horz -= hidInput->mouseturny;
 	else
-		currInput->fvel -= xs_CRoundToInt(hidInput->mousemovey * mousevelscale * hidprescale);
-
-	if (invertmouse)
-		currInput->horz = -currInput->horz;
-
-	if (invertmousex)
-		currInput->avel = -currInput->avel;
+		currInput->fvel -= int16_t(hidInput->mousemovey * mousevelscale * hidprescale);
 
 	// process remaining controller input.
 	currInput->horz -= float(scaleAdjust * hidInput->dpitch * hidspeed);
-	currInput->svel += xs_CRoundToInt(scaleAdjust * hidInput->dx * keymove * hidprescale);
-	currInput->fvel += xs_CRoundToInt(scaleAdjust * hidInput->dz * keymove * hidprescale);
+	currInput->svel += int16_t(scaleAdjust * hidInput->dx * keymove * hidprescale);
+	currInput->fvel += int16_t(scaleAdjust * hidInput->dz * keymove * hidprescale);
 
 	// process keyboard turning keys.
-	if (buttonMap.ButtonDown(gamefunc_Strafe) && allowstrafe)
-	{
-		if (abs(inputBuffer->svel) < keymove)
-		{
-			if (buttonMap.ButtonDown(gamefunc_Turn_Left))
-				currInput->svel += keymove;
-
-			if (buttonMap.ButtonDown(gamefunc_Turn_Right))
-				currInput->svel -= keymove;
-		}
-	}
-	else
+	if (!strafing)
 	{
 		bool const turnleft = buttonMap.ButtonDown(gamefunc_Turn_Left) || (buttonMap.ButtonDown(gamefunc_Strafe_Left) && !allowstrafe);
 		bool const turnright = buttonMap.ButtonDown(gamefunc_Turn_Right) || (buttonMap.ButtonDown(gamefunc_Strafe_Right) && !allowstrafe);
 
 		if (turnleft || turnright)
 		{
-			updateTurnHeldAmt(scaleAdjust);
-			float const turnamount = float(scaleAdjust * hidspeed * turnscale * (isTurboTurnTime() ? 1. : double(PREAMBLEBASE) / double(NORMALTURNBASE)));
+			double const turnspeed = getTicrateScale(running ? RUNNINGTURNBASE : NORMALTURNBASE) * turnscale * BAngToDegree;
+			float const turnamount = float(scaleAdjust * turnspeed * (isTurboTurnTime() ? 1. : PREAMBLESCALE));
 
 			if (turnleft)
 				currInput->avel -= turnamount;
 
 			if (turnright)
 				currInput->avel += turnamount;
+
+			updateTurnHeldAmt(scaleAdjust);
 		}
 		else
 		{
 			resetTurnHeldAmt();
 		}
 	}
-
-	// process keyboard forward/side velocity keys.
-	if (abs(inputBuffer->svel) < keymove)
+	else
 	{
-		if (buttonMap.ButtonDown(gamefunc_Strafe_Left) && allowstrafe)
+		if (buttonMap.ButtonDown(gamefunc_Turn_Left))
 			currInput->svel += keymove;
 
-		if (buttonMap.ButtonDown(gamefunc_Strafe_Right) && allowstrafe)
+		if (buttonMap.ButtonDown(gamefunc_Turn_Right))
 			currInput->svel -= keymove;
 	}
-	if (abs(inputBuffer->fvel) < keymove)
+
+	// process keyboard side velocity keys.
+	if (buttonMap.ButtonDown(gamefunc_Strafe_Left) && allowstrafe)
+		currInput->svel += keymove;
+
+	if (buttonMap.ButtonDown(gamefunc_Strafe_Right) && allowstrafe)
+		currInput->svel -= keymove;
+
+	// process keyboard forward velocity keys.
+	if (!(isRR() && drink_amt >= 66 && drink_amt <= 87))
 	{
-		if (isRR() && drink_amt >= 66 && drink_amt <= 87)
-		{
-			if (buttonMap.ButtonDown(gamefunc_Move_Forward))
-			{
-				currInput->fvel += keymove;
-				currInput->svel += drink_amt & 1 ? keymove : -keymove;
-			}
+		if (buttonMap.ButtonDown(gamefunc_Move_Forward))
+			currInput->fvel += keymove;
 
-			if (buttonMap.ButtonDown(gamefunc_Move_Backward))
-			{
-				currInput->fvel -= keymove;
-				currInput->svel -= drink_amt & 1 ? keymove : -keymove;
-			}
+		if (buttonMap.ButtonDown(gamefunc_Move_Backward))
+			currInput->fvel -= keymove;
+	}
+	else
+	{
+		if (buttonMap.ButtonDown(gamefunc_Move_Forward))
+		{
+			currInput->fvel += keymove;
+			currInput->svel += drink_amt & 1 ? keymove : -keymove;
 		}
-		else
-		{
-			if (buttonMap.ButtonDown(gamefunc_Move_Forward))
-				currInput->fvel += keymove;
 
-			if (buttonMap.ButtonDown(gamefunc_Move_Backward))
-				currInput->fvel -= keymove;
+		if (buttonMap.ButtonDown(gamefunc_Move_Backward))
+		{
+			currInput->fvel -= keymove;
+			currInput->svel -= drink_amt & 1 ? keymove : -keymove;
 		}
 	}
 
@@ -277,7 +274,7 @@ enum
 
 void PlayerHorizon::applyinput(float const horz, ESyncBits* actions, double const scaleAdjust)
 {
-	// Process only if movewment isn't locked.
+	// Process only if movement isn't locked.
 	if (!movementlocked())
 	{
 		// Test if we have input to process.
@@ -328,6 +325,7 @@ void PlayerHorizon::applyinput(float const horz, ESyncBits* actions, double cons
 	}
 }
 
+
 //---------------------------------------------------------------------------
 //
 // Player's angle function, called from game's ticker or from gi->GetInput() as required.
@@ -355,9 +353,11 @@ Blood:    128 * 30 = 3840;
 Blood:     64 * 30 = 1920;
 */
 
+static constexpr double ROTRETURNSPEED  = (1. / 2.) * 30.;
+static constexpr double LOOKRETURNSPEED = (1. / 4.) * 30.;
+
 enum
 {
-	LOOKROTRETBASE = 15,
 	ROTATESPEED = 720,
 	LOOKINGSPEED = 4560,
 	SPINSTAND = 3840,
@@ -367,16 +367,16 @@ enum
 void PlayerAngle::applyinput(float const avel, ESyncBits* actions, double const scaleAdjust)
 {
 	// Process angle return to zeros.
-	scaletozero(rotscrnang, LOOKROTRETBASE, scaleAdjust);
-	scaletozero(look_ang, +LOOKROTRETBASE * 0.5, scaleAdjust);
+	scaletozero(rotscrnang, ROTRETURNSPEED, scaleAdjust);
+	scaletozero(look_ang, LOOKRETURNSPEED, scaleAdjust);
 
 	// Process keyboard input.
 	auto doLookKeys = [&](ESyncBits_ const key, double const direction)
 	{
 		if (*actions & key)
 		{
-			look_ang += getscaledangle(LOOKINGSPEED, scaleAdjust * direction);
-			rotscrnang -= getscaledangle(ROTATESPEED, scaleAdjust * direction);
+			look_ang += buildfang(getTicrateScale(LOOKINGSPEED) * scaleAdjust * direction);
+			rotscrnang -= buildfang(getTicrateScale(ROTATESPEED) * scaleAdjust * direction);
 		}
 	};
 	doLookKeys(SB_LOOK_LEFT, -1);
@@ -420,6 +420,7 @@ void PlayerAngle::applyinput(float const avel, ESyncBits* actions, double const 
 	}
 }
 
+
 //---------------------------------------------------------------------------
 //
 // Player's slope tilt when playing without a mouse and on a slope.
@@ -432,6 +433,8 @@ Duke: (1 / 8) * 30 = 3.75;
 SW:   (1 / 8) * 40 = 5;
 Average: 4.375;
 */
+
+static constexpr double HORIZOFFSPEED = (1. / 8.) * 35.;
 
 enum
 {
@@ -472,7 +475,7 @@ void PlayerHorizon::calcviewpitch(vec2_t const pos, binangle const ang, bool con
 				// accordingly
 				if (cursectnum == tempsect || (!isBlood() && abs(getflorzofslopeptr(tempsect, x, y) - k) <= (4 << 8)))
 				{
-					horizoff += q16horiz(xs_CRoundToInt(scaleAdjust * ((j - k) * (!isBlood() ? DEFVIEWPITCH : BLOODVIEWPITCH))));
+					horizoff += q16horiz(fixed_t(scaleAdjust * ((j - k) * (!isBlood() ? DEFVIEWPITCH : BLOODVIEWPITCH))));
 				}
 			}
 		}
@@ -480,19 +483,22 @@ void PlayerHorizon::calcviewpitch(vec2_t const pos, binangle const ang, bool con
 		if (climbing)
 		{
 			// tilt when climbing but you can't even really tell it.
-			if (horizoff.asq16() < IntToFixed(100))
-			{
-				auto temphorizoff = buildhoriz(100) - horizoff;
-				horizoff += getscaledhoriz(4.375, scaleAdjust, &temphorizoff, 1.);
-			}
+			if (horizoff.asq16() < IntToFixed(100)) horizoff += getscaledhoriz(HORIZOFFSPEED, scaleAdjust, buildhoriz(100) - horizoff, 1.);
 		}
 		else
 		{
 			// Make horizoff grow towards 0 since horizoff is not modified when you're not on a slope.
-			scaletozero(horizoff, 4.375, scaleAdjust, Sgn(horizoff.asq16()));
+			scaletozero(horizoff, HORIZOFFSPEED, scaleAdjust, Sgn(horizoff.asq16()));
 		}
 	}
 }
+
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 FSerializer& Serialize(FSerializer& arc, const char* keyname, PlayerAngle& w, PlayerAngle* def)
 {

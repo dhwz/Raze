@@ -45,7 +45,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "razefont.h"
 
 
-EXTERN_CVAR(Bool, vid_renderer)
 BEGIN_BLD_NS
 
 VIEW gPrevView[kMaxPlayers];
@@ -67,8 +66,8 @@ void viewBackupView(int nPlayer)
 	PLAYER* pPlayer = &gPlayer[nPlayer];
 	VIEW* pView = &gPrevView[nPlayer];
 	pView->angle = pPlayer->angle.ang;
-	pView->x = pPlayer->actor->spr.pos.X;
-	pView->y = pPlayer->actor->spr.pos.Y;
+	pView->x = pPlayer->actor->int_pos().X;
+	pView->y = pPlayer->actor->int_pos().Y;
 	pView->viewz = pPlayer->zView;
 	pView->weaponZ = pPlayer->zWeapon - pPlayer->zView - 0xc00;
 	pView->horiz = pPlayer->horizon.horiz;
@@ -94,9 +93,9 @@ void viewCorrectViewOffsets(int nPlayer, vec3_t const* oldpos)
 {
 	PLAYER* pPlayer = &gPlayer[nPlayer];
 	VIEW* pView = &gPrevView[nPlayer];
-	pView->x += pPlayer->actor->spr.pos.X - oldpos->X;
-	pView->y += pPlayer->actor->spr.pos.Y - oldpos->Y;
-	pView->viewz += pPlayer->actor->spr.pos.Z - oldpos->Z;
+	pView->x += pPlayer->actor->int_pos().X - oldpos->X;
+	pView->y += pPlayer->actor->int_pos().Y - oldpos->Y;
+	pView->viewz += pPlayer->actor->int_pos().Z - oldpos->Z;
 }
 
 //---------------------------------------------------------------------------
@@ -467,14 +466,14 @@ int32_t g_frameRate;
 static void DrawMap(DBloodActor* view)
 {
 	int tm = 0;
-	if (windowxy1.X > 0)
+	if (viewport3d.Left() > 0)
 	{
 		setViewport(Hud_Stbar);
 		tm = 1;
 	}
 	VIEW* pView = &gPrevView[gViewIndex];
-	int x = interpolatedvalue(pView->x, view->spr.pos.X, gInterpolate);
-	int y = interpolatedvalue(pView->y, view->spr.pos.Y, gInterpolate);
+	int x = interpolatedvalue(pView->x, view->int_pos().X, gInterpolate);
+	int y = interpolatedvalue(pView->y, view->int_pos().Y, gInterpolate);
 	int ang = (!SyncInput() ? gView->angle.sum() : gView->angle.interpolatedsum(gInterpolate)).asbuild();
 	DrawOverheadMap(x, y, ang, gInterpolate);
 	if (tm)
@@ -522,8 +521,8 @@ void SetupView(int& cX, int& cY, int& cZ, binangle& cA, fixedhoriz& cH, sectorty
 #endif
 	{
 		VIEW* pView = &gPrevView[gViewIndex];
-		cX = interpolatedvalue(pView->x, gView->actor->spr.pos.X, gInterpolate);
-		cY = interpolatedvalue(pView->y, gView->actor->spr.pos.Y, gInterpolate);
+		cX = interpolatedvalue(pView->x, gView->actor->int_pos().X, gInterpolate);
+		cY = interpolatedvalue(pView->y, gView->actor->int_pos().Y, gInterpolate);
 		cZ = interpolatedvalue(pView->viewz, gView->zView, gInterpolate);
 		zDelta = interpolatedvaluef(pView->weaponZ, gView->zWeapon - gView->zView - (12 << 8), gInterpolate);
 		bobWidth = interpolatedvalue(pView->bobWidth, gView->bobWidth, gInterpolate);
@@ -558,7 +557,7 @@ void SetupView(int& cX, int& cY, int& cZ, binangle& cA, fixedhoriz& cH, sectorty
 		{
 			cZ += bobHeight;
 		}
-		cZ += xs_CRoundToInt(cH.asq16() / 6553.6);
+		cZ += int(cH.asq16() * (1. / 6553.6));
 		cameradist = -1;
 		cameraclock = PlayClock + MulScale(4, (int)gInterpolate, 16);
 	}
@@ -566,7 +565,8 @@ void SetupView(int& cX, int& cY, int& cZ, binangle& cA, fixedhoriz& cH, sectorty
 	{
 		calcChaseCamPos((int*)&cX, (int*)&cY, (int*)&cZ, gView->actor, &pSector, cA, cH, gInterpolate);
 	}
-	CheckLink((int*)&cX, (int*)&cY, (int*)&cZ, &pSector);
+	if (pSector != nullptr)
+		CheckLink((int*)&cX, (int*)&cY, (int*)&cZ, &pSector);
 }
 
 //---------------------------------------------------------------------------
@@ -631,7 +631,6 @@ void renderCrystalBall()
 	drawrooms(vd8, vd4, vd0, v50, v54, vcc);
 	viewProcessSprites(vd8, vd4, vd0, v50, gInterpolate);
 	renderDrawMasks();
-	renderRestoreTarget();
 #endif
 }
 
@@ -655,7 +654,6 @@ void viewDrawScreen(bool sceneonly)
 		gInterpolate = !cl_interpolate || cl_capfps ? MaxSmoothRatio : I_GetTimeFrac() * MaxSmoothRatio;
 	}
 	else gInterpolate = MaxSmoothRatio;
-	pm_smoothratio = (int)gInterpolate;
 
 	if (cl_interpolate)
 	{
@@ -742,16 +740,20 @@ void viewDrawScreen(bool sceneonly)
 		g_relvisibility = (int32_t)(ClipLow(gVisibility - 32 * gView->visibility - brightness, 0)) - g_visibility;
 		cA += interpolatedangle(buildang(deliriumTurnO), buildang(deliriumTurn), gInterpolate);
 
-		int ceilingZ, floorZ;
-		getzsofslopeptr(pSector, cX, cY, &ceilingZ, &floorZ);
-		if ((cZ > floorZ - (1 << 8)) && (pSector->upperLink == nullptr)) // clamp to floor
+		if (pSector != nullptr)
 		{
-			cZ = floorZ - (1 << 8);
+			int ceilingZ, floorZ;
+			getzsofslopeptr(pSector, cX, cY, &ceilingZ, &floorZ);
+			if ((cZ > floorZ - (1 << 8)) && (pSector->upperLink == nullptr)) // clamp to floor
+			{
+				cZ = floorZ - (1 << 8);
+			}
+			if ((cZ < ceilingZ + (1 << 8)) && (pSector->lowerLink == nullptr)) // clamp to ceiling
+			{
+				cZ = ceilingZ + (1 << 8);
+			}
 		}
-		if ((cZ < ceilingZ + (1 << 8)) && (pSector->lowerLink == nullptr)) // clamp to ceiling
-		{
-			cZ = ceilingZ + (1 << 8);
-		}
+
 		cH = q16horiz(ClipRange(cH.asq16(), gi->playerHorizMin(), gi->playerHorizMax()));
 
 		if ((tilt.asbam() || bDelirium) && !sceneonly)
@@ -766,21 +768,12 @@ void viewDrawScreen(bool sceneonly)
 			}
 		}
 
-		if (vid_renderer)
-		{
-			if (!sceneonly) hudDraw(gView, pSector, shakeX, shakeY, zDelta, basepal, gInterpolate);
-			fixedhoriz deliriumPitchI = q16horiz(interpolatedvalue(IntToFixed(deliriumPitchO), IntToFixed(deliriumPitch), gInterpolate));
-			auto bakCstat = gView->actor->spr.cstat;
-			gView->actor->spr.cstat |= (gViewPos == 0) ? CSTAT_SPRITE_INVISIBLE : CSTAT_SPRITE_TRANSLUCENT | CSTAT_SPRITE_TRANS_FLIP;
-			render_drawrooms(gView->actor, { cX, cY, cZ }, sectnum(pSector), cA, cH + deliriumPitchI, rotscrnang, gInterpolate);
-			gView->actor->spr.cstat = bakCstat;
-		}
-		else
-		{
-			renderSetRollAngle((float)rotscrnang.asbuildf());
-			render3DViewPolymost(sectnum(pSector), cX, cY, cZ, cA, cH);
-			if (!sceneonly) hudDraw(gView, pSector, shakeX, shakeY, zDelta, basepal, gInterpolate);
-		}
+		if (!sceneonly) hudDraw(gView, pSector, shakeX, shakeY, zDelta, basepal, gInterpolate);
+		fixedhoriz deliriumPitchI = q16horiz(interpolatedvalue(IntToFixed(deliriumPitchO), IntToFixed(deliriumPitch), gInterpolate));
+		auto bakCstat = gView->actor->spr.cstat;
+		gView->actor->spr.cstat |= (gViewPos == 0) ? CSTAT_SPRITE_INVISIBLE : CSTAT_SPRITE_TRANSLUCENT | CSTAT_SPRITE_TRANS_FLIP;
+		render_drawrooms(gView->actor, { cX, cY, cZ }, sectnum(pSector), cA, cH + deliriumPitchI, rotscrnang, gInterpolate);
+		gView->actor->spr.cstat = bakCstat;
 		bDeliriumOld = bDelirium && gDeliriumBlur;
 
 		int nClipDist = gView->actor->spr.clipdist << 2;
@@ -794,7 +787,6 @@ void viewDrawScreen(bool sceneonly)
 		if (v4 && gNetPlayers > 1)
 		{
 			DoLensEffect();
-			viewingRange = viewingrange;
 			r otatesprite(IntToFixed(280), IntToFixed(35), 53248, 512, 4077, v10, v14, 512 + 6, gViewX0, gViewY0, gViewX1, gViewY1);
 			r otatesprite(IntToFixed(280), IntToFixed(35), 53248, 0, 1683, v10, 0, 512 + 35, gViewX0, gViewY0, gViewX1, gViewY1);
 		}
@@ -862,7 +854,7 @@ FString GameInterface::GetCoordString()
 	FString out;
 
 	out.Format("pos= %d, %d, %d - angle = %2.3f",
-		gMe->actor->spr.pos.X, gMe->actor->spr.pos.Y, gMe->actor->spr.pos.Z, gMe->actor->spr.ang * BAngToDegree);
+		gMe->actor->int_pos().X, gMe->actor->int_pos().Y, gMe->actor->int_pos().Z, gMe->actor->spr.ang * BAngToDegree);
 
 	return out;
 }
@@ -887,8 +879,8 @@ bool GameInterface::DrawAutomapPlayer(int mx, int my, int x, int y, int z, int a
 		int oy = my - y;
 		int x1 = DMulScale(ox, xvect, -oy, yvect, 16);
 		int y1 = DMulScale(oy, xvect, ox, yvect, 16);
-		int xx = xdim / 2. + x1 / 4096.;
-		int yy = ydim / 2. + y1 / 4096.;
+		int xx = twod->GetWidth() / 2. + x1 / 4096.;
+		int yy = twod->GetHeight() / 2. + y1 / 4096.;
 
 		if (i == gView->nPlayer || gGameOptions.nGameType == 1)
 		{
@@ -901,11 +893,11 @@ bool GameInterface::DrawAutomapPlayer(int mx, int my, int x, int y, int z, int a
 			int nScale = (actor->spr.yrepeat + ((floorZ - nBottom) >> 8)) * z;
 			nScale = ClipRange(nScale, 8000, 65536 << 1);
 			// Players on automap
-			double xsize = xdim / 2. + x1 / double(1 << 12);
-			double ysize = ydim / 2. + y1 / double(1 << 12);
+			double xsize = twod->GetWidth() / 2. + x1 / double(1 << 12);
+			double ysize = twod->GetHeight() / 2. + y1 / double(1 << 12);
 			// This very likely needs fixing later
-			DrawTexture(twod, tileGetTexture(nTile, true), xx, yy, DTA_ClipLeft, windowxy1.X, DTA_ClipTop, windowxy1.Y, DTA_ScaleX, z / 1536., DTA_ScaleY, z / 1536., DTA_CenterOffset, true,
-				DTA_ClipRight, windowxy2.X + 1, DTA_ClipBottom, windowxy2.Y + 1, DTA_Alpha, (actor->spr.cstat & CSTAT_SPRITE_TRANSLUCENT ? 0.5 : 1.), TAG_DONE);
+			DrawTexture(twod, tileGetTexture(nTile, true), xx, yy, DTA_ClipLeft, viewport3d.Left(), DTA_ClipTop, viewport3d.Top(), DTA_ScaleX, z / 1536., DTA_ScaleY, z / 1536., DTA_CenterOffset, true,
+				DTA_ClipRight, viewport3d.Right(), DTA_ClipBottom, viewport3d.Bottom(), DTA_Alpha, (actor->spr.cstat & CSTAT_SPRITE_TRANSLUCENT ? 0.5 : 1.), TAG_DONE);
 		}
 	}
 	return true;

@@ -4,6 +4,9 @@
 #include "binaryangle.h"
 #include "build.h"
 #include "coreactor.h"
+#include "intrect.h"
+
+extern IntRect viewport3d;
 
 // breadth first search, this gets used multiple times throughout the engine, mainly for iterating over sectors.
 // Only works on indices, this has no knowledge of the actual objects being looked at.
@@ -171,6 +174,29 @@ void dragpoint(walltype* wal, int newx, int newy);
 void dragpoint(walltype* wal, const DVector2& pos);
 DVector2 rotatepoint(const DVector2& pivot, const DVector2& point, binangle angle);
 int32_t inside(double x, double y, const sectortype* sect);
+void getcorrectzsofslope(int sectnum, int dax, int day, int* ceilz, int* florz);
+int getceilzofslopeptr(const sectortype* sec, int dax, int day);
+int getflorzofslopeptr(const sectortype* sec, int dax, int day);
+void getzsofslopeptr(const sectortype* sec, int dax, int day, int* ceilz, int* florz);
+void getzsofslopeptr(const sectortype* sec, double dax, double day, double* ceilz, double* florz);
+
+enum EFindNextSector
+{
+	Find_Floor = 0,
+	Find_Ceiling = 1,
+	
+	Find_Down = 0,
+	Find_Up = 2,
+	
+	Find_Safe = 4,
+	
+	Find_CeilingUp = Find_Ceiling | Find_Up,
+	Find_CeilingDown = Find_Ceiling | Find_Down,
+	Find_FloorUp = Find_Floor | Find_Up,
+	Find_FloorDown = Find_Floor | Find_Down,
+};
+sectortype* nextsectorneighborzptr(sectortype* sectp, int startz, int flags);
+
 
 
 // y is negated so that the orientation is the same as in GZDoom, in order to use its utilities.
@@ -296,10 +322,10 @@ inline int tspriteGetSlope(const tspritetype* spr)
 inline int32_t tspriteGetZOfSlope(const tspritetype* tspr, int dax, int day)
 {
 	int heinum = tspriteGetSlope(tspr);
-	if (heinum == 0) return tspr->pos.Z;
+	if (heinum == 0) return tspr->int_pos().Z;
 
-	int const j = DMulScale(bsin(tspr->ang + 1024), day - tspr->pos.Y, -bsin(tspr->ang + 512), dax - tspr->pos.X, 4);
-	return tspr->pos.Z + MulScale(heinum, j, 18);
+	int const j = DMulScale(bsin(tspr->ang + 1024), day - tspr->int_pos().Y, -bsin(tspr->ang + 512), dax - tspr->int_pos().X, 4);
+	return tspr->int_pos().Z + MulScale(heinum, j, 18);
 }
 
 inline int inside(int x, int y, const sectortype* sect)
@@ -309,8 +335,6 @@ inline int inside(int x, int y, const sectortype* sect)
 
 // still needed by some parts in the engine.
 inline int inside_p(int x, int y, int sectnum) { return (sectnum >= 0 && inside(x, y, &sector[sectnum]) == 1); }
-// this one is for template substitution.
-inline int inside_p0(int32_t const x, int32_t const y, int32_t const z, int const sectnum) { return inside_p(x, y, sectnum); }
 
 
 
@@ -371,7 +395,7 @@ inline DVector2 NearestPointLine(double px, double py, const walltype* wal)
 	return { xx, yy };
 }
 
-inline double SquareDistToWall(double px, double py, const walltype* wal, DVector2* point = nullptr) 
+inline DVector2 NearestPointOnWall(double px, double py, const walltype* wal)
 {
 	double lx1 = wal->pos.X;
 	double ly1 = wal->pos.Y;
@@ -380,15 +404,24 @@ inline double SquareDistToWall(double px, double py, const walltype* wal, DVecto
 
 	double wall_length = SquareDist(lx1, ly1, lx2, ly2);
 
-	if (wall_length == 0) return SquareDist(px, py, lx1, ly1);
+	if (wall_length == 0) return { lx1, ly1 };
 
 	double t = ((px - lx1) * (lx2 - lx1) + (py - ly1) * (ly2 - ly1)) / wall_length;
-	t = clamp(t, 0., 1.);
+	if (t <= 0) return { lx1, ly1 };
+	if (t >= 1) return { lx2, ly2 };
 	double xx = lx1 + t * (lx2 - lx1);
 	double yy = ly1 + t * (ly2 - ly1);
-	if (point) *point = { xx, yy };
-	return SquareDist(px, py, xx, yy);
+	return { xx, yy };
 }
+
+inline double SquareDistToWall(double px, double py, const walltype* wal, DVector2* point = nullptr) 
+{
+	auto pt = NearestPointOnWall(px, py, wal);
+	if (point) *point = pt;
+	return SquareDist(px, py, pt.X, pt.Y);
+}
+
+double SquareDistToSector(double px, double py, const sectortype* sect, DVector2* point = nullptr);
 
 inline double SquareDistToLine(double px, double py, double lx1, double ly1, double lx2, double ly2)
 {
@@ -405,16 +438,12 @@ inline double SquareDistToLine(double px, double py, double lx1, double ly1, dou
 
 inline void alignceilslope(sectortype* sect, int x, int y, int z)
 {
-	sect->setceilingslope(getslopeval(sect, x, y, z, sect->ceilingz));
+	sect->setceilingslope(getslopeval(sect, x, y, z, sect->int_ceilingz()));
 }
 
 inline void alignflorslope(sectortype* sect, int x, int y, int z)
 {
-	sect->setfloorslope(getslopeval(sect, x, y, z, sect->floorz));
+	sect->setfloorslope(getslopeval(sect, x, y, z, sect->int_floorz()));
 }
-inline void updatesectorneighbor(int32_t const x, int32_t const y, sectortype* * const sect, int32_t maxDistance = MAXUPDATESECTORDIST)
-{
-	int sectno = *sect? sector.IndexOf(*sect) : -1;
-	updatesectorneighbor(x, y, &sectno, maxDistance);
-	*sect = sectno < 0? nullptr : &sector[sectno];
-}
+
+#include "updatesector.h"

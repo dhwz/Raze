@@ -45,17 +45,15 @@ void BuildRex(DExhumedActor* pActor, int x, int y, int z, sectortype* pSector, i
     }
     else
     {
-        x = pActor->spr.pos.X;
-        y = pActor->spr.pos.Y;
-        z = pActor->sector()->floorz;
+        x = pActor->int_pos().X;
+        y = pActor->int_pos().Y;
+        z = pActor->sector()->int_floorz();
         nAngle = pActor->spr.ang;
 
         ChangeActorStat(pActor, 119);
     }
 
-    pActor->spr.pos.X = x;
-    pActor->spr.pos.Y = y;
-    pActor->spr.pos.Z = z;
+    pActor->set_int_pos({ x, y, z });
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     pActor->spr.clipdist = 80;
     pActor->spr.shade = -12;

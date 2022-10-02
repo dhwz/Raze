@@ -242,15 +242,15 @@ inline int GetSpriteSizeToBottom(const spritetypebase* sp)
 inline int GetSpriteZOfTop(const spritetypebase* sp)
 {
     return (sp->cstat & CSTAT_SPRITE_YCENTER) ?
-        sp->pos.Z - GetSpriteSizeToTop(sp) :
-        sp->pos.Z - GetSpriteSizeZ(sp);
+        sp->int_pos().Z - GetSpriteSizeToTop(sp) :
+        sp->int_pos().Z - GetSpriteSizeZ(sp);
 }
 
 inline int GetSpriteZOfBottom(const spritetypebase* sp)
 {
     return (sp->cstat & CSTAT_SPRITE_YCENTER) ?
-        sp->pos.Z + GetSpriteSizeToBottom(sp) :
-        sp->pos.Z;
+        sp->int_pos().Z + GetSpriteSizeToBottom(sp) :
+        sp->int_pos().Z;
 }
 
 // mid and upper/lower sprite calculations
@@ -1666,7 +1666,7 @@ void SetOwner(int a, int b); // we still need this...
 void ClearOwner(DSWActor* ownr);
 DSWActor* GetOwner(DSWActor* child);
 void SetAttach(DSWActor*, DSWActor*);
-void analyzesprites(tspritetype* tsprite, int& spritesortcnt, int viewx, int viewy, int viewz, int camang);
+void analyzesprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, int camang);
 void CollectPortals();
 
 int SpawnBlood(DSWActor* actor, DSWActor* weapActor, short hit_ang, int hit_x, int hit_y, int hit_z);
@@ -1922,7 +1922,7 @@ struct GameInterface : public ::GameInterface
     int chaseCamX(binangle ang) override { return -ang.bcos(-3); }
     int chaseCamY(binangle ang) override { return -ang.bsin(-3); }
     int chaseCamZ(fixedhoriz horiz) override { return horiz.asq16() >> 8; }
-    void processSprites(tspritetype* tsprite, int& spritesortcnt, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio) override;
+    void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio) override;
     void UpdateCameras(double smoothratio) override;
     void EnterPortal(DCoreActor* viewer, int type) override;
     void LeavePortal(DCoreActor* viewer, int type) override;
@@ -1954,12 +1954,12 @@ inline bool SectorIsUnderwaterArea(sectortype* sect)
 
 inline bool PlayerFacingRange(PLAYER* pp, DSWActor* a, int range)
 {
-    return (abs(getincangle(getangle(a->spr.pos.X - (pp)->pos.X, a->spr.pos.Y - (pp)->pos.Y), (pp)->angle.ang.asbuild())) < (range));
+    return (abs(getincangle(getangle(a->int_pos().X - (pp)->pos.X, a->int_pos().Y - (pp)->pos.Y), (pp)->angle.ang.asbuild())) < (range));
 }
 
 inline bool FacingRange(DSWActor* a1, DSWActor* a2, int range)
 {
-    return (abs(getincangle(getangle(a1->spr.pos.X - a2->spr.pos.X, a1->spr.pos.Y - a2->spr.pos.Y), a2->spr.ang)) < (range));
+    return (abs(getincangle(getangle(a1->int_pos().X - a2->int_pos().X, a1->int_pos().Y - a2->int_pos().Y), a2->spr.ang)) < (range));
 }
 inline void SET_BOOL1(DSWActor* sp) { sp->spr.extra |= SPRX_BOOL1; }
 inline void SET_BOOL2(DSWActor* sp) { sp->spr.extra |= SPRX_BOOL2; }
@@ -2067,7 +2067,7 @@ inline int ActorSizeY(DSWActor* sp)
 
 inline bool Facing(DSWActor* actor1, DSWActor* actor2)
 {
-    return (abs(getincangle(getangle(actor1->spr.pos.X - actor2->spr.pos.X, actor1->spr.pos.Y - actor2->spr.pos.Y), actor2->spr.ang)) < 512);
+    return (abs(getincangle(getangle(actor1->int_pos().X - actor2->int_pos().X, actor1->int_pos().Y - actor2->int_pos().Y), actor2->spr.ang)) < 512);
 }
 
 // Given a z height and sprite return the correct y repeat value
@@ -2101,34 +2101,58 @@ inline void PlaySound(int num, DSWActor* actor, int flags, int channel = 8, ECha
 struct ANIM
 {
 	int animtype, animindex;
-	int goal;
+	double goal;
 	int vel;
 	short vel_adj;
 	TObjPtr<DSWActor*> animactor;
 	ANIM_CALLBACKp callback;
 	SECTOR_OBJECT* callbackdata;    // only gets used in one place for this so having a proper type makes serialization easier.
 
-	int& Addr(bool write)
+	double getValue()
 	{
-        static int scratch;
 		switch (animtype)
 		{
 		case ANIM_Floorz:
-            return *sector[animindex].floorzptr(!write);
+            return sector[animindex].int_floorz();
 		case ANIM_SopZ:
 			return SectorObject[animindex].pmid.Z;
 		case ANIM_Spritez:
-            if (animactor == nullptr) return scratch;
-			return animactor->spr.pos.Z;
+            if (animactor == nullptr) return 0;
+			return animactor->spr.int_pos().Z;
 		case ANIM_Userz:
-            if (animactor == nullptr) return scratch;
+            if (animactor == nullptr) return 0;
             return animactor->user.pos.Z;
 		case ANIM_SUdepth:
 			return sector[animindex].depth_fixed;
 		default:
-			return animindex;
+			return 0;
 		}
 	}
+
+    void setValue(double value)
+    {
+        switch (animtype)
+        {
+        case ANIM_Floorz:
+            sector[animindex].set_int_floorz(value);
+			break;
+        case ANIM_SopZ:
+            SectorObject[animindex].pmid.Z = value;
+			break;
+        case ANIM_Spritez:
+            if (animactor == nullptr) return;
+            animactor->set_int_z(value);
+			break;
+        case ANIM_Userz:
+            if (animactor == nullptr) return;
+            animactor->user.pos.Z = value;
+			break;
+        case ANIM_SUdepth:
+            sector[animindex].depth_fixed = value;
+        default:
+            return;
+        }
+    }
 };
 
 extern ANIM Anim[MAXANIM];

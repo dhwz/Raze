@@ -9,6 +9,7 @@ class ScreenJob : Object UI
 	int jobstate;
 
 	bool skipover;
+	bool nowipe;
 
 	enum EJobState
 	{
@@ -229,8 +230,15 @@ class MoviePlayerJob : SkippableScreenJob
 		Super.Init();
 		flag = flags;
 		player = mp;
+		nowipe = true;	// due to synchronization issues wipes must be disabled on any movie.
 		return self;
 	}
+
+	override void Start()
+	{
+		System.StopMusic();
+	}
+
 
 	static ScreenJob CreateWithSoundInfo(String filename, Array<int> soundinfo, int flags, int frametime, int firstframetime = -1, int lastframetime = -1)
 	{
@@ -358,6 +366,12 @@ class ScreenJobRunner : Object UI
 	virtual bool Validate()
 	{
 		return jobs.Size() > 0;
+	}
+
+	bool CanWipe()
+	{
+		if (index < jobs.Size()) return !jobs[index].nowipe;
+		return true;		
 	}
 
 	//---------------------------------------------------------------------------

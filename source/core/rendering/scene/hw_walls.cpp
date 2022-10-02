@@ -38,7 +38,6 @@
 
 #include "v_video.h"
 #include "flatvertices.h"
-#include "glbackend/glbackend.h"
 
 DCoreActor* wall_to_sprite_actors[8]; // gets updated each frame. Todo: Encapsulate this better without having to permanently store actors in the wall object.
 
@@ -56,8 +55,8 @@ static walltype* IsOnWall(tspritetype* tspr, int height, DVector2& outpos)
 
 	auto sect = tspr->sectp;
 
-	float tx = tspr->pos.X * (float)inttoworld;
-	float ty = tspr->pos.Y * (float)inttoworld;
+	float tx = tspr->int_pos().X * (float)inttoworld;
+	float ty = tspr->int_pos().Y * (float)inttoworld;
 
 	for(auto& wal : wallsofsector(sect))
 	{
@@ -70,24 +69,27 @@ static walltype* IsOnWall(tspritetype* tspr, int height, DVector2& outpos)
 		// angle of the sprite must either be the wall's normal or the negative wall's normal to be aligned.
 		if (deltaang >= 512 - maxangdelta && deltaang <= 512 + maxangdelta)
 		{
-			// orthogonal lines do not check the actual position so that certain off-sector sprites get handled properly. 
-			// In Wanton Destruction's airplane level there's such a sprite assigned to the wrong sector.
-			if (d.X == 0)
+			if (!((tspr->ang) & 510))
 			{
-				double newdist = fabs(tx - wal.pos.X);
-				if (newdist < maxorthdist)
+				// orthogonal lines do not check the actual position so that certain off-sector sprites get handled properly. 
+				// In Wanton Destruction's airplane level there's such a sprite assigned to the wrong sector.
+				if (d.X == 0)
 				{
-					maxorthdist = newdist;
-					best = &wal;
+					double newdist = fabs(tx - wal.pos.X);
+					if (newdist < maxorthdist)
+					{
+						maxorthdist = newdist;
+						best = &wal;
+					}
 				}
-			}
-			else if (d.Y == 0)
-			{
-				double newdist = fabs(ty - wal.pos.Y);
-				if (newdist < maxorthdist)
+				else if (d.Y == 0)
 				{
-					maxorthdist = newdist;
-					best = &wal;
+					double newdist = fabs(ty - wal.pos.Y);
+					if (newdist < maxorthdist)
+					{
+						maxorthdist = newdist;
+						best = &wal;
+					}
 				}
 			}
 			else
@@ -788,13 +790,13 @@ void HWWall::DoOneSidedTexture(HWDrawInfo* di, walltype* wal, sectortype* fronts
 	{
 		if ((!(wal->cstat & CSTAT_WALL_BOTTOM_SWAP) && (wal->cstat & CSTAT_WALL_1WAY)) ||
 			((wal->cstat & CSTAT_WALL_BOTTOM_SWAP) && (wal->nextWall()->cstat & CSTAT_WALL_ALIGN_BOTTOM)))
-			refheight = frontsector->ceilingz;
+			refheight = frontsector->int_ceilingz();
 		else
-			refheight = backsector->floorz;
+			refheight = backsector->int_floorz();
 	}
 	else
 	{
-		refheight = (wal->cstat & CSTAT_WALL_ALIGN_BOTTOM) ? frontsector->floorz : frontsector->ceilingz;
+		refheight = (wal->cstat & CSTAT_WALL_ALIGN_BOTTOM) ? frontsector->int_floorz() : frontsector->int_ceilingz();
 	}
 
 	type = RENDERWALL_M1S;
@@ -811,7 +813,7 @@ void HWWall::DoUpperTexture(HWDrawInfo* di, walltype* wal, sectortype* frontsect
 	float topleft, float topright, float bottomleft, float bottomright)
 {
 	// get the alignment reference position.
-	int refheight = (wal->cstat & CSTAT_WALL_ALIGN_BOTTOM) ? frontsector->ceilingz : backsector->ceilingz;
+	int refheight = (wal->cstat & CSTAT_WALL_ALIGN_BOTTOM) ? frontsector->int_ceilingz() : backsector->int_ceilingz();
 
 	type = RENDERWALL_TOP;
 	DoTexture(di, wal, wal, refheight, topleft, topright, bottomleft, bottomright);
@@ -829,7 +831,7 @@ void HWWall::DoLowerTexture(HWDrawInfo* di, walltype* wal, sectortype* frontsect
 	// get the alignment reference position.
 	int refheight;
 	auto refwall = (wal->cstat & CSTAT_WALL_BOTTOM_SWAP) ? wal->nextWall() : wal;
-	refheight = (refwall->cstat & CSTAT_WALL_ALIGN_BOTTOM) ? frontsector->ceilingz : backsector->floorz;
+	refheight = (refwall->cstat & CSTAT_WALL_ALIGN_BOTTOM) ? frontsector->int_ceilingz() : backsector->int_floorz();
 
 	shade = refwall->shade;
 	palette = refwall->pal;
@@ -856,15 +858,15 @@ void HWWall::DoMidTexture(HWDrawInfo* di, walltype* wal,
 	if (wal->cstat & CSTAT_WALL_1WAY)
 	{
 		// 1-sided wall
-		refheight = swapit ? front->ceilingz : back->ceilingz;
+		refheight = swapit ? front->int_ceilingz() : back->int_ceilingz();
 	}
 	else
 	{
 		// masked wall
 		if (swapit)
-			refheight = min(front->floorz, back->floorz);
+			refheight = min(front->int_floorz(), back->int_floorz());
 		else
-			refheight = max(front->ceilingz, back->ceilingz);
+			refheight = max(front->int_ceilingz(), back->int_ceilingz());
 	}
 	if ((bch1 - fch1) * (bch2 - fch2) >= 0)
 	{
@@ -998,7 +1000,7 @@ void HWWall::Process(HWDrawInfo* di, walltype* wal, sectortype* frontsector, sec
 
 		int tilenum = ((wal->cstat & CSTAT_WALL_1WAY) && wal->nextwall != -1) ? wal->overpicnum : wal->picnum;
 		gotpic.Set(tilenum);
-		tileUpdatePicnum(&tilenum, wallnum(wal) + 16384, wal->cstat);
+		tileUpdatePicnum(&tilenum, (wal->cstat & CSTAT_WALL_ROTATE_90));
 		texture = tileGetTexture(tilenum);
 		if (texture && texture->isValid())
 		{
@@ -1036,7 +1038,7 @@ void HWWall::Process(HWDrawInfo* di, walltype* wal, sectortype* frontsector, sec
 			{
 				int tilenum = wal->picnum;
 				gotpic.Set(tilenum);
-				tileUpdatePicnum(&tilenum, wallnum(wal) + 16384, wal->cstat);
+				tileUpdatePicnum(&tilenum, (wal->cstat & CSTAT_WALL_ROTATE_90));
 				texture = tileGetTexture(tilenum);
 				if (texture && texture->isValid())
 				{
@@ -1049,7 +1051,7 @@ void HWWall::Process(HWDrawInfo* di, walltype* wal, sectortype* frontsector, sec
 		{
 			int tilenum = wal->overpicnum;
 			gotpic.Set(tilenum);
-			tileUpdatePicnum(&tilenum, wallnum(wal) + 16384, wal->cstat);
+			tileUpdatePicnum(&tilenum, (wal->cstat & CSTAT_WALL_ROTATE_90));
 			texture = tileGetTexture(tilenum);
 			if (texture && texture->isValid())
 			{
@@ -1075,7 +1077,7 @@ void HWWall::Process(HWDrawInfo* di, walltype* wal, sectortype* frontsector, sec
 				auto w = (wal->cstat & CSTAT_WALL_BOTTOM_SWAP) ? backwall : wal;
 				int tilenum = w->picnum;
 				gotpic.Set(tilenum);
-				tileUpdatePicnum(&tilenum, wallnum(wal) + 16384, w->cstat);
+				tileUpdatePicnum(&tilenum, (w->cstat & CSTAT_WALL_ROTATE_90));
 				texture = tileGetTexture(tilenum);
 				if (texture && texture->isValid())
 				{
@@ -1100,7 +1102,7 @@ void HWWall::Process(HWDrawInfo* di, walltype* wal, sectortype* frontsector, sec
 int HWWall::CheckWallSprite(tspritetype* spr, tspritetype* last)
 {
 	// If the position changed we need to recalculate everything.
-	if (spr->pos.X != last->pos.X || spr->pos.Y != last->pos.Y || spr->sectp != last->sectp || spr->ang != last->ang) return 3;
+	if (spr->int_pos().X != last->int_pos().X || spr->int_pos().Y != last->int_pos().Y || spr->sectp != last->sectp || spr->ang != last->ang) return 3;
 	
 	// if the horizontal orientation changes we need to recalculate the walls this attaches to, but not the positioning.
 	if (spr->xrepeat != last->xrepeat || spr->xoffset != last->xoffset || spr->picnum != last->picnum || ((spr->cstat ^ last->cstat) & CSTAT_SPRITE_XFLIP)) return 2;
@@ -1126,9 +1128,9 @@ void HWWall::ProcessWallSprite(HWDrawInfo* di, tspritetype* spr, sectortype* sec
 	seg = nullptr;
 	Sprite = spr;
 	vec2_t pos[2];
-	int sprz = spr->pos.Z;
+	int sprz = spr->int_pos().Z;
 
-	GetWallSpritePosition(spr, spr->pos.vec2, pos, true);
+	GetWallSpritePosition(spr, spr->int_pos().vec2, pos, true);
 	glseg.x1 = pos[0].X * (1 / 16.f);
 	glseg.y1 = pos[0].Y * (1 / -16.f);
 	glseg.x2 = pos[1].X * (1 / 16.f);
@@ -1218,7 +1220,7 @@ void HWWall::ProcessWallSprite(HWDrawInfo* di, tspritetype* spr, sectortype* sec
 	if (!(sector->ceilingstat & CSTAT_SECTOR_SKY))
 	{
 		float polyh = (ztop[0] - zbottom[0]);
-		float ceilingz = sector->ceilingz * (1 / -256.f);
+		float ceilingz = sector->render_ceilingz();
 		if (ceilingz < ztop[0] && ceilingz >= zbottom[0])
 		{
 			float newv = (ceilingz - zbottom[0]) / polyh;
@@ -1229,7 +1231,7 @@ void HWWall::ProcessWallSprite(HWDrawInfo* di, tspritetype* spr, sectortype* sec
 	if (!(sector->floorstat & CSTAT_SECTOR_SKY))
 	{
 		float polyh = (ztop[0] - zbottom[0]);
-		float floorz = sector->floorz * (1 / -256.f);
+		float floorz = sector->render_floorz();
 		if (floorz <= ztop[0] && floorz > zbottom[0])
 		{
 			float newv = (floorz - zbottom[0]) / polyh;

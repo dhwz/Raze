@@ -26,6 +26,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "coreactor.h"
 #include "interpolate.h"
 
+IntRect viewport3d;
+
 //---------------------------------------------------------------------------
 //
 // Unified chasecam function for all games.
@@ -156,12 +158,12 @@ void calcSlope(const sectortype* sec, float xpos, float ypos, float* pceilz, flo
 	if (pceilz)
 	{
 		bits |= sec->ceilingstat;
-		*pceilz = float(sec->ceilingz);
+		*pceilz = float(sec->int_ceilingz());
 	}
 	if (pflorz)
 	{
 		bits |= sec->floorstat;
-		*pflorz = float(sec->floorz);
+		*pflorz = float(sec->int_floorz());
 	}
 
 	if ((bits & CSTAT_SECTOR_SLOPE) == CSTAT_SECTOR_SLOPE)
@@ -179,7 +181,7 @@ void calcSlope(const sectortype* sec, float xpos, float ypos, float* pceilz, flo
 
 //==========================================================================
 //
-// for the renderer (Polymost variants are in polymost.cpp)
+// for the renderer
 //
 //==========================================================================
 
@@ -218,6 +220,24 @@ void getzsofslopeptr(const sectortype* sec, int dax, int day, int* ceilz, int* f
 	*florz = int(f);
 }
 
+void getzsofslopeptr(const sectortype* sec, double dax, double day, double* ceilz, double* florz)
+{
+	float c, f;
+	calcSlope(sec, dax * worldtoint, day * worldtoint, &c, &f);
+	*ceilz = c * zinttoworld;
+	*florz = f * zinttoworld;
+}
+
+void getcorrectzsofslope(int sectnum, int dax, int day, int* ceilz, int* florz)
+{
+	DVector2 closestv;
+	SquareDistToSector(dax * inttoworld, day * inttoworld, &sector[sectnum], &closestv);
+	float ffloorz, fceilz;
+	calcSlope(&sector[sectnum], closestv.X * worldtoint, closestv.Y * worldtoint, &fceilz, &ffloorz);
+	if (ceilz) *ceilz = int(fceilz);
+	if (florz) *florz = int(ffloorz);
+}
+
 //==========================================================================
 //
 // 
@@ -232,6 +252,36 @@ int getslopeval(sectortype* sect, int x, int y, int z, int basez)
 	return i == 0? 0 : Scale((z - basez) << 8, wal->Length(), i);
 }
 
+//==========================================================================
+//
+// Calculate the distance to the closest point in the given sector
+//
+//==========================================================================
+
+double SquareDistToSector(double px, double py, const sectortype* sect, DVector2* point)
+{
+	if (inside(px, py, sect))
+	{
+		if (point)
+			*point = { px, py };
+		return 0;
+	}
+
+	double bestdist = DBL_MAX;
+	DVector2 bestpt = { px, py };
+	for (auto& wal : wallsofsector(sect))
+	{
+		DVector2 pt;
+		auto dist = SquareDistToWall(px, py, &wal, &pt);
+		if (dist < bestdist)
+		{
+			bestdist = dist;
+			bestpt = pt;
+		}
+	}
+	if (point) *point = bestpt;
+	return bestdist;
+}
 
 //==========================================================================
 //
@@ -327,7 +377,7 @@ void TGetFlatSpritePosition(const spritetypebase* spr, vec2_t pos, vec2_t* out, 
 		{
 			for (int i = 0; i < 4; i++)
 			{
-				int spos = DMulScale(-sinang, out[i].Y - spr->pos.Y, -cosang, out[i].X - spr->pos.X, 4);
+				int spos = DMulScale(-sinang, out[i].Y - pos.Y, -cosang, out[i].X - pos.X, 4);
 				outz[i] = MulScale(heinum, spos, 18);
 			}
 		}
@@ -358,16 +408,16 @@ void checkRotatedWalls()
 	{
 		if (w.cstat & CSTAT_WALL_ROTATE_90)
 		{
-			auto& tile = RotTile(w.picnum + animateoffs(w.picnum, 16384));
+			int picnum = w.picnum;
+			tileUpdatePicnum(&picnum);
+			auto& tile = RotTile(picnum);
 
 			if (tile.newtile == -1 && tile.owner == -1)
 			{
-				auto owner = w.picnum + animateoffs(w.picnum, 16384);
-
-				tile.newtile = TileFiles.tileCreateRotated(owner);
+				tile.newtile = TileFiles.tileCreateRotated(picnum);
 				assert(tile.newtile != -1);
 
-				RotTile(tile.newtile).owner = w.picnum + animateoffs(w.picnum, 16384);
+				RotTile(tile.newtile).owner = picnum;
 
 			}
 		}
@@ -467,16 +517,46 @@ int inside(double x, double y, const sectortype* sect)
 
 //==========================================================================
 //
+// find the closest neighboring sector plane in the given direction.
+// Does not consider slopes, just like the original!
+//
+//==========================================================================
+
+sectortype* nextsectorneighborzptr(sectortype* sectp, int startz_, int flags)
+{
+	double startz = startz_ * zinttoworld;
+	double factor = (flags & Find_Up)? -1 : 1;
+	int bestz = INT_MAX;
+	sectortype* bestsec = (flags & Find_Safe)? sectp : nullptr;
+	const auto planez = (flags & Find_Ceiling)? &sectortype::ceilingz : &sectortype::floorz;
+
+	startz *= factor;
+	for(auto& wal : wallsofsector(sectp))
+	{
+		if (wal.twoSided())
+		{
+			auto nextsec = wal.nextSector();
+			auto nextz = factor * nextsec->*planez;
+			
+			if (startz < nextz && nextz < bestz)
+			{
+				bestz = nextz;
+				bestsec = nextsec;
+			}
+		}
+	}
+	return bestsec;
+}
+
+//==========================================================================
+//
 // 
 //
 //==========================================================================
 
-tspritetype* renderAddTsprite(tspritetype* tsprite, int& spritesortcnt, DCoreActor* actor)
+tspritetype* renderAddTsprite(tspriteArray& tsprites, DCoreActor* actor)
 {
-	validateTSpriteSize(tsprite, spritesortcnt);
-
-	if (spritesortcnt >= MAXSPRITESONSCREEN) return nullptr;
-	auto tspr = &tsprite[spritesortcnt++];
+	auto tspr = tsprites.newTSprite();
 
 	tspr->pos = actor->spr.pos;
 	tspr->cstat = actor->spr.cstat;

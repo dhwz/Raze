@@ -46,8 +46,6 @@ Prepared for public release: 03/28/2005 - Charlie Wiederhold, 3D Realms
 #include "v_video.h"
 #include "render.h"
 
-EXTERN_CVAR(Bool, vid_renderer)
-
 BEGIN_SW_NS
 
 
@@ -407,24 +405,14 @@ void JS_InitMirrors(void)
 void drawroomstotile(int daposx, int daposy, int daposz,
                      binangle ang, fixedhoriz horiz, sectortype* dacursect, short tilenume, double smoothratio)
 {
-    auto canvas = renderSetTarget(tilenume);
+    auto canvas = tileGetCanvas(tilenume);
     if (!canvas) return;
 
     screen->RenderTextureView(canvas, [=](IntRect& rect)
         {
-            if (!vid_renderer)
-            {
-                renderDrawRoomsQ16(daposx, daposy, daposz, ang.asq16(), horiz.asq16(), dacursect, false);
-                analyzesprites(pm_tsprite, pm_spritesortcnt, daposx, daposy, daposz, ang.asbuild());
-                renderDrawMasks();
-            }
-            else
-            {
-                render_camtex(nullptr, { daposx, daposy, daposz }, dacursect, ang, horiz, buildang(0), tileGetTexture(tilenume), rect, smoothratio);
-            }
+               render_camtex(nullptr, { daposx, daposy, daposz }, dacursect, ang, horiz, buildang(0), tileGetTexture(tilenume), rect, smoothratio);
         });
 
-    renderRestoreTarget();
 }
 
 void
@@ -441,8 +429,8 @@ JS_ProcessEchoSpot()
     {
         dist = 0x7fffffff;
 
-        j = abs(actor->spr.pos.X - pp->pos.X);
-        j += abs(actor->spr.pos.Y - pp->pos.Y);
+        j = abs(actor->int_pos().X - pp->pos.X);
+        j += abs(actor->int_pos().Y - pp->pos.Y);
         if (j < dist)
             dist = j;
 
@@ -521,8 +509,8 @@ void JS_DrawCameras(PLAYER* pp, int tx, int ty, int tz, double smoothratio)
                 {
                     DSWActor* camactor = mirror[cnt].camspriteActor;
 
-                    j = abs(camactor->spr.pos.X - tx);
-                    j += abs(camactor->spr.pos.Y - ty);
+                    j = abs(camactor->int_pos().X - tx);
+                    j += abs(camactor->int_pos().Y - ty);
                     if (j < dist)
                         dist = j;
                 }
@@ -546,20 +534,20 @@ void JS_DrawCameras(PLAYER* pp, int tx, int ty, int tz, double smoothratio)
                 tdy = abs(midy - ty);
 
                 if (midx >= tx)
-                    dx = camactor->spr.pos.X - tdx;
+                    dx = camactor->int_pos().X - tdx;
                 else
-                    dx = camactor->spr.pos.X + tdx;
+                    dx = camactor->int_pos().X + tdx;
 
                 if (midy >= ty)
-                    dy = camactor->spr.pos.Y - tdy;
+                    dy = camactor->int_pos().Y - tdy;
                 else
-                    dy = camactor->spr.pos.Y + tdy;
+                    dy = camactor->int_pos().Y + tdy;
 
-                tdz = abs(tz - camactor->spr.pos.Z);
-                if (tz >= camactor->spr.pos.Z)
-                    dz = camactor->spr.pos.Z + tdz;
+                tdz = abs(tz - camactor->int_pos().Z);
+                if (tz >= camactor->int_pos().Z)
+                    dz = camactor->int_pos().Z + tdz;
                 else
-                    dz = camactor->spr.pos.Z - tdz;
+                    dz = camactor->int_pos().Z - tdz;
 
 
                 // Is it a TV cam or a teleporter that shows destination?
@@ -642,7 +630,7 @@ void JS_DrawCameras(PLAYER* pp, int tx, int ty, int tz, double smoothratio)
                             }
                             else
                             {
-                                drawroomstotile(camactor->spr.pos.X, camactor->spr.pos.Y, camactor->spr.pos.Z, buildang(SP_TAG5(camactor)), camhoriz, camactor->sector(), mirror[cnt].campic, smoothratio);
+                                drawroomstotile(camactor->int_pos().X, camactor->int_pos().Y, camactor->int_pos().Z, buildang(SP_TAG5(camactor)), camhoriz, camactor->sector(), mirror[cnt].campic, smoothratio);
                             }
                         }
                     }

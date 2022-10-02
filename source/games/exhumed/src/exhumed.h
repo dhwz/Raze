@@ -58,11 +58,9 @@ void BlackOut();
 
 void DoGameOverScene(bool finallevel);
 
-extern unsigned char curpal[];
+extern uint8_t curpal[];
 
 void TintPalette(int a, int b, int c);
-//void MySetPalette(unsigned char *palette);
-//void GetCurPal(unsigned char *palette);
 
 void EraseScreen(int eax);
 
@@ -241,7 +239,7 @@ struct GameInterface : public ::GameInterface
     int chaseCamX(binangle ang) { return -(ang.bcos() * 3) >> 5; }
     int chaseCamY(binangle ang) { return -(ang.bsin() * 3) >> 5; }
     int chaseCamZ(fixedhoriz horiz) { return (horiz.asq16() * 3) >> 10; }
-    void processSprites(tspritetype* tsprite, int& spritesortcnt, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio) override;
+    void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio) override;
     int GetCurrentSkill() override;
 
 	::GameStats getStats() override;

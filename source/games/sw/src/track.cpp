@@ -67,8 +67,8 @@ short TrackTowardPlayer(DSWActor* actor, TRACK* t, TRACK_POINT* start_point)
         end_point = t->TrackPoint;
     }
 
-    end_dist = Distance(end_point->x, end_point->y, actor->spr.pos.X, actor->spr.pos.Y);
-    start_dist = Distance(start_point->x, start_point->y, actor->spr.pos.X, actor->spr.pos.Y);
+    end_dist = Distance(end_point->x, end_point->y, actor->int_pos().X, actor->int_pos().Y);
+    start_dist = Distance(start_point->x, start_point->y, actor->int_pos().X, actor->int_pos().Y);
 
     if (end_dist < start_dist)
     {
@@ -94,8 +94,8 @@ short TrackStartCloserThanEnd(DSWActor* actor, TRACK* t, TRACK_POINT* start_poin
         end_point = t->TrackPoint;
     }
 
-    end_dist = Distance(end_point->x, end_point->y, actor->spr.pos.X, actor->spr.pos.Y);
-    start_dist = Distance(start_point->x, start_point->y, actor->spr.pos.X, actor->spr.pos.Y);
+    end_dist = Distance(end_point->x, end_point->y, actor->int_pos().X, actor->int_pos().Y);
+    start_dist = Distance(start_point->x, start_point->y, actor->int_pos().X, actor->int_pos().Y);
 
     if (start_dist < end_dist)
     {
@@ -196,13 +196,13 @@ short ActorFindTrack(DSWActor* actor, int8_t player_dir, int track_type, int* tr
         {
             tp = t->TrackPoint + end_point[i];
 
-            dist = Distance(tp->x, tp->y, actor->spr.pos.X, actor->spr.pos.Y);
+            dist = Distance(tp->x, tp->y, actor->int_pos().X, actor->int_pos().Y);
 
             if (dist < 15000 && dist < near_dist)
             {
                 // make sure track start is on approximate z level - skip if
                 // not
-                if (labs(actor->spr.pos.Z - tp->z) > zdiff)
+                if (labs(actor->int_pos().Z - tp->z) > zdiff)
                 {
                     continue;
                 }
@@ -249,7 +249,7 @@ short ActorFindTrack(DSWActor* actor, int8_t player_dir, int track_type, int* tr
         updatesector(near_tp->x, near_tp->y, &track_sect);
 
         // if can see the point, return the track number
-        if (track_sect && FAFcansee(actor->spr.pos.X, actor->spr.pos.Y, actor->spr.pos.Z - Z(16), actor->sector(), near_tp->x, near_tp->y, track_sect->floorz - Z(32), track_sect))
+        if (track_sect && FAFcansee(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - Z(16), actor->sector(), near_tp->x, near_tp->y, track_sect->int_floorz() - Z(32), track_sect))
         {
             return short(near_track - &Track[0]);
         }
@@ -285,9 +285,9 @@ void TrackAddPoint(TRACK* t, TRACK_POINT* tp, DSWActor* actor)
 {
     TRACK_POINT* tpoint = (tp + t->NumPoints);
 
-    tpoint->x = actor->spr.pos.X;
-    tpoint->y = actor->spr.pos.Y;
-    tpoint->z = actor->spr.pos.Z;
+    tpoint->x = actor->int_pos().X;
+    tpoint->y = actor->int_pos().Y;
+    tpoint->z = actor->int_pos().Z;
     tpoint->ang = actor->spr.ang;
     tpoint->tag_low = actor->spr.lotag;
     tpoint->tag_high = actor->spr.hitag;
@@ -303,9 +303,7 @@ DSWActor* TrackClonePoint(DSWActor* actor)
 
     actorNew->spr.cstat = 0;
     actorNew->spr.extra = 0;
-    actorNew->spr.pos.X = actor->spr.pos.X;
-    actorNew->spr.pos.Y = actor->spr.pos.Y;
-    actorNew->spr.pos.Z = actor->spr.pos.Z;
+    actorNew->set_int_pos(actor->int_pos());
     actorNew->spr.ang = actor->spr.ang;
     actorNew->spr.lotag = actor->spr.lotag;
     actorNew->spr.hitag = actor->spr.hitag;
@@ -352,14 +350,12 @@ void QuickJumpSetup(short stat, short lotag, short type)
         TrackAddPoint(t, tp, start_sprite);
 
         // add jump point
-        actor->spr.pos.X += MulScale(64, bcos(actor->spr.ang), 14);
-        actor->spr.pos.Y += MulScale(64, bsin(actor->spr.ang), 14);
+        actor->add_int_pos({ MulScale(64, bcos(actor->spr.ang), 14), MulScale(64, bsin(actor->spr.ang), 14), 0 });
         actor->spr.lotag = lotag;
         TrackAddPoint(t, tp, actor);
 
         // add end point
-        end_sprite->spr.pos.X += MulScale(2048, bcos(end_sprite->spr.ang), 14);
-        end_sprite->spr.pos.Y += MulScale(2048, bsin(end_sprite->spr.ang), 14);
+        end_sprite->add_int_pos({ MulScale(2048, bcos(end_sprite->spr.ang), 14), MulScale(2048, bsin(end_sprite->spr.ang), 14), 0 });
         end_sprite->spr.lotag = TRACK_END;
         end_sprite->spr.hitag = 0;
         TrackAddPoint(t, tp, end_sprite);
@@ -407,8 +403,7 @@ void QuickScanSetup(short stat, short lotag, short type)
         // add start point
         start_sprite->spr.lotag = TRACK_START;
         start_sprite->spr.hitag = 0;
-        start_sprite->spr.pos.X += MulScale(64, -bcos(start_sprite->spr.ang), 14);
-        start_sprite->spr.pos.Y += MulScale(64, -bsin(start_sprite->spr.ang), 14);
+        start_sprite->add_int_pos({ MulScale(64, -bcos(start_sprite->spr.ang), 14), MulScale(64, -bsin(start_sprite->spr.ang), 14), 0 });
         TrackAddPoint(t, tp, start_sprite);
 
         // add jump point
@@ -416,8 +411,7 @@ void QuickScanSetup(short stat, short lotag, short type)
         TrackAddPoint(t, tp, actor);
 
         // add end point
-        end_sprite->spr.pos.X += MulScale(64, bcos(end_sprite->spr.ang), 14);
-        end_sprite->spr.pos.Y += MulScale(64, bsin(end_sprite->spr.ang), 14);
+        end_sprite->add_int_pos({ MulScale(64, bcos(end_sprite->spr.ang), 14), MulScale(64, bsin(end_sprite->spr.ang), 14), 0 });
         end_sprite->spr.lotag = TRACK_END;
         end_sprite->spr.hitag = 0;
         TrackAddPoint(t, tp, end_sprite);
@@ -467,8 +461,7 @@ void QuickExitSetup(short stat, short type)
         KillActor(actor);
 
         // add end point
-        end_sprite->spr.pos.X += MulScale(1024, bcos(end_sprite->spr.ang), 14);
-        end_sprite->spr.pos.Y += MulScale(1024, bsin(end_sprite->spr.ang), 14);
+        end_sprite->add_int_pos({ MulScale(1024, bcos(end_sprite->spr.ang), 14), MulScale(1024, bsin(end_sprite->spr.ang), 14), 0 });
         end_sprite->spr.lotag = TRACK_END;
         end_sprite->spr.hitag = 0;
         TrackAddPoint(t, tp, end_sprite);
@@ -513,8 +506,7 @@ void QuickLadderSetup(short stat, short lotag, short type)
         // add start point
         start_sprite->spr.lotag = TRACK_START;
         start_sprite->spr.hitag = 0;
-        start_sprite->spr.pos.X += MOVEx(256,start_sprite->spr.ang + 1024);
-        start_sprite->spr.pos.Y += MOVEy(256,start_sprite->spr.ang + 1024);
+        start_sprite->add_int_pos({ MOVEx(256,start_sprite->spr.ang + 1024), MOVEy(256,start_sprite->spr.ang + 1024), 0 });
         TrackAddPoint(t, tp, start_sprite);
 
         // add climb point
@@ -522,8 +514,7 @@ void QuickLadderSetup(short stat, short lotag, short type)
         TrackAddPoint(t, tp, actor);
 
         // add end point
-        end_sprite->spr.pos.X += MOVEx(512,end_sprite->spr.ang);
-        end_sprite->spr.pos.Y += MOVEy(512,end_sprite->spr.ang);
+        end_sprite->add_int_pos({ MOVEx(512,end_sprite->spr.ang), MOVEy(512,end_sprite->spr.ang), 0 });
         end_sprite->spr.lotag = TRACK_END;
         end_sprite->spr.hitag = 0;
         TrackAddPoint(t, tp, end_sprite);
@@ -582,7 +573,7 @@ void TrackSetup(void)
             int i;
             it.Reset(STAT_TRACK + ndx);
             auto itActor = it.Next();
-            Printf("WARNING: Did not find first point of Track Number %d, x %d, y %d\n", ndx, itActor->spr.pos.X, itActor->spr.pos.Y);
+            Printf("WARNING: Did not find first point of Track Number %d, x %d, y %d\n", ndx, itActor->int_pos().X, itActor->int_pos().Y);
             it.Reset(STAT_TRACK + ndx);
             while (auto actor = it.Next())
             {
@@ -607,7 +598,7 @@ void TrackSetup(void)
             it.Reset(STAT_TRACK + ndx);
             while (auto actor = it.Next())
             {
-                dist = Distance((tp + t->NumPoints - 1)->x, (tp + t->NumPoints - 1)->y, actor->spr.pos.X, actor->spr.pos.Y);
+                dist = Distance((tp + t->NumPoints - 1)->x, (tp + t->NumPoints - 1)->y, actor->int_pos().X, actor->int_pos().Y);
 
                 if (dist < low_dist)
                 {
@@ -692,8 +683,8 @@ void SectorObjectSetupBounds(SECTOR_OBJECT* sop)
         I_Error("SOP bound sprite with hitag %d not found", 500 + (int(sop - SectorObject) * 5));
     }
 
-    xlow = BoundActor->spr.pos.X;
-    ylow = BoundActor->spr.pos.Y;
+    xlow = BoundActor->int_pos().X;
+    ylow = BoundActor->int_pos().Y;
 
     KillActor(BoundActor);
 
@@ -702,8 +693,8 @@ void SectorObjectSetupBounds(SECTOR_OBJECT* sop)
     {
         I_Error("SOP bound sprite with hitag %d not found", 501 + (int(sop - SectorObject) * 5));
     }
-    xhigh = BoundActor->spr.pos.X;
-    yhigh = BoundActor->spr.pos.Y;
+    xhigh = BoundActor->int_pos().X;
+    yhigh = BoundActor->int_pos().Y;
 
     KillActor(BoundActor);
 
@@ -716,9 +707,9 @@ void SectorObjectSetupBounds(SECTOR_OBJECT* sop)
     BoundActor = FindBoundSprite(SECT_SO_CENTER);
     if (BoundActor)
     {
-        sop->pmid.X = BoundActor->spr.pos.X;
-        sop->pmid.Y = BoundActor->spr.pos.Y;
-        sop->pmid.Z = BoundActor->spr.pos.Z;
+        sop->pmid.X = BoundActor->int_pos().X;
+        sop->pmid.Y = BoundActor->int_pos().Y;
+        sop->pmid.Z = BoundActor->int_pos().Z;
         KillActor(BoundActor);
     }
 
@@ -770,18 +761,18 @@ void SectorObjectSetupBounds(SECTOR_OBJECT* sop)
             // detection and recognition
             sect->extra |= SECTFX_SECTOR_OBJECT;
 
-            sop->zorig_floor[sop->num_sectors] = sect->floorz;
-            sop->zorig_ceiling[sop->num_sectors] = sect->ceilingz;
+            sop->zorig_floor[sop->num_sectors] = sect->int_floorz();
+            sop->zorig_ceiling[sop->num_sectors] = sect->int_ceilingz();
 
             if ((sect->extra & SECTFX_SINK))
                 sop->zorig_floor[sop->num_sectors] += Z(FixedToInt(sect->depth_fixed));
 
-            // lowest and highest floorz's
-            if (sect->floorz > sop->floor_loz)
-                sop->floor_loz = sect->floorz;
+            // lowest and highest floor z's
+            if (sect->int_floorz() > sop->floor_loz)
+                sop->floor_loz = sect->int_floorz();
 
-            if (sect->floorz < sop->floor_hiz)
-                sop->floor_hiz = sect->floorz;
+            if (sect->int_floorz() < sop->floor_hiz)
+                sop->floor_hiz = sect->int_floorz();
 
             sop->num_sectors++;
         }
@@ -826,7 +817,7 @@ void SectorObjectSetupBounds(SECTOR_OBJECT* sop)
         SWStatIterator it(StatList[i]);
         while (auto itActor = it.Next())
         {
-            if (itActor->spr.pos.X > xlow && itActor->spr.pos.X < xhigh && itActor->spr.pos.Y > ylow && itActor->spr.pos.Y < yhigh)
+            if (itActor->int_pos().X > xlow && itActor->int_pos().X < xhigh && itActor->int_pos().Y > ylow && itActor->int_pos().Y < yhigh)
             {
                 // some delete sprites ride others don't
                 if (itActor->spr.statnum == STAT_DELETE_SPRITE)
@@ -855,12 +846,12 @@ void SectorObjectSetupBounds(SECTOR_OBJECT* sop)
                         short ang2;
                         sop->clipdist = 0;
                         sop->clipbox_dist[sop->clipbox_num] = itActor->spr.lotag;
-                        sop->clipbox_xoff[sop->clipbox_num] = sop->pmid.X - itActor->spr.pos.X;
-                        sop->clipbox_yoff[sop->clipbox_num] = sop->pmid.Y - itActor->spr.pos.Y;
+                        sop->clipbox_xoff[sop->clipbox_num] = sop->pmid.X - itActor->int_pos().X;
+                        sop->clipbox_yoff[sop->clipbox_num] = sop->pmid.Y - itActor->int_pos().Y;
 
-                        sop->clipbox_vdist[sop->clipbox_num] = ksqrt(SQ(sop->pmid.X - itActor->spr.pos.X) + SQ(sop->pmid.Y - itActor->spr.pos.Y));
+                        sop->clipbox_vdist[sop->clipbox_num] = ksqrt(SQ(sop->pmid.X - itActor->int_pos().X) + SQ(sop->pmid.Y - itActor->int_pos().Y));
 
-                        ang2 = getangle(itActor->spr.pos.X - sop->pmid.X, itActor->spr.pos.Y - sop->pmid.Y);
+                        ang2 = getangle(itActor->int_pos().X - sop->pmid.X, itActor->int_pos().Y - sop->pmid.Y);
                         sop->clipbox_ang[sop->clipbox_num] = getincangle(ang2, sop->ang);
 
                         sop->clipbox_num++;
@@ -881,9 +872,9 @@ void SectorObjectSetupBounds(SECTOR_OBJECT* sop)
                 }
 
 
-                itActor->user.pos.X = sop->pmid.X - itActor->spr.pos.X;
-                itActor->user.pos.Y = sop->pmid.Y - itActor->spr.pos.Y;
-                itActor->user.pos.Z = sop->mid_sector->floorz - itActor->spr.pos.Z;
+                itActor->user.pos.X = sop->pmid.X - itActor->int_pos().X;
+                itActor->user.pos.Y = sop->pmid.Y - itActor->int_pos().Y;
+                itActor->user.pos.Z = sop->mid_sector->int_floorz() - itActor->int_pos().Z;
 
                 itActor->user.Flags |= (SPR_SO_ATTACHED);
 
@@ -914,7 +905,7 @@ void SectorObjectSetupBounds(SECTOR_OBJECT* sop)
                         if (sop->sectp[j] == itActor->sector())
                         {
                             itActor->user.Flags |= (SPR_ON_SO_SECTOR);
-                            itActor->user.pos.Z = itActor->sector()->floorz - itActor->spr.pos.Z;
+                            itActor->user.pos.Z = itActor->sector()->int_floorz() - itActor->int_pos().Z;
                             break;
                         }
                     }
@@ -937,8 +928,8 @@ cont:
         {
             auto actor = sop->so_actors[i];
 
-            if (actor->spr.pos.Z > zmid)
-                zmid = actor->spr.pos.Z;
+            if (actor->int_pos().Z > zmid)
+                zmid = actor->int_pos().Z;
         }
 
         ASSERT(zmid != -9999999);
@@ -948,7 +939,7 @@ cont:
 		for (i = 0; sop->so_actors[i] != nullptr; i++)
 		{
             auto actor = sop->so_actors[i];
-            actor->user.pos.Z = sop->pmid.Z - actor->spr.pos.Z;
+            actor->user.pos.Z = sop->pmid.Z - actor->int_pos().Z;
         }
     }
 }
@@ -1210,7 +1201,7 @@ void SetupSectorObject(sectortype* sectp, short tag)
 
                     if (TEST_BOOL4(actor))
                     {
-                        sop->crush_z = actor->spr.pos.Z;
+                        sop->crush_z = actor->int_pos().Z;
                         sop->flags |= (SOBJ_RECT_CLIP);
                     }
 
@@ -1484,7 +1475,7 @@ void PlaceActorsOnTracks(void)
         {
             tpoint = Track[actor->user.track].TrackPoint;
 
-            dist = Distance((tpoint + j)->x, (tpoint + j)->y, actor->spr.pos.X, actor->spr.pos.Y);
+            dist = Distance((tpoint + j)->x, (tpoint + j)->y, actor->int_pos().X, actor->int_pos().Y);
 
             if (dist < low_dist)
             {
@@ -1497,12 +1488,12 @@ void PlaceActorsOnTracks(void)
 
         if (Track[actor->user.track].NumPoints == 0)
         {
-            Printf("WARNING: Sprite %d (%d, %d) placed on track %d with no points!\n", actor->GetIndex(), actor->spr.pos.X, actor->spr.pos.Y, actor->user.track);
+            Printf("WARNING: Sprite %d (%d, %d) placed on track %d with no points!\n", actor->GetIndex(), actor->int_pos().X, actor->int_pos().Y, actor->user.track);
             continue;
         }
 
         // check angle in the "forward" direction
-        actor->spr.ang = getangle((tpoint + actor->user.point)->x - actor->spr.pos.X, (tpoint + actor->user.point)->y - actor->spr.pos.Y);
+        actor->spr.ang = getangle((tpoint + actor->user.point)->x - actor->int_pos().X, (tpoint + actor->user.point)->y - actor->int_pos().Y);
     }
 }
 
@@ -1587,7 +1578,7 @@ void MovePoints(SECTOR_OBJECT* sop, short delta_ang, int nx, int ny)
     vec2_t rxy;
     int pnum;
     PLAYER* pp;
-    sectortype* *sectp;
+    sectortype** sectp;
     int i, rot_ang;
     bool PlayerMove = true;
 
@@ -1602,13 +1593,12 @@ void MovePoints(SECTOR_OBJECT* sop, short delta_ang, int nx, int ny)
         PlayerMove = false;
 
     // move child sprite along also
-    sop->sp_child->spr.pos.X = sop->pmid.X;
-    sop->sp_child->spr.pos.Y = sop->pmid.Y;
+    sop->sp_child->set_int_xy(sop->pmid.X, sop->pmid.Y);
 
 
-    // setting floorz if need be
+    // setting floor z if need be
     if ((sop->flags & SOBJ_ZMID_FLOOR))
-        sop->pmid.Z = sop->mid_sector->floorz;
+        sop->pmid.Z = sop->mid_sector->int_floorz();
 
     DVector2 pivot = { sop->pmid.X * inttoworld, sop->pmid.Y * inttoworld };
     DVector2 move = { nx * inttoworld, ny * inttoworld };
@@ -1703,14 +1693,13 @@ PlayerPart:
             }
         }
 
-        actor->spr.pos.X = sop->pmid.X - actor->user.pos.X;
-        actor->spr.pos.Y = sop->pmid.Y - actor->user.pos.Y;
+        actor->set_int_xy(sop->pmid.X - actor->user.pos.X, sop->pmid.Y - actor->user.pos.Y);
 
         // sprites z update
         if ((sop->flags & SOBJ_SPRITE_OBJ))
         {
             // Sprite Objects follow zmid
-            actor->spr.pos.Z = sop->pmid.Z - actor->user.pos.Z;
+            actor->set_int_z(sop->pmid.Z - actor->user.pos.Z);
         }
         else
         {
@@ -1718,12 +1707,12 @@ PlayerPart:
             if (actor->user.Flags & (SPR_ON_SO_SECTOR))
             {
                 // move with sector its on
-                actor->spr.pos.Z = actor->sector()->floorz - actor->user.pos.Z;
+                actor->set_int_z(actor->sector()->int_floorz() - actor->user.pos.Z);
             }
             else
             {
                 // move with the mid sector
-                actor->spr.pos.Z = sop->mid_sector->floorz - actor->user.pos.Z;
+                actor->set_int_z(sop->mid_sector->int_floorz() - actor->user.pos.Z);
             }
         }
 
@@ -1740,16 +1729,18 @@ PlayerPart:
             if ((actor->sector()->firstWall()->extra & WALLFX_LOOP_DONT_SPIN))
                 continue;
 
+            auto pos = actor->int_pos();
             if ((actor->sector()->firstWall()->extra & WALLFX_LOOP_REVERSE_SPIN))
             {
-                rotatepoint(sop->pmid.vec2, actor->spr.pos.vec2, -delta_ang, &actor->spr.pos.vec2);
+                rotatepoint(sop->pmid.vec2, actor->int_pos().vec2, -delta_ang, &pos.vec2);
                 actor->spr.ang = NORM_ANGLE(actor->spr.ang - delta_ang);
             }
             else
             {
-                rotatepoint(sop->pmid.vec2, actor->spr.pos.vec2, delta_ang, &actor->spr.pos.vec2);
+                rotatepoint(sop->pmid.vec2, actor->int_pos().vec2, delta_ang, &pos.vec2);
                 actor->spr.ang = NORM_ANGLE(actor->spr.ang + delta_ang);
             }
+            actor->set_int_pos(pos);
 
         }
         else
@@ -1757,14 +1748,16 @@ PlayerPart:
             if (!(sop->flags & SOBJ_DONT_ROTATE))
             {
                 // NOT part of a sector - independant of any sector
-                rotatepoint(sop->pmid.vec2, actor->spr.pos.vec2, delta_ang, &actor->spr.pos.vec2);
+                auto pos = actor->int_pos();
+                rotatepoint(sop->pmid.vec2, actor->int_pos().vec2, delta_ang, &pos.vec2);
                 actor->spr.ang = NORM_ANGLE(actor->spr.ang + delta_ang);
+                actor->set_int_pos(pos);
             }
 
             // Does not necessarily move with the sector so must accout for
             // moving across sectors
             if (sop->pmid.X < MAXSO) // special case for operating SO's
-                SetActorZ(sop->so_actors[i], &actor->spr.pos);
+                SetActorZ(sop->so_actors[i], actor->int_pos());
         }
 
         actor->user.oangdiff += getincangle(oldang, actor->spr.ang);
@@ -1796,7 +1789,7 @@ PlayerPart:
                 //pp->posz -= PLAYER_HEIGHT + Z(12);
                 DoPlayerZrange(pp);
                 pp->pos.Z = pp->loz - PLAYER_CRAWL_HEIGHT;
-                pp->actor->spr.pos.Z = pp->loz;
+                pp->actor->set_int_z(pp->loz);
             }
             else
             {
@@ -1807,7 +1800,7 @@ PlayerPart:
                 if (!(pp->Flags & (PF_JUMPING | PF_FALLING | PF_FLYING)))
                 {
                     pp->pos.Z = pp->loz - PLAYER_HEIGHT;
-                    pp->actor->spr.pos.Z = pp->loz;
+                    pp->actor->set_int_z(pp->loz);
                 }
             }
         }
@@ -1935,7 +1928,7 @@ void UpdateSectorObjectSprites(SECTOR_OBJECT* sop)
         DSWActor* actor = sop->so_actors[i];
         if (!actor) continue;
 
-        SetActorZ(actor, &actor->spr.pos);
+        SetActorZ(actor, actor->int_pos());
     }
 }
 
@@ -2044,7 +2037,7 @@ void MoveZ(SECTOR_OBJECT* sop)
             if (sop->sectp[i]->hasU() && (sop->sectp[i]->flags & SECTFU_SO_DONT_BOB))
                 continue;
 
-            (*sectp)->setfloorz(sop->zorig_floor[i] + sop->bob_diff);
+            (*sectp)->set_int_floorz(sop->zorig_floor[i] + sop->bob_diff);
         }
     }
 
@@ -2116,7 +2109,6 @@ void CallbackSOsink(ANIM* ap, void *data)
 
     destsect->floorpicnum = srcsect->floorpicnum;
     destsect->floorshade = srcsect->floorshade;
-//    destsect->floorz = srcsect->floorz;
 
     destsect->floorstat &= ~(CSTAT_SECTOR_ALIGN);
     destsect->u_defined = true;
@@ -2393,7 +2385,7 @@ void DoTrack(SECTOR_OBJECT* sop, short locktics, int *nx, int *ny)
                 if (sop->sectp[i]->hasU() && (sop->sectp[i]->flags & SECTFU_SO_DONT_SINK))
                     continue;
 
-                ndx = AnimSet(ANIM_Floorz, *sectp, dest_sector->floorz, tpoint->tag_high);
+                ndx = AnimSet(ANIM_Floorz, *sectp, dest_sector->int_floorz(), tpoint->tag_high);
                 AnimSetCallback(ndx, CallbackSOsink, sop);
                 AnimSetVelAdj(ndx, 6);
             }
@@ -2413,7 +2405,7 @@ void DoTrack(SECTOR_OBJECT* sop, short locktics, int *nx, int *ny)
                 {
                     if ((*sectp) && (*sectp)->stag == SECT_SO_FORM_WHIRLPOOL)
                     {
-                        AnimSet(ANIM_Floorz, *sectp, (*sectp)->floorz + Z((*sectp)->height), 128);
+                        AnimSet(ANIM_Floorz, *sectp, (*sectp)->int_floorz() + Z((*sectp)->height), 128);
                         (*sectp)->floorshade += (*sectp)->height / 6;
 
                         (*sectp)->extra &= ~(SECTFX_NO_RIDE);
@@ -2541,7 +2533,7 @@ void DoTrack(SECTOR_OBJECT* sop, short locktics, int *nx, int *ny)
                 // churn through sectors setting their new z values
                 for (i = 0; sop->sectp[i] != nullptr; i++)
                 {
-                    AnimSet(ANIM_Floorz, sop->sectp[i], dz - (sop->mid_sector->floorz - sop->sectp[i]->floorz), sop->z_rate);
+                    AnimSet(ANIM_Floorz, sop->sectp[i], dz - (sop->mid_sector->int_floorz() - sop->sectp[i]->int_floorz()), sop->z_rate);
                 }
             }
         }
@@ -2604,7 +2596,7 @@ void OperateSectorObjectForTics(SECTOR_OBJECT* sop, short newang, int newx, int 
             if (sop->sectp[i]->hasU() && (sop->sectp[i]->flags & SECTFU_SO_DONT_BOB))
                 continue;
 
-            (*sectp)->setfloorz(sop->zorig_floor[i] + sop->bob_diff);
+            (*sectp)->set_int_floorz(sop->zorig_floor[i] + sop->bob_diff);
         }
     }
 
@@ -2715,7 +2707,7 @@ void DoTornadoObject(SECTOR_OBJECT* sop)
     yvect = sop->vel * bcos(*ang);
 
     auto cursect = sop->op_main_sector; // for sop->vel
-    floor_dist = (abs(cursect->ceilingz - cursect->floorz)) >> 2;
+    floor_dist = (abs(cursect->int_ceilingz() - cursect->int_floorz())) >> 2;
     pos.X = sop->pmid.X;
     pos.Y = sop->pmid.Y;
     pos.Z = floor_dist;
@@ -2765,8 +2757,8 @@ void DoAutoTurretObject(SECTOR_OBJECT* sop)
 
 			if (sActor->spr.statnum == STAT_SO_SHOOT_POINT)
             {
-                if (!FAFcansee(sActor->spr.pos.X, sActor->spr.pos.Y, sActor->spr.pos.Z-Z(4), sActor->sector(),
-                               actor->user.targetActor->spr.pos.X, actor->user.targetActor->spr.pos.Y, ActorUpperZ(actor->user.targetActor), actor->user.targetActor->sector()))
+                if (!FAFcansee(sActor->int_pos().X, sActor->int_pos().Y, sActor->int_pos().Z-Z(4), sActor->sector(),
+                               actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y, ActorUpperZ(actor->user.targetActor), actor->user.targetActor->sector()))
                 {
                     return;
                 }
@@ -2800,7 +2792,7 @@ void DoAutoTurretObject(SECTOR_OBJECT* sop)
             }
         }
 
-        sop->ang_tgt = getangle(actor->user.targetActor->spr.pos.X - sop->pmid.X,  actor->user.targetActor->spr.pos.Y - sop->pmid.Y);
+        sop->ang_tgt = getangle(actor->user.targetActor->int_pos().X - sop->pmid.X,  actor->user.targetActor->int_pos().Y - sop->pmid.Y);
 
         // get delta to target angle
         delta_ang = getincangle(sop->ang, sop->ang_tgt);
@@ -2840,7 +2832,7 @@ void DoActorHitTrackEndPoint(DSWActor* actor)
 
         if (actor->user.track >= 0)
         {
-            actor->spr.ang = NORM_ANGLE(getangle((Track[actor->user.track].TrackPoint + actor->user.point)->x - actor->spr.pos.X, (Track[actor->user.track].TrackPoint + actor->user.point)->y - actor->spr.pos.Y));
+            actor->spr.ang = NORM_ANGLE(getangle((Track[actor->user.track].TrackPoint + actor->user.point)->x - actor->int_pos().X, (Track[actor->user.track].TrackPoint + actor->user.point)->y - actor->int_pos().Y));
         }
         else
         {
@@ -2856,7 +2848,7 @@ void DoActorHitTrackEndPoint(DSWActor* actor)
 
         if (actor->user.track >= 0)
         {
-            actor->spr.ang = NORM_ANGLE(getangle((Track[actor->user.track].TrackPoint + actor->user.point)->x - actor->spr.pos.X, (Track[actor->user.track].TrackPoint + actor->user.point)->y - actor->spr.pos.Y));
+            actor->spr.ang = NORM_ANGLE(getangle((Track[actor->user.track].TrackPoint + actor->user.point)->x - actor->int_pos().X, (Track[actor->user.track].TrackPoint + actor->user.point)->y - actor->int_pos().Y));
         }
         else
         {
@@ -3012,7 +3004,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
             {
                 actor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK);
 
-                FAFhitscan(actor->spr.pos.X, actor->spr.pos.Y, actor->spr.pos.Z - Z(24), actor->sector(),      // Start position
+                FAFhitscan(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - Z(24), actor->sector(),      // Start position
                            bcos(actor->spr.ang),    // X vector of 3D ang
                            bsin(actor->spr.ang),    // Y vector of 3D ang
                            0,                // Z vector of 3D ang
@@ -3031,7 +3023,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
                 if (!hit.hitWall->twoSided())
                     return false;
 
-                zdiff = labs(actor->spr.pos.Z - hit.hitWall->nextSector()->floorz) >> 8;
+                zdiff = labs(actor->int_pos().Z - hit.hitWall->nextSector()->int_floorz()) >> 8;
 
                 actor->user.jump_speed = PickJumpSpeed(actor, zdiff);
             }
@@ -3110,12 +3102,12 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
 
         actor->spr.ang = tpoint->ang;
 
-        z[0] = actor->spr.pos.Z - ActorSizeZ(actor) + Z(5);
-        z[1] = actor->spr.pos.Z - (ActorSizeZ(actor) >> 1);
+        z[0] = actor->int_pos().Z - ActorSizeZ(actor) + Z(5);
+        z[1] = actor->int_pos().Z - (ActorSizeZ(actor) >> 1);
 
         for (i = 0; i < (int)SIZ(z); i++)
         {
-            neartag({ actor->spr.pos.X, actor->spr.pos.Y, z[i] }, actor->sector(), actor->spr.ang, near, 1024, NTAG_SEARCH_LO_HI);
+            neartag({ actor->int_pos().X, actor->int_pos().Y, z[i] }, actor->sector(), actor->spr.ang, near, 1024, NTAG_SEARCH_LO_HI);
 
             if (near.actor() != nullptr && near.hitpos.X < 1024)
             {
@@ -3291,7 +3283,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
         if (actor->user.Flags & (SPR_ZDIFF_MODE))
         {
             actor->user.Flags &= ~(SPR_ZDIFF_MODE);
-            actor->spr.pos.Z = actor->sector()->floorz;
+            actor->set_int_z(actor->sector()->int_floorz());
             actor->spr.zvel = 0;
         }
         else
@@ -3323,8 +3315,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
             nx = MOVEx(100, lActor->spr.ang);
             ny = MOVEy(100, lActor->spr.ang);
 
-            actor->spr.pos.X = lActor->spr.pos.X + nx;
-            actor->spr.pos.Y = lActor->spr.pos.Y + ny;
+            actor->set_int_xy(lActor->int_pos().X + nx, lActor->int_pos().Y + ny);
 
             actor->spr.ang = NORM_ANGLE(lActor->spr.ang + 1024);
 
@@ -3332,7 +3323,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
             // Get the z height to climb
             //
 
-            neartag({ actor->spr.pos.X, actor->spr.pos.Y, ActorZOfTop(actor) - (ActorSizeZ(actor) >> 1) }, actor->sector(), actor->spr.ang, near, 600, NTAG_SEARCH_LO_HI);
+            neartag({ actor->int_pos().X, actor->int_pos().Y, ActorZOfTop(actor) - (ActorSizeZ(actor) >> 1) }, actor->sector(), actor->spr.ang, near, 600, NTAG_SEARCH_LO_HI);
 
             if (near.hitWall == nullptr)
             {
@@ -3350,9 +3341,9 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
 
             // destination z for climbing
             if (wal->twoSided())
-                actor->user.pos.Z = wal->nextSector()->floorz;
+                actor->user.pos.Z = wal->nextSector()->int_floorz();
             else
-                actor->user.pos.Z = wal->sectorp()->ceilingz; // don't crash on bad setups.
+                actor->user.pos.Z = wal->sectorp()->int_ceilingz(); // don't crash on bad setups.
 
             DoActorZrange(actor);
 
@@ -3364,8 +3355,8 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
             bos_z = ActorZOfBottom(actor);
             if (bos_z > actor->user.loz)
             {
-                actor->user.pos.Y = (bos_z - actor->spr.pos.Z);
-                actor->spr.pos.Z -= actor->user.pos.Y;
+                actor->user.pos.Y = (bos_z - actor->int_pos().Z);
+                actor->add_int_z(-actor->user.pos.Y);
             }
 
             //
@@ -3420,7 +3411,7 @@ int ActorFollowTrack(DSWActor* actor, short locktics)
             {
                 pp = &Player[pnum];
 
-                if (Distance(actor->spr.pos.X, actor->spr.pos.Y, pp->pos.X, pp->pos.Y) < actor->user.Dist)
+                if (Distance(actor->int_pos().X, actor->int_pos().Y, pp->pos.X, pp->pos.Y) < actor->user.Dist)
                 {
                     actor->user.targetActor = pp->actor;
                     actor->user.Flags &= ~(SPR_WAIT_FOR_PLAYER);
@@ -3451,10 +3442,10 @@ int ActorFollowTrack(DSWActor* actor, short locktics)
 
     if (!(actor->user.Flags & (SPR_CLIMBING | SPR_DONT_UPDATE_ANG)))
     {
-        actor->spr.ang = getangle(tpoint->x - actor->spr.pos.X, tpoint->y - actor->spr.pos.Y);
+        actor->spr.ang = getangle(tpoint->x - actor->int_pos().X, tpoint->y - actor->int_pos().Y);
     }
 
-    if ((dist = Distance(actor->spr.pos.X, actor->spr.pos.Y, tpoint->x, tpoint->y)) < 200) // 64
+    if ((dist = Distance(actor->int_pos().X, actor->int_pos().Y, tpoint->x, tpoint->y)) < 200) // 64
     {
         if (!ActorTrackDecide(tpoint, actor))
             return true;
@@ -3466,7 +3457,7 @@ int ActorFollowTrack(DSWActor* actor, short locktics)
         if (!(actor->user.Flags & (SPR_CLIMBING | SPR_DONT_UPDATE_ANG)))
         {
             // calculate a new angle to the target
-            actor->spr.ang = getangle(tpoint->x - actor->spr.pos.X, tpoint->y - actor->spr.pos.Y);
+            actor->spr.ang = getangle(tpoint->x - actor->int_pos().X, tpoint->y - actor->int_pos().Y);
         }
 
         if (actor->user.Flags & (SPR_ZDIFF_MODE))
@@ -3477,11 +3468,11 @@ int ActorFollowTrack(DSWActor* actor, short locktics)
             dz = tpoint->z;
 
             // find the distance to the target (player)
-            dist = DIST(dx, dy, actor->spr.pos.X, actor->spr.pos.Y);
+            dist = DIST(dx, dy, actor->int_pos().X, actor->int_pos().Y);
 
             // (velocity * difference between the target and the object) /
             // distance
-            actor->spr.zvel = -((actor->spr.xvel * (actor->spr.pos.Z - dz)) / dist);
+            actor->spr.zvel = -((actor->spr.xvel * (actor->int_pos().Z - dz)) / dist);
         }
     }
     else
@@ -3520,11 +3511,11 @@ int ActorFollowTrack(DSWActor* actor, short locktics)
 
                 actor->spr.zvel = 0;
 
-                actor->spr.ang = getangle(tpoint->x - actor->spr.pos.X, tpoint->y - actor->spr.pos.Y);
+                actor->spr.ang = getangle(tpoint->x - actor->int_pos().X, tpoint->y - actor->int_pos().Y);
 
                 ActorLeaveTrack(actor);
                 actor->spr.cstat &= ~(CSTAT_SPRITE_YCENTER);
-                actor->spr.pos.Z += actor->user.pos.Y;
+                actor->add_int_z(actor->user.pos.Y);
 
                 DoActorSetSpeed(actor, SLOW_SPEED);
                 actor->user.ActorActionFunc = NinjaJumpActionFunc;

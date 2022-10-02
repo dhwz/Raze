@@ -429,13 +429,13 @@ void EXSoundEngine::CalcPosVel(int type, const void* source, const float pt[3], 
         if (nSnakeCam > -1)
         {
             Snake* pSnake = &SnakeList[nSnakeCam];
-            campos = pSnake->pSprites[0]->spr.pos;
+            campos = pSnake->pSprites[0]->int_pos();
         }
         else
         {
             campos = { initx, inity, initz };
         }
-        auto fcampos = GetSoundPos(&campos);
+        auto fcampos = GetSoundPos(campos);
 
         if (vel) vel->Zero();
 
@@ -477,7 +477,7 @@ void EXSoundEngine::CalcPosVel(int type, const void* source, const float pt[3], 
             assert(actor != nullptr);
             if (actor != nullptr)
             {
-                *pos = GetSoundPos(&actor->spr.pos);
+                *pos = GetSoundPos(actor->int_pos());
             }
         }
         if ((chanflags & CHANF_LISTENERZ) && type != SOURCE_None)
@@ -503,7 +503,7 @@ void GameInterface::UpdateSounds()
     if (nSnakeCam > -1)
     {
         Snake *pSnake = &SnakeList[nSnakeCam];
-        pos = pSnake->pSprites[0]->spr.pos;
+        pos = pSnake->pSprites[0]->int_pos();
         ang = pSnake->pSprites[0]->spr.ang;
     }
     else
@@ -511,11 +511,11 @@ void GameInterface::UpdateSounds()
         pos = { initx, inity, initz };
         ang = inita;
     }
-    auto fv = GetSoundPos(&pos);
+    auto fv = GetSoundPos(pos);
     SoundListener listener;
     listener.angle = float(-ang * BAngRadian); // Build uses a period of 2048.
     listener.velocity.Zero();
-    listener.position = GetSoundPos(&pos);
+    listener.position = GetSoundPos(pos);
     listener.underwater = false;
     // This should probably use a real environment instead of the pitch hacking in S_PlaySound3D.
     // listenactor->waterlevel == 3;
@@ -565,9 +565,9 @@ void PlayFX2(int nSound, DExhumedActor* pActor, int sectf, EChanFlags chanflags,
     {
         fullvol = (sprflags & 0x2000) != 0;
         hiprio = (sprflags & 0x4000) != 0;
-        soundx = pActor->spr.pos.X;
-        soundy = pActor->spr.pos.Y;
-        soundz = pActor->spr.pos.Z;
+        soundx = pActor->int_pos().X;
+        soundy = pActor->int_pos().Y;
+        soundz = pActor->int_pos().Z;
     }
 
     int nVolume = 255;
@@ -589,7 +589,7 @@ void PlayFX2(int nSound, DExhumedActor* pActor, int sectf, EChanFlags chanflags,
     GetSpriteSoundPitch(&nVolume, &nPitch);
 
     vec3_t v = { soundx, soundy, soundz };
-    FVector3 vv = GetSoundPos(&v);
+    FVector3 vv = GetSoundPos(v);
 
     // Check if this sound is allowed to play or if it must stop some other sound.
     if (!forcePlay)
@@ -675,8 +675,8 @@ void CheckAmbience(sectortype* sect)
         walltype* pWall = pSector2->firstWall();
         if (!soundEngine->IsSourcePlayingSomething(SOURCE_Ambient, &amb, 0))
         {
-            vec3_t v = { pWall->wall_int_pos().X, pWall->wall_int_pos().Y, pSector2->floorz };
-            amb = GetSoundPos(&v);
+            vec3_t v = { pWall->wall_int_pos().X, pWall->wall_int_pos().Y, pSector2->int_floorz() };
+            amb = GetSoundPos(v);
             soundEngine->StartSound(SOURCE_Ambient, &amb, nullptr, CHAN_BODY, CHANF_TRANSIENT, sect->Sound + 1, 1.f, ATTN_NORM);
             return;
         }
@@ -686,12 +686,12 @@ void CheckAmbience(sectortype* sect)
                 {
                     if (sect == pSector2)
                     {
-                        amb = GetSoundPos(&PlayerList[0].pActor->spr.pos);
+                        amb = GetSoundPos(PlayerList[0].pActor->int_pos());
                     }
                     else
                     {
-                        vec3_t v = { pWall->wall_int_pos().X, pWall->wall_int_pos().Y, pSector2->floorz };
-                        amb = GetSoundPos(&v);
+                        vec3_t v = { pWall->wall_int_pos().X, pWall->wall_int_pos().Y, pSector2->int_floorz() };
+                        amb = GetSoundPos(v);
                     }
                     return 1;
                 }
@@ -731,8 +731,8 @@ void UpdateCreepySounds()
                 if (totalmoves & 2)
                     vax = -vax;
 
-                auto sp = PlayerList[nLocalPlayer].pActor->spr.pos + vec3_t({ vdx, vax, 0 });
-                creepy = GetSoundPos(&sp);
+                auto sp = PlayerList[nLocalPlayer].pActor->int_pos() + vec3_t({ vdx, vax, 0 });
+                creepy = GetSoundPos(sp);
 
                 if ((vsi & 0x1ff) >= kMaxSounds || !soundEngine->isValidSoundId((vsi & 0x1ff) + 1))
                 {

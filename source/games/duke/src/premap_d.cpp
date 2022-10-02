@@ -282,29 +282,11 @@ void prelevel_d(int g, TArray<DDukeActor*>& actors)
 
 		if (ac->spr.lotag == -1 && (ac->spr.cstat & CSTAT_SPRITE_ALIGNMENT_WALL))
 		{
-			ps[0].exit.X = ac->spr.pos.X;
-			ps[0].exit.Y = ac->spr.pos.Y;
+			ps[0].exit.X = ac->int_pos().X;
+			ps[0].exit.Y = ac->int_pos().Y;
 		}
-		else switch (ac->spr.picnum)
-		{
-		case GPSPEED:
-			ac->sector()->extra = ac->spr.lotag;
-			deletesprite(ac);
-			break;
-
-		case CYCLER:
-			if (numcyclers >= MAXCYCLERS)
-				I_Error("Too many cycling sectors.");
-			cyclers[numcyclers].sector = ac->sector();
-			cyclers[numcyclers].lotag = ac->spr.lotag;
-			cyclers[numcyclers].shade1 = ac->spr.shade;
-			cyclers[numcyclers].shade2 = ac->sector()->floorshade;
-			cyclers[numcyclers].hitag = ac->spr.hitag;
-			cyclers[numcyclers].state = (ac->spr.ang == 1536);
-			numcyclers++;
-			deletesprite(ac);
-			break;
-		}
+		else
+			premapcontroller(ac);
 	}
 
 

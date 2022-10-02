@@ -94,6 +94,7 @@ enum ESectorExBits
 {
 	SECTOREX_CLOUDSCROLL			= 1,
 	SECTOREX_DRAGGED				= 2,
+	SECTOREX_DONTCLIP				= 4,
 };
 
 // Flags for retriangulation
@@ -226,30 +227,40 @@ struct sectortype
 	// Debug hack job for finding all places where ceilingz and floorz get written to.
 	// If the engine does not compile with this block on, we got a problem.
 	// Since this is only for compile verification there's no need to provide a working implementation.
-	const int32_t ceilingz;
-	const int32_t floorz;
-	sectortype(int a = 0, int b = 0) : ceilingz(a), floorz(b) {}
+	const double floorz, ceilingz;
+	sectortype(double a = 0, double b = 0) : ceilingz(a), floorz(b) {}
 
-	void setceilingz(int cc, bool temp = false) {}
-	void setfloorz(int cc, bool temp = false) {}
-	void addceilingz(int cc, bool temp = false) {}
-	void addfloorz(int cc, bool temp = false) {}
-	int32_t* ceilingzptr(bool temp = false) { return nullptr; }
-	int32_t* floorzptr(bool temp = false) { return nullptr; }
+	void set_int_ceilingz(int cc, bool temp = false) {}
+	void set_int_floorz(int cc, bool temp = false) {}
+	void add_int_ceilingz(int cc, bool temp = false) {}
+	void add_int_floorz(int cc, bool temp = false) {}
 
 #else
 	// Do not change directly!
-	int32_t ceilingz;
-	int32_t floorz;
+	double floorz, ceilingz;
 
-	void setceilingz(int cc, bool temp = false);
-	void setfloorz(int cc, bool temp = false);
-	void addceilingz(int cc, bool temp = false);
-	void addfloorz(int cc, bool temp = false);
-	int32_t* ceilingzptr(bool temp = false);
-	int32_t* floorzptr(bool temp = false);
+	void setceilingz(double cc, bool temp = false);
+	void setfloorz(double cc, bool temp = false);
+	void addceilingz(double cc, bool temp = false);
+	void addfloorz(double cc, bool temp = false);
+
+	void set_int_ceilingz(int cc, bool temp = false) { setceilingz(cc * zinttoworld, temp); }
+	void set_int_floorz(int cc, bool temp = false) { setfloorz(cc * zinttoworld, temp); }
+	void add_int_ceilingz(int cc, bool temp = false) { addceilingz(cc * zinttoworld, temp); }
+	void add_int_floorz(int cc, bool temp = false) { addfloorz(cc * zinttoworld, temp); }
+
+	void setzfrommap(int c, int f)
+	{
+		ceilingz = c * zmaptoworld;
+		floorz = f * zmaptoworld;
+	}
 
 #endif
+
+	int int_ceilingz() const { return ceilingz * zworldtoint; }
+	int int_floorz() const { return floorz * zworldtoint; }
+	float render_ceilingz() const { return (float)-ceilingz; }
+	float render_floorz() const { return (float)-floorz; }
 
 
 	// panning byte fields were promoted to full floats to enable panning interpolation.
@@ -369,7 +380,7 @@ struct walltype
 	DVector2 pos;
 
 	vec2_t wall_int_pos() const { return vec2_t(pos.X * worldtoint, pos.Y * worldtoint); };
-	void setPosFromLoad(int x, int y) { pos = { x * maptoworld, y * maptoworld }; }
+	void setPosFromMap(int x, int y) { pos = { x * maptoworld, y * maptoworld }; }
 
 	int32_t point2;
 	int32_t nextwall;
@@ -444,7 +455,7 @@ struct walltype
 
 struct spritetypebase
 {
-	vec3_t pos;
+	DVector3 pos;
 
 	sectortype* sectp;
 
@@ -469,6 +480,16 @@ struct spritetypebase
 	uint8_t yrepeat;
 	int8_t xoffset;
 	int8_t yoffset;
+
+	void SetMapPos(int x, int y, int z)
+	{
+		pos = { x * maptoworld, y * maptoworld, z * zmaptoworld };
+	}
+
+	const vec3_t int_pos() const
+	{
+		return { int(pos.X * worldtoint), int(pos.Y * worldtoint), int(pos.Z * zworldtoint) };
+	}
 };
 
 
@@ -488,6 +509,76 @@ struct tspritetype : public spritetypebase
 {
 	DCoreActor* ownerActor;
 	int time;
+
+	void set_int_pos(const vec3_t& ipos)
+	{
+		pos = { ipos.X * inttoworld, ipos.Y * inttoworld, ipos.Z * zinttoworld };
+	}
+	void add_int_x(int x)
+	{
+		pos.X += x * inttoworld;
+	}
+	void set_int_x(int x)
+	{
+		pos.X = x * inttoworld;
+	}
+	void add_int_y(int x)
+	{
+		pos.Y  += x * inttoworld;
+	}
+	void set_int_y(int x)
+	{
+		pos.Y  = x * inttoworld;
+	}
+	void add_int_z(int x)
+	{
+		pos.Z += x * zinttoworld;
+	}
+	void set_int_z(int x)
+	{
+		pos.Z = x * zinttoworld;
+	}
+};
+
+class tspriteArray
+{
+	static const int blockbits = 9;
+	static const int blocksize = 1 << blockbits;
+	struct block
+	{
+		tspritetype data[blocksize];
+	};
+	TDeletingArray<block*> blocks;
+	unsigned size;
+
+public:
+	tspritetype* newTSprite()
+	{
+		if ((size & (blocksize - 1)) == 0) blocks.Push(new block);
+		return get(size++);
+	}
+
+	tspritetype* get(unsigned index)
+	{
+		assert(index < size);
+		return &blocks[index >> blockbits]->data[index & (blocksize - 1)];
+	}
+
+	tspritetype* current()
+	{
+		return get(size - 1);
+	}
+
+	void clear()
+	{
+		blocks.DeleteAndClear();
+		size = 0;
+	}
+
+	unsigned Size() const
+	{
+		return size;
+	}
 };
 
 extern TArray<sectortype> sector;
@@ -583,35 +674,25 @@ inline int walltype::Length()
 
 #ifndef SECTOR_HACKJOB
 
-inline void sectortype::setceilingz(int cc, bool temp)
+inline void sectortype::setceilingz(double cc, bool temp)
 {
 	ceilingz = cc;
 	if (!temp) MarkVerticesForSector(sector.IndexOf(this));
 }
-inline void sectortype::setfloorz(int cc, bool temp)
+inline void sectortype::setfloorz(double cc, bool temp)
 {
 	floorz = cc;
 	if (!temp) MarkVerticesForSector(sector.IndexOf(this));
 }
-inline void sectortype::addceilingz(int cc, bool temp)
+inline void sectortype::addceilingz(double cc, bool temp)
 {
 	ceilingz += cc;
 	if (!temp) MarkVerticesForSector(sector.IndexOf(this));
 }
-inline void sectortype::addfloorz(int cc, bool temp)
+inline void sectortype::addfloorz(double cc, bool temp)
 {
 	floorz += cc;
 	if (!temp) MarkVerticesForSector(sector.IndexOf(this));
-}
-inline int32_t* sectortype::ceilingzptr(bool temp)
-{
-	if (!temp) MarkVerticesForSector(sector.IndexOf(this));
-	return &ceilingz;
-}
-inline int32_t* sectortype::floorzptr(bool temp)
-{
-	if (!temp) MarkVerticesForSector(sector.IndexOf(this));
-	return &floorz;
 }
 
 #endif
@@ -665,5 +746,5 @@ void fixSectors();
 void loadMap(const char *filename, int flags, vec3_t *pos, int16_t *ang, int *cursectnum, SpawnSpriteDef& sprites);
 TArray<walltype> loadMapWalls(const char* filename);
 void loadMapBackup(const char* filename);
-void loadMapHack(const char* filename, const unsigned char*, SpawnSpriteDef& sprites);
+void loadMapHack(const char* filename, const uint8_t*, SpawnSpriteDef& sprites);
 void validateStartSector(const char* filename, const vec3_t& pos, int* cursectnum, unsigned numsectors, bool noabort = false);

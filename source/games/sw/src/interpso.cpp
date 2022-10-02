@@ -141,10 +141,10 @@ static void setvalue(so_interp::interp_data& element, double value)
         wall[index].moved();
         break;
     case soi_ceil:
-        sector[index].setceilingz((int)value);
+        sector[index].setceilingz(value);
         break;
     case soi_floor:
-        sector[index].setfloorz((int)value);
+        sector[index].setfloorz(value);
         break;
     case soi_sox:
         SectorObject[index].pmid.X = (int)value;
@@ -157,15 +157,15 @@ static void setvalue(so_interp::interp_data& element, double value)
         break;
     case soi_sprx:
         if (element.actorofang)
-            element.actorofang->spr.pos.X = (int)value;
+            element.actorofang->spr.pos.X = value;
         break;
     case soi_spry:
         if (element.actorofang)
-            element.actorofang->spr.pos.Y = (int)value;
+            element.actorofang->spr.pos.Y = value;
         break;
     case soi_sprz:
         if (element.actorofang)
-            element.actorofang->spr.pos.Z = (int)value;
+            element.actorofang->spr.pos.Z = value;
         break;
     default:
         break;

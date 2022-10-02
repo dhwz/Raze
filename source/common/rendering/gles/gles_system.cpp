@@ -9,6 +9,7 @@ CVAR(Bool, gles_use_mapped_buffer, false, 0);
 CVAR(Bool, gles_force_glsl_v100, false, 0);
 CVAR(Int, gles_max_lights_per_surface, 32, 0);
 EXTERN_CVAR(Bool, gl_customshader);
+void setGlVersion(double glv);
 
 #define __ANDROID__
 #if USE_GLES2
@@ -184,13 +185,19 @@ namespace OpenGLESRenderer
 		gles.npotAvailable = CheckExtension("GL_OES_texture_npot");
 		gles.useMappedBuffers = true;
 		gles.depthClampAvailable = CheckExtension("GL_EXT_depth_clamp");
+		gles.anistropicFilterAvailable = CheckExtension("GL_EXT_texture_filter_anisotropic");
 #else
 		gles.depthStencilAvailable = true;
 		gles.npotAvailable = true;
 		gles.useMappedBuffers = true;
 		gles.depthClampAvailable = true;
+		gles.anistropicFilterAvailable = true;
 #endif
 
 		gles.numlightvectors = (gles.maxlights * LIGHT_VEC4_NUM);
+
+		const char* glversion = (const char*)glGetString(GL_VERSION);
+		setGlVersion( strtod(glversion, NULL));
+
 	}
 }

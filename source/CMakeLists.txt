@@ -471,7 +471,7 @@ set( PLAT_WIN32_SOURCES
 	common/platform/win32/base_sysfb.cpp
 	common/platform/win32/win32basevideo.cpp
 	common/platform/win32/win32glvideo.cpp
-	common/platform/win32/win32polyvideo.cpp)
+	)
 
 if (HAVE_VULKAN)
 	set (PLAT_WIN32_SOURCES ${PLAT_WIN32_SOURCES} common/platform/win32/win32vulkanvideo.cpp )
@@ -601,7 +601,6 @@ include_directories( ${CMAKE_CURRENT_BINARY_DIR} )
 # there's generally a new cpp for every header so this file will get changed
 file( GLOB HEADER_FILES
 	build/include/*.h
-	glbackend/*.h
 	core/*.h
 	core/2d/*.h
 	core/utility/*.h
@@ -643,10 +642,6 @@ file( GLOB HEADER_FILES
 	common/rendering/gl_load/*.h
 	common/rendering/hwrenderer/*.h
 	common/rendering/hwrenderer/data/*.h
-	common/rendering/polyrenderer/*.h
-	common/rendering/polyrenderer/math/*.h
-	common/rendering/polyrenderer/drawers/*.h
-	common/rendering/polyrenderer/backend/*.h
 	common/rendering/vulkan/*.h
 	common/rendering/vulkan/system/*.h
 	common/rendering/vulkan/renderer/*.h
@@ -673,14 +668,6 @@ file( GLOB HEADER_FILES
 	core/textures/formats/*.h
 )
 
-set( POLYRENDER_SOURCES
-	common/rendering/polyrenderer/drawers/poly_triangle.cpp
-	common/rendering/polyrenderer/drawers/poly_thread.cpp
-	common/rendering/polyrenderer/drawers/screen_triangle.cpp
-	common/rendering/polyrenderer/drawers/screen_scanline_setup.cpp
-	common/rendering/polyrenderer/drawers/screen_shader.cpp
-	common/rendering/polyrenderer/drawers/screen_blend.cpp
-)
 
 # These files will be flagged as "headers" so that they appear in project files
 # without being compiled.
@@ -693,9 +680,6 @@ set( NOT_COMPILED_SOURCE_FILES
 	zcc-parse.h
 	common/platform/win32/zutil.natvis
 	common/rendering/vulkan/thirdparty/vk_mem_alloc/vk_mem_alloc.natvis
-	games/blood/src/_polymost.cpp
-	games/duke/src/_polymost.cpp
-	games/sw/src/_polymost.cpp
 
 	# Blood
 	games/blood/src/actor.cpp
@@ -745,6 +729,7 @@ set( NOT_COMPILED_SOURCE_FILES
 	games/blood/src/mirrors.cpp
 	games/blood/src/misc.cpp
 	games/blood/src/nnexts.cpp
+	games/blood/src/nnsprinsect.cpp
 	games/blood/src/osdcmd.cpp
 	games/blood/src/player.cpp
 	games/blood/src/prediction.cpp
@@ -946,10 +931,6 @@ set( FASTMATH_SOURCES
 	common/textures/hires/xbr/xbrz.cpp
 	common/textures/hires/xbr/xbrz_old.cpp
 	common/utility/matrix.cpp
-
-	# The rest is only here because it is C, not C++
-
-	gitinfo.cpp
 )
 
 #Vulkan stuff must go into a separate list because it needs to be disabled for some platforms
@@ -958,16 +939,24 @@ set (VULKAN_SOURCES
 	common/rendering/vulkan/system/vk_swapchain.cpp
 	common/rendering/vulkan/system/vk_builders.cpp
 	common/rendering/vulkan/system/vk_framebuffer.cpp
-	common/rendering/vulkan/system/vk_buffers.cpp
+	common/rendering/vulkan/system/vk_commandbuffer.cpp
+	common/rendering/vulkan/system/vk_hwbuffer.cpp
+	common/rendering/vulkan/system/vk_buffer.cpp
 	common/rendering/vulkan/renderer/vk_renderstate.cpp
 	common/rendering/vulkan/renderer/vk_renderpass.cpp
 	common/rendering/vulkan/renderer/vk_streambuffer.cpp
 	common/rendering/vulkan/renderer/vk_postprocess.cpp
-	common/rendering/vulkan/renderer/vk_renderbuffers.cpp
+	common/rendering/vulkan/renderer/vk_pprenderstate.cpp
+	common/rendering/vulkan/renderer/vk_descriptorset.cpp
+	common/rendering/vulkan/renderer/vk_raytrace.cpp
 	common/rendering/vulkan/shaders/vk_shader.cpp
+	common/rendering/vulkan/shaders/vk_ppshader.cpp
 	common/rendering/vulkan/textures/vk_samplers.cpp
 	common/rendering/vulkan/textures/vk_hwtexture.cpp
+	common/rendering/vulkan/textures/vk_pptexture.cpp
 	common/rendering/vulkan/textures/vk_imagetransition.cpp
+	common/rendering/vulkan/textures/vk_renderbuffers.cpp
+	common/rendering/vulkan/textures/vk_texture.cpp
 	common/rendering/vulkan/thirdparty/volk/volk.c
 	common/rendering/vulkan/thirdparty/vk_mem_alloc/vk_mem_alloc.cpp
 )
@@ -996,20 +985,11 @@ if (HAVE_VULKAN)
 	set (FASTMATH_SOURCES ${FASTMATH_SOURCES} ${VULKAN_SOURCES})
 endif()
 
-set (POLYBACKEND_SOURCES
-	common/rendering/polyrenderer/backend/poly_framebuffer.cpp
-	common/rendering/polyrenderer/backend/poly_buffers.cpp
-	common/rendering/polyrenderer/backend/poly_hwtexture.cpp
-	common/rendering/polyrenderer/backend/poly_renderstate.cpp
-)
 set (FASTMATH_SOURCES ${FASTMATH_SOURCES})
 
 set (PCH_SOURCES
 
 	common/thirdparty/richpresence.cpp
-
-	glbackend/glbackend.cpp
-	glbackend/gl_texture.cpp
 
 	thirdparty/src/md4.cpp
 
@@ -1017,7 +997,6 @@ set (PCH_SOURCES
 	build/src/clip.cpp
 	build/src/engine.cpp
 	build/src/mdsprite.cpp
-	build/src/polymost.cpp
 
 	core/actorinfo.cpp
 	core/zcc_compile_raze.cpp
@@ -1181,6 +1160,7 @@ set (PCH_SOURCES
 	common/cutscenes/screenjob.cpp
 	common/utility/engineerrors.cpp
 	common/utility/i_module.cpp
+	common/utility/gitinfo.cpp
 	common/utility/m_alloc.cpp
 	common/utility/utf8.cpp
 	common/utility/palette.cpp
@@ -1431,8 +1411,6 @@ include_directories(
 	common/rendering/gles/glad/include
 	common/rendering/gles/Mali_OpenGL_ES_Emulator/include
 	common/rendering/vulkan/thirdparty
-	common/rendering/polyrenderer/backend
-	common/rendering/polyrenderer/drawers
 	common/scripting/vm
 	common/scripting/jit
 	common/scripting/core
@@ -1490,7 +1468,7 @@ if( NOT WIN32 AND NOT APPLE )
 	FILE( WRITE ${CMAKE_CURRENT_BINARY_DIR}/link-make "if [ ! -e ${COMPILE_OUTPUT_DIRECTORY}/${PROJECT_NAME} ]; then ln -sf ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME} ${COMPILE_OUTPUT_DIRECTORY}/${PROJECT_NAME}; fi" )
 	add_custom_command( TARGET ${PROJECT_NAME} POST_BUILD
 		COMMAND chmod +x ${CMAKE_CURRENT_BINARY_DIR}/link-make
-		COMMAND /bin/sh -c ${CMAKE_CURRENT_BINARY_DIR}/link-make )
+		COMMAND ${CMAKE_CURRENT_BINARY_DIR}/link-make )
 	IF ("${INSTALL_RPATH}" STREQUAL "")
 		set_target_properties(${PROJECT_NAME} PROPERTIES
 			#allow libzmusic.so.1 library in same folder as executable at runtime
@@ -1510,14 +1488,10 @@ if( CMAKE_COMPILER_IS_GNUCXX )
 endif()
 if( DEM_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
 	# Need to enable intrinsics for these files.
-	if( SSE_MATTERS )
-		set_property( SOURCE
-			common/rendering/polyrenderer/poly_all.cpp
-			rendering/swrenderer/r_all.cpp
-			utility/palette.cpp
-			utility/x86.cpp
-			APPEND_STRING PROPERTY COMPILE_FLAGS " -msse2 -mmmx" )
-	endif()
+	set_property( SOURCE
+		common/utility/palette.cpp
+		common/utility/x86.cpp
+		APPEND_STRING PROPERTY COMPILE_FLAGS " ${SSE2_ENABLE}" )
 endif()
 
 if( APPLE )
@@ -1566,7 +1540,6 @@ source_group("Core\\DObject" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/co
 source_group("Core\\Menu" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/core/menu/.+")
 source_group("Core\\Rendering" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/core/rendering/.+")
 source_group("Core\\Rendering\\Scene" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/core/rendering/scene/.+")
-source_group("Rendering" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/glbackend/.+")
 source_group("Platform" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/platform/.+")
 source_group("Platform\\Win32" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/platform/win32/.+")
 source_group("Platform\\POSIX" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/platform/posix/.+")
@@ -1610,9 +1583,6 @@ source_group("Common\\Rendering\\Vulkan Renderer\\Textures" REGULAR_EXPRESSION "
 source_group("Common\\Rendering\\Vulkan Renderer\\Third Party" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/vulkan/thirdparty/.+")
 source_group("Common\\Rendering\\Vulkan Renderer\\Third Party\\Volk" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/vulkan/thirdparty/volk/.+")
 source_group("Common\\Rendering\\Vulkan Renderer\\Third Party\\Vk_Mem_Alloc" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/vulkan/thirdparty/vk_mem_alloc.+")
-source_group("Common\\Rendering\\Poly Renderer" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/polyrenderer/.+")
-source_group("Common\\Rendering\\Poly Renderer\\Drawers" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/polyrenderer/drawers/.+")
-source_group("Common\\Rendering\\Poly Renderer\\Backend" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/polyrenderer/backend/.+")
 source_group("Common\\Models" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/models/.+")
 source_group("Common\\Textures" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/textures/.+")
 source_group("Common\\Textures\\Hires" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/textures/hires/.+")

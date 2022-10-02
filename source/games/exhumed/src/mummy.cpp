@@ -45,17 +45,15 @@ void BuildMummy(DExhumedActor* pActor, int x, int y, int z, sectortype* pSector,
     }
     else
     {
-        x = pActor->spr.pos.X;
-        y = pActor->spr.pos.Y;
-        z = pActor->spr.pos.Z;
+        x = pActor->int_pos().X;
+        y = pActor->int_pos().Y;
+        z = pActor->int_pos().Z;
         nAngle = pActor->spr.ang;
 
         ChangeActorStat(pActor, 102);
     }
 
-    pActor->spr.pos.X = x;
-    pActor->spr.pos.Y = y;
-    pActor->spr.pos.Z = z;
+    pActor->set_int_pos({ x, y, z });
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     pActor->spr.shade = -12;
     pActor->spr.clipdist = 32;
@@ -99,13 +97,13 @@ void CheckMummyRevive(DExhumedActor* pActor)
             if (pOther->nAction != 5) {
                 continue;
             }
-            int x = abs(pOther->spr.pos.X - pActor->spr.pos.X) >> 8;
-            int y = abs(pOther->spr.pos.Y - pActor->spr.pos.Y) >> 8;
+            int x = abs(pOther->int_pos().X - pActor->int_pos().X) >> 8;
+            int y = abs(pOther->int_pos().Y - pActor->int_pos().Y) >> 8;
 
             if (x <= 20 && y <= 20)
             {
-                if (cansee(pActor->spr.pos.X, pActor->spr.pos.Y, pActor->spr.pos.Z - 8192, pActor->sector(),
-                          pOther->spr.pos.X, pOther->spr.pos.Y, pOther->spr.pos.Z - 8192, pOther->sector()))
+                if (cansee(pActor->int_pos().X, pActor->int_pos().Y, pActor->int_pos().Z - 8192, pActor->sector(),
+                          pOther->int_pos().X, pOther->int_pos().Y, pOther->int_pos().Z - 8192, pOther->sector()))
                 {
                     pOther->spr.cstat = 0;
                     pOther->nAction = 6;
@@ -208,8 +206,8 @@ void AIMummy::Tick(RunListEvent* ev)
             {
                 if (RandomBit() && pTarget)
                 {
-                    if (cansee(pActor->spr.pos.X, pActor->spr.pos.Y, pActor->spr.pos.Z - GetActorHeight(pActor), pActor->sector(),
-                        pTarget->spr.pos.X, pTarget->spr.pos.Y, pTarget->spr.pos.Z - GetActorHeight(pTarget), pTarget->sector()))
+                    if (cansee(pActor->int_pos().X, pActor->int_pos().Y, pActor->int_pos().Z - GetActorHeight(pActor), pActor->sector(),
+                        pTarget->int_pos().X, pTarget->int_pos().Y, pTarget->int_pos().Z - GetActorHeight(pTarget), pTarget->sector()))
                     {
                         pActor->nAction = 3;
                         pActor->nFrame = 0;
@@ -276,7 +274,7 @@ void AIMummy::Tick(RunListEvent* ev)
         {
             if (nMov.actor() == pTarget)
             {
-                int nAngle = getangle(pTarget->spr.pos.X - pActor->spr.pos.X, pTarget->spr.pos.Y - pActor->spr.pos.Y);
+                int nAngle = getangle(pTarget->int_pos().X - pActor->int_pos().X, pTarget->int_pos().Y - pActor->int_pos().Y);
                 if (AngleDiff(pActor->spr.ang, nAngle) < 64)
                 {
                     pActor->nAction = 2;
@@ -450,7 +448,7 @@ void AIMummy::Damage(RunListEvent* ev)
         pActor->spr.xvel = 0;
         pActor->spr.yvel = 0;
         pActor->spr.zvel = 0;
-        pActor->spr.pos.Z = pActor->sector()->floorz;
+        pActor->set_int_z(pActor->sector()->int_floorz());
     }
     else
     {

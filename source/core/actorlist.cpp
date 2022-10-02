@@ -366,7 +366,7 @@ DCoreActor* InsertActor(PClass* type, sectortype* sector, int stat, bool tail)
 
 void DCoreActor::OnDestroy()
 {
-	FVector3 pos = GetSoundPos(&spr.pos);
+	FVector3 pos = GetSoundPos(int_pos());
 	soundEngine->RelinkSound(SOURCE_Actor, this, nullptr, &pos);
 
 	// also scan all other sounds if they have this actor as source. If so, null the source and stop looped sounds.
@@ -450,7 +450,7 @@ void InitSpriteLists()
 void SetActor(DCoreActor* actor, const vec3_t* newpos)
 {
 	auto tempsector = actor->sector();
-	actor->spr.pos = *newpos;
+	actor->set_int_pos(*newpos);
 	updatesector(newpos->X, newpos->Y, &tempsector);
 
 	if (tempsector && tempsector != actor->sector())
@@ -460,7 +460,7 @@ void SetActor(DCoreActor* actor, const vec3_t* newpos)
 void SetActorZ(DCoreActor* actor, const vec3_t* newpos)
 {
 	auto tempsector = actor->sector();
-	actor->spr.pos = *newpos;
+	actor->set_int_pos(*newpos);
 	updatesectorz(newpos->X, newpos->Y, newpos->Z, &tempsector);
 
 	if (tempsector && tempsector != actor->sector())
@@ -478,6 +478,16 @@ size_t DCoreActor::PropagateMark()
 	GC::Mark(nextSect);
 	return Super::PropagateMark();
 }
+
+
+int DCoreActor::GetOffsetAndHeight(int& height)
+{
+	int yrepeat = spr.yrepeat << 2;
+	height = tileHeight(spr.picnum) * yrepeat;
+	int zofs = (spr.cstat & CSTAT_SPRITE_YCENTER)? height >> 1 : 0;
+	return zofs - tileTopOffset(spr.picnum) * yrepeat;
+}
+
 
 
 DEFINE_FIELD_NAMED(DCoreActor, spr.sectp, sector)
@@ -518,18 +528,18 @@ DEFINE_FIELD_NAMED(DCoreActor, spritesetindex, spritesetpic)
 DEFINE_ACTION_FUNCTION(DCoreActor, pos)
 {
 	PARAM_SELF_PROLOGUE(DCoreActor);
-	ACTION_RETURN_VEC3(DVector3(self->spr.pos.X * (1 / 16.), self->spr.pos.Y * (1 / 16.), self->spr.pos.Z * (1 / 256.)));
+	ACTION_RETURN_VEC3(self->float_pos());
 }
 
 DEFINE_ACTION_FUNCTION(DCoreActor, xy)
 {
 	PARAM_SELF_PROLOGUE(DCoreActor);
-	ACTION_RETURN_VEC2(DVector2(self->spr.pos.X * (1 / 16.), self->spr.pos.Y * (1 / 16.)));
+	ACTION_RETURN_VEC2(self->float_pos().XY());
 }
 
 double coreactor_z(DCoreActor* self)
 {
-	return self->spr.zvel * zinttoworld;
+	return self->float_pos().Z;
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, z, coreactor_z)
@@ -540,11 +550,9 @@ DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, z, coreactor_z)
 
 void coreactor_setpos(DCoreActor* self, double x, double y, double z, int relink)
 {
-	self->spr.pos.X = int(x * worldtoint);
-	self->spr.pos.Y = int(y * worldtoint);
-	self->spr.pos.Z = int(z * zworldtoint);
+	self->spr.pos = { x, y, z };
 	// todo: SW needs to call updatesectorz here or have a separate function.
-	if (relink) SetActor(self, self->spr.pos);
+	if (relink) SetActor(self, self->int_pos());
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, setpos, coreactor_setpos)
@@ -563,7 +571,7 @@ void coreactor_copypos(DCoreActor* self, DCoreActor* other, int relink)
 	if (!other) return;
 	self->spr.pos = other->spr.pos;
 	// todo: SW needs to call updatesectorz here or have a separate function.
-	if (relink) SetActor(self, self->spr.pos);
+	if (relink) SetActor(self, self->int_pos());
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, copypos, coreactor_setpos)
@@ -577,11 +585,9 @@ DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, copypos, coreactor_setpos)
 
 void coreactor_move(DCoreActor* self, double x, double y, double z, int relink)
 {
-	self->spr.pos.X += int(x * 16);
-	self->spr.pos.Y += int(y * 16);
-	self->spr.pos.Z += int(z * 256);
+	self->spr.pos += { x, y, z };
 	// todo: SW needs to call updatesectorz here or have a separate function.
-	if (relink) SetActor(self, self->spr.pos);
+	if (relink) SetActor(self, self->int_pos());
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, move, coreactor_move)
@@ -597,27 +603,27 @@ DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, move, coreactor_move)
 
 void coreactor_setz(DCoreActor* self, double z)
 {
-	self->spr.pos.Z = int(z * 256);
+	self->spr.pos.Z = z;
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, setz, coreactor_setz)
 {
 	PARAM_SELF_PROLOGUE(DCoreActor);
 	PARAM_FLOAT(z);
-	self->spr.pos.Z = int(z * 256);
+	coreactor_setz(self, z);
 	return 0;
 }
 
 void coreactor_addz(DCoreActor* self, double z)
 {
-	self->spr.pos.Z += int(z * 256);
+	self->spr.pos.Z += z;
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, addz, coreactor_addz)
 {
 	PARAM_SELF_PROLOGUE(DCoreActor);
 	PARAM_FLOAT(z);
-	self->spr.pos.Z = int(z * 256);
+	coreactor_addz(self, z);
 	return 0;
 }
 

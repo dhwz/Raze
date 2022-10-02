@@ -42,7 +42,7 @@ DExhumedActor* BuildBubble(vec3_t pos, sectortype* pSector)
 
     auto pActor = insertActor(pSector, 402);
 
-    pActor->spr.pos = pos;
+    pActor->set_int_pos(pos);
     pActor->spr.cstat = 0;
     pActor->spr.shade = -32;
     pActor->spr.pal = 0;
@@ -87,16 +87,16 @@ void AIBubble::Tick(RunListEvent* ev)
         pActor->nFrame = 0;
     }
 
-    pActor->spr.pos.Z += pActor->spr.zvel;
+    pActor->add_int_z(pActor->spr.zvel);
 
     auto pSector = pActor->sector();
 
-    if (pActor->spr.pos.Z <= pSector->ceilingz)
+    if (pActor->int_pos().Z <= pSector->int_ceilingz())
     {
         auto pSectAbove = pSector->pAbove;
 
         if (pActor->spr.hitag > -1 && pSectAbove != nullptr) {
-            BuildAnim(nullptr, 70, 0, pActor->spr.pos.X, pActor->spr.pos.Y, pSectAbove->floorz, pSectAbove, 64, 0);
+            BuildAnim(nullptr, 70, 0, pActor->int_pos().X, pActor->int_pos().Y, pSectAbove->int_floorz(), pSectAbove, 64, 0);
         }
 
         DestroyBubble(pActor);
@@ -124,7 +124,7 @@ void DoBubbleMachines()
         {
             pActor->nCount = (RandomWord() % pActor->nFrame) + 30;
 
-            BuildBubble(pActor->spr.pos, pActor->sector());
+            BuildBubble(pActor->int_pos(), pActor->sector());
         }
     }
 }

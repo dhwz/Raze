@@ -53,15 +53,13 @@ void BuildAnubis(DExhumedActor* ap, int x, int y, int z, sectortype* pSector, in
     {
         ChangeActorStat(ap, 101);
 
-        x = ap->spr.pos.X;
-        y = ap->spr.pos.Y;
-        z = ap->sector()->floorz;
+        x = ap->int_pos().X;
+        y = ap->int_pos().Y;
+        z = ap->sector()->int_floorz();
         nAngle = ap->spr.ang;
     }
 
-    ap->spr.pos.X = x;
-    ap->spr.pos.Y = y;
-    ap->spr.pos.Z = z;
+    ap->set_int_pos({ x, y, z });
     ap->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     ap->spr.xoffset = 0;
     ap->spr.shade = -12;
@@ -184,7 +182,7 @@ void AIAnubis::Tick(RunListEvent* ev)
         {
             if (move.actor() == pTarget)
             {
-                int nAng = getangle(pTarget->spr.pos.X - ap->spr.pos.X, pTarget->spr.pos.Y - ap->spr.pos.Y);
+                int nAng = getangle(pTarget->int_pos().X - ap->int_pos().X, pTarget->int_pos().Y - ap->int_pos().Y);
                 int nAngDiff = AngleDiff(ap->spr.ang, nAng);
 
                 if (nAngDiff < 64)
@@ -217,12 +215,12 @@ void AIAnubis::Tick(RunListEvent* ev)
 
                 if (pTarget != nullptr) // NOTE: nTarget can be -1. this check wasn't in original code. TODO: demo compatiblity?
                 {
-                    if (cansee(ap->spr.pos.X, ap->spr.pos.Y, ap->spr.pos.Z - GetActorHeight(ap), ap->sector(),
-                        pTarget->spr.pos.X, pTarget->spr.pos.Y, pTarget->spr.pos.Z - GetActorHeight(pTarget), pTarget->sector()))
+                    if (cansee(ap->int_pos().X, ap->int_pos().Y, ap->int_pos().Z - GetActorHeight(ap), ap->sector(),
+                        pTarget->int_pos().X, pTarget->int_pos().Y, pTarget->int_pos().Z - GetActorHeight(pTarget), pTarget->sector()))
                     {
                         ap->spr.xvel = 0;
                         ap->spr.yvel = 0;
-                        ap->spr.ang = GetMyAngle(pTarget->spr.pos.X - ap->spr.pos.X, pTarget->spr.pos.Y - ap->spr.pos.Y);
+                        ap->spr.ang = GetMyAngle(pTarget->int_pos().X - ap->int_pos().X, pTarget->int_pos().Y - ap->int_pos().Y);
 
                         ap->nAction = 3;
                         ap->nFrame = 0;
@@ -399,9 +397,7 @@ void AIAnubis::Damage(RunListEvent* ev)
                 {
                     auto pDrumActor = insertActor(ap->sector(), kStatAnubisDrum);
 
-                    pDrumActor->spr.pos.X = ap->spr.pos.X;
-                    pDrumActor->spr.pos.Y = ap->spr.pos.Y;
-                    pDrumActor->spr.pos.Z = pDrumActor->sector()->floorz;
+                    pDrumActor->set_int_pos({ ap->int_pos().X, ap->int_pos().Y, pDrumActor->sector()->int_floorz() });
                     pDrumActor->spr.xrepeat = 40;
                     pDrumActor->spr.yrepeat = 40;
                     pDrumActor->spr.shade = -64;
@@ -424,7 +420,7 @@ void AIAnubis::Damage(RunListEvent* ev)
             ap->spr.xvel = 0;
             ap->spr.yvel = 0;
             ap->spr.zvel = 0;
-            ap->spr.pos.Z = ap->sector()->floorz;
+            ap->set_int_z(ap->sector()->int_floorz());
             ap->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
 
             ap->nHealth = 0;

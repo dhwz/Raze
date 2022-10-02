@@ -2,7 +2,6 @@
 
 #include "build.h"
 
-#include "polymost.h"
 #include "gamecvars.h"
 #include "razemenu.h"
 #include "gamecontrol.h"
@@ -60,7 +59,7 @@ struct GameInterface : public ::GameInterface
 	int chaseCamX(binangle ang) { return -ang.bcos(-4); }
 	int chaseCamY(binangle ang) { return -ang.bsin(-4); }
 	int chaseCamZ(fixedhoriz horiz) { return horiz.asq16() >> 9; }
-	void processSprites(tspritetype* tsprite, int& spritesortcnt, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio) override;
+	void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio) override;
 	void UpdateCameras(double smoothratio) override;
 	void EnterPortal(DCoreActor* viewer, int type) override;
 	void LeavePortal(DCoreActor* viewer, int type) override;
@@ -111,7 +110,7 @@ struct Dispatcher
 	void (*displayweapon)(int snum, double smoothratio);
 	void (*displaymasks)(int snum, int p, double smoothratio);
 
-	void (*animatesprites)(tspritetype* tsprite, int& spritesortcnt, int x, int y, int a, int smoothratio);
+	void (*animatesprites)(tspriteArray& tsprites, int x, int y, int a, int smoothratio);
 
 
 };

@@ -643,7 +643,7 @@ void GetUpperLowerSector(short match, int x, int y, sectortype** upper, sectorty
 
     if (sln == 2)
     {
-        if (sectorlist[0]->floorz < sectorlist[1]->floorz)
+        if (sectorlist[0]->int_floorz() < sectorlist[1]->int_floorz())
         {
             // swap
             // make sectorlist[0] the LOW sector
@@ -672,8 +672,8 @@ bool FindCeilingView(int match, int* x, int* y, int z, sectortype** sect)
     {
         if (actor->spr.hitag == VIEW_THRU_CEILING && actor->spr.lotag == match)
         {
-            xoff = *x - actor->spr.pos.X;
-            yoff = *y - actor->spr.pos.Y;
+            xoff = *x - actor->int_pos().X;
+            yoff = *y - actor->int_pos().Y;
             break;
         }
     }
@@ -688,8 +688,8 @@ bool FindCeilingView(int match, int* x, int* y, int z, sectortype** sect)
             {
                 sectortype* upper,* lower;
 
-                *x = actor->spr.pos.X + xoff;
-                *y = actor->spr.pos.Y + yoff;
+                *x = actor->int_pos().X + xoff;
+                *y = actor->int_pos().Y + yoff;
 
                 // get new sector
                 GetUpperLowerSector(match, *x, *y, &upper, &lower);
@@ -709,10 +709,6 @@ bool FindCeilingView(int match, int* x, int* y, int z, sectortype** sect)
     }
 
 
-    if (!vid_renderer)
-    {
-        SW_CeilingPortalHack(actor, z, match);
-    }
     return true;
 }
 
@@ -733,8 +729,8 @@ bool FindFloorView(int match, int* x, int* y, int z, sectortype** sect)
     {
         if (actor->spr.hitag == VIEW_THRU_FLOOR && actor->spr.lotag == match)
         {
-            xoff = *x - actor->spr.pos.X;
-            yoff = *y - actor->spr.pos.Y;
+            xoff = *x - actor->int_pos().X;
+            yoff = *y - actor->int_pos().Y;
             break;
         }
     }
@@ -750,8 +746,8 @@ bool FindFloorView(int match, int* x, int* y, int z, sectortype** sect)
             {
                 sectortype* upper,* lower;
 
-                *x = actor->spr.pos.X + xoff;
-                *y = actor->spr.pos.Y + yoff;
+                *x = actor->int_pos().X + xoff;
+                *y = actor->int_pos().Y + yoff;
 
                 // get new sector
                 GetUpperLowerSector(match, *x, *y, &upper, &lower);
@@ -770,10 +766,6 @@ bool FindFloorView(int match, int* x, int* y, int z, sectortype** sect)
         return false;
     }
 
-    if (!vid_renderer)
-    {
-        SW_FloorPortalHack(actor, z, match);
-    }
     return true;
 }
 
@@ -815,8 +807,6 @@ struct PortalGroup
     // This is very messy because some portals are linked outside the actual portal sectors, so we have to use the complicated original linking logic to find the connection. :?
 void CollectPortals()
 {
-    int t = vid_renderer;
-    vid_renderer = true;
     TArray<PortalGroup> floorportals;
     TArray<PortalGroup> ceilingportals;
     BitArray floordone(sector.Size()), ceilingdone(sector.Size());
@@ -877,9 +867,9 @@ void CollectPortals()
             SWSectIterator it(sec);
             while (auto actor = it.Next())
             {
-                int tx = actor->spr.pos.X;
-                int ty = actor->spr.pos.Y;
-                int tz = actor->spr.pos.Z;
+                int tx = actor->int_pos().X;
+                int ty = actor->int_pos().Y;
+                int tz = actor->int_pos().Z;
                 auto tsect = &sector[sec];
 
                 int match = FindViewSectorInScene(tsect, VIEW_LEVEL1);
@@ -891,7 +881,7 @@ void CollectPortals()
                         // got something!
                         fp.othersector = sectnum(tsect);
                         fp.offset = { tx, ty, tz };
-                        fp.offset -= actor->spr.pos;
+                        fp.offset -= actor->int_pos();
                         goto nextfg;
                     }
                 }
@@ -907,9 +897,9 @@ void CollectPortals()
             SWSectIterator it(sec);
             while (auto actor = it.Next())
             {
-                int tx = actor->spr.pos.X;
-                int ty = actor->spr.pos.Y;
-                int tz = actor->spr.pos.Z;
+                int tx = actor->int_pos().X;
+                int ty = actor->int_pos().Y;
+                int tz = actor->int_pos().Z;
                 auto tsect = &sector[sec];
 
                 int match = FindViewSectorInScene(tsect, VIEW_LEVEL2);
@@ -921,7 +911,7 @@ void CollectPortals()
                         // got something!
                         fp.othersector = sectnum(tsect);
                         fp.offset = { tx, ty, tz };
-                        fp.offset -= actor->spr.pos;
+                        fp.offset -= actor->int_pos();
                         goto nextcg;
                     }
                 }
@@ -981,7 +971,6 @@ void CollectPortals()
             }
         }
     }
-    vid_renderer = t;
 }
 
 

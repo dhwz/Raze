@@ -218,9 +218,6 @@ void dbLoadMap(const char* pPath, int* pX, int* pY, int* pZ, short* pAngle, int*
 	}
 	gMapRev = mapHeader.revision;
 	allocateMapArrays(mapHeader.numwalls, mapHeader.numsectors, mapHeader.numsprites);
-#if 1 // bad, bad hack, just for making Polymost happy...
-	PolymostAllocFakeSector();
-#endif
 	*cursectnum = mapHeader.sect;
 
 	if (encrypted)
@@ -260,8 +257,7 @@ void dbLoadMap(const char* pPath, int* pX, int* pY, int* pZ, short* pAngle, int*
 		}
 		pSector->wallptr = LittleShort(load.wallptr);
 		pSector->wallnum = LittleShort(load.wallnum);
-		pSector->setceilingz(LittleLong(load.ceilingz), true);
-		pSector->setfloorz(LittleLong(load.floorz), true);
+		pSector->setzfrommap(LittleLong(load.ceilingz), LittleLong(load.floorz));
 		pSector->ceilingstat = ESectorFlags::FromInt(LittleShort(load.ceilingstat));
 		pSector->floorstat = ESectorFlags::FromInt(LittleShort(load.floorstat));
 		pSector->ceilingpicnum = LittleShort(load.ceilingpicnum);
@@ -287,7 +283,7 @@ void dbLoadMap(const char* pPath, int* pX, int* pY, int* pZ, short* pAngle, int*
 
 		if (pSector->extra > 0)
 		{
-			char pBuffer[nXSectorSize];
+			uint8_t pBuffer[nXSectorSize];
 			pSector->allocX();
 			XSECTOR* pXSector = &pSector->xs();
 			int nCount;
@@ -394,7 +390,7 @@ void dbLoadMap(const char* pPath, int* pX, int* pY, int* pZ, short* pAngle, int*
 		}
 		int x = LittleLong(load.x);
 		int y = LittleLong(load.y);
-		pWall->setPosFromLoad(x, y);
+		pWall->setPosFromMap(x, y);
 		pWall->point2 = LittleShort(load.point2);
 		pWall->nextwall = LittleShort(load.nextwall);
 		pWall->nextsector = LittleShort(load.nextsector);
@@ -413,7 +409,7 @@ void dbLoadMap(const char* pPath, int* pX, int* pY, int* pZ, short* pAngle, int*
 
 		if (pWall->extra > 0)
 		{
-			char pBuffer[nXWallSize];
+			uint8_t pBuffer[nXWallSize];
 			pWall->allocX();
 			XWALL* pXWall = &pWall->xw();
 			int nCount;
@@ -476,9 +472,7 @@ void dbLoadMap(const char* pPath, int* pX, int* pY, int* pZ, short* pAngle, int*
 		}
 		auto pSprite = &sprites.sprites[i];
 		*pSprite = {};
-		pSprite->pos.X = LittleLong(load.x);
-		pSprite->pos.Y = LittleLong(load.y);
-		pSprite->pos.Z = LittleLong(load.z);
+		pSprite->SetMapPos(LittleLong(load.x), LittleLong(load.y), LittleLong(load.z));
 		pSprite->cstat = ESpriteFlags::FromInt(LittleShort(load.cstat));
 		pSprite->picnum = LittleShort(load.picnum);
 		int secno = LittleShort(load.sectnum);
@@ -504,7 +498,7 @@ void dbLoadMap(const char* pPath, int* pX, int* pY, int* pZ, short* pAngle, int*
 
 		if (pSprite->extra > 0)
 		{
-			char pBuffer[nXSpriteSize];
+			uint8_t pBuffer[nXSpriteSize];
 			XSPRITE* pXSprite = &sprites.xspr[i];
 			*pXSprite = {};
 			int nCount;
@@ -671,7 +665,7 @@ void dbLoadMap(const char* pPath, int* pX, int* pY, int* pZ, short* pAngle, int*
 	sectionGeometry.SetSize(sections.Size());
 	wallbackup = wall;
 	sectorbackup = sector;
-	validateStartSector(mapname.GetChars(), { *pX, *pY, *pZ }, cursectnum, mapHeader.numsectors, gModernMap);
+	validateStartSector(mapname.GetChars(), { *pX, *pY, *pZ }, cursectnum, mapHeader.numsectors, true);
 }
 
 
@@ -683,7 +677,7 @@ END_BLD_NS
 //
 //---------------------------------------------------------------------------
 
-void qloadboard(const char* filename, char flags, vec3_t* dapos, int16_t* daang)
+void qloadboard(const char* filename, uint8_t flags, vec3_t* dapos, int16_t* daang)
 {
 	Blood::BloodSpawnSpriteDef sprites;
 	int sp;
