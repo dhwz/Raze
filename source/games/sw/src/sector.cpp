@@ -836,7 +836,7 @@ void SectorExp(DSWActor* actor, sectortype* sectp, short orig_ang, int zh)
     actor->spr.cstat &= ~(CSTAT_SPRITE_ALIGNMENT_WALL|CSTAT_SPRITE_ALIGNMENT_FLOOR);
     SectorMidPoint(sectp, &x, &y, &z);
     // randomize the explosions
-    actor->spr.ang = orig_ang + RANDOM_P2(256) - 128;
+    actor->set_int_ang(orig_ang + RANDOM_P2(256) - 128);
     actor->set_int_pos({ x + RANDOM_P2(256) - 128, y + RANDOM_P2(1024) - 512, zh });
     
     // setup vars needed by SectorExp
@@ -849,8 +849,8 @@ void SectorExp(DSWActor* actor, sectortype* sectp, short orig_ang, int zh)
 
     exp->spr.xrepeat += (RANDOM_P2(32<<8)>>8) - 16;
     exp->spr.yrepeat += (RANDOM_P2(32<<8)>>8) - 16;
-    exp->user.change.X = MOVEx(92, exp->spr.ang);
-    exp->user.change.Y = MOVEy(92, exp->spr.ang);
+    exp->user.change.X = MOVEx(92, exp->int_ang());
+    exp->user.change.Y = MOVEy(92, exp->int_ang());
 }
 
 
@@ -861,7 +861,7 @@ void DoExplodeSector(short match)
 
     sectortype* sectp;
 
-    orig_ang = 0; //actor->spr.ang;
+    orig_ang = 0;
 
     SWStatIterator it(STAT_EXPLODING_CEIL_FLOOR);
     while (auto actor = it.Next())
@@ -1934,7 +1934,7 @@ bool NearThings(PLAYER* pp)
         return false;
     }
 
-    neartag(pp->pos, pp->cursector, pp->angle.ang.asbuild(), near, 1024, NTAG_SEARCH_LO_HI);
+    neartag(pp->pos, pp->cursector, pp->angle.ang.Buildang(), near, 1024, NTAG_SEARCH_LO_HI);
 
 
     // hit a sprite? Check to see if it has sound info in it!
@@ -1966,7 +1966,7 @@ bool NearThings(PLAYER* pp)
     // This only gets called if nothing else worked, check for nearness to a wall
     {
         HitInfo hit{};
-        short dang = pp->angle.ang.asbuild();
+        short dang = pp->angle.ang.Buildang();
 
         FAFhitscan(pp->pos.X, pp->pos.Y, pp->pos.Z - Z(30), pp->cursector,    // Start position
                    bcos(dang),  // X vector of 3D ang
@@ -2014,7 +2014,7 @@ void NearTagList(NEAR_TAG_INFO* ntip, PLAYER* pp, int z, int dist, int type, int
     HitInfo near;
 
 
-    neartag({ pp->pos.X, pp->pos.Y, z }, pp->cursector, pp->angle.ang.asbuild(), near, dist, type);
+    neartag({ pp->pos.X, pp->pos.Y, z }, pp->cursector, pp->angle.ang.Buildang(), near, dist, type);
 
     if (near.hitSector != nullptr)
     {
@@ -2601,8 +2601,8 @@ void DoPanning(void)
     {
         sectp = actor->sector();
 
-        nx = MulScale(actor->spr.xvel, bcos(actor->spr.ang), 20);
-        ny = MulScale(actor->spr.xvel, bsin(actor->spr.ang), 20);
+        nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 20);
+        ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 20);
 
         sectp->addfloorxpan((float)nx);
         sectp->addfloorypan((float)ny);
@@ -2613,8 +2613,8 @@ void DoPanning(void)
     {
         sectp = actor->sector();
 
-        nx = MulScale(actor->spr.xvel, bcos(actor->spr.ang), 20);
-        ny = MulScale(actor->spr.xvel, bsin(actor->spr.ang), 20);
+        nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 20);
+        ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 20);
 
         sectp->addceilingxpan((float)nx);
         sectp->addceilingypan((float)ny);
@@ -2625,8 +2625,8 @@ void DoPanning(void)
     {
         wallp = actor->tempwall;
 
-        nx = MulScale(actor->spr.xvel, bcos(actor->spr.ang), 20);
-        ny = MulScale(actor->spr.xvel, bsin(actor->spr.ang), 20);
+        nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 20);
+        ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 20);
 
         wallp->addxpan((float)nx);
         wallp->addypan((float)ny);

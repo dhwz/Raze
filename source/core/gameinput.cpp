@@ -38,36 +38,41 @@ inline static double getTicrateScale(const double value)
 	return value * (1. / GameTicRate);
 }
 
-inline static double getPushScale(const double scaleAdjust)
+inline static double getPushBuild(const double scaleAdjust)
 {
-	return (2. / 9.) * (scaleAdjust < 1. ? (1. - scaleAdjust * 0.5) * 1.5 : 1.);
+	return 2. / 9. * (scaleAdjust < 1. ? (1. - scaleAdjust * 0.5) * 1.5 : 1.);
 }
 
-inline static fixedhoriz getscaledhoriz(const double value, const double scaleAdjust, const fixedhoriz& object, const double push)
+inline static DAngle getPushAngle(const double scaleAdjust)
+{
+	return DAngle::fromDeg(getPushBuild(scaleAdjust) * BAngToDegree);
+}
+
+inline static fixedhoriz getscaledhoriz(const double value, const double scaleAdjust, const fixedhoriz object, const double push)
 {
 	return buildfhoriz(scaleAdjust * ((object.asbuildf() * getTicrateScale(value)) + push));
 }
 
-inline static binangle getscaledangle(const double value, const double scaleAdjust, const binangle& object, const double push)
+inline static DAngle getscaledangle(const double value, const double scaleAdjust, const DAngle object, const DAngle push)
 {
-	return buildfang(scaleAdjust * ((object.signedbuildf() * getTicrateScale(value)) + push));
+	return ((object.Normalized180() * getTicrateScale(value)) + push) * scaleAdjust;
 }
 
 inline static void scaletozero(fixedhoriz& object, const double value, const double scaleAdjust, const double push = DBL_MAX)
 {
 	if (auto sgn = Sgn(object.asq16()))
 	{
-		object  -= getscaledhoriz(value, scaleAdjust, object, push == DBL_MAX ? sgn * getPushScale(scaleAdjust) : push);
+		object  -= getscaledhoriz(value, scaleAdjust, object, push == DBL_MAX ? getPushBuild(scaleAdjust) * sgn : push);
 		if (sgn != Sgn(object.asq16())) object = q16horiz(0);
 	}
 }
 
-inline static void scaletozero(binangle& object, const double value, const double scaleAdjust, const double push = DBL_MAX)
+inline static void scaletozero(DAngle& object, const double value, const double scaleAdjust, const double push = DBL_MAX)
 {
-	if (auto sgn = Sgn(object.signedbam()))
+	if (auto sgn = object.Sgn())
 	{
-		object  -= getscaledangle(value, scaleAdjust, object, push == DBL_MAX ? sgn * getPushScale(scaleAdjust) : push);
-		if (sgn != Sgn(object.signedbam())) object = bamang(0);
+		object  -= getscaledangle(value, scaleAdjust, object, push == DBL_MAX ? getPushAngle(scaleAdjust) * sgn : DAngle::fromDeg(push));
+		if (sgn != object.Sgn()) object = nullAngle;
 	}
 }
 
@@ -375,8 +380,8 @@ void PlayerAngle::applyinput(float const avel, ESyncBits* actions, double const 
 	{
 		if (*actions & key)
 		{
-			look_ang += buildfang(getTicrateScale(LOOKINGSPEED) * scaleAdjust * direction);
-			rotscrnang -= buildfang(getTicrateScale(ROTATESPEED) * scaleAdjust * direction);
+			look_ang += DAngle::fromDeg(getTicrateScale(LOOKINGSPEED) * scaleAdjust * direction * BAngToDegree);
+			rotscrnang -= DAngle::fromDeg(getTicrateScale(ROTATESPEED) * scaleAdjust * direction * BAngToDegree);
 		}
 	};
 	doLookKeys(SB_LOOK_LEFT, -1);
@@ -386,10 +391,10 @@ void PlayerAngle::applyinput(float const avel, ESyncBits* actions, double const 
 	{
 		if (*actions & SB_TURNAROUND)
 		{
-			if (spin == 0)
+			if (spin == nullAngle)
 			{
 				// currently not spinning, so start a spin
-				spin = -1024.;
+				spin = -DAngle180;
 			}
 			*actions &= ~SB_TURNAROUND;
 		}
@@ -397,26 +402,26 @@ void PlayerAngle::applyinput(float const avel, ESyncBits* actions, double const 
 		if (avel)
 		{
 			// add player's input
-			ang += degang(avel);
+			ang += DAngle::fromDeg(avel);
 		}
 
-		if (spin < 0)
+		if (spin < nullAngle)
 		{
 			// return spin to 0
-			double add = getTicrateScale(!(*actions & SB_CROUCH) ? SPINSTAND : SPINCROUCH) * scaleAdjust;
+			DAngle add = DAngle::fromDeg(getTicrateScale(!(*actions & SB_CROUCH) ? SPINSTAND : SPINCROUCH) * scaleAdjust * BAngToDegree);
 			spin += add;
-			if (spin > 0)
+			if (spin > nullAngle)
 			{
 				// Don't overshoot our target. With variable factor this is possible.
 				add -= spin;
-				spin = 0;
+				spin = nullAngle;
 			}
-			ang += buildfang(add);
+			ang += add;
 		}
 	}
 	else
 	{
-		spin = 0;
+		spin = nullAngle;
 	}
 }
 
@@ -448,16 +453,16 @@ enum
 	BLOODVIEWPITCH = (0x4000 >> SINSHIFTDELTA) - (DEFVIEWPITCH << (SINSHIFTDELTA - 1)), // 1408.
 };
 
-void PlayerHorizon::calcviewpitch(vec2_t const pos, binangle const ang, bool const aimmode, bool const canslopetilt, sectortype* const cursectnum, double const scaleAdjust, bool const climbing)
+void PlayerHorizon::calcviewpitch(vec2_t const pos, DAngle const ang, bool const aimmode, bool const canslopetilt, sectortype* const cursectnum, double const scaleAdjust, bool const climbing)
 {
 	if (cl_slopetilting && cursectnum != nullptr)
 	{
 		if (aimmode && canslopetilt) // If the floor is sloped
 		{
 			// Get a point, 512 (64 for Blood) units ahead of player's position
-			int const shift = -(isBlood() ? BLOODSINSHIFT : DEFSINSHIFT);
-			int const x = pos.X + ang.bcos(shift);
-			int const y = pos.Y + ang.bsin(shift);
+			int const shift = isBlood() ? BLOODSINSHIFT : DEFSINSHIFT;
+			int const x = pos.X + int(ang.Cos() * (1 << (BUILDSINBITS - shift)));
+			int const y = pos.Y + int(ang.Sin() * (1 << (BUILDSINBITS - shift)));
 			auto tempsect = cursectnum;
 			updatesector(x, y, &tempsect);
 

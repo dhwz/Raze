@@ -38,7 +38,7 @@ Prepared for public release: 03/28/2005 - Charlie Wiederhold, 3D Realms
 
 BEGIN_SW_NS
 
-extern int GlobSpeedSO;
+extern DAngle GlobSpeedSO;
 
 void CopySectorWalls(sectortype* dest_sect, sectortype* src_sect)
 {
@@ -189,7 +189,7 @@ void CopySectorMatch(int match)
 
                             // update sprites postions so they aren't in the
                             // wrong place for one frame
-                            GlobSpeedSO = 0;
+                            GlobSpeedSO = nullAngle;
                             RefreshPoints(sop, 0, 0, true);
                         }
                     }
@@ -211,8 +211,8 @@ void CopySectorMatch(int match)
                 dsectp->hitag = ssectp->hitag;
                 dsectp->lotag = ssectp->lotag;
 
-                dsectp->set_int_floorz(ssectp->int_floorz());
-                dsectp->set_int_ceilingz(ssectp->int_ceilingz());
+                dsectp->setfloorz(ssectp->floorz);
+                dsectp->setceilingz(ssectp->ceilingz);
 
                 dsectp->floorshade = ssectp->floorshade;
                 dsectp->ceilingshade = ssectp->ceilingshade;

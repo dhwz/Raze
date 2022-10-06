@@ -245,7 +245,7 @@ Collision CheckCloseRange(int nPlayer, int *x, int *y, int *z, sectortype* *ppSe
 {
     auto pActor = PlayerList[nPlayer].pActor;
 
-    int ang = pActor->spr.ang;
+    int ang = pActor->int_ang();
     int xVect = bcos(ang);
     int yVect = bsin(ang);
 
@@ -647,7 +647,7 @@ loc_flag:
             }
 
             int nAmmoType = WeaponInfo[nWeapon].nAmmoType;
-            int nAngle = pPlayerActor->spr.ang;
+            int nAngle = pPlayerActor->int_ang();
             int theX = pPlayerActor->int_pos().X;
             int theY = pPlayerActor->int_pos().Y;
             int theZ = pPlayerActor->int_pos().Z;
@@ -808,8 +808,8 @@ loc_flag:
                         DExhumedActor* t = sPlayerInput[nPlayer].pTarget;
                         // only autoaim if target is in front of the player.
 						assert(t->sector());
-                        int angletotarget = bvectangbam(t->int_pos().X - pPlayerActor->int_pos().X, t->int_pos().Y - pPlayerActor->int_pos().Y).asbuild();
-                        int anglediff = (pPlayerActor->spr.ang - angletotarget) & 2047;
+                        int angletotarget = VecToAngle(t->int_pos().X - pPlayerActor->int_pos().X, t->int_pos().Y - pPlayerActor->int_pos().Y).Buildang();
+                        int anglediff = (pPlayerActor->int_ang() - angletotarget) & 2047;
                         if (anglediff < 512 || anglediff > 1536)
                         {
                             target = t;
@@ -831,8 +831,8 @@ loc_flag:
                     BuildSnake(nPlayer, nHeight);
                     nQuake[nPlayer] = 512;
 
-                    PlayerList[nPlayer].nDamage.X -= bcos(pPlayerActor->spr.ang, 9);
-                    PlayerList[nPlayer].nDamage.Y -= bsin(pPlayerActor->spr.ang, 9);
+                    PlayerList[nPlayer].nDamage.X -= bcos(pPlayerActor->int_ang(), 9);
+                    PlayerList[nPlayer].nDamage.Y -= bsin(pPlayerActor->int_ang(), 9);
                     break;
                 }
                 case kWeaponRing:
@@ -927,7 +927,7 @@ void DrawWeapons(double smooth)
 
         if (cl_hudinterpolation)
         {
-            nBobAngle = interpolatedangle(buildang(obobangle), buildang(bobangle), smooth).asbuildf();
+            nBobAngle = interpolatedangle(DAngle::fromBuild(obobangle), DAngle::fromBuild(bobangle), smooth).Buildfang();
             nVal = interpolatedvaluef(PlayerList[nLocalPlayer].ototalvel, PlayerList[nLocalPlayer].totalvel, smooth, 16) * 0.5;
         }
         else

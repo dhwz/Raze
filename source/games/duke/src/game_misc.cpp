@@ -60,8 +60,8 @@ FString GameInterface::GetCoordString()
 	int snum = screenpeek;
 	FString out;
 
-	out.Format("pos= %d, %d, %d - angle = %2.3f - sector = %d, lotag = %d, hitag = %d",
-		ps[snum].pos.X, ps[snum].pos.Y, ps[snum].pos.Z, ps[snum].angle.ang.asdeg(), sectnum(ps[snum].cursector),
+	out.Format("pos= %2.3f, %2.3f, %2.3f - angle = %2.3f - sector = %d, lotag = %d, hitag = %d",
+		ps[snum].pos.X, ps[snum].pos.Y, ps[snum].pos.Z, ps[snum].angle.ang.Degrees(), sectnum(ps[snum].cursector),
 		ps[snum].cursector->lotag, ps[snum].cursector->hitag);
 
 	return out;
@@ -70,7 +70,7 @@ FString GameInterface::GetCoordString()
 
 GameStats GameInterface::getStats()
 {
-	struct player_struct* p = &ps[myconnectindex];
+	player_struct* p = &ps[myconnectindex];
 	return { p->actors_killed, p->max_actors_killed, p->secret_rooms, p->max_secret_rooms, p->player_par / REALGAMETICSPERSEC, p->frag };
 }
 
@@ -122,7 +122,7 @@ void GameInterface::ExitFromMenu()
 //
 //---------------------------------------------------------------------------
 
-void FTA(int q, struct player_struct* p)
+void FTA(int q, player_struct* p)
 {
 	if (q < 0 || gamestate != GS_LEVEL)
 		return;
@@ -236,8 +236,9 @@ void V_AddBlend (float r, float g, float b, float a, float v_blend[4])
 
 void drawoverlays(double smoothratio)
 {
-	struct player_struct* pp;
-	int cposx, cposy, cang;
+	player_struct* pp;
+	int cposx, cposy;
+	DAngle cang;
 
 	pp = &ps[screenpeek];
 	// set palette here, in case the 3D view is off.
@@ -275,22 +276,22 @@ void drawoverlays(double smoothratio)
 				{
 					cposx = interpolatedvalue(omyx, myx, smoothratio);
 					cposy = interpolatedvalue(omyy, myy, smoothratio);
-					cang = (!SyncInput() ? myang : interpolatedangle(omyang, myang, smoothratio)).asbuild();
+					cang = !SyncInput() ? myang : interpolatedangle(omyang, myang, smoothratio);
 				}
 				else
 				{
-					cposx = interpolatedvalue(pp->opos.X, pp->pos.X, smoothratio);
-					cposy = interpolatedvalue(pp->opos.Y, pp->pos.Y, smoothratio);
-					cang = (!SyncInput() ? pp->angle.ang : interpolatedangle(pp->angle.oang, pp->angle.ang, smoothratio)).asbuild();
+					cposx = interpolatedvalue(pp->player_int_opos().X, pp->player_int_pos().X, smoothratio);
+					cposy = interpolatedvalue(pp->player_int_opos().Y, pp->player_int_pos().Y, smoothratio);
+					cang = !SyncInput() ? pp->angle.ang : interpolatedangle(pp->angle.oang, pp->angle.ang, smoothratio);
 				}
 			}
 			else
 			{
-				cposx = pp->opos.X;
-				cposy = pp->opos.Y;
-				cang = pp->angle.oang.asbuild();
+				cposx = pp->player_int_opos().X;
+				cposy = pp->player_int_opos().Y;
+				cang = pp->angle.oang;
 			}
-			DrawOverheadMap(cposx, cposy, cang, smoothratio);
+			DrawOverheadMap(cposx, cposy, cang.Buildang(), smoothratio);
 			RestoreInterpolations();
 		}
 	}
@@ -433,8 +434,8 @@ bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, int 
 				x1 = DMulScale(ox, xvect, -oy, yvect, 16);
 				y1 = DMulScale(oy, xvect, ox, yvect, 16);
 
-				ox = bcos(act->spr.ang, -7);
-				oy = bsin(act->spr.ang, -7);
+				ox = bcos(act->int_ang(), -7);
+				oy = bsin(act->int_ang(), -7);
 				x2 = DMulScale(ox, xvect, -oy, yvect, 16);
 				y2 = DMulScale(oy, xvect, ox, yvect, 16);
 
@@ -454,7 +455,7 @@ bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, int 
 					tilenum = act->spr.picnum;
 					xoff = tileLeftOffset(tilenum) + act->spr.xoffset;
 					if ((act->spr.cstat & CSTAT_SPRITE_XFLIP) > 0) xoff = -xoff;
-					k = act->spr.ang;
+					k = act->int_ang();
 					l = act->spr.xrepeat;
 					dax = bsin(k) * l;
 					day = -bcos(k) * l;
@@ -495,7 +496,7 @@ bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, int 
 				if ((act->spr.cstat & CSTAT_SPRITE_XFLIP) > 0) xoff = -xoff;
 				if ((act->spr.cstat & CSTAT_SPRITE_YFLIP) > 0) yoff = -yoff;
 
-				k = act->spr.ang;
+				k = act->int_ang();
 				cosang = bcos(k);
 				sinang = bsin(k);
 				xspan = tileWidth(tilenum);
@@ -558,7 +559,7 @@ bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, int 
 	for (p = connecthead; p >= 0; p = connectpoint2[p])
 	{
 		auto act = ps[p].GetActor();
-		auto spos = act->interpolatedvec2(smoothratio);
+		auto spos = act->__interpolatedvec2(smoothratio);
 
 		ox = mx - cposx;
 		oy = my - cposy;
@@ -567,7 +568,7 @@ bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, int 
 		int xx = twod->GetWidth() / 2. + x1 / 4096.;
 		int yy = twod->GetHeight() / 2. + y1 / 4096.;
 
-		daang = ((!SyncInput() ? act->spr.ang : act->interpolatedang(smoothratio)) - cang) & 2047;
+		daang = ((!SyncInput() ? act->spr.angle : act->interpolatedang(smoothratio)).Buildang() - cang) & 2047;
 
 		if (p == screenpeek || ud.coop == 1)
 		{
@@ -577,7 +578,7 @@ bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, int 
 			else
 				i = TILE_APLAYERTOP;
 
-			j = abs(pp.truefz - pp.pos.Z) >> 8;
+			j = abs(int(pp.truefz - pp.pos.Z));
 			j = czoom * (act->spr.yrepeat + j);
 
 			if (j < 22000) j = 22000;

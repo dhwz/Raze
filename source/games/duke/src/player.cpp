@@ -78,7 +78,7 @@ void PlayerColorChanged(void)
 //
 //---------------------------------------------------------------------------
 
-int setpal(struct player_struct* p)
+int setpal(player_struct* p)
 {
 	int palette;
 	if (p->DrugMode) palette = DRUGPAL;
@@ -96,7 +96,7 @@ int setpal(struct player_struct* p)
 //
 //---------------------------------------------------------------------------
 
-void quickkill(struct player_struct* p)
+void quickkill(player_struct* p)
 {
 	SetPlayerPal(p, PalEntry(48, 48, 48, 48));
 
@@ -122,7 +122,7 @@ void forceplayerangle(int snum)
 
 	p->horizon.addadjustment(buildhoriz(64));
 	p->sync.actions |= SB_CENTERVIEW;
-	p->angle.rotscrnang = p->angle.look_ang = buildang(n >> 1);
+	p->angle.rotscrnang = p->angle.look_ang = DAngle::fromBuild(n >> 1);
 }
 
 //---------------------------------------------------------------------------
@@ -171,11 +171,11 @@ int hits(DDukeActor* actor)
 	int zoff;
 	HitInfo hit{};
 
-	if (actor->isPlayer()) zoff = isRR() ? PHEIGHT_RR : PHEIGHT_DUKE;
+	if (actor->isPlayer()) zoff = gs.int_playerheight;
 	else zoff = 0;
 
 	auto pos = actor->int_pos();
-	hitscan(pos.withZOffset(-zoff), actor->sector(), { bcos(actor->spr.ang), bsin(actor->spr.ang), 0 }, hit, CLIPMASK1);
+	hitscan(pos.withZOffset(-zoff), actor->sector(), { bcos(actor->int_ang()), bsin(actor->int_ang()), 0 }, hit, CLIPMASK1);
 	return (FindDistance2D(hit.hitpos.vec2 - actor->int_pos().vec2));
 }
 
@@ -192,11 +192,11 @@ int hitasprite(DDukeActor* actor, DDukeActor** hitsp)
 
 	if (badguy(actor))
 		zoff = (42 << 8);
-	else if (actor->spr.picnum == TILE_APLAYER) zoff = isRR() ? PHEIGHT_RR : PHEIGHT_DUKE;
+	else if (actor->spr.picnum == TILE_APLAYER) zoff = gs.int_playerheight;
 	else zoff = 0;
 
 	auto pos = actor->int_pos();
-	hitscan(pos.withZOffset(-zoff), actor->sector(), { bcos(actor->spr.ang), bsin(actor->spr.ang), 0 }, hit, CLIPMASK1);
+	hitscan(pos.withZOffset(-zoff), actor->sector(), { bcos(actor->int_ang()), bsin(actor->int_ang()), 0 }, hit, CLIPMASK1);
 	if (hitsp) *hitsp = hit.actor();
 
 	if (hit.hitWall != nullptr && (hit.hitWall->cstat & CSTAT_WALL_MASKED) && badguy(actor))
@@ -211,14 +211,14 @@ int hitasprite(DDukeActor* actor, DDukeActor** hitsp)
 //
 //---------------------------------------------------------------------------
 
-int hitawall(struct player_struct* p, walltype** hitw)
+int hitawall(player_struct* p, walltype** hitw)
 {
 	HitInfo hit{};
 
-	hitscan(p->pos, p->cursector, { p->angle.ang.bcos(), p->angle.ang.bsin(), 0 }, hit, CLIPMASK0);
+	hitscan(p->player_int_pos(), p->cursector, { int(p->angle.ang.Cos() * (1 << 14)), int(p->angle.ang.Sin() * (1 << 14)), 0 }, hit, CLIPMASK0);
 	if (hitw) *hitw = hit.hitWall;
 
-	return (FindDistance2D(hit.hitpos.vec2 - p->pos.vec2));
+	return (FindDistance2D(hit.hitpos.vec2 - p->player_int_pos().vec2));
 }
 
 
@@ -236,7 +236,7 @@ DDukeActor* aim(DDukeActor* actor, int aang)
 	int dx1, dy1, dx2, dy2, dx3, dy3, smax, sdist;
 	int xv, yv;
 
-	a = actor->spr.ang;
+	a = actor->int_ang();
 
 	// Autoaim from DukeGDX.
 	if (actor->isPlayer())
@@ -252,7 +252,7 @@ DDukeActor* aim(DDukeActor* actor, int aang)
 				int zvel = -plr->horizon.sum().asq16() >> 5;
 
 				HitInfo hit{};
-				hitscan(plr->pos.withZOffset(1024), actor->sector(), { bcos(actor->spr.ang), bsin(actor->spr.ang), zvel }, hit, CLIPMASK1);
+				hitscan(plr->player_int_pos().withZOffset(1024), actor->sector(), { bcos(actor->int_ang()), bsin(actor->int_ang()), zvel }, hit, CLIPMASK1);
 
 				if (hit.actor() != nullptr)
 				{
@@ -511,8 +511,8 @@ void footprints(int snum)
 			while (auto act = it.Next())
 			{
 				if (act->spr.picnum == TILE_FOOTPRINTS || act->spr.picnum == TILE_FOOTPRINTS2 || act->spr.picnum == TILE_FOOTPRINTS3 || act->spr.picnum == TILE_FOOTPRINTS4)
-					if (abs(act->int_pos().X - p->pos.X) < 384)
-						if (abs(act->int_pos().Y - p->pos.Y) < 384)
+					if (abs(act->spr.pos.X - p->pos.X) < 24)
+						if (abs(act->spr.pos.Y - p->pos.Y) < 24)
 						{
 							j = 1;
 							break;
@@ -564,8 +564,8 @@ void playerisdead(int snum, int psectlotag, int fz, int cz)
 		if (actor->spr.pal != 1)
 		{
 			SetPlayerPal(p, PalEntry(63, 63, 0, 0));
-			p->pos.Z -= (16 << 8);
-			actor->add_int_z(-(16 << 8));
+			p->pos.Z -= 16;
+			actor->spr.pos.Z -= 16;
 		}
 #if 0
 		if (ud.recstat == 1 && ud.multimode < 2)
@@ -612,8 +612,8 @@ void playerisdead(int snum, int psectlotag, int fz, int cz)
 	{
 		if (p->on_warping_sector == 0)
 		{
-			if (abs(p->pos.Z - fz) > (gs.playerheight >> 1))
-				p->pos.Z += 348;
+			if (abs(p->pos.Z - fz * inttoworld) > (gs.playerheight * 0.5))
+				p->pos.Z += 348/ 256.;
 		}
 		else
 		{
@@ -629,12 +629,12 @@ void playerisdead(int snum, int psectlotag, int fz, int cz)
 
 	p->horizon.horizoff = p->horizon.horiz = q16horiz(0);
 
-	updatesector(p->pos.X, p->pos.Y, &p->cursector);
+	updatesector(p->player_int_pos().X, p->player_int_pos().Y, &p->cursector);
 
-	pushmove(&p->pos, &p->cursector, 128L, (4 << 8), (20 << 8), CLIPMASK0);
+	pushmove(p->pos, &p->cursector, 128, (4 << 8), (20 << 8), CLIPMASK0);
 
 	if (fz > cz + (16 << 8) && actor->spr.pal != 1)
-		p->angle.rotscrnang = buildang(p->dead_flag + ((fz + p->pos.Z) >> 7));
+		p->angle.rotscrnang = DAngle::fromBuild(p->dead_flag + ((fz + p->player_int_pos().Z) >> 7));
 
 	p->on_warping_sector = 0;
 
@@ -710,7 +710,7 @@ void playerCrouch(int snum)
 	OnEvent(EVENT_CROUCH, snum, p->GetActor(), -1);
 	if (GetGameVarID(g_iReturnVarID, p->GetActor(), snum).value() == 0)
 	{
-		p->pos.Z += (2048 + 768);
+		p->pos.Z += 8 + 3;
 		p->crack_time = CRACK_TIME;
 	}
 }
@@ -746,16 +746,16 @@ void player_struct::apply_seasick(double factor)
 		if (SeaSick < 250)
 		{
 			if (SeaSick >= 180)
-				angle.rotscrnang += buildfang(24 * factor);
+				angle.rotscrnang += DAngle::fromDeg(24 * factor * BAngToDegree);
 			else if (SeaSick >= 130)
-				angle.rotscrnang -= buildfang(24 * factor);
+				angle.rotscrnang -= DAngle::fromDeg(24 * factor * BAngToDegree);
 			else if (SeaSick >= 70)
-				angle.rotscrnang += buildfang(24 * factor);
+				angle.rotscrnang += DAngle::fromDeg(24 * factor * BAngToDegree);
 			else if (SeaSick >= 20)
-				angle.rotscrnang -= buildfang(24 * factor);
+				angle.rotscrnang -= DAngle::fromDeg(24 * factor * BAngToDegree);
 		}
 		if (SeaSick < 250)
-			angle.look_ang = buildfang(((krand() & 255) - 128) * factor);
+			angle.look_ang = DAngle::fromDeg(((krand() & 255) - 128) * factor * BAngToDegree);
 	}
 }
 
@@ -779,8 +779,7 @@ void player_struct::backuppos(bool noclipping)
 	}
 
 	opos.Z = pos.Z;
-	bobpos.X = pos.X;
-	bobpos.Y = pos.Y;
+	bobpos = pos.XY();
 	opyoff = pyoff;
 }
 
@@ -1059,7 +1058,7 @@ void shootbloodsplat(DDukeActor* actor, int p, int sx, int sy, int sz, int sa, i
 				{
 					spawned->spr.xvel = -12;
 					auto delta = hit.hitWall->delta();
-					spawned->spr.ang = getangle(-delta.X, -delta.Y) + 512; // note the '-' sign here!
+					spawned->set_int_ang(getangle(-delta.X, -delta.Y) + 512); // note the '-' sign here!
 					spawned->set_int_pos(hit.hitpos);
 					spawned->spr.cstat |= randomXFlip();
 					ssp(spawned, CLIPMASK0);

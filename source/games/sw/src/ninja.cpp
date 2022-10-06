@@ -2038,8 +2038,8 @@ int NinjaJumpActionFunc(DSWActor* actor)
     int nx, ny;
 
     // Move while jumping
-    nx = MulScale(actor->spr.xvel, bcos(actor->spr.ang), 14);
-    ny = MulScale(actor->spr.xvel, bsin(actor->spr.ang), 14);
+    nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14);
+    ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14);
 
     // if cannot move the sprite
     if (!move_actor(actor, nx, ny, 0L))
@@ -2325,7 +2325,7 @@ void InitPlayerSprite(PLAYER* pp)
     COVER_SetReverb(0); // Turn off any echoing that may have been going before
     pp->Reverb = 0;
     auto actor = SpawnActor(STAT_PLAYER0 + pnum, NINJA_RUN_R0, nullptr, pp->cursector, pp->pos.X,
-                                            pp->pos.Y, pp->pos.Z, pp->angle.ang.asbuild(), 0);
+                                            pp->pos.Y, pp->pos.Z, pp->angle.ang.Buildang(), 0);
 
     pp->actor = actor;
     pp->pnum = pnum;
@@ -2393,7 +2393,7 @@ void SpawnPlayerUnderSprite(PLAYER* pp)
     int pnum = int(pp - Player);
 
     pp->PlayerUnderActor = SpawnActor(STAT_PLAYER_UNDER0 + pnum,
-                                                 NINJA_RUN_R0, nullptr, pp->cursector, pp->pos.X, pp->pos.Y, pp->pos.Z, pp->angle.ang.asbuild(), 0);
+                                                 NINJA_RUN_R0, nullptr, pp->cursector, pp->pos.X, pp->pos.Y, pp->pos.Z, pp->angle.ang.Buildang(), 0);
 
     DSWActor* actor = pp->PlayerUnderActor;
 

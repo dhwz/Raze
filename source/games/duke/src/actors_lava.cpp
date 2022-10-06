@@ -434,14 +434,14 @@ void moveminecart(void)
 		while (auto a2 = it.Next())
 		{
 			if (badguy(a2))
-				SetActor(a2, { int(cx * worldtoint), int(cy * worldtoint), a2->int_pos().Z });
+				SetActor(a2, DVector3(cx, cy, a2->spr.pos.Z));
 		}
 	}
 }
 
 void thunder(void)
 {
-	struct player_struct* p;
+	player_struct* p;
 	int r1, r2;
 	int i = 0;
 	uint8_t shade;

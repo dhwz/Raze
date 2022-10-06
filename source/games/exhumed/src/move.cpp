@@ -644,9 +644,9 @@ Collision MoveCreatureWithCaution(DExhumedActor* pActor)
 
             ChangeActorSect(pActor, pSectorPre);
 
-            pActor->spr.ang = (pActor->spr.ang + 256) & kAngleMask;
-            pActor->spr.xvel = bcos(pActor->spr.ang, -2);
-            pActor->spr.yvel = bsin(pActor->spr.ang, -2);
+            pActor->set_int_ang((pActor->int_ang() + 256) & kAngleMask);
+            pActor->spr.xvel = bcos(pActor->int_ang(), -2);
+            pActor->spr.yvel = bsin(pActor->int_ang(), -2);
             Collision c;
             c.setNone();
             return c;
@@ -672,7 +672,7 @@ int PlotCourseToSprite(DExhumedActor* pActor1, DExhumedActor* pActor2)
     int x = pActor2->int_pos().X - pActor1->int_pos().X;
     int y = pActor2->int_pos().Y - pActor1->int_pos().Y;
 
-    pActor1->spr.ang = GetMyAngle(x, y);
+    pActor1->set_int_ang(GetMyAngle(x, y));
 
     uint32_t x2 = abs(x);
     uint32_t y2 = abs(y);
@@ -1079,7 +1079,7 @@ void MoveSector(sectortype* pSector, int nAngle, int *nXVel, int *nYVel)
     initx = pActor->int_pos().X;
     inity = pActor->int_pos().Y;
     initz = pActor->int_pos().Z;
-    inita = pActor->spr.ang;
+    inita = pActor->int_ang();
     initsectp = pActor->sector();
 }
 
@@ -1149,7 +1149,7 @@ Collision AngleChase(DExhumedActor* pActor, DExhumedActor* pActor2, int ebx, int
     if (pActor2 == nullptr)
     {
         pActor->spr.zvel = 0;
-        nAngle = pActor->spr.ang;
+        nAngle = pActor->int_ang();
     }
     else
     {
@@ -1172,7 +1172,7 @@ Collision AngleChase(DExhumedActor* pActor, DExhumedActor* pActor2, int ebx, int
 
         int var_18 = GetMyAngle(nSqrt, ((pActor2->int_pos().Z - nHeight) - pActor->int_pos().Z) >> 8);
 
-        int nAngDelta = AngleDelta(pActor->spr.ang, nMyAngle, 1024);
+        int nAngDelta = AngleDelta(pActor->int_ang(), nMyAngle, 1024);
         int nAngDelta2 = abs(nAngDelta);
 
         if (nAngDelta2 > 63)
@@ -1196,13 +1196,13 @@ Collision AngleChase(DExhumedActor* pActor, DExhumedActor* pActor2, int ebx, int
                 nAngDelta = -push1;
         }
 
-        nAngle = (nAngDelta + pActor->spr.ang) & kAngleMask;
+        nAngle = (nAngDelta + pActor->int_ang()) & kAngleMask;
         int nAngDeltaD = AngleDelta(pActor->spr.zvel, var_18, 24);
 
         pActor->spr.zvel = (pActor->spr.zvel + nAngDeltaD) & kAngleMask;
     }
 
-    pActor->spr.ang = nAngle;
+    pActor->set_int_ang(nAngle);
 
     int eax = abs(bcos(pActor->spr.zvel));
 
@@ -1244,8 +1244,8 @@ void WheresMyMouth(int nPlayer, vec3_t* pos, sectortype **sectnum)
 
     Collision scratch;
     clipmove(*pos, sectnum,
-        bcos(pActor->spr.ang, 7),
-        bsin(pActor->spr.ang, 7),
+        bcos(pActor->int_ang(), 7),
+        bsin(pActor->int_ang(), 7),
         5120, 1280, 1280, CLIPMASK1, scratch);
 }
 
@@ -1435,7 +1435,7 @@ void AICreatureChunk::Tick(RunListEvent* ev)
             }
             else if (nVal.type == kHitSprite)
             {
-                nAngle = nVal.actor()->spr.ang;
+                nAngle = nVal.actor()->int_ang();
             }
             else if (nVal.type == kHitWall)
             {

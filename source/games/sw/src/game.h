@@ -611,8 +611,7 @@ struct PLAYER
     int slide_dec;
     float drive_avel;
 
-    int16_t view_outside_dang;  // outside view delta ang
-    int16_t circle_camera_ang;
+    DAngle circle_camera_ang;
     int16_t camera_check_time_delay;
 
 
@@ -634,8 +633,8 @@ struct PLAYER
     fixed_t recoil_ohorizoff, recoil_horizoff;
 
     vec3_t Revolve;
-    int16_t RevolveDeltaAng;
-    binangle RevolveAng;
+    DAngle RevolveDeltaAng;
+    DAngle RevolveAng;
 
     int16_t pnum; // carry along the player number
 
@@ -1517,11 +1516,11 @@ struct SECTOR_OBJECT
             morph_dist,             // dist from CENTER
             morph_z_speed,          // z speed for morph point
             morph_xoff,             // save xoff from center
-            morph_yoff,             // save yoff from center
+            morph_yoff;             // save yoff from center
 
-    //scale_rand_reverse,            // random at random interval
+    //scale_rand_reverse;            // random at random interval
     // limit rotation angle
-            limit_ang_center, // for limiting the angle of turning - turrets etc
+    DAngle  limit_ang_center, // for limiting the angle of turning - turrets etc
             limit_ang_delta; //
 
 };
@@ -1919,10 +1918,8 @@ struct GameInterface : public ::GameInterface
     void WarpToCoords(int x, int y, int z, int a, int h) override;
     void ToggleThirdPerson() override;
     void SwitchCoopView() override;
-    int chaseCamX(binangle ang) override { return -ang.bcos(-3); }
-    int chaseCamY(binangle ang) override { return -ang.bsin(-3); }
-    int chaseCamZ(fixedhoriz horiz) override { return horiz.asq16() >> 8; }
-    void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio) override;
+    vec3_t chaseCamPos(DAngle ang, fixedhoriz horiz) { return vec3_t(int(-ang.Cos() * 2048.), int(-ang.Sin() * 2048.), horiz.asq16() >> 8); }
+    void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double smoothRatio) override;
     void UpdateCameras(double smoothratio) override;
     void EnterPortal(DCoreActor* viewer, int type) override;
     void LeavePortal(DCoreActor* viewer, int type) override;
@@ -1954,12 +1951,12 @@ inline bool SectorIsUnderwaterArea(sectortype* sect)
 
 inline bool PlayerFacingRange(PLAYER* pp, DSWActor* a, int range)
 {
-    return (abs(getincangle(getangle(a->int_pos().X - (pp)->pos.X, a->int_pos().Y - (pp)->pos.Y), (pp)->angle.ang.asbuild())) < (range));
+    return (abs(getincangle(getangle(a->int_pos().X - (pp)->pos.X, a->int_pos().Y - (pp)->pos.Y), (pp)->angle.ang.Buildang())) < (range));
 }
 
 inline bool FacingRange(DSWActor* a1, DSWActor* a2, int range)
 {
-    return (abs(getincangle(getangle(a1->int_pos().X - a2->int_pos().X, a1->int_pos().Y - a2->int_pos().Y), a2->spr.ang)) < (range));
+    return (abs(getincangle(getangle(a1->int_pos().X - a2->int_pos().X, a1->int_pos().Y - a2->int_pos().Y), a2->int_ang())) < (range));
 }
 inline void SET_BOOL1(DSWActor* sp) { sp->spr.extra |= SPRX_BOOL1; }
 inline void SET_BOOL2(DSWActor* sp) { sp->spr.extra |= SPRX_BOOL2; }
@@ -2001,7 +1998,7 @@ inline int TEST_BOOL11(DSWActor* sp) { return sp->spr.extra & SPRX_BOOL11; }
 inline int16_t SP_TAG1(DSWActor* actor) { return actor->spr.hitag; }
 inline int16_t& SP_TAG2(DSWActor* actor) { return actor->spr.lotag; }
 inline uint8_t& SP_TAG3(DSWActor* actor) { return actor->spr.clipdist; }
-inline int16_t& SP_TAG4(DSWActor* actor) { return actor->spr.ang; }
+inline int16_t& SP_TAG4(DSWActor* actor) { return actor->spr.intangle; } // this may not be transitioned to a real angular type
 inline int16_t& SP_TAG5(DSWActor* actor) { return actor->spr.xvel; }
 inline int16_t& SP_TAG6(DSWActor* actor) { return actor->spr.yvel; }
 inline uint8_t& SP_TAG7(DSWActor* actor) { return MSB_VAR(actor->spr.zvel); }
@@ -2067,7 +2064,7 @@ inline int ActorSizeY(DSWActor* sp)
 
 inline bool Facing(DSWActor* actor1, DSWActor* actor2)
 {
-    return (abs(getincangle(getangle(actor1->int_pos().X - actor2->int_pos().X, actor1->int_pos().Y - actor2->int_pos().Y), actor2->spr.ang)) < 512);
+    return (abs(getincangle(getangle(actor1->int_pos().X - actor2->int_pos().X, actor1->int_pos().Y - actor2->int_pos().Y), actor2->int_ang())) < 512);
 }
 
 // Given a z height and sprite return the correct y repeat value

@@ -541,7 +541,7 @@ int NewCoolg(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
 
-    auto actorNew = SpawnActor(STAT_ENEMY, COOLG_RUN_R0, &s_CoolgBirth[0], actor->sector(), actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->spr.ang, 50);
+    auto actorNew = SpawnActor(STAT_ENEMY, COOLG_RUN_R0, &s_CoolgBirth[0], actor->sector(), actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->int_ang(), 50);
 
     ChangeState(actorNew, &s_CoolgBirth[0]);
     actorNew->user.StateEnd = s_CoolgDie;
@@ -707,10 +707,10 @@ int DoCoolgCircle(DSWActor* actor)
 {
     int nx,ny,bound;
 
-    actor->spr.ang = NORM_ANGLE(actor->spr.ang + actor->user.Counter2);
+    actor->set_int_ang(NORM_ANGLE(actor->int_ang() + actor->user.Counter2));
 
-    nx = MulScale(actor->spr.xvel, bcos(actor->spr.ang), 14);
-    ny = MulScale(actor->spr.xvel, bsin(actor->spr.ang), 14);
+    nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14);
+    ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14);
 
     if (!move_actor(actor, nx, ny, 0L))
     {
@@ -766,8 +766,8 @@ int DoCoolgDeath(DSWActor* actor)
         DoActorSlide(actor);
 
     // slide while falling
-    nx = MulScale(actor->spr.xvel, bcos(actor->spr.ang), 14);
-    ny = MulScale(actor->spr.xvel, bsin(actor->spr.ang), 14);
+    nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14);
+    ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14);
 
     actor->user.coll = move_sprite(actor, nx, ny, 0L, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, ACTORMOVETICS);
     DoFindGroundPoint(actor);

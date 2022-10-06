@@ -50,11 +50,12 @@ public:
 	short tempang, dispicnum, basepicnum;
 	short timetosleep;
 	vec2_t ovel;
-	int floorz, ceilingz;
+	double floorz, ceilingz;
 	union
 	{
 		int saved_ammo;
 		int palvals;
+		int tempsound;
 	};
 	int temp_data[6];
 	// Some SE's stored indices in temp_data. For purposes of clarity avoid that. These variables are meant to store these elements now
@@ -120,6 +121,17 @@ public:
 
 	void Serialize(FSerializer& arc) override;
 
+	int actor_int_ceilingz() const
+	{
+		return ceilingz * zworldtoint;
+	}
+
+	int actor_int_floorz() const
+	{
+		return floorz * zworldtoint;
+	}
+
+
 	void ChangeType(PClass* newtype)
 	{
 		if (newtype->IsDescendantOf(RUNTIME_CLASS(DDukeActor)) && newtype->Size == RUNTIME_CLASS(DDukeActor)->Size && GetClass()->Size == RUNTIME_CLASS(DDukeActor)->Size)
@@ -178,24 +190,23 @@ struct user_defs
 
 struct player_orig
 {
-	vec3_t opos;
+	DVector3 opos;
 	short oa;
 	sectortype* os;
 };
 
 struct CraneDef
 {
-	vec3_t pos;
-	vec2_t pole;
+	DVector3 pos;
+	DVector2 pole;
 	TObjPtr<DDukeActor*> poleactor;
 };
 
 struct player_struct 
 {
-	// This is basically the version from JFDuke but this first block contains a few changes to make it work with other parts of Raze.
-
-	// The sound code wants to read a vector out of this so we need to define one for the main coordinate.
-	vec3_t pos, opos, vel;
+	vec3_t vel;
+	DVector3 pos, opos;
+	DVector2 bobpos;
 
 	// player's horizon and angle structs.
 	PlayerHorizon horizon;
@@ -209,7 +220,7 @@ struct player_struct
 	PalEntry pals;
 
 	// this was a global variable originally.
-	vec2_t fric, exit, loogie[64], bobpos;
+	vec2_t fric, exit, loogie[64];
 
 	// weapon drawer variables and their interpolation counterparts.
 	int weapon_sway;
@@ -227,15 +238,16 @@ struct player_struct
 	int numloogs, oloogcnt, loogcnt;
 	int invdisptime;
 	int pyoff, opyoff;
-	int last_pissed_time, truefz, truecz;
+	int last_pissed_time;
 	int player_par, visibility;
 	int bobcounter;
 	int randomflamex, crack_time;
 
 	int aim_mode, ftt;
 
+	double truefz, truecz;
 	sectortype* cursector;
-	sectortype* one_parallax_sectnum; // wall + sector references. Make them pointers later?
+	sectortype* one_parallax_sectnum; // wall + sector references.
 	walltype* access_wall;
 	DDukeActor* actor;
 	TObjPtr<DDukeActor*> actorsqu, wackedbyactor, on_crane, holoduke_on, somethingonplayer, access_spritenum, dummyplayersprite, newOwner;
@@ -256,7 +268,7 @@ struct player_struct
 	short weaprecs[256], weapreccnt;
 	unsigned int interface_toggle_flag;
 
-	short dead_flag, show_empty_weapon;	// JBF 20031220: added orotscrnang
+	short dead_flag, show_empty_weapon;
 	short scuba_amount, jetpack_amount, steroids_amount, shield_amount;
 	short pycount, frag_ps;
 	short transporter_hold, last_full_weapon, footprintshade, boot_amount;
@@ -344,6 +356,69 @@ struct player_struct
 	bool insector() const
 	{
 		return cursector != nullptr;
+	}
+
+	void backupxyz()
+	{
+		opos = pos;
+	}
+
+	void restorexyz()
+	{
+		pos = opos;
+	}
+
+	void backupxy()
+	{
+		opos.X = pos.X;
+		opos.Y = pos.Y;
+	}
+
+	void backupz()
+	{
+		opos.Z = pos.Z;
+	}
+
+	void setbobpos()
+	{
+		bobpos = pos.XY();
+	}
+
+	void getposfromactor(DCoreActor* actor, double addz = 0)
+	{
+		pos = actor->spr.pos;
+		if (addz) pos.Z  += addz;
+	}
+
+	void getxyfromactor(DCoreActor* actor)
+	{
+		pos.X = actor->spr.pos.X;
+		pos.Y = actor->spr.pos.Y;
+	}
+
+	vec3_t player_int_pos() const
+	{
+		return { int(pos.X * worldtoint), int(pos.Y * worldtoint), int(pos.Z * zworldtoint) };
+	}
+
+	vec3_t player_int_opos() const
+	{
+		return { int(opos.X * worldtoint), int(opos.Y * worldtoint), int(opos.Z * zworldtoint) };
+	}
+
+	void player_add_int_z(int z)
+	{
+		pos.Z  += z * zinttoworld;
+	}
+
+	void player_set_int_z(int z)
+	{
+		pos.Z  = z * zinttoworld;
+	}
+	void player_add_int_xy(const vec2_t& v)
+	{
+		pos.X  += v.X * inttoworld;
+		pos.Y  += v.Y * inttoworld;
 	}
 };
 

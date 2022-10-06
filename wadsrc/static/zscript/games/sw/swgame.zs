@@ -167,7 +167,7 @@ struct SWPlayer native
     SPRITEp last_camera_sp;
     PlayerHorizon horizon;
     PlayerAngle angle;
-    binangle RevolveAng;
+    double RevolveAng;
     // under vars are for wading and swimming
     //int16 PlayerSprite, PlayerUnderSprite;
     SPRITEp SpriteP, UnderSpriteP;
@@ -201,8 +201,7 @@ struct SWPlayer native
     native int slide_dec;
     native float drive_avel;
 
-    native int16 view_outside_dang;  // outside view delta ang
-    native int16 circle_camera_ang;
+    native double circle_camera_ang;
     native int16 camera_check_time_delay;
 
     //native int /*cursectnum,*/lastcursectnum;
@@ -214,7 +213,7 @@ struct SWPlayer native
     native int16 recoil_ndx;
     native int recoil_horizoff;
 
-    native int16 RevolveDeltaAng;
+    native double RevolveDeltaAng;
 
     native int16 pnum; // carry along the player number
 

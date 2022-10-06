@@ -98,8 +98,8 @@ static int ccmd_spawn(CCmdFuncPtr parm)
 	{
 		if (set & 1) spawned->spr.pal = (uint8_t)pal;
 		if (set & 2) spawned->spr.cstat = ESpriteFlags::FromInt(cstat);
-		if (set & 4) spawned->spr.ang = ang;
-		if (set & 8) SetActor(spawned, { x, y, z });
+		if (set & 4) spawned->set_int_ang(ang);
+		if (set & 8) SetActor(spawned, DVector3( x, y, z ));
 
 		if (spawned->sector() == nullptr)
 		{
@@ -115,13 +115,12 @@ void GameInterface::WarpToCoords(int x, int y, int z, int ang, int horz)
 {
 	player_struct* p = &ps[myconnectindex];
 
-	p->opos.X = p->pos.X = x;
-	p->opos.Y = p->pos.Y = y;
-	p->opos.Z = p->pos.Z = z;
+	p->pos = DVector3(x, y, z);
+	p->backupxyz();
 
 	if (ang != INT_MIN)
 	{
-		p->angle.oang = p->angle.ang = buildang(ang);
+		p->angle.oang = p->angle.ang = DAngle::fromBuild(ang);
 	}
 
 	if (horz != INT_MIN)

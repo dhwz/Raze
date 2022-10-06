@@ -17,7 +17,6 @@ static_assert('\xff' == 255, "Char must be unsigned!");
 
 #include "printf.h"
 #include "palette.h"
-#include "binaryangle.h"
 
     //Make all variables in BUILD.H defined in the ENGINE,
     //and externed in GAME
@@ -136,6 +135,16 @@ class F2DDrawer;
 void getzrange(const vec3_t& pos, sectortype* sect, int32_t* ceilz, CollisionBase& ceilhit, int32_t* florz,
     CollisionBase& florhit, int32_t walldist, uint32_t cliptype);
 
+inline void getzrange(const vec3_t& pos, sectortype* sect, double* ceilz, CollisionBase& ceilhit, double* florz,
+    CollisionBase& florhit, int32_t walldist, uint32_t cliptype)
+{
+    int c = int(*ceilz * zworldtoint);
+    int f = int(*florz * zworldtoint);
+    getzrange(pos, sect, &c, ceilhit, &f, florhit, walldist, cliptype);
+    *ceilz = c * zinttoworld;
+    *florz = f * zinttoworld;
+}
+
 extern vec2_t hitscangoal;
 
 struct HitInfoBase;
@@ -143,6 +152,11 @@ int hitscan(const vec3_t& start, const sectortype* startsect, const vec3_t& dire
 void neartag(const vec3_t& pos, sectortype* sect, int angle, HitInfoBase& result, int neartagrange, int tagsearch);
 
 int cansee(int x1, int y1, int z1, sectortype* sect1, int x2, int y2, int z2, sectortype* sect2);
+
+inline int cansee(const DVector3& start, sectortype* sect1, const DVector3& end, sectortype* sect2)
+{
+    return cansee(start.X * worldtoint, start.Y * worldtoint, start.Z * zworldtoint, sect1, end.X * worldtoint, end.Y * worldtoint, end.Z * zworldtoint, sect2);
+}
 
 int32_t try_facespr_intersect(DCoreActor* spr, vec3_t const in,
                                      int32_t vx, int32_t vy, int32_t vz,
@@ -160,12 +174,6 @@ inline int32_t krand(void)
 inline int32_t ksqrt(uint64_t num)
 {
     return int(sqrt(double(num)));
-}
-
-int32_t   getangle(int32_t xvect, int32_t yvect);
-inline int32_t   getangle(const vec2_t& vec)
-{
-    return getangle(vec.X, vec.Y);
 }
 
 inline constexpr uint32_t uhypsq(int32_t const dx, int32_t const dy)

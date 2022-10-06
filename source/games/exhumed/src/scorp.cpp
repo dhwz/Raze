@@ -51,7 +51,7 @@ void BuildScorp(DExhumedActor* pActor, int x, int y, int z, sectortype* pSector,
         x = pActor->int_pos().X;
         y = pActor->int_pos().Y;
         z = pActor->sector()->int_floorz();
-        nAngle = pActor->spr.ang;
+        nAngle = pActor->int_ang();
     }
 
 	pActor->set_int_pos({ x, y, z });
@@ -64,7 +64,7 @@ void BuildScorp(DExhumedActor* pActor, int x, int y, int z, sectortype* pSector,
     pActor->spr.pal = pActor->sector()->ceilingpal;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->spr.ang = nAngle;
+    pActor->set_int_ang(nAngle);
     pActor->spr.xvel = 0;
     pActor->spr.yvel = 0;
     pActor->spr.zvel = 0;
@@ -220,8 +220,8 @@ void AIScorp::Tick(RunListEvent* ev)
                     D3PlayFX(StaticSound[kSound41], pActor);
 
                     pActor->nFrame = 0;
-                    pActor->spr.xvel = bcos(pActor->spr.ang);
-                    pActor->spr.yvel = bsin(pActor->spr.ang);
+                    pActor->spr.xvel = bcos(pActor->int_ang());
+                    pActor->spr.yvel = bsin(pActor->int_ang());
 
                     pActor->nAction = 1;
                     pActor->pTarget = pTarget;
@@ -249,7 +249,7 @@ void AIScorp::Tick(RunListEvent* ev)
                 if (pTarget == nMov.actor())
                 {
                     int nAngle = getangle(pTarget->int_pos().X - pActor->int_pos().X, pTarget->int_pos().Y - pActor->int_pos().Y);
-                    if (AngleDiff(pActor->spr.ang, nAngle) < 64)
+                    if (AngleDiff(pActor->int_ang(), nAngle) < 64)
                     {
                         pActor->nAction = 2;
                         pActor->nFrame = 0;
@@ -305,8 +305,8 @@ void AIScorp::Tick(RunListEvent* ev)
             {
                 pActor->nAction = 1;
 
-                pActor->spr.xvel = bcos(pActor->spr.ang);
-                pActor->spr.yvel = bsin(pActor->spr.ang);
+                pActor->spr.xvel = bcos(pActor->int_ang());
+                pActor->spr.yvel = bsin(pActor->int_ang());
 
                 pActor->nFrame = 0;
                 return;
@@ -317,7 +317,7 @@ void AIScorp::Tick(RunListEvent* ev)
             return;
         }
 
-        auto nBulletSprite = BuildBullet(pActor, 16, -1, pActor->spr.ang, pTarget, 1);
+        auto nBulletSprite = BuildBullet(pActor, 16, -1, pActor->int_ang(), pTarget, 1);
         if (nBulletSprite)
         {
             PlotCourseToSprite(nBulletSprite, pTarget);
@@ -367,15 +367,15 @@ void AIScorp::Tick(RunListEvent* ev)
             return;
         }
 
-        auto pSpiderActor = BuildSpider(nullptr, pActor->int_pos().X, pActor->int_pos().Y, pActor->int_pos().Z, pActor->sector(), pActor->spr.ang);
+        auto pSpiderActor = BuildSpider(nullptr, pActor->int_pos().X, pActor->int_pos().Y, pActor->int_pos().Z, pActor->sector(), pActor->int_ang());
         if (pSpiderActor)
         {
-            pSpiderActor->spr.ang = RandomSize(11);
+            pSpiderActor->set_int_ang(RandomSize(11));
 
             int nVel = RandomSize(5) + 1;
 
-            pSpiderActor->spr.xvel = bcos(pSpiderActor->spr.ang, -8) * nVel;
-            pSpiderActor->spr.yvel = bsin(pSpiderActor->spr.ang, -8) * nVel;
+            pSpiderActor->spr.xvel = bcos(pSpiderActor->int_ang(), -8) * nVel;
+            pSpiderActor->spr.yvel = bsin(pSpiderActor->int_ang(), -8) * nVel;
             pSpiderActor->spr.zvel = (-(RandomSize(5) + 3)) << 8;
         }
 
@@ -410,11 +410,11 @@ void AIScorp::Effect(RunListEvent* ev, DExhumedActor* pTarget, int mode)
     if (mode == 0)
     {
         PlotCourseToSprite(pActor, pTarget);
-        pActor->spr.ang += RandomSize(7) - 63;
-        pActor->spr.ang &= kAngleMask;
+        pActor->add_int_ang(RandomSize(7) - 63);
+        pActor->norm_ang();
 
-        pActor->spr.xvel = bcos(pActor->spr.ang);
-        pActor->spr.yvel = bsin(pActor->spr.ang);
+        pActor->spr.xvel = bcos(pActor->int_ang());
+        pActor->spr.yvel = bsin(pActor->int_ang());
     }
     if (mode <= 1)
     {
@@ -431,7 +431,7 @@ void AIScorp::Effect(RunListEvent* ev, DExhumedActor* pTarget, int mode)
             {
                 pActor->spr.xvel = 0;
                 pActor->spr.yvel = 0;
-                pActor->spr.ang = GetMyAngle(pTarget->int_pos().X - pActor->int_pos().X, pTarget->int_pos().Y - pActor->int_pos().Y);
+                pActor->set_int_ang(GetMyAngle(pTarget->int_pos().X - pActor->int_pos().X, pTarget->int_pos().Y - pActor->int_pos().Y));
 
                 pActor->nIndex = RandomSize(2) + RandomSize(3);
 

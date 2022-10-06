@@ -59,7 +59,7 @@ BEGIN_DUKE_NS
 //
 //---------------------------------------------------------------------------
 
-void renderView(DDukeActor* playersprite, sectortype* sect, int x, int y, int z, binangle a, fixedhoriz h, binangle rotscrnang, double smoothratio, bool sceneonly, float fov)
+void renderView(DDukeActor* playersprite, sectortype* sect, int x, int y, int z, DAngle a, fixedhoriz h, DAngle rotscrnang, double smoothratio, bool sceneonly, float fov)
 {
 	if (!sceneonly) drawweapon(smoothratio);
 	render_drawrooms(playersprite, { x, y, z }, sectnum(sect), a, h, rotscrnang, smoothratio, fov);
@@ -92,11 +92,10 @@ void GameInterface::UpdateCameras(double smoothratio)
 		screen->RenderTextureView(canvas, [=](IntRect& rect)
 			{
 				auto camera = camsprite->GetOwner();
-				auto ang = buildang(camera->interpolatedang(smoothratio));
 				display_mirror = 1; // should really be 'display external view'.
 				auto cstat = camera->spr.cstat;
 				camera->spr.cstat = CSTAT_SPRITE_INVISIBLE;
-				render_camtex(camera, camera->int_pos(), camera->sector(), ang, buildhoriz(camera->spr.shade), buildang(0), tex, rect, smoothratio);
+				render_camtex(camera, camera->int_pos(), camera->sector(), camera->interpolatedang(smoothratio), buildhoriz(camera->spr.shade), nullAngle, tex, rect, smoothratio);
 				camera->spr.cstat = cstat;
 				display_mirror = 0;
 			});
@@ -224,9 +223,9 @@ static int getdrugmode(player_struct *p, int oyrepeat)
 void displayrooms(int snum, double smoothratio, bool sceneonly)
 {
 	int cposx, cposy, cposz, fz, cz;
-	binangle cang, rotscrnang;
+	DAngle cang, rotscrnang;
 	fixedhoriz choriz;
-	struct player_struct* p;
+	player_struct* p;
 
 	p = &ps[snum];
 
@@ -259,12 +258,12 @@ void displayrooms(int snum, double smoothratio, bool sceneonly)
 		if (act->spr.yvel < 0) act->spr.yvel = -100;
 		else if (act->spr.yvel > 199) act->spr.yvel = 300;
 
-		cang = buildang(interpolatedangle(ud.cameraactor->tempang, act->spr.ang, smoothratio));
+		cang = interpolatedangle(DAngle::fromBuild(ud.cameraactor->tempang), act->spr.angle, smoothratio);
 
 		auto bh = buildhoriz(act->spr.yvel);
 		auto cstat = act->spr.cstat;
 		act->spr.cstat = CSTAT_SPRITE_INVISIBLE;
-		renderView(act, act->sector(), act->int_pos().X, act->int_pos().Y, act->int_pos().Z - (4 << 8), cang, bh, buildang(0), smoothratio, sceneonly, fov);
+		renderView(act, act->sector(), act->int_pos().X, act->int_pos().Y, act->int_pos().Z - (4 << 8), cang, bh, nullAngle, smoothratio, sceneonly, fov);
 		act->spr.cstat = cstat;
 
 	}
@@ -305,14 +304,14 @@ void displayrooms(int snum, double smoothratio, bool sceneonly)
 		else
 #endif
 		{
-			cposx = interpolatedvalue(p->opos.X, p->pos.X, smoothratio);
-			cposy = interpolatedvalue(p->opos.Y, p->pos.Y, smoothratio);
-			cposz = interpolatedvalue(p->opos.Z, p->pos.Z, smoothratio);;
+			cposx = interpolatedvalue(p->player_int_opos().X, p->player_int_pos().X, smoothratio);
+			cposy = interpolatedvalue(p->player_int_opos().Y, p->player_int_pos().Y, smoothratio);
+			cposz = interpolatedvalue(p->player_int_opos().Z, p->player_int_pos().Z, smoothratio);;
 			if (SyncInput())
 			{
 				// Original code for when the values are passed through the sync struct
-				choriz = p->horizon.interpolatedsum(smoothratio);
 				cang = p->angle.interpolatedsum(smoothratio);
+				choriz = p->horizon.interpolatedsum(smoothratio);
 			}
 			else
 			{
@@ -327,13 +326,13 @@ void displayrooms(int snum, double smoothratio, bool sceneonly)
 		if (p->newOwner != nullptr)
 		{
 			auto act = p->newOwner;
-			cang = buildang(act->interpolatedang(smoothratio));
+			cang = act->interpolatedang(smoothratio);
 			choriz = buildhoriz(act->spr.shade);
 			cposx = act->int_pos().X;
 			cposy = act->int_pos().Y;
 			cposz = act->int_pos().Z;
 			sect = act->sector();
-			rotscrnang = buildang(0);
+			rotscrnang = nullAngle;
 			smoothratio = MaxSmoothRatio;
 			viewer = act;
 			camview = true;
@@ -355,21 +354,21 @@ void displayrooms(int snum, double smoothratio, bool sceneonly)
 			}
 		}
 
-		cz = p->GetActor()->ceilingz;
-		fz = p->GetActor()->floorz;
+		cz = p->GetActor()->actor_int_ceilingz();
+		fz = p->GetActor()->actor_int_floorz();
 
 		if (earthquaketime > 0 && p->on_ground == 1)
 		{
 			cposz += 256 - (((earthquaketime) & 1) << 9);
-			cang += buildang((2 - ((earthquaketime) & 2)) << 2);
+			cang += DAngle::fromBuild((2 - ((earthquaketime) & 2)) << 2);
 		}
 
 		if (p->GetActor()->spr.pal == 1) cposz -= (18 << 8);
 
 		else if (p->spritebridge == 0 && p->newOwner == nullptr)
 		{
-			if (cposz < (p->truecz + (4 << 8))) cposz = cz + (4 << 8);
-			else if (cposz > (p->truefz - (4 << 8))) cposz = fz - (4 << 8);
+			if (cposz < (p->truecz * zworldtoint + (4 << 8))) cposz = cz + (4 << 8);
+			else if (cposz > (p->truefz * zworldtoint - (4 << 8))) cposz = fz - (4 << 8);
 		}
 
 		if (sect)
@@ -406,9 +405,9 @@ bool GameInterface::GenerateSavePic()
 	return true;
 }
 
-void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio)
+void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double smoothRatio)
 {
-	fi.animatesprites(tsprites, viewx, viewy, viewang.asbuild(), int(smoothRatio));
+	fi.animatesprites(tsprites, viewx, viewy, viewang.Buildang(), int(smoothRatio));
 }
 
 

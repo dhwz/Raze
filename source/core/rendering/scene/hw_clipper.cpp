@@ -184,7 +184,7 @@ void Clipper::SplitRange(ClipNode* node, int start, int end, float topclip, floa
 //
 //-----------------------------------------------------------------------------
 
-void Clipper::Clear(binangle rangestart)
+void Clipper::Clear(angle_t rangestart)
 {
 	ClipNode *node = cliphead;
 	ClipNode *temp;
@@ -198,12 +198,12 @@ void Clipper::Clear(binangle rangestart)
 
 	cliphead = nullptr;
 
-	if (visibleStart.asbam() != 0 || visibleEnd.asbam() != 0)
+	if (visibleStart != 0 || visibleEnd != 0)
 	{
-		int vstart = int(visibleStart.asbam() - rangestart.asbam());
+		int vstart = int(visibleStart - rangestart);
 		if (vstart > 1) AddClipRange(0, vstart);
 
-		int vend = int(visibleEnd.asbam() - rangestart.asbam());
+		int vend = int(visibleEnd - rangestart);
 		if (vend > 0 && vend < INT_MAX) AddClipRange(vend, INT_MAX);
 	}
 
@@ -654,6 +654,6 @@ void Clipper::DumpClipper()
 {
 	for (auto node = cliphead; node; node = node->next)
 	{
-		Printf("Range from %2.3f to %2.3f (top = %2.3f, bottom = %2.3f)\n", bamang(node->start).asdeg(), bamang(node->end).asdeg(), node->topclip, node->bottomclip);
+		Printf("Range from %2.3f to %2.3f (top = %2.3f, bottom = %2.3f)\n", DAngle::fromBam(node->start).Degrees(), DAngle::fromBam(node->end).Degrees(), node->topclip, node->bottomclip);
 	}
 }

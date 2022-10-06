@@ -59,8 +59,8 @@ static void spidBlindEffect(DBloodActor* actor, int nBlind, int max)
 
 void SpidBiteSeqCallback(int, DBloodActor* actor)
 {
-	int dx = bcos(actor->spr.ang);
-	int dy = bsin(actor->spr.ang);
+	int dx = bcos(actor->int_ang());
+	int dy = bsin(actor->int_ang());
 	dx += Random2(2000);
 	dy += Random2(2000);
 	int dz = Random2(2000);
@@ -107,8 +107,8 @@ void SpidBiteSeqCallback(int, DBloodActor* actor)
 
 void SpidJumpSeqCallback(int, DBloodActor* actor)
 {
-	int dx = bcos(actor->spr.ang);
-	int dy = bsin(actor->spr.ang);
+	int dx = bcos(actor->int_ang());
+	int dy = bsin(actor->int_ang());
 	dx += Random2(200);
 	dy += Random2(200);
 	int dz = Random2(200);
@@ -144,11 +144,11 @@ void SpidBirthSeqCallback(int, DBloodActor* actor)
 	DBloodActor* spawned = nullptr;
 	if (target->IsPlayerActor() && pDudeExtraE->birthCounter < 10)
 	{
-		if (nDist < 0x1a00 && nDist > 0x1400 && abs(actor->spr.ang - nAngle) < pDudeInfo->periphery)
+		if (nDist < 0x1a00 && nDist > 0x1400 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
 			spawned = actSpawnDude(actor, kDudeSpiderRed, actor->spr.clipdist, 0);
-		else if (nDist < 0x1400 && nDist > 0xc00 && abs(actor->spr.ang - nAngle) < pDudeInfo->periphery)
+		else if (nDist < 0x1400 && nDist > 0xc00 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
 			spawned = actSpawnDude(actor, kDudeSpiderBrown, actor->spr.clipdist, 0);
-		else if (nDist < 0xc00 && abs(actor->spr.ang - nAngle) < pDudeInfo->periphery)
+		else if (nDist < 0xc00 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
 			spawned = actSpawnDude(actor, kDudeSpiderBrown, actor->spr.clipdist, 0);
 
 		if (spawned)
@@ -176,7 +176,7 @@ static void spidThinkGoto(DBloodActor* actor)
 	int nAngle = getangle(dx, dy);
 	int nDist = approxDist(dx, dy);
 	aiChooseDirection(actor, nAngle);
-	if (nDist < 512 && abs(actor->spr.ang - nAngle) < pDudeInfo->periphery)
+	if (nDist < 512 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
 		aiNewState(actor, &spidSearch);
 	aiThinkTarget(actor);
 }
@@ -207,7 +207,7 @@ static void spidThinkChase(DBloodActor* actor)
 	}
 	int nDist = approxDist(dx, dy);
 	if (nDist <= pDudeInfo->seeDist) {
-		int nDeltaAngle = ((getangle(dx, dy) + 1024 - actor->spr.ang) & 2047) - 1024;
+		int nDeltaAngle = ((getangle(dx, dy) + 1024 - actor->int_ang()) & 2047) - 1024;
 		int height = (pDudeInfo->eyeHeight * actor->spr.yrepeat) << 2;
 
 		if (cansee(target->int_pos().X, target->int_pos().Y, target->int_pos().Z, target->sector(), actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - height, actor->sector())) {

@@ -49,7 +49,7 @@ DExhumedActor* BuildSpider(DExhumedActor* spp, int x, int y, int z, sectortype* 
         x = spp->int_pos().X;
         y = spp->int_pos().Y;
         z = spp->sector()->int_floorz();
-        nAngle = spp->spr.ang;
+        nAngle = spp->int_ang();
     }
 
     spp->set_int_pos({ x, y, z });
@@ -64,7 +64,7 @@ DExhumedActor* BuildSpider(DExhumedActor* spp, int x, int y, int z, sectortype* 
     spp->spr.pal = spp->sector()->ceilingpal;
     spp->spr.xoffset = 0;
     spp->spr.yoffset = 0;
-    spp->spr.ang = nAngle;
+    spp->set_int_ang(nAngle);
     spp->spr.picnum = 1;
     spp->spr.hitag = 0;
     spp->spr.lotag = runlist_HeadRun() + 1;
@@ -144,8 +144,8 @@ void AISpider::Tick(RunListEvent* ev)
                     spp->nFrame = 0;
                     spp->pTarget = pTarget;
 
-                    spp->spr.xvel = bcos(spp->spr.ang);
-                    spp->spr.yvel = bsin(spp->spr.ang);
+                    spp->spr.xvel = bcos(spp->int_ang());
+                    spp->spr.yvel = bsin(spp->int_ang());
                     return;
                 }
             }
@@ -195,8 +195,8 @@ void AISpider::Tick(RunListEvent* ev)
 
                 if (RandomSize(3))
                 {
-                    spp->spr.xvel = bcos(spp->spr.ang);
-                    spp->spr.yvel = bsin(spp->spr.ang);
+                    spp->spr.xvel = bcos(spp->int_ang());
+                    spp->spr.yvel = bsin(spp->int_ang());
                 }
                 else
                 {
@@ -301,9 +301,9 @@ void AISpider::Tick(RunListEvent* ev)
         {
         case kHitWall:
         {
-            spp->spr.ang = (spp->spr.ang + 256) & 0x7EF;
-            spp->spr.xvel = bcos(spp->spr.ang);
-            spp->spr.yvel = bsin(spp->spr.ang);
+            spp->set_int_ang((spp->int_ang() + 256) & 0x7EF);
+            spp->spr.xvel = bcos(spp->int_ang());
+            spp->spr.yvel = bsin(spp->int_ang());
             return;
         }
         case kHitSprite:
@@ -311,7 +311,7 @@ void AISpider::Tick(RunListEvent* ev)
             if (nMov.actor() == pTarget)
             {
                 int nAng = getangle(pTarget->int_pos().X - spp->int_pos().X, pTarget->int_pos().Y - spp->int_pos().Y);
-                if (AngleDiff(spp->spr.ang, nAng) < 64)
+                if (AngleDiff(spp->int_ang(), nAng) < 64)
                 {
                     spp->nAction = 2;
                     spp->nFrame = 0;

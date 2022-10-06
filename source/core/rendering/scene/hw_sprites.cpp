@@ -332,9 +332,9 @@ void HWSprite::Process(HWDrawInfo* di, tspritetype* spr, sectortype* sector, int
 
 	SetSpriteTranslucency(spr, alpha, RenderStyle);
 
-	x = spr->int_pos().X * (1 / 16.f);
-	z = spr->int_pos().Z * (1 / -256.f);
-	y = spr->int_pos().Y * (1 / -16.f);
+	x = spr->pos.X;
+	z = -spr->pos.Z;
+	y = -spr->pos.Y;
 	auto vp = di->Viewpoint;
 
 	if ((vp.Pos.XY() - DVector2(x, y)).LengthSquared() < 0.125) return;
@@ -395,9 +395,9 @@ void HWSprite::Process(HWDrawInfo* di, tspritetype* spr, sectortype* sector, int
 		float viewvecX = vp.ViewVector.X;
 		float viewvecY = vp.ViewVector.Y;
 
-		x = spr->int_pos().X * (1 / 16.f);
-		y = spr->int_pos().Y * (1 / -16.f);
-		z = spr->int_pos().Z * (1 / -256.f);
+		x = spr->pos.X;
+		y = -spr->pos.Y;
+		z = -spr->pos.Z;
 
 		x1 = x - viewvecY * (xoff - (width * 0.5f));
 		x2 = x - viewvecY * (xoff + (width * 0.5f));
@@ -459,7 +459,7 @@ bool HWSprite::ProcessVoxel(HWDrawInfo* di, voxmodel_t* vox, tspritetype* spr, s
 	visibility = sectorVisibility(sector);
 	voxel = vox;
 
-	auto ang = spr->ang + ownerActor->sprext.angoff;
+	auto ang = spr->int_ang() + ownerActor->sprext.angoff;
 	if ((spr->clipdist & TSPR_MDLROTATE) || rotate)
 	{
 		int myclock = (PlayClock << 3) + MulScale(4 << 3, (int)di->Viewpoint.TicFrac, 16);
@@ -524,7 +524,7 @@ bool HWSprite::ProcessVoxel(HWDrawInfo* di, voxmodel_t* vox, tspritetype* spr, s
 
 	rotmat.loadIdentity();
 	rotmat.translate(x + translatevec.X, z - translatevec.Z, y - translatevec.Y);
-	rotmat.rotate(buildang(ang).asdeg() - 90.f, 0, 1, 0);
+	rotmat.rotate(DAngle::fromBuild(ang).Degrees() - 90.f, 0, 1, 0);
 	rotmat.scale(scalevec.X, scalevec.Z, scalevec.Y);
 	// Apply pivot last
 	rotmat.translate(-voxel->piv.X, zoff, voxel->piv.Y);

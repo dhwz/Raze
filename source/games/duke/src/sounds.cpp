@@ -317,15 +317,15 @@ void S_GetCamera(vec3_t* c, int32_t* ca, sectortype** cs)
 	if (ud.cameraactor == nullptr)
 	{
 		auto p = &ps[screenpeek];
-		if (c) *c = p->pos;
+		if (c) *c = p->player_int_pos();
 		if (cs) *cs = p->cursector;
-		if (ca) *ca = p->angle.ang.asbuild();
+		if (ca) *ca = p->angle.ang.Buildang();
 	}
 	else
 	{
 		if (c) *c =  ud.cameraactor->int_pos();
 		if (cs) *cs = ud.cameraactor->sector();
-		if (ca) *ca = ud.cameraactor->spr.ang;
+		if (ca) *ca = ud.cameraactor->int_ang();
 	}
 }
 

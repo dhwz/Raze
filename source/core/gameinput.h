@@ -1,20 +1,12 @@
 #pragma once
 
 #include "m_fixed.h"
-#include "binaryangle.h"
+#include "fixedhorizon.h"
+#include "interphelpers.h"
 #include "gamecvars.h"
 #include "gamestruct.h"
+#include "gamefuncs.h"
 #include "packet.h"
-
-inline constexpr binangle getincanglebam(binangle a, binangle na)
-{
-	return na-a;
-}
-
-inline constexpr int getincangle(int a, int na)
-{
-	return getincanglebam(buildang(a), buildang(na)).signedbuild();
-}
 
 struct PlayerHorizon
 {
@@ -24,7 +16,17 @@ struct PlayerHorizon
 
 	// Prototypes for functions in gameinput.cpp.
 	void applyinput(float const horz, ESyncBits* actions, double const scaleAdjust = 1);
-	void calcviewpitch(vec2_t const pos, binangle const ang, bool const aimmode, bool const canslopetilt, sectortype* const cursectnum, double const scaleAdjust = 1, bool const climbing = false);
+	void calcviewpitch(vec2_t const pos, DAngle const ang, bool const aimmode, bool const canslopetilt, sectortype* const cursectnum, double const scaleAdjust = 1, bool const climbing = false);
+	void calcviewpitch(const DVector2& pos, DAngle const ang, bool const aimmode, bool const canslopetilt, sectortype* const cursectnum, double const scaleAdjust = 1, bool const climbing = false)
+	{
+		vec2_t ps = { int(pos.X * worldtoint), int(pos.Y * worldtoint) };
+		calcviewpitch(ps, ang, aimmode, canslopetilt, cursectnum, scaleAdjust, climbing);
+	}
+	void calcviewpitch(const DVector3& pos, DAngle const ang, bool const aimmode, bool const canslopetilt, sectortype* const cursectnum, double const scaleAdjust = 1, bool const climbing = false)
+	{
+		vec2_t ps = { int(pos.X * worldtoint), int(pos.Y * worldtoint) };
+		calcviewpitch(ps, ang, aimmode, canslopetilt, cursectnum, scaleAdjust, climbing);
+	}
 
 	// Interpolation helpers.
 	void backup()
@@ -114,8 +116,7 @@ private:
 
 struct PlayerAngle
 {
-	binangle ang, oang, look_ang, olook_ang, rotscrnang, orotscrnang;
-	double spin;
+	DAngle ang, oang, look_ang, olook_ang, rotscrnang, orotscrnang, spin;
 
 	friend FSerializer& Serialize(FSerializer& arc, const char* keyname, PlayerAngle& w, PlayerAngle* def);
 
@@ -137,31 +138,32 @@ struct PlayerAngle
 	}
 
 	// Commonly used getters.
-	binangle osum() { return oang + olook_ang; }
-	binangle sum() { return ang + look_ang; }
-	binangle interpolatedsum(double const smoothratio) { return interpolatedangle(osum(), sum(), smoothratio); }
-	binangle interpolatedlookang(double const smoothratio) { return interpolatedangle(olook_ang, look_ang, smoothratio); }
-	binangle interpolatedrotscrn(double const smoothratio) { return interpolatedangle(orotscrnang, rotscrnang, smoothratio); }
+	DAngle osum() { return oang + olook_ang; }
+	DAngle sum() { return ang + look_ang; }
+	DAngle interpolatedsum(double const smoothratio) { return interpolatedangle(osum(), sum(), smoothratio); }
+	DAngle interpolatedlookang(double const smoothratio) { return interpolatedangle(olook_ang, look_ang, smoothratio); }
+	DAngle interpolatedrotscrn(double const smoothratio) { return interpolatedangle(orotscrnang, rotscrnang, smoothratio); }
+	DAngle renderlookang(double const smoothratio) { return !SyncInput() ? look_ang : interpolatedlookang(smoothratio); }
 
 	// Ticrate playsim adjustment helpers.
-	void resetadjustment() { adjustment = 0; }
-	bool targetset() { return target.asbam(); }
+	void resetadjustment() { adjustment = nullAngle; }
+	bool targetset() { return target.Sgn(); }
 
 	// Input locking helpers.
 	void lockinput() { inputdisabled = true; }
 	void unlockinput() { inputdisabled = false; }
 	bool movementlocked() { return targetset() || inputdisabled; }
 
-	// Draw code helpers.
-	double look_anghalf(double const smoothratio) { return (!SyncInput() ? look_ang : interpolatedlookang(smoothratio)).signedbuildf() * 0.5; }
-	double looking_arc(double const smoothratio) { return fabs((!SyncInput() ? look_ang : interpolatedlookang(smoothratio)).signedbuildf()) * (1. / 9.); }
+	// Draw code helpers. The logic where these are used rely heavily on Build's angle period.
+	double look_anghalf(double const smoothratio) { return renderlookang(smoothratio).Normalized180().Buildfang() * 0.5; }
+	double looking_arc(double const smoothratio) { return fabs(renderlookang(smoothratio).Normalized180().Buildfang() * (1. / 9.)); }
 
 	// Ticrate playsim adjustment setters and processor.
-	void addadjustment(binangle const value)
+	void addadjustment(const DAngle value)
 	{
 		if (!SyncInput())
 		{
-			adjustment += value.signedbuildf();
+			adjustment += value.Normalized180();
 		}
 		else
 		{
@@ -169,11 +171,11 @@ struct PlayerAngle
 		}
 	}
 
-	void settarget(binangle const value, bool const backup = false)
+	void settarget(const DAngle value, bool const backup = false)
 	{
 		if (!SyncInput() && !backup)
 		{
-			target = value.asbam() ? value : bamang(1);
+			target = value.Sgn() ? value : DAngle::fromBam(1);
 		}
 		else
 		{
@@ -186,27 +188,26 @@ struct PlayerAngle
 	{
 		if (targetset())
 		{
-			auto delta = getincanglebam(ang, target).signedbuildf();
+			auto delta = deltaangle(ang, target);
 
-			if (abs(delta) > 1)
+			if (abs(delta) > DAngleBuildToDeg)
 			{
-				ang += buildfang(scaleAdjust * delta);
+				ang += delta * scaleAdjust;
 			}
 			else
 			{
 				ang = target;
-				target = bamang(0);
+				target = nullAngle;
 			}
 		}
-		else if (adjustment)
+		else if (adjustment.Sgn())
 		{
-			ang += buildfang(scaleAdjust * adjustment);
+			ang += adjustment * scaleAdjust;
 		}
 	}
 
 private:
-	binangle target;
-	double adjustment;
+	DAngle target, adjustment;
 	bool inputdisabled;
 };
 

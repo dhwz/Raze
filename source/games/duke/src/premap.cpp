@@ -71,7 +71,7 @@ void premapcontroller(DDukeActor* ac)
 		cyclers[numcyclers].shade1 = ac->spr.shade;
 		cyclers[numcyclers].shade2 = ac->sector()->floorshade;
 		cyclers[numcyclers].hitag = ac->spr.hitag;
-		cyclers[numcyclers].state = (ac->spr.ang == 1536);
+		cyclers[numcyclers].state = (ac->int_ang() == 1536);
 		numcyclers++;
 		deletesprite(ac);
 		break;
@@ -86,7 +86,7 @@ void premapcontroller(DDukeActor* ac)
 
 void pickrandomspot(int snum)
 {
-	struct player_struct *p;
+	player_struct* p;
 	int i;
 
 	p = &ps[snum];
@@ -95,10 +95,10 @@ void pickrandomspot(int snum)
 		i = krand()%numplayersprites;
 	else i = snum;
 
-	p->bobpos.X = p->opos.X = p->pos.X = po[i].opos.X;
-	p->bobpos.Y = p->opos.Y = p->pos.Y = po[i].opos.Y;
-	p->opos.Z = p->pos.Z = po[i].opos.Z;
-	p->angle.oang = p->angle.ang = buildang(po[i].oa);
+	p->pos = po[i].opos;
+	p->backupxyz();
+	p->setbobpos();
+	p->angle.oang = p->angle.ang = DAngle::fromBuild(po[i].oa);
 	p->setCursector(po[i].os);
 }
 
@@ -111,7 +111,7 @@ void pickrandomspot(int snum)
 
 void resetplayerstats(int snum)
 {
-	struct player_struct *p;
+	player_struct* p;
 
 	p = &ps[snum];
 
@@ -177,8 +177,8 @@ void resetplayerstats(int snum)
 	p->jetpack_on =         0;
 	p->holoduke_on =       nullptr;
 
-	p->angle.olook_ang = p->angle.look_ang = buildang(512 - (((~currentLevel->levelNumber) & 1) << 10));
-	p->angle.orotscrnang = p->angle.rotscrnang = buildang(0);
+	p->angle.olook_ang = p->angle.look_ang = DAngle::fromBuild(512 - (((~currentLevel->levelNumber) & 1) << 10));
+	p->angle.orotscrnang = p->angle.rotscrnang = nullAngle;
 
 	p->newOwner          =nullptr;
 	p->jumping_counter   = 0;
@@ -188,8 +188,8 @@ void resetplayerstats(int snum)
 	p->vel.Z             = 0;
 	p->fric.X            = 0;
 	p->fric.Y            = 0;
-	p->somethingonplayer =nullptr;
-	p->angle.spin        = 0;
+	p->somethingonplayer = nullptr;
+	p->angle.spin        = nullAngle;
 
 	p->on_crane          = nullptr;
 
@@ -298,7 +298,7 @@ void resetplayerstats(int snum)
 void resetweapons(int snum)
 {
 	int weapon;
-	struct player_struct *p;
+	player_struct* p;
 
 	p = &ps[snum];
 
@@ -345,7 +345,7 @@ void resetweapons(int snum)
 
 void resetinventory(int snum)
 {
-	struct player_struct* p;
+	player_struct* p;
 
 	p = &ps[snum];
 
@@ -419,7 +419,7 @@ void resetinventory(int snum)
 
 void resetprestat(int snum,int g)
 {
-	struct player_struct *p;
+	player_struct* p;
 	int i;
 
 	p = &ps[snum];
@@ -541,8 +541,8 @@ void resetpspritevars(int g)
 	int aimmode[MAXPLAYERS];
 	STATUSBARTYPE tsbar[MAXPLAYERS];
 
-	EGS(ps[0].cursector, ps[0].pos.X, ps[0].pos.Y, ps[0].pos.Z,
-		TILE_APLAYER, 0, 0, 0, ps[0].angle.ang.asbuild(), 0, 0, nullptr, 10);
+	EGS(ps[0].cursector, ps[0].player_int_pos().X, ps[0].player_int_pos().Y, ps[0].player_int_pos().Z,
+		TILE_APLAYER, 0, 0, 0, ps[0].angle.ang.Buildang(), 0, 0, nullptr, 10);
 
 	if (ud.recstat != 2) for (i = 0; i < MAXPLAYERS; i++)
 	{
@@ -611,14 +611,12 @@ void resetpspritevars(int g)
 
 		if (numplayersprites == 0)
 		{
-			firstx = ps[0].pos.X;
-			firsty = ps[0].pos.Y;
+			firstx = ps[0].player_int_pos().X;
+			firsty = ps[0].player_int_pos().Y;
 		}
 
-		po[numplayersprites].opos.X = act->int_pos().X;
-		po[numplayersprites].opos.Y = act->int_pos().Y;
-		po[numplayersprites].opos.Z = act->int_pos().Z;
-		po[numplayersprites].oa = act->spr.ang;
+		po[numplayersprites].opos = act->spr.pos;
+		po[numplayersprites].oa = act->int_ang();
 		po[numplayersprites].os = act->sector();
 
 		numplayersprites++;
@@ -659,11 +657,11 @@ void resetpspritevars(int g)
 			ps[j].frag_ps = j;
 			act->SetOwner(act);
 
-			ps[j].bobpos.X = ps[j].opos.X = ps[j].pos.X = act->int_pos().X;
-			ps[j].bobpos.Y = ps[j].opos.Y = ps[j].pos.Y = act->int_pos().Y;
-			ps[j].opos.Z = ps[j].pos.Z = act->int_pos().Z;
+			ps[j].getposfromactor(act);
+			ps[j].backupxyz();
+			ps[j].setbobpos();
 			act->backuppos();
-			ps[j].angle.oang = ps[j].angle.ang = buildang(act->spr.ang);
+			ps[j].angle.oang = ps[j].angle.ang = act->spr.angle;
 
 			updatesector(act->int_pos().X, act->int_pos().Y, &ps[j].cursector);
 
@@ -994,7 +992,7 @@ static TArray<DDukeActor*> spawnactors(SpawnSpriteDef& sprites)
 //
 //---------------------------------------------------------------------------
 
-static int LoadTheMap(MapRecord *mi, struct player_struct *p, int gamemode)
+static int LoadTheMap(MapRecord *mi, player_struct*p, int gamemode)
 {
 	int16_t lbang;
 	if (isShareware() && (mi->flags & MI_USERMAP))
@@ -1005,14 +1003,16 @@ static int LoadTheMap(MapRecord *mi, struct player_struct *p, int gamemode)
 	currentLevel = mi;
 	int sect;
 	SpawnSpriteDef sprites;
-	loadMap(mi->fileName, isShareware(), &p->pos, &lbang, &sect, sprites);
+	vec3_t pos;
+	loadMap(mi->fileName, isShareware(), &pos, &lbang, &sect, sprites);
+	p->pos = { pos.X * inttoworld, pos.Y * inttoworld, pos.Z * zinttoworld };
 	p->cursector = &sector[sect];
 
 	SECRET_SetMapName(mi->DisplayName(), mi->name);
 	STAT_NewLevel(mi->fileName);
 	TITLE_InformName(mi->name);
 	
-	p->angle.ang = buildang(lbang);
+	p->angle.ang = DAngle::fromBuild(lbang);
 
 	gotpic.Zero();
 

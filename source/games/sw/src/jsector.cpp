@@ -309,7 +309,7 @@ void JS_InitMirrors(void)
                         {
                             mirror[mirrorcnt].cameraActor = itActor;
                             // Set up camera variables
-                            SP_TAG5(itActor) = itActor->spr.ang;      // Set current angle to
+                            SP_TAG5(itActor) = itActor->int_ang();      // Set current angle to
                             // sprite angle
                             Found_Cam = true;
                         }
@@ -323,7 +323,7 @@ void JS_InitMirrors(void)
                         {
                             mirror[mirrorcnt].cameraActor = itActor;
                             // Set up camera variables
-                            SP_TAG5(itActor) = itActor->spr.ang;      // Set current angle to
+                            SP_TAG5(itActor) = itActor->int_ang();      // Set current angle to
                             // sprite angle
                             Found_Cam = true;
                         }
@@ -403,14 +403,14 @@ void JS_InitMirrors(void)
 //  Draw a 3d screen to a specific tile
 /////////////////////////////////////////////////////
 void drawroomstotile(int daposx, int daposy, int daposz,
-                     binangle ang, fixedhoriz horiz, sectortype* dacursect, short tilenume, double smoothratio)
+                     DAngle ang, fixedhoriz horiz, sectortype* dacursect, short tilenume, double smoothratio)
 {
     auto canvas = tileGetCanvas(tilenume);
     if (!canvas) return;
 
     screen->RenderTextureView(canvas, [=](IntRect& rect)
         {
-               render_camtex(nullptr, { daposx, daposy, daposz }, dacursect, ang, horiz, buildang(0), tileGetTexture(tilenume), rect, smoothratio);
+               render_camtex(nullptr, { daposx, daposy, daposz }, dacursect, ang, horiz, nullAngle, tileGetTexture(tilenume), rect, smoothratio);
         });
 
 }
@@ -580,7 +580,7 @@ void JS_DrawCameras(PLAYER* pp, int tx, int ty, int tz, double smoothratio)
                             SP_TAG5(camactor) = NORM_ANGLE((SP_TAG5(camactor) + oscilation_delta));
 
                             // TAG6 = Turn radius
-                            if (abs(getincangle(camactor->spr.ang, SP_TAG5(camactor))) >= SP_TAG6(camactor))
+                            if (abs(getincangle(camactor->int_ang(), SP_TAG5(camactor))) >= SP_TAG6(camactor))
                             {
                                 SP_TAG5(camactor) = NORM_ANGLE((SP_TAG5(camactor) - oscilation_delta));
                                 RESET_BOOL3(camactor);    // Reverse turn
@@ -593,7 +593,7 @@ void JS_DrawCameras(PLAYER* pp, int tx, int ty, int tz, double smoothratio)
                             SP_TAG5(camactor) = NORM_ANGLE((SP_TAG5(camactor) - oscilation_delta));
 
                             // TAG6 = Turn radius
-                            if (abs(getincangle(camactor->spr.ang, SP_TAG5(camactor))) >= SP_TAG6(camactor))
+                            if (abs(getincangle(camactor->int_ang(), SP_TAG5(camactor))) >= SP_TAG6(camactor))
                             {
                                 SP_TAG5(camactor) = NORM_ANGLE((SP_TAG5(camactor) + oscilation_delta));
                                 SET_BOOL3(camactor);      // Reverse turn
@@ -603,7 +603,7 @@ void JS_DrawCameras(PLAYER* pp, int tx, int ty, int tz, double smoothratio)
                     }
                     else if (!TEST_BOOL2(camactor))
                     {
-                        SP_TAG5(camactor) = camactor->spr.ang;      // Copy sprite angle to
+                        SP_TAG5(camactor) = camactor->int_ang();      // Copy sprite angle to
                         // tag5
                     }
 
@@ -630,7 +630,7 @@ void JS_DrawCameras(PLAYER* pp, int tx, int ty, int tz, double smoothratio)
                             }
                             else
                             {
-                                drawroomstotile(camactor->int_pos().X, camactor->int_pos().Y, camactor->int_pos().Z, buildang(SP_TAG5(camactor)), camhoriz, camactor->sector(), mirror[cnt].campic, smoothratio);
+                                drawroomstotile(camactor->int_pos().X, camactor->int_pos().Y, camactor->int_pos().Z, DAngle::fromBuild(SP_TAG5(camactor)), camhoriz, camactor->sector(), mirror[cnt].campic, smoothratio);
                             }
                         }
                     }

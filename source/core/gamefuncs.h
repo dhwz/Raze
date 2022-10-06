@@ -1,7 +1,6 @@
 #pragma once
 
 #include "gamecontrol.h"
-#include "binaryangle.h"
 #include "build.h"
 #include "coreactor.h"
 #include "intrect.h"
@@ -152,11 +151,112 @@ void vertexscan(walltype* startwall, func mark)
 }
 
 
+//---------------------------------------------------------------------------
+//
+// Constants used for Build sine/cosine functions.
+//
+//---------------------------------------------------------------------------
+
+enum
+{
+	BAMBITS = 21,
+	BAMUNIT = 1 << BAMBITS,
+	SINTABLEBITS = 30,
+	SINTABLEUNIT = 1 << SINTABLEBITS,
+	BUILDSINBITS = 14,
+	BUILDSINSHIFT = SINTABLEBITS - BUILDSINBITS,
+};
+
+constexpr double BAngRadian = pi::pi() * (1. / 1024.);
+constexpr double BAngToDegree = 360. / 2048.;
+constexpr DAngle DAngleBuildToDeg = DAngle::fromDeg(BAngToDegree);
+
+extern int sintable[2048];
+
+inline constexpr double sinscale(const int shift)
+{
+	return shift >= -BUILDSINBITS ? uint64_t(1) << (BUILDSINBITS + shift) : 1. / (uint64_t(1) << abs(BUILDSINBITS + shift));
+}
+
+
+//---------------------------------------------------------------------------
+//
+// Build sine inline functions.
+//
+//---------------------------------------------------------------------------
+
+inline int bsin(const int ang, int shift = 0)
+{
+	return (shift -= BUILDSINSHIFT) < 0 ? sintable[ang & 2047] >> abs(shift) : sintable[ang & 2047] << shift;
+}
+inline double bsinf(const double ang, const int shift = 0)
+{
+	return g_sinbam(ang * BAMUNIT) * sinscale(shift);
+}
+
+
+//---------------------------------------------------------------------------
+//
+// Build cosine inline functions.
+// 
+// About shifts:
+// -6 -> * 16
+// -7 -> * 8
+// -8 -> * 4
+// -9 -> * 2
+// -10 -> * 1
+//
+//---------------------------------------------------------------------------
+
+inline int bcos(const int ang, int shift = 0)
+{
+	return (shift -= BUILDSINSHIFT) < 0 ? sintable[(ang + 512) & 2047] >> abs(shift) : sintable[(ang + 512) & 2047] << shift;
+}
+inline double bcosf(const double ang, const int shift = 0)
+{
+	return g_cosbam(ang * BAMUNIT) * sinscale(shift);
+}
+
+
+//---------------------------------------------------------------------------
+//
+// High precision vector angle function, mainly for the renderer.
+//
+//---------------------------------------------------------------------------
+
+inline int getangle(double xvect, double yvect)
+{
+	return DVector2(xvect, yvect).Angle().Buildang();
+}
+
+inline int getangle(const DVector2& vec)
+{
+	return getangle(vec.X, vec.Y);
+}
+
+inline int getangle(const vec2_t& vec)
+{
+	return getangle(vec.X, vec.Y);
+}
+
+
+//---------------------------------------------------------------------------
+//
+// Returns an angle delta for Build angles.
+//
+//---------------------------------------------------------------------------
+
+inline constexpr int getincangle(int a, int na)
+{
+	return int(unsigned(na << 21) - unsigned(a << 21)) >> 21;
+}
+
+
 extern int cameradist, cameraclock;
 
 void loaddefinitionsfile(const char* fn, bool cumulative = false, bool maingrp = false);
 
-bool calcChaseCamPos(int* px, int* py, int* pz, DCoreActor* pspr, sectortype** psectnum, binangle ang, fixedhoriz horiz, double const smoothratio);
+bool calcChaseCamPos(int* px, int* py, int* pz, DCoreActor* pspr, sectortype** psectnum, DAngle ang, fixedhoriz horiz, double const smoothratio);
 
 void PlanesAtPoint(const sectortype* sec, float dax, float day, float* ceilz, float* florz);
 
@@ -172,13 +272,28 @@ void checkRotatedWalls();
 bool sectorsConnected(int sect1, int sect2);
 void dragpoint(walltype* wal, int newx, int newy);
 void dragpoint(walltype* wal, const DVector2& pos);
-DVector2 rotatepoint(const DVector2& pivot, const DVector2& point, binangle angle);
+DVector2 rotatepoint(const DVector2& pivot, const DVector2& point, DAngle angle);
 int32_t inside(double x, double y, const sectortype* sect);
 void getcorrectzsofslope(int sectnum, int dax, int day, int* ceilz, int* florz);
 int getceilzofslopeptr(const sectortype* sec, int dax, int day);
 int getflorzofslopeptr(const sectortype* sec, int dax, int day);
 void getzsofslopeptr(const sectortype* sec, int dax, int day, int* ceilz, int* florz);
 void getzsofslopeptr(const sectortype* sec, double dax, double day, double* ceilz, double* florz);
+
+inline double getceilzofslopeptrf(const sectortype* sec, double dax, double day)
+{
+	return getceilzofslopeptr(sec, dax * worldtoint, day * worldtoint) * zinttoworld;
+}
+inline double getflorzofslopeptrf(const sectortype* sec, double dax, double day)
+{
+	return getflorzofslopeptr(sec, dax * worldtoint, day * worldtoint) * zinttoworld;
+}
+[[deprecated]]
+inline void getzsofslopeptrf(const sectortype* sec, double dax, double day, double* ceilz, double* florz)
+{
+	getzsofslopeptr(sec, dax, day, ceilz, florz);
+}
+
 
 enum EFindNextSector
 {
@@ -324,7 +439,7 @@ inline int32_t tspriteGetZOfSlope(const tspritetype* tspr, int dax, int day)
 	int heinum = tspriteGetSlope(tspr);
 	if (heinum == 0) return tspr->int_pos().Z;
 
-	int const j = DMulScale(bsin(tspr->ang + 1024), day - tspr->int_pos().Y, -bsin(tspr->ang + 512), dax - tspr->int_pos().X, 4);
+	int const j = DMulScale(bsin(tspr->int_ang() + 1024), day - tspr->int_pos().Y, -bsin(tspr->int_ang() + 512), dax - tspr->int_pos().X, 4);
 	return tspr->int_pos().Z + MulScale(heinum, j, 18);
 }
 

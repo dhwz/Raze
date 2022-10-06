@@ -106,7 +106,7 @@ void BuildLava(DExhumedActor* pActor, int x, int y, int, sectortype* pSector, in
     else
     {
         pSector = pActor->sector();
-        nAngle = pActor->spr.ang;
+        nAngle = pActor->int_ang();
         x = pActor->int_pos().X;
         y = pActor->int_pos().Y;
 
@@ -126,7 +126,7 @@ void BuildLava(DExhumedActor* pActor, int x, int y, int, sectortype* pSector, in
     pActor->spr.xvel = 0;
     pActor->spr.yvel = 0;
     pActor->spr.zvel = 0;
-    pActor->spr.ang = nAngle;
+    pActor->set_int_ang(nAngle);
     pActor->spr.hitag = 0;
     pActor->spr.lotag = runlist_HeadRun() + 1;
 
@@ -265,8 +265,8 @@ void AILavaDude::Tick(RunListEvent* ev)
 
             PlotCourseToSprite(pActor, pTarget);
 
-            pActor->spr.xvel = bcos(pActor->spr.ang);
-            pActor->spr.yvel = bsin(pActor->spr.ang);
+            pActor->spr.xvel = bcos(pActor->int_ang());
+            pActor->spr.yvel = bsin(pActor->int_ang());
 
             if (pTarget && !RandomSize(1))
             {
@@ -290,9 +290,9 @@ void AILavaDude::Tick(RunListEvent* ev)
             ChangeActorSect(pActor, pSector);
             pActor->set_int_pos({ x, y, z });
 
-            pActor->spr.ang = (pActor->spr.ang + ((RandomWord() & 0x3FF) + 1024)) & kAngleMask;
-            pActor->spr.xvel = bcos(pActor->spr.ang);
-            pActor->spr.yvel = bsin(pActor->spr.ang);
+            pActor->set_int_ang((pActor->int_ang() + ((RandomWord() & 0x3FF) + 1024)) & kAngleMask);
+            pActor->spr.xvel = bcos(pActor->int_ang());
+            pActor->spr.yvel = bsin(pActor->int_ang());
             break;
         }
 
@@ -302,9 +302,9 @@ void AILavaDude::Tick(RunListEvent* ev)
 
         if (coll.type == kHitWall)
         {
-            pActor->spr.ang = (pActor->spr.ang + ((RandomWord() & 0x3FF) + 1024)) & kAngleMask;
-            pActor->spr.xvel = bcos(pActor->spr.ang);
-            pActor->spr.yvel = bsin(pActor->spr.ang);
+            pActor->set_int_ang((pActor->int_ang() + ((RandomWord() & 0x3FF) + 1024)) & kAngleMask);
+            pActor->spr.xvel = bcos(pActor->int_ang());
+            pActor->spr.yvel = bsin(pActor->int_ang());
             break;
         }
         else if (coll.type == kHitSprite)
@@ -312,7 +312,7 @@ void AILavaDude::Tick(RunListEvent* ev)
             if (coll.actor() == pTarget)
             {
                 int nAng = getangle(pTarget->int_pos().X - pActor->int_pos().X, pTarget->int_pos().Y - pActor->int_pos().Y);
-                if (AngleDiff(pActor->spr.ang, nAng) < 64)
+                if (AngleDiff(pActor->int_ang(), nAng) < 64)
                 {
                     pActor->nAction = 2;
                     pActor->nFrame = 0;
@@ -353,7 +353,7 @@ void AILavaDude::Tick(RunListEvent* ev)
             int nHeight = GetActorHeight(pActor);
             GetUpAngle(pActor, -64000, pTarget, (-(nHeight >> 1)));
 
-            BuildBullet(pActor, 10, -1, pActor->spr.ang, pTarget, 1);
+            BuildBullet(pActor, 10, -1, pActor->int_ang(), pTarget, 1);
         }
         else if (var_1C)
         {

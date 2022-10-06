@@ -31,7 +31,6 @@ Prepared for public release: 03/21/2003 - Charlie Wiederhold, 3D Realms
 #include "tarray.h"
 #include "tflags.h"
 #include "intvec.h"
-#include "binaryangle.h"
 #include "dobject.h"
 
 void MarkVerticesForSector(int sector);
@@ -43,6 +42,8 @@ static constexpr double worldtoint = 16.;
 static constexpr double zmaptoworld = (1 / 256.);	// this for necessary conversions to convert map data to floating point representation.
 static constexpr double zinttoworld = (1 / 256.); // this is for conversions needed to make floats coexist with existing code.
 static constexpr double zworldtoint = 256.;
+
+static constexpr double REPEAT_SCALE = (1 / 64.);	// map's 'repeat' values use 2.6 fixed point.
 
 //=============================================================================
 //
@@ -307,8 +308,8 @@ struct sectortype
 			BLD_NS::XSECTOR* _xs;
 			TObjPtr<DCoreActor*> upperLink;
 			TObjPtr<DCoreActor*> lowerLink;
-			int baseFloor;
-			int baseCeil;
+			double baseFloor;
+			double baseCeil;
 			int velFloor;
 			int velCeil;
 			uint8_t slopewallofs; // This was originally the repurposed filler byte.
@@ -404,7 +405,7 @@ struct walltype
 	uint8_t yrepeat;
 
 	// extensions not from the binary map format.
-	binangle clipangle;
+	angle_t clipangle;
 	int length; // cached value to avoid calling sqrt repeatedly.
 
 	uint16_t portalnum;
@@ -458,11 +459,12 @@ struct spritetypebase
 	DVector3 pos;
 
 	sectortype* sectp;
+	DAngle angle;
 
 	ESpriteFlags cstat;
 	int16_t picnum;
 	int16_t statnum;
-	int16_t ang;
+	int16_t intangle;	// needs to be kept for SW's SP_TAG4
 	int16_t xvel;
 	int16_t yvel;
 	union { int16_t zvel, inittype; }; // inittype, type and flags are for Blood.
@@ -490,6 +492,27 @@ struct spritetypebase
 	{
 		return { int(pos.X * worldtoint), int(pos.Y * worldtoint), int(pos.Z * zworldtoint) };
 	}
+
+	constexpr int16_t int_ang() const
+	{
+ 		return angle.Buildang();
+	}
+
+	void set_int_ang(int a)
+	{
+		angle = DAngle::fromBuild(a);
+	}
+
+	void add_int_ang(int a)
+	{
+		angle += DAngle::fromBuild(a);
+	}
+
+	void copy_ang(const spritetypebase* other)
+	{
+		angle = other->angle;
+	}
+
 };
 
 
@@ -518,17 +541,9 @@ struct tspritetype : public spritetypebase
 	{
 		pos.X += x * inttoworld;
 	}
-	void set_int_x(int x)
-	{
-		pos.X = x * inttoworld;
-	}
 	void add_int_y(int x)
 	{
 		pos.Y  += x * inttoworld;
-	}
-	void set_int_y(int x)
-	{
-		pos.Y  = x * inttoworld;
 	}
 	void add_int_z(int x)
 	{

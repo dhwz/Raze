@@ -36,22 +36,20 @@ IntRect viewport3d;
 
 int cameradist, cameraclock;
 
-bool calcChaseCamPos(int* px, int* py, int* pz, DCoreActor* act, sectortype** psect, binangle ang, fixedhoriz horiz, double const smoothratio)
+bool calcChaseCamPos(int* px, int* py, int* pz, DCoreActor* act, sectortype** psect, DAngle ang, fixedhoriz horiz, double const smoothratio)
 {
 	HitInfoBase hitinfo;
-	binangle daang;
+	DAngle daang;
 	int newdist;
 
 	if (!*psect) return false;
 	// Calculate new pos to shoot backwards, using averaged values from the big three.
-	int nx = gi->chaseCamX(ang);
-	int ny = gi->chaseCamY(ang);
-	int nz = gi->chaseCamZ(horiz);
+	vec3_t np = gi->chaseCamPos(ang, horiz);
 
 	auto bakcstat = act->spr.cstat;
 	act->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
 	updatesectorz(*px, *py, *pz, psect);
-	hitscan({ *px, *py, *pz }, *psect, { nx, ny, nz }, hitinfo, CLIPMASK1);
+	hitscan({ *px, *py, *pz }, *psect, np, hitinfo, CLIPMASK1);
 	act->spr.cstat = bakcstat;
 
 	int hx = hitinfo.hitpos.X - *px;
@@ -63,30 +61,30 @@ bool calcChaseCamPos(int* px, int* py, int* pz, DCoreActor* act, sectortype** ps
 	}
 
 	// If something is in the way, make pp->camera_dist lower if necessary
-	if (abs(nx) + abs(ny) > abs(hx) + abs(hy))
+	if (abs(np.X) + abs(np.Y) > abs(hx) + abs(hy))
 	{
 		if (hitinfo.hitWall != nullptr)
 		{
 			// Push you a little bit off the wall
 			*psect = hitinfo.hitSector;
-			daang = bvectangbam(hitinfo.hitWall->point2Wall()->pos.X - hitinfo.hitWall->pos.X,
+			daang = VecToAngle(hitinfo.hitWall->point2Wall()->pos.X - hitinfo.hitWall->pos.X,
 								hitinfo.hitWall->point2Wall()->pos.Y - hitinfo.hitWall->pos.Y);
-			newdist = nx * daang.bsin() + ny * -daang.bcos();
+			newdist = int(np.X * daang.Sin() * (1 << BUILDSINBITS) + np.Y * -daang.Cos() * (1 << BUILDSINBITS));
 
-			if (abs(nx) > abs(ny))
-				hx -= MulScale(nx, newdist, 28);
+			if (abs(np.X) > abs(np.Y))
+				hx -= MulScale(np.X, newdist, 28);
 			else
-				hy -= MulScale(ny, newdist, 28);
+				hy -= MulScale(np.Y, newdist, 28);
 		}
 		else if (hitinfo.hitActor == nullptr)		
 		{
 			// Push you off the ceiling/floor
 			*psect = hitinfo.hitSector;
 
-			if (abs(nx) > abs(ny))
-				hx -= (nx >> 5);
+			if (abs(np.X) > abs(np.Y))
+				hx -= (np.X >> 5);
 			else
-				hy -= (ny >> 5);
+				hy -= (np.Y >> 5);
 		}
 		else
 		{
@@ -104,29 +102,29 @@ bool calcChaseCamPos(int* px, int* py, int* pz, DCoreActor* act, sectortype** ps
 			else
 			{
 				// same as wall calculation.
-				daang = buildang(act->spr.ang - 512);
-				newdist = nx * daang.bsin() + ny * -daang.bcos();
+				daang = act->spr.angle - DAngle90;
+				newdist = int(np.X * daang.Sin() * (1 << BUILDSINBITS) + np.Y * -daang.Cos() * (1 << BUILDSINBITS));
 
-				if (abs(nx) > abs(ny))
-					hx -= MulScale(nx, newdist, 28);
+				if (abs(np.X) > abs(np.Y))
+					hx -= MulScale(np.X, newdist, 28);
 				else
-					hy -= MulScale(ny, newdist, 28);
+					hy -= MulScale(np.Y, newdist, 28);
 			}
 		}
 
-		if (abs(nx) > abs(ny))
-			newdist = DivScale(hx, nx, 16);
+		if (abs(np.X) > abs(np.Y))
+			newdist = DivScale(hx, np.X, 16);
 		else
-			newdist = DivScale(hy, ny, 16);
+			newdist = DivScale(hy, np.Y, 16);
 
 		if (newdist < cameradist)
 			cameradist = newdist;
 	}
 
 	// Actually move you! (Camerdist is 65536 if nothing is in the way)
-	*px += MulScale(nx, cameradist, 16);
-	*py += MulScale(ny, cameradist, 16);
-	*pz += MulScale(nz, cameradist, 16);
+	*px += MulScale(np.X, cameradist, 16);
+	*py += MulScale(np.Y, cameradist, 16);
+	*pz += MulScale(np.Z, cameradist, 16);
 
 	// Caculate clock using GameTicRate so it increases the same rate on all speed computers.
 	int myclock = PlayClock + MulScale(120 / GameTicRate, int(smoothratio), 16);
@@ -305,8 +303,8 @@ void GetWallSpritePosition(const tspritetype* spr, vec2_t pos, vec2_t* out, bool
 		leftofs = ((int)tex->GetDisplayLeftOffset() + spr->xoffset);
 	}
 
-	int x = bsin(spr->ang) * spr->xrepeat;
-	int y = -bcos(spr->ang) * spr->xrepeat;
+	int x = bsin(spr->int_ang()) * spr->xrepeat;
+	int y = -bcos(spr->int_ang()) * spr->xrepeat;
 
 	int xoff = leftofs;
 	if (spr->cstat & CSTAT_SPRITE_XFLIP) xoff = -xoff;
@@ -356,8 +354,8 @@ void TGetFlatSpritePosition(const spritetypebase* spr, vec2_t pos, vec2_t* out, 
 	int sprcenterx = (width >> 1) + leftofs;
 	int sprcentery = (height >> 1) + topofs;
 
-	int cosang = bcos(spr->ang);
-	int sinang = bsin(spr->ang);
+	int cosang = bcos(spr->int_ang());
+	int sinang = bsin(spr->int_ang());
 	int cosangslope = DivScale(cosang, ratio, 12);
 	int sinangslope = DivScale(sinang, ratio, 12);
 
@@ -469,10 +467,10 @@ void dragpoint(walltype* startwall, const DVector2& pos)
 //
 //==========================================================================
 
-DVector2 rotatepoint(const DVector2& pivot, const DVector2& point, binangle angle)
+DVector2 rotatepoint(const DVector2& pivot, const DVector2& point, DAngle angle)
 {
-	auto cosang = g_cosbam(angle.asbam());
-	auto sinang = g_sinbam(angle.asbam());
+	auto cosang = angle.Cos();
+	auto sinang = angle.Sin();
 	auto p = point - pivot;
 	return {
 		p.X * cosang - p.Y * sinang + pivot.X,
@@ -571,7 +569,7 @@ tspritetype* renderAddTsprite(tspriteArray& tsprites, DCoreActor* actor)
 	tspr->yoffset = actor->spr.yoffset;
 	tspr->sectp = actor->spr.sectp;
 	tspr->statnum = actor->spr.statnum;
-	tspr->ang = actor->spr.ang;
+	tspr->angle = actor->spr.angle;
 	tspr->xvel = actor->spr.xvel;
 	tspr->yvel = actor->spr.yvel;
 	tspr->zvel = actor->spr.zvel;

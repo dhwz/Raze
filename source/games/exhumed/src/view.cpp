@@ -50,7 +50,7 @@ int16_t nQuake[kMaxPlayers] = { 0 };
 
 int nChunkTotal = 0;
 
-binangle nCameraa;
+DAngle nCameraa;
 fixedhoriz nCamerapan;
 int nViewTop;
 bool bCamera = false;
@@ -73,8 +73,8 @@ static void analyzesprites(tspriteArray& tsprites, int x, int y, int z, double c
         if (pTSprite->ownerActor)
         {
             // interpolate sprite position
-            pTSprite->set_int_pos(pTSprite->ownerActor->interpolatedvec3(smoothratio));
-            pTSprite->ang = pTSprite->ownerActor->interpolatedang(smoothratio);
+            pTSprite->pos = pTSprite->ownerActor->interpolatedvec3(smoothratio);
+            pTSprite->angle = pTSprite->ownerActor->interpolatedang(smoothratio);
         }
     }
 
@@ -88,7 +88,7 @@ static void analyzesprites(tspriteArray& tsprites, int x, int y, int z, double c
 
     auto pSector =pPlayerActor->sector();
 
-    int nAngle = (2048 - pPlayerActor->spr.ang) & kAngleMask;
+    int nAngle = (2048 - pPlayerActor->int_ang()) & kAngleMask;
 
     for (int nTSprite = int(tsprites.Size()-1); nTSprite >= 0; nTSprite--)
     {
@@ -191,7 +191,7 @@ void DrawView(double smoothRatio, bool sceneonly)
     int playerY;
     int playerZ;
     sectortype* pSector = nullptr;
-    binangle nAngle, rotscrnang;
+    DAngle nAngle, rotscrnang;
     fixedhoriz pan = {};
 
     zbob = bsin(2 * bobangle, -3);
@@ -211,8 +211,8 @@ void DrawView(double smoothRatio, bool sceneonly)
         playerY = pActor->int_pos().Y;
         playerZ = pActor->int_pos().Z;
         pSector = pActor->sector();
-        nAngle = buildang(pActor->spr.ang);
-        rotscrnang = buildang(0);
+        nAngle = pActor->spr.angle;
+        rotscrnang = nullAngle;
 
         SetGreenPal();
 
@@ -230,9 +230,9 @@ void DrawView(double smoothRatio, bool sceneonly)
     }
     else
     {
-        playerX = pPlayerActor->interpolatedx(smoothRatio);
-        playerY = pPlayerActor->interpolatedy(smoothRatio);
-        playerZ = pPlayerActor->interpolatedz(smoothRatio) + interpolatedvalue(PlayerList[nLocalPlayer].oeyelevel, PlayerList[nLocalPlayer].eyelevel, smoothRatio);
+        playerX = pPlayerActor->__interpolatedx(smoothRatio);
+        playerY = pPlayerActor->__interpolatedy(smoothRatio);
+        playerZ = pPlayerActor->__interpolatedz(smoothRatio) + interpolatedvalue(PlayerList[nLocalPlayer].oeyelevel, PlayerList[nLocalPlayer].eyelevel, smoothRatio);
 
         pSector = PlayerList[nLocalPlayer].pPlayerViewSect;
         updatesector(playerX, playerY, &pSector);
@@ -279,7 +279,7 @@ void DrawView(double smoothRatio, bool sceneonly)
         if (viewz > floorZ)
             viewz = floorZ;
 
-        nCameraa += buildang((nQuake[nLocalPlayer] >> 7) % 31);
+        nCameraa += DAngle::fromBuild((nQuake[nLocalPlayer] >> 7) % 31);
 
         if (bCamera)
         {
@@ -374,7 +374,7 @@ void DrawView(double smoothRatio, bool sceneonly)
 
                     pPlayerActor->spr.cstat |= CSTAT_SPRITE_INVISIBLE;
 
-                    int ang2 = nCameraa.asbuild() - pPlayerActor->spr.ang;
+                    int ang2 = nCameraa.Buildang() - pPlayerActor->int_ang();
                     if (ang2 < 0)
                         ang2 = -ang2;
 
@@ -442,7 +442,7 @@ bool GameInterface::GenerateSavePic()
     return true;
 }
 
-void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio)
+void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double smoothRatio)
 {
     analyzesprites(tsprites, viewx, viewy, viewz, smoothRatio);
 }

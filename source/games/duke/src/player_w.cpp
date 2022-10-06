@@ -49,7 +49,7 @@ int operateTripbomb(int snum);
 //
 //---------------------------------------------------------------------------
 
-void DoFire(struct player_struct* p, int snum)
+void DoFire(player_struct* p, int snum)
 {
 	int i;
 
@@ -106,7 +106,7 @@ void DoFire(struct player_struct* p, int snum)
 //
 //---------------------------------------------------------------------------
 
-void DoSpawn(struct player_struct *p, int snum)
+void DoSpawn(player_struct *p, int snum)
 {
 	if(!aplWeaponSpawn(p->curr_weapon, snum))
 		return;
@@ -117,16 +117,15 @@ void DoSpawn(struct player_struct *p, int snum)
 	if((aplWeaponFlags(p->curr_weapon, snum) & WEAPON_FLAG_SPAWNTYPE2 ) )
 	{
 		// like shotgun shells
-		j->spr.ang += 1024;
+		j->add_int_ang(1024);
 		ssp(j,CLIPMASK0);
-		j->spr.ang += 1024;
+		j->add_int_ang(1024);
 //		p->kickback_pic++;
 	}
 	else if((aplWeaponFlags(p->curr_weapon, snum) & WEAPON_FLAG_SPAWNTYPE3 ) )
 	{
 		// like chaingun shells
-		j->spr.ang += 1024;
-		j->spr.ang &= 2047;
+		j->set_int_ang((j->int_ang() + 1024) & 2047);
 		j->spr.xvel += 32;
 		j->add_int_z(3<<8);
 		ssp(j,CLIPMASK0);
@@ -342,10 +341,10 @@ void operateweapon_ww(int snum, ESyncBits actions)
 			}
 
 			auto j = EGS(p->cursector,
-				p->pos.X + p->angle.ang.bcos(-6),
-				p->pos.Y + p->angle.ang.bsin(-6),
-				p->pos.Z, HEAVYHBOMB, -16, 9, 9,
-				p->angle.ang.asbuild(), (k + (p->hbomb_hold_delay << 5)), i, p->GetActor(), 1);
+				p->player_int_pos().X + p->angle.ang.Cos() * (1 << 8),
+				p->player_int_pos().Y + p->angle.ang.Sin() * (1 << 8),
+				p->player_int_pos().Z, HEAVYHBOMB, -16, 9, 9,
+				p->angle.ang.Buildang(), (k + (p->hbomb_hold_delay << 5)), i, p->GetActor(), 1);
 
 			if (j)
 			{
@@ -361,13 +360,13 @@ void operateweapon_ww(int snum, ESyncBits actions)
 				if (k == 15)
 				{
 					j->spr.yvel = 3;
-					j->add_int_z(8 << 8);
+					j->spr.pos.Z += 8;
 				}
 
 				k = hits(p->GetActor());
 				if (k < 512)
 				{
-					j->spr.ang += 1024;
+					j->add_int_ang(1024);
 					j->spr.zvel /= 3;
 					j->spr.xvel /= 3;
 				}

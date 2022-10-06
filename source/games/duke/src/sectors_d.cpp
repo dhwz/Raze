@@ -482,7 +482,7 @@ bool checkhitswitch_d(int snum, walltype* wwal, DDukeActor *act)
 		return 1;
 	}
 
-	vec3_t v = { sx, sy, ps[snum].pos.Z };
+	vec3_t v = { sx, sy, ps[snum].player_int_pos().Z };
 	switch (picnum)
 	{
 	default:
@@ -682,7 +682,7 @@ void checkhitwall_d(DDukeActor* spr, walltype* wal, int x, int y, int z, int atw
 					{
 						spawned->spr.cstat |= CSTAT_SPRITE_TRANSLUCENT | CSTAT_SPRITE_ALIGNMENT_WALL | CSTAT_SPRITE_YCENTER;
 						auto delta = wal->delta();
-						spawned->spr.ang = getangle(-delta.X, -delta.Y) - 512;
+						spawned->set_int_ang(getangle(-delta.X, -delta.Y) - 512);
 
 						S_PlayActorSound(SOMETHINGHITFORCE, spawned);
 					}
@@ -712,7 +712,7 @@ void checkhitwall_d(DDukeActor* spr, walltype* wal, int x, int y, int z, int atw
 					if (wal->twoSided())
 						wal->nextWall()->cstat = 0;
 
-					auto spawned = EGS(sptr, x, y, z, SECTOREFFECTOR, 0, 0, 0, ps[0].angle.ang.asbuild(), 0, 0, spr, 3);
+					auto spawned = EGS(sptr, x, y, z, SECTOREFFECTOR, 0, 0, 0, ps[0].angle.ang.Buildang(), 0, 0, spr, 3);
 					if (spawned)
 					{
 						spawned->spr.lotag = SE_128_GLASS_BREAKING;
@@ -884,7 +884,7 @@ void checkhitwall_d(DDukeActor* spr, walltype* wal, int x, int y, int z, int atw
 //
 //---------------------------------------------------------------------------
 
-void checkplayerhurt_d(struct player_struct* p, const Collision& coll)
+void checkplayerhurt_d(player_struct* p, const Collision& coll)
 {
 	if (coll.type == kHitSprite)
 	{
@@ -917,23 +917,23 @@ void checkplayerhurt_d(struct player_struct* p, const Collision& coll)
 		p->hurt_delay = 16;
 		SetPlayerPal(p, PalEntry(32, 32, 0, 0));
 
-		p->vel.X = -p->angle.ang.bcos(8);
-		p->vel.Y = -p->angle.ang.bsin(8);
+		p->vel.X = -p->angle.ang.Cos() * (1 << 22);
+		p->vel.Y = -p->angle.ang.Sin() * (1 << 22);
 		S_PlayActorSound(DUKE_LONGTERM_PAIN, p->GetActor());
 
 		fi.checkhitwall(p->GetActor(), wal,
-			p->pos.X + p->angle.ang.bcos(-9),
-			p->pos.Y + p->angle.ang.bsin(-9),
-			p->pos.Z, -1);
+			p->player_int_pos().X + p->angle.ang.Cos() * (1 << 5),
+			p->player_int_pos().Y + p->angle.ang.Sin() * (1 << 5),
+			p->player_int_pos().Z, -1);
 
 		break;
 
 	case BIGFORCE:
 		p->hurt_delay = 26;
 		fi.checkhitwall(p->GetActor(), wal,
-			p->pos.X + p->angle.ang.bcos(-9),
-			p->pos.Y + p->angle.ang.bsin(-9),
-			p->pos.Z, -1);
+			p->player_int_pos().X + p->angle.ang.Cos() * (1 << 5),
+			p->player_int_pos().Y + p->angle.ang.Sin() * (1 << 5),
+			p->player_int_pos().Z, -1);
 		break;
 
 	}
@@ -1049,8 +1049,8 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 		if (proj->spr.picnum == QUEBALL || proj->spr.picnum == STRIPEBALL)
 		{
 			proj->spr.xvel = (targ->spr.xvel >> 1) + (targ->spr.xvel >> 2);
-			proj->spr.ang -= (targ->spr.ang << 1) + 1024;
-			targ->spr.ang = getangle(targ->int_pos().X - proj->int_pos().X, targ->int_pos().Y - proj->int_pos().Y) - 512;
+			proj->add_int_ang(-((targ->int_ang() << 1) + 1024));
+			targ->set_int_ang(getangle(targ->int_pos().X - proj->int_pos().X, targ->int_pos().Y - proj->int_pos().Y) - 512);
 			if (S_CheckSoundPlaying(POOLBALLHIT) < 2)
 				S_PlayActorSound(POOLBALLHIT, targ);
 		}
@@ -1059,7 +1059,7 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 			if (krand() & 3)
 			{
 				targ->spr.xvel = 164;
-				targ->spr.ang = proj->spr.ang;
+				targ->spr.angle = proj->spr.angle;
 			}
 			else
 			{
@@ -1177,7 +1177,7 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 			lotsofglass(targ, nullptr, 40);
 
 		S_PlayActorSound(GLASS_BREAKING, targ);
-		targ->spr.ang = krand() & 2047;
+		targ->set_int_ang(krand() & 2047);
 		lotsofglass(targ, nullptr, 8);
 		deletesprite(targ);
 		break;
@@ -1190,7 +1190,7 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 		for (j = 0; j < 48; j++)
 		{
 			fi.shoot(targ, BLOODSPLAT1);
-			targ->spr.ang += 333;
+			targ->add_int_ang(333);
 		}
 		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
 		S_PlayActorSound(SQUISHED, targ);
@@ -1221,7 +1221,7 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 		if (targ->spr.cstat & CSTAT_SPRITE_BLOCK)
 		{
 			S_PlayActorSound(GLASS_BREAKING, targ);
-			targ->add_int_z(16 << 8);
+			targ->spr.pos.Z += 16;
 			targ->spr.cstat = 0;
 			lotsofglass(targ, nullptr, 5);
 		}
@@ -1303,21 +1303,21 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 	{
 		targ->spr.extra -= proj->spr.extra;
 		if (targ->spr.extra > 0) break;
-		targ->spr.ang = krand() & 2047;
+		targ->set_int_ang(krand() & 2047);
 		fi.shoot(targ, BLOODSPLAT1);
-		targ->spr.ang = krand() & 2047;
+		targ->set_int_ang(krand() & 2047);
 		fi.shoot(targ, BLOODSPLAT2);
-		targ->spr.ang = krand() & 2047;
+		targ->set_int_ang(krand() & 2047);
 		fi.shoot(targ, BLOODSPLAT3);
-		targ->spr.ang = krand() & 2047;
+		targ->set_int_ang(krand() & 2047);
 		fi.shoot(targ, BLOODSPLAT4);
-		targ->spr.ang = krand() & 2047;
+		targ->set_int_ang(krand() & 2047);
 		fi.shoot(targ, BLOODSPLAT1);
-		targ->spr.ang = krand() & 2047;
+		targ->set_int_ang(krand() & 2047);
 		fi.shoot(targ, BLOODSPLAT2);
-		targ->spr.ang = krand() & 2047;
+		targ->set_int_ang(krand() & 2047);
 		fi.shoot(targ, BLOODSPLAT3);
-		targ->spr.ang = krand() & 2047;
+		targ->set_int_ang(krand() & 2047);
 		fi.shoot(targ, BLOODSPLAT4);
 		fi.guts(targ, JIBS1, 1, myconnectindex);
 		fi.guts(targ, JIBS2, 2, myconnectindex);
@@ -1374,10 +1374,10 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 							{
 								if (proj->spr.pal == 6)
 									spawned->spr.pal = 6;
-								spawned->add_int_z(4 << 8);
+								spawned->spr.pos.Z += 4;
 								spawned->spr.xvel = 16;
 								spawned->spr.xrepeat = spawned->spr.yrepeat = 24;
-								spawned->spr.ang += 32 - (krand() & 63);
+								spawned->add_int_ang(32 - (krand() & 63));
 							}
 						}
 
@@ -1395,7 +1395,7 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 				if (targ->spr.picnum != TANK && !bossguy(targ) && targ->spr.picnum != RECON && targ->spr.picnum != ROTATEGUN)
 				{
 					if ((targ->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) == 0)
-						targ->spr.ang = (proj->spr.ang + 1024) & 2047;
+						targ->set_int_ang((proj->int_ang() + 1024) & 2047);
 					targ->spr.xvel = -(proj->spr.extra << 2);
 					auto sp = targ->sector();
 					pushmove(targ, &sp, 128L, (4 << 8), (4 << 8), CLIPMASK0);
@@ -1431,7 +1431,7 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 
 				targ->attackertype = hitpic;
 				targ->hitextra += proj->spr.extra;
-				targ->hitang = proj->spr.ang;
+				targ->hitang = proj->int_ang();
 				targ->SetHitOwner(Owner);
 			}
 
@@ -1441,12 +1441,10 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 				if (ps[p].newOwner != nullptr)
 				{
 					ps[p].newOwner = nullptr;
-					ps[p].pos.X = ps[p].opos.X;
-					ps[p].pos.Y = ps[p].opos.Y;
-					ps[p].pos.Z = ps[p].opos.Z;
+					ps[p].restorexyz();
 					ps[p].angle.restore();
 
-					updatesector(ps[p].pos.X, ps[p].pos.Y, &ps[p].cursector);
+					updatesector(ps[p].player_int_pos().X, ps[p].player_int_pos().Y, &ps[p].cursector);
 
 					DukeStatIterator it(STAT_ACTOR);
 					while (auto itActor = it.Next())
@@ -1479,12 +1477,10 @@ void clearcameras(int i, player_struct* p)
 {
 	if (i < 0)
 	{
-		p->pos.X = p->opos.X;
-		p->pos.Y = p->opos.Y;
-		p->pos.Z = p->opos.Z;
+		p->restorexyz();
 		p->newOwner = nullptr;
 
-		updatesector(p->pos.X, p->pos.Y, &p->cursector);
+		updatesector(p->player_int_pos().X, p->player_int_pos().Y, &p->cursector);
 
 		DukeStatIterator it(STAT_ACTOR);
 		while (auto act = it.Next())
@@ -1505,7 +1501,7 @@ void clearcameras(int i, player_struct* p)
 void checksectors_d(int snum)
 {
 	int i = -1, oldz;
-	struct player_struct* p;
+	player_struct* p;
 	walltype* hitscanwall;
 	HitInfo near;
 
@@ -1593,17 +1589,17 @@ void checksectors_d(int snum)
 					return;
 		}
 		if (p->newOwner != nullptr)
-			neartag({ p->opos.X, p->opos.Y, p->opos.Z }, p->GetActor()->sector(), p->angle.oang.asbuild(), near, 1280L, 1);
+			neartag({ p->player_int_opos().X, p->player_int_opos().Y, p->player_int_opos().Z }, p->GetActor()->sector(), p->angle.oang.Buildang(), near, 1280L, 1);
 		else
 		{
-			neartag(p->pos, p->GetActor()->sector(), p->angle.oang.asbuild(), near, 1280, 1);
+			neartag(p->player_int_pos(), p->GetActor()->sector(), p->angle.oang.Buildang(), near, 1280, 1);
 			if (near.actor() == nullptr && near.hitWall == nullptr && near.hitSector == nullptr)
-				neartag({ p->pos.X, p->pos.Y, p->pos.Z + (8 << 8) }, p->GetActor()->sector(), p->angle.oang.asbuild(), near, 1280, 1);
+				neartag({ p->player_int_pos().X, p->player_int_pos().Y, p->player_int_pos().Z + (8 << 8) }, p->GetActor()->sector(), p->angle.oang.Buildang(), near, 1280, 1);
 			if (near.actor() == nullptr && near.hitWall == nullptr && near.hitSector == nullptr)
-				neartag({ p->pos.X, p->pos.Y, p->pos.Z + (16 << 8) }, p->GetActor()->sector(), p->angle.oang.asbuild(), near, 1280, 1);
+				neartag({ p->player_int_pos().X, p->player_int_pos().Y, p->player_int_pos().Z + (16 << 8) }, p->GetActor()->sector(), p->angle.oang.Buildang(), near, 1280, 1);
 			if (near.actor() == nullptr && near.hitWall == nullptr && near.hitSector == nullptr)
 			{
-				neartag({ p->pos.X, p->pos.Y, p->pos.Z + (16 << 8) }, p->GetActor()->sector(), p->angle.oang.asbuild(), near, 1280, 3);
+				neartag({ p->player_int_pos().X, p->player_int_pos().Y, p->player_int_pos().Z + (16 << 8) }, p->GetActor()->sector(), p->angle.oang.Buildang(), near, 1280, 3);
 				if (near.actor() != nullptr)
 				{
 					switch (near.actor()->spr.picnum)

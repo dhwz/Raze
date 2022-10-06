@@ -56,10 +56,8 @@ struct GameInterface : public ::GameInterface
 	void ToggleThirdPerson() override;
 	void SwitchCoopView() override;
 	void ToggleShowWeapon() override;
-	int chaseCamX(binangle ang) { return -ang.bcos(-4); }
-	int chaseCamY(binangle ang) { return -ang.bsin(-4); }
-	int chaseCamZ(fixedhoriz horiz) { return horiz.asq16() >> 9; }
-	void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio) override;
+	vec3_t chaseCamPos(DAngle ang, fixedhoriz horiz) { return vec3_t(int(-ang.Cos() * 1024.), int(-ang.Sin() * 1024.), horiz.asq16() >> 9); }
+	void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double smoothRatio) override;
 	void UpdateCameras(double smoothratio) override;
 	void EnterPortal(DCoreActor* viewer, int type) override;
 	void LeavePortal(DCoreActor* viewer, int type) override;
@@ -88,7 +86,7 @@ struct Dispatcher
 
 	bool (*ceilingspace)(sectortype* sectp);
 	bool (*floorspace)(sectortype* sectp);
-	void (*addweapon)(struct player_struct *p, int weapon);
+	void (*addweapon)(player_struct *p, int weapon);
 	void (*hitradius)(DDukeActor* i, int  r, int  hp1, int  hp2, int  hp3, int  hp4);
 	void (*lotsofmoney)(DDukeActor *s, int n);
 	void (*lotsofmail)(DDukeActor *s, int n);
@@ -101,11 +99,11 @@ struct Dispatcher
 	void (*move)(DDukeActor* i, int g_p, int g_x);
 
 	// player
-	void (*incur_damage)(struct player_struct* p);
+	void (*incur_damage)(player_struct* p);
 	void (*shoot)(DDukeActor*, int);
 	void (*selectweapon)(int snum, int j);
-	int (*doincrements)(struct player_struct* p);
-	void (*checkweapons)(struct player_struct* p);
+	int (*doincrements)(player_struct* p);
+	void (*checkweapons)(player_struct* p);
 	void (*processinput)(int snum);
 	void (*displayweapon)(int snum, double smoothratio);
 	void (*displaymasks)(int snum, int p, double smoothratio);

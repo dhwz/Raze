@@ -318,13 +318,13 @@ void HWDrawInfo::DispatchSprites()
 
 		if (actor->sprext.renderflags & SPREXT_AWAY1)
 		{
-			tspr->add_int_x(bcos(tspr->ang, -13));
-			tspr->add_int_y(bsin(tspr->ang, -13));
+			tspr->add_int_x(bcos(tspr->int_ang(), -13));
+			tspr->add_int_y(bsin(tspr->int_ang(), -13));
 		}
 		else if (actor->sprext.renderflags & SPREXT_AWAY2)
 		{
-			tspr->add_int_x(-bcos(tspr->ang, -13));
-			tspr->add_int_y(-bsin(tspr->ang, -13));
+			tspr->add_int_x(-bcos(tspr->int_ang(), -13));
+			tspr->add_int_y(-bsin(tspr->int_ang(), -13));
 		}
 
 		switch (tspr->cstat & CSTAT_SPRITE_ALIGNMENT_MASK)
@@ -386,15 +386,15 @@ void HWDrawInfo::CreateScene(bool portal)
 
 	if(!portal) mClipper->SetVisibleRange(vp.RotAngle, a1);
 
-	if (a1 != 0xffffffff) mDrawer.Init(this, mClipper, view, bamang(vp.RotAngle - a1), bamang(vp.RotAngle + a1));
-	else mDrawer.Init(this, mClipper, view, bamang(0), bamang(0));
+	if (a1 != 0xffffffff) mDrawer.Init(this, mClipper, view, vp.RotAngle - a1, vp.RotAngle + a1);
+	else mDrawer.Init(this, mClipper, view, 0, 0);
 	if (vp.SectNums)
 		mDrawer.RenderScene(vp.SectNums, vp.SectCount, portal);
 	else
 		mDrawer.RenderScene(&vp.SectCount, 1, portal);
 
 	SetupSprite.Clock();
-	gi->processSprites(tsprites, view.X, view.Y, vp.Pos.Z * -256, bamang(vp.RotAngle), vp.TicFrac * 65536);
+	gi->processSprites(tsprites, view.X, view.Y, vp.Pos.Z * -256, DAngle::fromBam(vp.RotAngle), vp.TicFrac * 65536);
 	DispatchSprites();
 	SetupSprite.Unclock();
 
@@ -422,8 +422,8 @@ void HWDrawInfo::CreateScene(bool portal)
 			if (eff.geosector[i] == drawsectp) drawsectp = eff.geosectorwarp[i];
 		}
 
-		if (a1 != 0xffffffff) mDrawer.Init(this, mClipper, view, bamang(vp.RotAngle - a1), bamang(vp.RotAngle + a1));
-		else mDrawer.Init(this, mClipper, view, bamang(0), bamang(0));
+		if (a1 != 0xffffffff) mDrawer.Init(this, mClipper, view, vp.RotAngle - a1, vp.RotAngle + a1);
+		else mDrawer.Init(this, mClipper, view, 0, 0);
 
 		int drawsect = sectnum(drawsectp);
 		mDrawer.RenderScene(&drawsect, 1, false);
@@ -454,8 +454,8 @@ void HWDrawInfo::CreateScene(bool portal)
 			if (eff.geosector[i] == orgdrawsectp) drawsectp = eff.geosectorwarp2[i];
 		}
 
-		if (a1 != 0xffffffff) mDrawer.Init(this, mClipper, view, bamang(vp.RotAngle - a1), bamang(vp.RotAngle + a1));
-		else mDrawer.Init(this, mClipper, view, bamang(0), bamang(0));
+		if (a1 != 0xffffffff) mDrawer.Init(this, mClipper, view, vp.RotAngle - a1, vp.RotAngle + a1);
+		else mDrawer.Init(this, mClipper, view, 0, 0);
 		drawsect = sectnum(drawsectp);
 		mDrawer.RenderScene(&drawsect, 1, false);
 

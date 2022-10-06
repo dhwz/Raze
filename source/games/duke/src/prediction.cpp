@@ -38,7 +38,7 @@ BEGIN_DUKE_NS
 
 int myx, omyx, myxvel, myy, omyy, myyvel, myz, omyz, myzvel;
 int globalskillsound;
-binangle myang, omyang;
+DAngle myang, omyang;
 fixedhoriz myhoriz, omyhoriz, myhorizoff, omyhorizoff;
 int mycursectnum, myjumpingcounter;
 uint8_t myjumpingtoggle, myonground, myhardlanding,myreturntocenter;
@@ -68,7 +68,7 @@ void resetmys()
 void fakedomovethingscorrect(void)
 {
 	 int i;
-	 struct player_struct *p;
+	 player_struct* p;
 
 	 if (numplayers < 2) return;
 
@@ -100,7 +100,7 @@ void fakedomovethingscorrect(void)
 void fakedomovethings(void)
 {
 		input *syn;
-		struct player_struct *p;
+		player_struct* p;
 		int i, j, k, doubvel, fz, cz, x, y;
 		Collision clz, chz;
 		int psect, psectlotag, tempsect, backcstat;

@@ -408,7 +408,7 @@ void spriteinit_r(DDukeActor* actor, TArray<DDukeActor*>& actors)
 
 void prelevel_r(int g, TArray<DDukeActor*>& actors)
 {
-	struct player_struct* p;
+	player_struct* p;
 	int i;
 	int j;
 	int lotaglist;
@@ -574,7 +574,7 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 			{
 				ambienthitag[ambientfx] = ac->spr.hitag;
 				ambientlotag[ambientfx] = ac->spr.lotag;
-				ac->spr.ang = ambientfx;
+				ac->spr.detail = ambientfx;
 				ambientfx++;
 				ac->spr.lotag = 0;
 				ac->spr.hitag = 0;
@@ -600,15 +600,15 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 						if (actor2->spr.hitag == 1)
 						{
 							geosectorwarp[geocnt] = actor2->sector();
-							geox[geocnt] = actor->float_pos().X - actor2->float_pos().X;
-							geoy[geocnt] = actor->float_pos().Y - actor2->float_pos().Y;
+							geox[geocnt] = actor->spr.pos.X - actor2->spr.pos.X;
+							geoy[geocnt] = actor->spr.pos.Y - actor2->spr.pos.Y;
 							//geoz[geocnt] = actor->spr.z - actor2->spr.z;
 						}
 						if (actor2->spr.hitag == 2)
 						{
 							geosectorwarp2[geocnt] = actor2->sector();
-							geox2[geocnt] = actor->float_pos().X - actor2->float_pos().X;
-							geoy2[geocnt] = actor->float_pos().Y - actor2->float_pos().Y;
+							geox2[geocnt] = actor->spr.pos.X - actor2->spr.pos.X;
+							geoy2[geocnt] = actor->spr.pos.Y - actor2->spr.pos.Y;
 							//geoz2[geocnt] = actor->spr.z - actor2->spr.z;
 						}
 					}

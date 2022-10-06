@@ -540,16 +540,16 @@ bool HWMirrorPortal::Setup(HWDrawInfo *di, FRenderState &rstate, Clipper *clippe
 	double newx = x * 2 + dx * i / j - view.X;
 	double newy = y * 2 + dy * i / j - view.Y;
 
-	auto myan = bvectangbam(dx, dy);
-	auto newan = myan + myan - bamang(vp.RotAngle);
+	auto myan = RAD2BAM(atan2(dy, dx));
+	auto newan = myan + myan - vp.RotAngle;
 
-	vp.RotAngle = newan.asbam();
+	vp.RotAngle = newan;
 	vp.SectNums = nullptr;
 	vp.SectCount = line->sector;
 
 	vp.Pos.X = newx;
 	vp.Pos.Y = -newy;
-	vp.HWAngles.Yaw = FAngle::fromDeg( - 90.f + newan.asdeg());
+	vp.HWAngles.Yaw = FAngle::fromBam(-ANGLE_90 + newan);
 
 	double FocalTangent = tan(vp.FieldOfView.Radians() / 2);
 	DAngle an = DAngle::fromDeg(270. - vp.HWAngles.Yaw.Degrees());
@@ -564,8 +564,8 @@ bool HWMirrorPortal::Setup(HWDrawInfo *di, FRenderState &rstate, Clipper *clippe
 
 	ClearClipper(di, clipper);
 
-	auto startan = bvectangbam(line->pos.X - newx, line->pos.Y - newy);
-	auto endan = bvectangbam(line->point2Wall()->pos.X - newx, line->point2Wall()->pos.Y - newy);
+	auto startan = RAD2BAM(atan2(line->pos.Y - newy, line->pos.X - newx));
+	auto endan = RAD2BAM(atan2(line->point2Wall()->pos.Y - newy, line->point2Wall()->pos.X - newx));
 	clipper->RestrictVisibleRange(endan, startan);  // we check the line from the backside so angles are reversed.
 	return true;
 }
@@ -613,10 +613,10 @@ bool HWLineToLinePortal::Setup(HWDrawInfo *di, FRenderState &rstate, Clipper *cl
 	int dx2 = line->point2Wall()->x - line->x;
 	int dy2 = line->point2Wall()->y - line->y;
 
-	auto srcang = bvectangbam(dx, dy);
-	auto destang = bvectangbam(-dx, -dy);
+	auto srcang = RAD2BAM(atan2(dy, dx));
+	auto destang = RAD2BAM(atan2(-dy, -dx));
 
-	vp.RotAngle += (destang - srcang).asbam();
+	vp.RotAngle += destang - srcang;
 #endif
 
 	// Nothing in the entire setup mandates that both lines have the same length.
@@ -634,8 +634,8 @@ bool HWLineToLinePortal::Setup(HWDrawInfo *di, FRenderState &rstate, Clipper *cl
 
 	ClearClipper(di, clipper);
 
-	auto startan = bvectangbam(origin->wall_int_pos().X - origx, origin->wall_int_pos().Y - origy);
-	auto endan = bvectangbam(origin->point2Wall()->wall_int_pos().X - origx, origin->point2Wall()->wall_int_pos().Y - origy);
+	auto startan = RAD2BAM(atan2(origin->wall_int_pos().Y - origy, origin->wall_int_pos().X - origx));
+	auto endan = RAD2BAM(atan2(origin->point2Wall()->wall_int_pos().Y - origy, origin->point2Wall()->wall_int_pos().X - origx));
 	clipper->RestrictVisibleRange(startan, endan);
 	return true;
 }
@@ -686,8 +686,8 @@ bool HWLineToSpritePortal::Setup(HWDrawInfo* di, FRenderState& rstate, Clipper* 
 
 	ClearClipper(di, clipper);
 
-	auto startan = bvectangbam(origin->pos.X - origx, origin->pos.Y - origy);
-	auto endan = bvectangbam(origin->point2Wall()->pos.X - origx, origin->point2Wall()->pos.Y - origy);
+	auto startan = RAD2BAM(atan2(origin->pos.Y - origy, origin->pos.X - origx));
+	auto endan = RAD2BAM(atan2(origin->point2Wall()->pos.Y - origy, origin->point2Wall()->pos.X - origx));
 	clipper->RestrictVisibleRange(startan, endan);
 	return true;
 }

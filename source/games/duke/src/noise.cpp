@@ -35,8 +35,8 @@ int madenoise(int snum)
 	player_struct *p;
 	p = &ps[snum];
 	p->donoise = 1;
-	p->noise.X = p->pos.X;
-	p->noise.Y = p->pos.Y;
+	p->noise.X = p->player_int_pos().X;
+	p->noise.Y = p->player_int_pos().Y;
 	return 1;
 }
 

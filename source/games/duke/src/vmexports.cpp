@@ -380,7 +380,7 @@ DEFINE_ACTION_FUNCTION(_DukePlayer, GetGameVar)
 DEFINE_ACTION_FUNCTION(_DukePlayer, angleAsBuild)
 {
 	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
-	ACTION_RETURN_INT(self->angle.ang.asbuild());
+	ACTION_RETURN_INT(self->angle.ang.Buildang());
 }
 
 void dukeplayer_backuppos(player_struct* self)
@@ -397,9 +397,11 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, backuppos, dukeplayer_backuppos)
 
 void dukeplayer_setpos(player_struct* self, double x, double y, double z)
 {
+	/*
 	self->pos.X = int(x * worldtoint);
 	self->pos.Y = int(y * worldtoint);
 	self->pos.Z = int(z * zworldtoint);
+	 */
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, setpos, dukeplayer_setpos)

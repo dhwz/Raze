@@ -104,7 +104,7 @@ int GetRotation(tspriteArray& tsprites, int tSpriteNum, int viewx, int viewy)
     // Get which of the 8 angles of the sprite to draw (0-7)
     // rotation ranges from 0-7
     angle2 = getangle(tsp->int_pos().X - viewx, tsp->int_pos().Y - viewy);
-    rotation = ((tsp->ang + 3072 + 128 - angle2) & 2047);
+    rotation = ((tsp->int_ang() + 3072 + 128 - angle2) & 2047);
     rotation = (rotation >> 8) & 7;
 
     if (ownerActor->user.RotNum == 5)
@@ -353,7 +353,7 @@ void DoMotionBlur(tspriteArray& tsprites, tspritetype const * const tsp)
     int xrepeat, yrepeat, repeat_adj = 0;
     int z_amt_per_pixel;
 
-    ang = NORM_ANGLE(tsp->ang + 1024);
+    ang = NORM_ANGLE(tsp->int_ang() + 1024);
 
     if (!ownerActor->hasU() || tsp->xvel == 0)
     {
@@ -526,7 +526,7 @@ DSWActor* CopySprite(sprt const* tsp, sectortype* newsector)
     actorNew->spr.yrepeat = tsp->yrepeat;
     actorNew->spr.xoffset = tsp->xoffset;
     actorNew->spr.yoffset = tsp->yoffset;
-    actorNew->spr.ang = tsp->ang;
+    actorNew->spr.angle = tsp->angle;
     actorNew->spr.xvel = tsp->xvel;
     actorNew->spr.yvel = tsp->yvel;
     actorNew->spr.zvel = tsp->zvel;
@@ -625,7 +625,7 @@ void analyzesprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, int
                 {
                     if (tsp->statnum <= STAT_SKIP4_INTERP_END)
                     {
-                        tsp->set_int_pos(tActor->interpolatedvec3(smr4, 18));
+                        tsp->pos = tActor->interpolatedvec3(smr4, 18);
                     }
                 }
 
@@ -633,7 +633,7 @@ void analyzesprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, int
                 {
                     if (tsp->statnum <= STAT_SKIP2_INTERP_END)
                     {
-                        tsp->set_int_pos(tActor->interpolatedvec3(smr2, 17));
+                        tsp->pos = tActor->interpolatedvec3(smr2, 17);
                     }
                 }
             }
@@ -669,7 +669,7 @@ void analyzesprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, int
                 {
 
                     tsp->picnum = DART_PIC;
-                    tsp->ang = NORM_ANGLE(tsp->ang - 512 - 24);
+                    tsp->set_int_ang(NORM_ANGLE(tsp->int_ang() - 512 - 24));
                     tsp->xrepeat = tsp->yrepeat = DART_REPEAT;
                     tsp->cstat |= (CSTAT_SPRITE_ALIGNMENT_WALL);
                 }
@@ -733,7 +733,7 @@ void analyzesprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, int
             if (tsp->statnum == STAT_STAR_QUEUE)
             {
                 tsp->picnum = DART_PIC;
-                tsp->ang = NORM_ANGLE(tsp->ang - 512);
+                tsp->set_int_ang(NORM_ANGLE(tsp->int_ang() - 512));
                 tsp->xrepeat = tsp->yrepeat = DART_REPEAT;
                 tsp->cstat |= (CSTAT_SPRITE_ALIGNMENT_WALL);
             }
@@ -764,8 +764,8 @@ void analyzesprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, int
                     {
                         // move sprite forward some so he looks like he's
                         // climbing
-                        pos.X = pp->si.X + MOVEx(128 + 80, tsp->ang);
-                        pos.Y = pp->si.Y + MOVEy(128 + 80, tsp->ang);
+                        pos.X = pp->si.X + MOVEx(128 + 80, tsp->int_ang());
+                        pos.Y = pp->si.Y + MOVEy(128 + 80, tsp->int_ang());
                     }
                     else
                     {
@@ -775,7 +775,7 @@ void analyzesprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, int
 
                     pos.Z = tsp->int_pos().Z + pp->si.Z;
                     tsp->set_int_pos(pos);
-                    tsp->ang = pp->siang;
+                    tsp->set_int_ang(pp->siang);
                     //continue;
                 }
                 else
@@ -792,7 +792,7 @@ void analyzesprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, int
                 tsp->add_int_x(-MulScale(pp->pos.X - pp->opos.X, sr, 16));
                 tsp->add_int_y(-MulScale(pp->pos.Y - pp->opos.Y, sr, 16));
                 tsp->add_int_z(-MulScale(pp->pos.Z - pp->opos.Z, sr, 16));
-                tsp->ang -= MulScale(pp->angle.ang.asbuild() - pp->angle.oang.asbuild(), sr, 16);
+                tsp->add_int_ang(-MulScale(pp->angle.ang.Buildang() - pp->angle.oang.Buildang(), sr, 16));
             }
         }
 
@@ -909,8 +909,8 @@ void post_analyzesprites(tspriteArray& tsprites)
                     continue;
                 }
 
-                tsp->set_int_x(atsp->int_pos().X);
-                tsp->set_int_y(atsp->int_pos().Y);
+                tsp->pos.X = atsp->pos.X;
+                tsp->pos.Y = atsp->pos.Y;
                 // statnum is priority - draw this ALWAYS first at 0
                 // statnum is priority - draw this ALWAYS last at MAXSTATUS
                 if ((atsp->extra & SPRX_BURNABLE))
@@ -926,19 +926,19 @@ void post_analyzesprites(tspriteArray& tsprites)
 }
 #endif
 
-void CircleCamera(int *nx, int *ny, int *nz, sectortype** vsect, binangle *nang, fixed_t q16horiz)
+void CircleCamera(int *nx, int *ny, int *nz, sectortype** vsect, DAngle *nang, fixed_t q16horiz)
 {
     HitInfo hit{};
     int i, vx, vy, vz, hx, hy;
     int daang;
     PLAYER* pp = &Player[screenpeek];
-    binangle ang;
+    DAngle ang;
 
-    ang = *nang + buildang(pp->circle_camera_ang);
+    ang = *nang + pp->circle_camera_ang;
 
     // Calculate the vector (nx,ny,nz) to shoot backwards
-    vx = -ang.bcos(-4);
-    vy = -ang.bsin(-4);
+    vx = int(-ang.Cos() * 1024.);
+    vy = int(-ang.Sin() * 1024.);
 
     // lengthen the vector some
     vx += vx >> 1;
@@ -1035,7 +1035,7 @@ FString GameInterface::GetCoordString()
     out.AppendFormat("POSX:%d ", pp->pos.X);
     out.AppendFormat("POSY:%d ", pp->pos.Y);
     out.AppendFormat("POSZ:%d ", pp->pos.Z);
-    out.AppendFormat("ANG:%d\n", pp->angle.ang.asbuild());
+    out.AppendFormat("ANG:%d\n", pp->angle.ang.Buildang());
 
     return out;
 }
@@ -1073,7 +1073,7 @@ void PrintSpriteInfo(PLAYER* pp)
             Printf("POSX:%d, ", actor->int_pos().X);
             Printf("POSY:%d, ", actor->int_pos().Y);
             Printf("POSZ:%d,", actor->int_pos().Z);
-            Printf("ANG:%d\n", actor->spr.ang);
+            Printf("ANG:%d\n", actor->int_ang());
         }
     }
 }
@@ -1087,9 +1087,9 @@ void DrawCrosshair(PLAYER* pp)
     }
 }
 
-void CameraView(PLAYER* pp, int *tx, int *ty, int *tz, sectortype** tsect, binangle *tang, fixedhoriz *thoriz)
+void CameraView(PLAYER* pp, int *tx, int *ty, int *tz, sectortype** tsect, DAngle *tang, fixedhoriz *thoriz)
 {
-    binangle ang;
+    DAngle ang;
     bool found_camera = false;
     bool player_in_camera = false;
     bool FAFcansee_test;
@@ -1100,8 +1100,8 @@ void CameraView(PLAYER* pp, int *tx, int *ty, int *tz, sectortype** tsect, binan
         SWStatIterator it(STAT_DEMO_CAMERA);
         while (auto actor = it.Next())
         {
-            ang = bvectangbam(*tx - actor->int_pos().X, *ty - actor->int_pos().Y);
-            ang_test = getincangle(ang.asbuild(), actor->spr.ang) < actor->spr.lotag;
+            ang = VecToAngle(*tx - actor->int_pos().X, *ty - actor->int_pos().Y);
+            ang_test = deltaangle(ang, actor->spr.angle) < DAngle::fromBuild(actor->spr.lotag);
 
             FAFcansee_test =
                 (FAFcansee(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->sector(), *tx, *ty, *tz, pp->cursector) ||
@@ -1135,8 +1135,8 @@ void CameraView(PLAYER* pp, int *tx, int *ty, int *tz, sectortype** tsect, binan
 
                     pp->last_camera_act = actor;
 
-                    xvect = ang.bcos(-3);
-                    yvect = ang.bsin(-3);
+                    xvect = int(ang.Cos() * 2048.);
+                    yvect = int(ang.Sin() * 2048.);
 
                     zdiff = actor->int_pos().Z - *tz;
                     if (labs(actor->int_pos().X - *tx) > 1000)
@@ -1188,7 +1188,7 @@ void CameraView(PLAYER* pp, int *tx, int *ty, int *tz, sectortype** tsect, binan
         }
         else
         {
-            pp->circle_camera_ang = 0;
+            pp->circle_camera_ang = nullAngle;
             pp->circle_camera_dist = CIRCLE_CAMERA_DIST_MIN;
             pp->Flags &= ~(PF_VIEW_FROM_CAMERA);
         }
@@ -1274,7 +1274,6 @@ void PreDrawStackedWater(void)
 
 void DoPlayerDiveMeter(PLAYER* pp);
 
-void polymost_drawscreen(PLAYER* pp, int tx, int ty, int tz, binangle tang, fixedhoriz thoriz, sectortype* tsect);
 
 
 void UpdateWallPortalState()
@@ -1363,7 +1362,7 @@ void drawscreen(PLAYER* pp, double smoothratio, bool sceneonly)
 {
     extern bool CameraTestMode;
     int tx, ty, tz;
-    binangle tang, trotscrnang;
+    DAngle tang, trotscrnang;
     fixedhoriz thoriz;
     sectortype* tsect;
     short i,j;
@@ -1432,7 +1431,7 @@ void drawscreen(PLAYER* pp, double smoothratio, bool sceneonly)
     pp->si.X = tx;
     pp->si.Y = ty;
     pp->si.Z = tz - pp->pos.Z;
-    pp->siang = tang.asbuild();
+    pp->siang = tang.Buildang();
 
     QuakeViewChange(camerapp, &quake_z, &quake_x, &quake_y, &quake_ang);
     int vis = g_visibility;
@@ -1442,15 +1441,15 @@ void drawscreen(PLAYER* pp, double smoothratio, bool sceneonly)
     tx = tx + quake_x;
     ty = ty + quake_y;
     //thoriz += buildhoriz(quake_x);
-    tang += buildang(quake_ang);
+    tang += DAngle::fromBuild(quake_ang);
 
     if (pp->sop_remote)
     {
         DSWActor* ractor = pp->remoteActor;
         if (TEST_BOOL1(ractor))
-            tang = buildang(ractor->spr.ang);
+            tang = ractor->spr.angle;
         else
-            tang = bvectangbam(pp->sop_remote->pmid.X - tx, pp->sop_remote->pmid.Y - ty);
+            tang = VecToAngle(pp->sop_remote->pmid.X - tx, pp->sop_remote->pmid.Y - ty);
     }
 
     if (pp->Flags & (PF_VIEW_FROM_OUTSIDE))
@@ -1522,7 +1521,7 @@ void drawscreen(PLAYER* pp, double smoothratio, bool sceneonly)
                 }
             }
         }
-        DrawOverheadMap(tx, ty, tang.asbuild(), smoothratio);
+        DrawOverheadMap(tx, ty, tang.Buildang(), smoothratio);
     }
 
     SWSpriteIterator it;
@@ -1636,8 +1635,8 @@ bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, int 
                 k = actor->spr.statnum;
                 if ((k >= 1) && (k <= 8) && (k != 2))   // Interpolate moving
                 {
-                    sprx = actor->interpolatedx(smoothratio);
-                    spry = actor->interpolatedy(smoothratio);
+                    sprx = actor->__interpolatedx(smoothratio);
+                    spry = actor->__interpolatedy(smoothratio);
                 }
 
                 switch (actor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK)
@@ -1654,7 +1653,7 @@ bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, int 
 
                         if (czoom > 192)
                         {
-                            daang = ((!SyncInput() ? actor->spr.ang : actor->interpolatedang(smoothratio)) - cang) & 2047;
+                            daang = ((!SyncInput() ? actor->spr.angle : actor->interpolatedang(smoothratio)).Buildang() - cang) & 2047;
 
                             // Special case tiles
                             if (actor->spr.picnum == 3123) break;
@@ -1684,7 +1683,7 @@ bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, int 
                     xoff = (int)tileLeftOffset(tilenum) + (int)actor->spr.xoffset;
                     if ((actor->spr.cstat & CSTAT_SPRITE_XFLIP) > 0)
                         xoff = -xoff;
-                    k = actor->spr.ang;
+                    k = actor->int_ang();
                     l = actor->spr.xrepeat;
                     dax = bsin(k) * l;
                     day = -bcos(k) * l;
@@ -1719,7 +1718,7 @@ bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, int 
                         if ((actor->spr.cstat & CSTAT_SPRITE_YFLIP) > 0)
                             yoff = -yoff;
 
-                        k = actor->spr.ang;
+                        k = actor->int_ang();
                         cosang = bcos(k);
                         sinang = bsin(k);
                         xspan = tileWidth(tilenum);
@@ -1783,9 +1782,9 @@ bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, int 
     return true;
 }
 
-void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio)
+void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double smoothRatio)
 {
-    analyzesprites(tsprites, viewx, viewy, viewz, viewang.asbuild());
+    analyzesprites(tsprites, viewx, viewy, viewz, viewang.Buildang());
     post_analyzesprites(tsprites);
 }
 

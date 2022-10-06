@@ -326,15 +326,15 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_POSX: // oh, my... :( Writing to these has been disabled until I know how to do it without the engine shitting all over itself.
-		if (!bSet) SetGameVarID(lVar2, ps[iPlayer].pos.X, sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, ps[iPlayer].pos.X * (1/maptoworld), sActor, sPlayer);
 		break;
 
 	case PLAYER_POSY:
-		if (!bSet) SetGameVarID(lVar2, ps[iPlayer].pos.Y, sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, ps[iPlayer].pos.Y * (1 / maptoworld), sActor, sPlayer);
 		break;
 
 	case PLAYER_POSZ:
-		if (!bSet) SetGameVarID(lVar2, ps[iPlayer].pos.Z, sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, ps[iPlayer].pos.Z * (1 / zmaptoworld), sActor, sPlayer);
 		break;
 
 	case PLAYER_HORIZ:
@@ -368,28 +368,28 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_BOBPOSX:
-		if (bSet) ps[iPlayer].bobpos.X = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].bobpos.X, sActor, sPlayer);
+		if (bSet) ps[iPlayer].bobpos.X = lValue * maptoworld;
+		else SetGameVarID(lVar2, ps[iPlayer].bobpos.X * (1/maptoworld), sActor, sPlayer);
 		break;
 
 	case PLAYER_BOBPOSY:
-		if (bSet) ps[iPlayer].bobpos.Y = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].bobpos.Y, sActor, sPlayer);
+		if (bSet) ps[iPlayer].bobpos.Y = lValue * maptoworld;
+		else SetGameVarID(lVar2, ps[iPlayer].bobpos.Y * (1/maptoworld), sActor, sPlayer);
 		break;
 
 	case PLAYER_OPOSX:
-		if (bSet) ps[iPlayer].opos.X = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].opos.X, sActor, sPlayer);
+		if (bSet) ps[iPlayer].opos.X = lValue * maptoworld;
+		else SetGameVarID(lVar2, ps[iPlayer].opos.X * (1/maptoworld), sActor, sPlayer);
 		break;
 
 	case PLAYER_OPOSY:
-		if (bSet) ps[iPlayer].opos.Y = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].opos.Y, sActor, sPlayer);
+		if (bSet) ps[iPlayer].opos.Y = lValue * maptoworld;
+		else SetGameVarID(lVar2, ps[iPlayer].opos.Y * (1 / maptoworld), sActor, sPlayer);
 		break;
 
 	case PLAYER_OPOSZ:
-		if (bSet) ps[iPlayer].opos.Z = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].opos.Z, sActor, sPlayer);
+		if (bSet) ps[iPlayer].opos.Z = lValue * zmaptoworld;
+		else SetGameVarID(lVar2, ps[iPlayer].opos.Z * (1 / zmaptoworld), sActor, sPlayer);
 		break;
 
 	case PLAYER_PYOFF:
@@ -423,13 +423,13 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_TRUEFZ:
-		if (bSet) ps[iPlayer].truefz = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].truefz, sActor, sPlayer);
+		if (bSet) ps[iPlayer].truefz = lValue * zmaptoworld;
+		else SetGameVarID(lVar2, ps[iPlayer].truefz * (1/zmaptoworld), sActor, sPlayer);
 		break;
 
 	case PLAYER_TRUECZ:
- 		if (bSet) ps[iPlayer].truecz = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].truecz, sActor, sPlayer);
+		if (bSet) ps[iPlayer].truecz = lValue * zmaptoworld;
+		else SetGameVarID(lVar2, ps[iPlayer].truecz * (1 / zmaptoworld), sActor, sPlayer);
 		break;
 
 	case PLAYER_PLAYER_PAR:
@@ -472,12 +472,12 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_ANG:
-		if (bSet) ps[iPlayer].angle.settarget(buildang(lValue));
-		else SetGameVarID(lVar2, ps[iPlayer].angle.ang.asbuild(), sActor, sPlayer);
+		if (bSet) ps[iPlayer].angle.settarget(DAngle::fromBuild(lValue));
+		else SetGameVarID(lVar2, ps[iPlayer].angle.ang.Buildang(), sActor, sPlayer);
 		break;
 
 	case PLAYER_OANG:
-		if (!bSet) SetGameVarID(lVar2, ps[iPlayer].angle.oang.asbuild(), sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, ps[iPlayer].angle.oang.Buildang(), sActor, sPlayer);
 		break;
 
 	case PLAYER_ANGVEL: // This no longer exists.
@@ -490,8 +490,8 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_LOOK_ANG:
-		if (bSet) ps[iPlayer].angle.look_ang = buildang(lValue);
-		else SetGameVarID(lVar2, ps[iPlayer].angle.look_ang.asbuild(), sActor, sPlayer);
+		if (bSet) ps[iPlayer].angle.look_ang = DAngle::fromBuild(lValue);
+		else SetGameVarID(lVar2, ps[iPlayer].angle.look_ang.Buildang(), sActor, sPlayer);
 		break;
 
 	case PLAYER_LAST_EXTRA:
@@ -650,8 +650,8 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_ONE_EIGHTY_COUNT:
-		if (bSet) ps[iPlayer].angle.spin = lValue;
-		else SetGameVarID(lVar2, int(ps[iPlayer].angle.spin), sActor, sPlayer);
+		if (bSet) ps[iPlayer].angle.spin = DAngle::fromBuild(lValue);
+		else SetGameVarID(lVar2, ps[iPlayer].angle.spin.Buildang(), sActor, sPlayer);
 		break;
 
 	case PLAYER_CHEAT_PHASE:
@@ -713,9 +713,9 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		if (bSet)
 		{
 			ps[iPlayer].angle.orotscrnang = ps[iPlayer].angle.rotscrnang;
-			ps[iPlayer].angle.rotscrnang = buildang(lValue);
+			ps[iPlayer].angle.rotscrnang = DAngle::fromBuild(lValue);
 		}
-		else SetGameVarID(lVar2, ps[iPlayer].angle.rotscrnang.asbuild(), sActor, sPlayer);
+		else SetGameVarID(lVar2, ps[iPlayer].angle.rotscrnang.Buildang(), sActor, sPlayer);
 		break;
 
 	case PLAYER_DEAD_FLAG:
@@ -1232,8 +1232,8 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 		else*/ SetGameVarID(lVar2, act->spr.statnum, sActor, sPlayer);
 		break;
 	case ACTOR_ANG:
-		if (bSet) act->spr.ang = lValue;
-		else SetGameVarID(lVar2, act->spr.ang, sActor, sPlayer);
+		if (bSet) act->set_int_ang(lValue);
+		else SetGameVarID(lVar2, act->int_ang(), sActor, sPlayer);
 		break;
 	case ACTOR_OWNER:
 		// there is no way to handle this well because we do not know whether this is an actor or not. Pity.
@@ -1306,12 +1306,12 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 		else SetGameVarID(lVar2, act->timetosleep, sActor, sPlayer);
 		break;
 	case ACTOR_HTFLOORZ:
-		if (bSet) act->floorz = lValue;
-		else SetGameVarID(lVar2, act->floorz, sActor, sPlayer);
+		if (bSet) act->floorz = lValue * zmaptoworld;
+		else SetGameVarID(lVar2, act->floorz * (1/zmaptoworld), sActor, sPlayer);
 		break;
 	case ACTOR_HTCEILINGZ:
-		if (bSet) act->ceilingz = lValue;
-		else SetGameVarID(lVar2, act->ceilingz, sActor, sPlayer);
+		if (bSet) act->ceilingz = lValue * zmaptoworld;
+		else SetGameVarID(lVar2, act->ceilingz * (1/zmaptoworld), sActor, sPlayer);
 		break;
 	case ACTOR_HTLASTVX:
 		if (bSet) act->ovel.X = lValue;
@@ -1320,18 +1320,6 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 	case ACTOR_HTLASTVY:
 		if (bSet) act->ovel.Y = lValue;
 		else SetGameVarID(lVar2, act->ovel.Y, sActor, sPlayer);
-		break;
-	case ACTOR_HTBPOSX:
-		if (bSet) act->opos.X = lValue;
-		else SetGameVarID(lVar2, act->opos.X, sActor, sPlayer);
-		break;
-	case ACTOR_HTBPOSY:
-		if (bSet) act->opos.Y = lValue;
-		else SetGameVarID(lVar2, act->opos.Y, sActor, sPlayer);
-		break;
-	case ACTOR_HTBPOSZ:
-		if (bSet) act->opos.Z = lValue;
-		else SetGameVarID(lVar2, act->opos.Z, sActor, sPlayer);
 		break;
 	case ACTOR_HTG_T0:
 		if (bSet) act->temp_data[0] = lValue;
@@ -1428,14 +1416,14 @@ static int ifcanshoottarget(DDukeActor *actor, int g_p, int g_x)
 				j = 0;
 			else
 			{
-				actor->spr.ang += angdif; j = hitasprite(actor, &hit); actor->spr.ang -= angdif;
+				actor->add_int_ang(angdif); j = hitasprite(actor, &hit); actor->add_int_ang(-angdif);
 				if (j > sclip)
 				{
 					if (hit != nullptr && hit->spr.picnum == actor->spr.picnum)
 						j = 0;
 					else
 					{
-						actor->spr.ang -= angdif; j = hitasprite(actor, &hit); actor->spr.ang += angdif;
+						actor->add_int_ang(-angdif); j = hitasprite(actor, &hit); actor->add_int_ang(angdif);
 						if (j > 768)
 						{
 							if (hit != nullptr && hit->spr.picnum == actor->spr.picnum)
@@ -1534,12 +1522,12 @@ int ParseState::parse(void)
 		parseifelse(ifcanshoottarget(g_ac, g_p, g_x));
 		break;
 	case concmd_ifcanseetarget:
-		j = cansee(g_ac->int_pos().X, g_ac->int_pos().Y, g_ac->int_pos().Z - ((krand() & 41) << 8), g_ac->sector(), ps[g_p].pos.X, ps[g_p].pos.Y, ps[g_p].pos.Z/*-((krand()&41)<<8)*/, ps[g_p].GetActor()->sector());
+		j = cansee(g_ac->spr.pos.plusZ(krand() & 41), g_ac->sector(), ps[g_p].pos, ps[g_p].GetActor()->sector());
 		parseifelse(j);
 		if (j) g_ac->timetosleep = SLEEPTIME;
 		break;
 	case concmd_ifnocover:
-		j = cansee(g_ac->int_pos().X, g_ac->int_pos().Y, g_ac->int_pos().Z, g_ac->sector(), ps[g_p].pos.X, ps[g_p].pos.Y, ps[g_p].pos.Z, ps[g_p].GetActor()->sector());
+		j = cansee(g_ac->spr.pos, g_ac->sector(), ps[g_p].pos, ps[g_p].GetActor()->sector());
 		parseifelse(j);
 		if (j) g_ac->timetosleep = SLEEPTIME;
 		break;
@@ -1573,7 +1561,7 @@ int ParseState::parse(void)
 		g_ac->spr.hitag = ScriptCode[g_t[5] + 2];	  // Ai
 		g_t[0] = g_t[2] = g_t[3] = 0;
 		if (g_ac->spr.hitag & random_angle)
-			g_ac->spr.ang = krand() & 2047;
+			g_ac->set_int_ang(krand() & 2047);
 		insptr++;
 		break;
 	case concmd_action:
@@ -1613,10 +1601,10 @@ int ParseState::parse(void)
 		switch (krand() & 1)
 		{
 		case 0:
-			g_ac->spr.ang = (+512 + g_ac->spr.ang + (krand() & 511)) & 2047;
+			g_ac->set_int_ang((+512 + g_ac->int_ang() + (krand() & 511)) & 2047);
 			break;
 		case 1:
-			g_ac->spr.ang = (-512 + g_ac->spr.ang - (krand() & 511)) & 2047;
+			g_ac->set_int_ang((-512 + g_ac->int_ang() - (krand() & 511)) & 2047);
 			break;
 		}
 		insptr++;
@@ -1627,7 +1615,7 @@ int ParseState::parse(void)
 		break;
 
 	case concmd_rndmove:
-		g_ac->spr.ang = krand() & 2047;
+		g_ac->set_int_ang(krand() & 2047);
 		g_ac->spr.xvel = 25;
 		insptr++;
 		break;
@@ -1750,7 +1738,7 @@ int ParseState::parse(void)
 
 		insptr++;
 
-		if ((g_ac->isPlayer() && g_ac->spr.yrepeat < 36) || *insptr < g_ac->spr.yrepeat || ((g_ac->spr.yrepeat * (tileHeight(g_ac->spr.picnum) + 8)) << 2) < (g_ac->floorz - g_ac->ceilingz))
+		if ((g_ac->isPlayer() && g_ac->spr.yrepeat < 36) || *insptr < g_ac->spr.yrepeat || (g_ac->spr.yrepeat * (tileHeight(g_ac->spr.picnum) + 8) * REPEAT_SCALE) < g_ac->floorz - g_ac->ceilingz)
 		{
 			j = ((*insptr) - g_ac->spr.yrepeat) << 1;
 			if (abs(j)) g_ac->spr.yrepeat += Sgn(j);
@@ -1773,23 +1761,23 @@ int ParseState::parse(void)
 		break;
 	case concmd_ifsoundid:
 		insptr++;
-		parseifelse((short)*insptr == ambientlotag[g_ac->spr.ang]);
+		parseifelse((short)*insptr == ambientlotag[g_ac->spr.detail]);
 		break;
 	case concmd_ifsounddist:
 		insptr++;
 		if (*insptr == 0)
-			parseifelse(ambienthitag[g_ac->spr.ang] > g_x);
+			parseifelse(ambienthitag[g_ac->spr.detail] > g_x);
 		else if (*insptr == 1)
-			parseifelse(ambienthitag[g_ac->spr.ang] < g_x);
+			parseifelse(ambienthitag[g_ac->spr.detail] < g_x);
 		break;
 	case concmd_soundtag:
 		insptr++;
-		S_PlayActorSound(ambientlotag[g_ac->spr.ang], g_ac);
+		S_PlayActorSound(ambientlotag[g_ac->spr.detail], g_ac);
 		break;
 	case concmd_soundtagonce:
 		insptr++;
-		if (!S_CheckActorSoundPlaying(g_ac, ambientlotag[g_ac->spr.ang]))
-			S_PlayActorSound(ambientlotag[g_ac->spr.ang], g_ac);
+		if (!S_CheckActorSoundPlaying(g_ac, ambientlotag[g_ac->spr.detail]))
+			S_PlayActorSound(ambientlotag[g_ac->spr.detail], g_ac);
 		break;
 	case concmd_soundonce:
 		insptr++;
@@ -1985,16 +1973,15 @@ int ParseState::parse(void)
 		break;
 	case concmd_strafeleft:
 		insptr++;
-		movesprite_ex(g_ac, -bsin(g_ac->spr.ang, -10), bcos(g_ac->spr.ang, -10), g_ac->spr.zvel, CLIPMASK0, coll);
+		movesprite_ex(g_ac, -bsin(g_ac->int_ang(), -10), bcos(g_ac->int_ang(), -10), g_ac->spr.zvel, CLIPMASK0, coll);
 		break;
 	case concmd_straferight:
 		insptr++;
-		movesprite_ex(g_ac, bsin(g_ac->spr.ang, -10), -bcos(g_ac->spr.ang, -10), g_ac->spr.zvel, CLIPMASK0, coll);
+		movesprite_ex(g_ac, bsin(g_ac->int_ang(), -10), -bcos(g_ac->int_ang(), -10), g_ac->spr.zvel, CLIPMASK0, coll);
 		break;
 	case concmd_larrybird:
 		insptr++;
-		ps[g_p].pos.Z = ps[g_p].GetActor()->sector()->int_ceilingz();
-		ps[g_p].GetActor()->set_int_z(ps[g_p].pos.Z);
+		ps[g_p].GetActor()->spr.pos.Z = ps[g_p].pos.Z = ps[g_p].GetActor()->sector()->ceilingz;
 		break;
 	case concmd_destroyit:
 		insptr++;
@@ -2059,11 +2046,9 @@ int ParseState::parse(void)
 		if(!isRR() && ps[g_p].newOwner != nullptr)
 		{
 			ps[g_p].newOwner = nullptr;
-			ps[g_p].pos.X = ps[g_p].opos.X;
-			ps[g_p].pos.Y = ps[g_p].opos.Y;
-			ps[g_p].pos.Z = ps[g_p].opos.Z;
+			ps[g_p].restorexyz();
 			ps[g_p].angle.restore();
-			updatesector(ps[g_p].pos.X,ps[g_p].pos.Y,&ps[g_p].cursector);
+			updatesector(ps[g_p].pos, &ps[g_p].cursector);
 
 			DukeStatIterator it(STAT_ACTOR);
 			while (auto actj = it.Next())
@@ -2137,7 +2122,7 @@ int ParseState::parse(void)
 		g_ac->spr.hitag = *insptr;
 		insptr++;
 		if(g_ac->spr.hitag&random_angle)
-			g_ac->spr.ang = krand()&2047;
+			g_ac->set_int_ang(krand()&2047);
 		break;
 	case concmd_spawn:
 		insptr++;
@@ -2238,10 +2223,12 @@ int ParseState::parse(void)
 		{
 			// I am not convinced this is even remotely smart to be executed from here..
 			pickrandomspot(g_p);
-			g_ac->set_int_pos({ ps[g_p].bobpos.X = ps[g_p].opos.X = ps[g_p].pos.X, ps[g_p].bobpos.Y = ps[g_p].opos.Y = ps[g_p].pos.Y, ps[g_p].opos.Z = ps[g_p].pos.Z });
+			g_ac->spr.pos = ps[g_p].pos;
+			ps[g_p].backupxyz();
+			ps[g_p].setbobpos();
 			g_ac->backuppos();
-			updatesector(ps[g_p].pos.X, ps[g_p].pos.Y, &ps[g_p].cursector);
-			SetActor(ps[g_p].GetActor(), { ps[g_p].pos.X, ps[g_p].pos.Y, ps[g_p].pos.Z + gs.playerheight });
+			updatesector(ps[g_p].pos, &ps[g_p].cursector);
+			SetActor(ps[g_p].GetActor(), ps[g_p].pos.plusZ(gs.playerheight ));
 			g_ac->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
 
 			g_ac->spr.shade = -12;
@@ -2268,7 +2255,7 @@ int ParseState::parse(void)
 			ps[g_p].weapreccnt = 0;
 			ps[g_p].ftq = 0;
 			ps[g_p].vel.X = ps[g_p].vel.Y = 0;
-			if (!isRR()) ps[g_p].angle.orotscrnang = ps[g_p].angle.rotscrnang = buildang(0);
+			if (!isRR()) ps[g_p].angle.orotscrnang = ps[g_p].angle.rotscrnang = nullAngle;
 
 			ps[g_p].falling_counter = 0;
 
@@ -2415,7 +2402,7 @@ int ParseState::parse(void)
 					j = 1;
 			else if( (l& prunning) && s >= 8 && PlayerInput(g_p, SB_RUN) )
 					j = 1;
-			else if( (l& phigher) && ps[g_p].pos.Z < (g_ac->int_pos().Z-(48<<8)) )
+			else if( (l& phigher) && ps[g_p].pos.Z < g_ac->spr.pos.Z - 48)
 					j = 1;
 			else if( (l& pwalkingback) && s <= -8 && !(PlayerInput(g_p, SB_RUN)) )
 					j = 1;
@@ -2438,9 +2425,9 @@ int ParseState::parse(void)
 			else if( (l& pfacing) )
 			{
 				if (g_ac->isPlayer() && ud.multimode > 1)
-					j = getincangle(ps[otherp].angle.ang.asbuild(), getangle(ps[g_p].pos.X - ps[otherp].pos.X, ps[g_p].pos.Y - ps[otherp].pos.Y));
+					j = getincangle(ps[otherp].angle.ang.Buildang(), getangle(ps[g_p].pos.XY() - ps[otherp].pos.XY()));
 				else
-					j = getincangle(ps[g_p].angle.ang.asbuild(), getangle(g_ac->int_pos().X - ps[g_p].pos.X, g_ac->int_pos().Y - ps[g_p].pos.Y));
+					j = getincangle(ps[g_p].angle.ang.Buildang(), getangle(g_ac->spr.pos.XY() - ps[g_p].pos.XY()));
 
 				if( j > -128 && j < 128 )
 					j = 1;
@@ -2464,8 +2451,8 @@ int ParseState::parse(void)
 	case concmd_slapplayer:
 		insptr++;
 		forceplayerangle(g_p);
-		ps[g_p].vel.X -= ps[g_p].angle.ang.bcos(7);
-		ps[g_p].vel.Y -= ps[g_p].angle.ang.bsin(7);
+		ps[g_p].vel.X -= ps[g_p].angle.ang.Cos() * (1 << 21);
+		ps[g_p].vel.Y -= ps[g_p].angle.ang.Sin() * (1 << 21);
 		return 0;
 	case concmd_wackplayer:
 		insptr++;
@@ -2473,15 +2460,15 @@ int ParseState::parse(void)
 			forceplayerangle(g_p);
 		else
 		{
-			ps[g_p].vel.X -= ps[g_p].angle.ang.bcos(10);
-			ps[g_p].vel.Y -= ps[g_p].angle.ang.bsin(10);
+			ps[g_p].vel.X -= ps[g_p].angle.ang.Cos() * (1 << 24);
+			ps[g_p].vel.Y -= ps[g_p].angle.ang.Sin() * (1 << 24);
 			ps[g_p].jumping_counter = 767;
 			ps[g_p].jumping_toggle = 1;
 		}
 		return 0;
 	case concmd_ifgapzl:
 		insptr++;
-		parseifelse( (( g_ac->floorz - g_ac->ceilingz ) >> 8 ) < *insptr);
+		parseifelse(int(g_ac->floorz - g_ac->ceilingz) < *insptr);	// Note: int cast here is needed to use the same truncation behavior as the old fixed point code.
 		break;
 	case concmd_ifhitspace:
 		parseifelse(PlayerInput(g_p, SB_OPEN));
@@ -2497,7 +2484,7 @@ int ParseState::parse(void)
 		if( g_ac->sector()->lotag == 0 )
 		{
 			HitInfo hit{};
-			neartag({ g_ac->int_pos().X, g_ac->int_pos().Y, g_ac->int_pos().Z - (32 << 8) }, g_ac->sector(), g_ac->spr.ang, hit, 768, 1);
+			neartag({ g_ac->int_pos().X, g_ac->int_pos().Y, g_ac->int_pos().Z - (32 << 8) }, g_ac->sector(), g_ac->int_ang(), hit, 768, 1);
 			auto sectp = hit.hitSector;
 			if (sectp)
 			{
@@ -2549,11 +2536,11 @@ int ParseState::parse(void)
 		break;
 	case concmd_iffloordistl:
 		insptr++;
-		parseifelse( (g_ac->floorz - g_ac->int_pos().Z) <= ((*insptr)<<8));
+		parseifelse(g_ac->floorz - g_ac->spr.pos.Z <= *insptr);
 		break;
 	case concmd_ifceilingdistl:
 		insptr++;
-		parseifelse( ( g_ac->int_pos().Z - g_ac->ceilingz ) <= ((*insptr)<<8));
+		parseifelse(g_ac->spr.pos.Z - g_ac->ceilingz <= *insptr);
 		break;
 	case concmd_palfrom:
 		insptr++;
@@ -2804,7 +2791,7 @@ int ParseState::parse(void)
 	case concmd_pstomp:
 		insptr++;
 		if( ps[g_p].knee_incs == 0 && ps[g_p].GetActor()->spr.xrepeat >= (isRR()? 9: 40) )
-			if( cansee(g_ac->int_pos().X,g_ac->int_pos().Y,g_ac->int_pos().Z-(4<<8),g_ac->sector(),ps[g_p].pos.X,ps[g_p].pos.Y,ps[g_p].pos.Z+(16<<8),ps[g_p].GetActor()->sector()) )
+			if (cansee(g_ac->spr.pos.plusZ(-4), g_ac->sector(), ps[g_p].pos.plusZ(16), ps[g_p].GetActor()->sector()))
 		{
 			ps[g_p].knee_incs = 1;
 			if(ps[g_p].weapon_pos == 0)
@@ -2859,7 +2846,7 @@ int ParseState::parse(void)
 
 	case concmd_ifangdiffl:
 		insptr++;
-		j = abs(getincangle(ps[g_p].angle.ang.asbuild(),g_ac->spr.ang));
+		j = abs(getincangle(ps[g_p].angle.ang.Buildang(),g_ac->int_ang()));
 		parseifelse( j <= *insptr);
 		break;
 
@@ -3159,7 +3146,7 @@ int ParseState::parse(void)
 		int i;
 		insptr++;
 		i = *(insptr++);	// ID of def
-		SetGameVarID(i, ps[g_p].angle.ang.asbuild(), g_ac, g_p);
+		SetGameVarID(i, ps[g_p].angle.ang.Buildang(), g_ac, g_p);
 		break;
 	}
 	case concmd_setplayerangle:
@@ -3167,7 +3154,7 @@ int ParseState::parse(void)
 		int i;
 		insptr++;
 		i = *(insptr++);	// ID of def
-		ps[g_p].angle.ang = buildang(GetGameVarID(i, g_ac, g_p).safeValue() & 2047);
+		ps[g_p].angle.ang = DAngle::fromBuild(GetGameVarID(i, g_ac, g_p).safeValue() & 2047);
 		break;
 	}
 	case concmd_getactorangle:
@@ -3175,7 +3162,7 @@ int ParseState::parse(void)
 		int i;
 		insptr++;
 		i = *(insptr++);	// ID of def
-		SetGameVarID(i, g_ac->spr.ang, g_ac, g_p);
+		SetGameVarID(i, g_ac->int_ang(), g_ac, g_p);
 		break;
 	}
 	case concmd_setactorangle:
@@ -3183,8 +3170,7 @@ int ParseState::parse(void)
 		int i;
 		insptr++;
 		i = *(insptr++);	// ID of def
-		g_ac->spr.ang = GetGameVarID(i, g_ac, g_p).safeValue();
-		g_ac->spr.ang &= 2047;
+		g_ac->set_int_ang(GetGameVarID(i, g_ac, g_p).safeValue() & 2047);
 		break;
 	}
 	case concmd_randvar:

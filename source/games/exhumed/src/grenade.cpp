@@ -55,18 +55,18 @@ void ThrowGrenade(int nPlayer, int, int, int ecx, int push1)
     DExhumedActor* pActor = PlayerList[nPlayer].pPlayerGrenade;
     auto pPlayerActor = PlayerList[nPlayer].pActor;
 
-    int nAngle = pPlayerActor->spr.ang;
+    int nAngle = pPlayerActor->int_ang();
 
     ChangeActorSect(pActor, PlayerList[nPlayer].pPlayerViewSect);
 
     pActor->set_int_pos(pPlayerActor->int_pos());
 
     if (nAngle < 0) {
-        nAngle = pPlayerActor->spr.ang;
+        nAngle = pPlayerActor->int_ang();
     }
 
     pActor->spr.cstat &= ~CSTAT_SPRITE_INVISIBLE;
-    pActor->spr.ang = nAngle;
+    pActor->set_int_ang(nAngle);
 
     if (push1 >= -3000)
     {
@@ -112,7 +112,7 @@ void BuildGrenade(int nPlayer)
     pActor->spr.clipdist = 30;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->spr.ang = pPlayerActor->spr.ang;
+    pActor->spr.angle = pPlayerActor->spr.angle;
     pActor->spr.intowner = nPlayer;
     pActor->spr.xvel = 0;
     pActor->spr.yvel = 0;
@@ -171,7 +171,7 @@ void ExplodeGrenade(DExhumedActor* pActor)
     if (pActor->nTurn < 0)
     {
         auto pPlayerActor = PlayerList[nPlayer].pActor;
-        int nAngle = pPlayerActor->spr.ang;
+        int nAngle = pPlayerActor->int_ang();
 
         pActor->set_int_pos({ bcos(nAngle, -5) + pPlayerActor->int_pos().X, bsin(nAngle, -5) + pPlayerActor->int_pos().Y, pPlayerActor->int_pos().Z });
 
@@ -322,7 +322,7 @@ void AIGrenade::Tick(RunListEvent* ev)
         }
         else if (nMov.type == kHitSprite)
         {
-            BounceGrenade(pActor, nMov.actor()->spr.ang);
+            BounceGrenade(pActor, nMov.actor()->int_ang());
         }
 
         pActor->nHealth = 0;

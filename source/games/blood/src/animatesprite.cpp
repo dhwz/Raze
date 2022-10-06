@@ -41,7 +41,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_BLD_NS
 
-static fixed_t gCameraAng;
+static DAngle gCameraAng;
 int dword_172CE0[16][3];
 
 //---------------------------------------------------------------------------
@@ -96,16 +96,16 @@ tspritetype* viewInsertTSprite(tspriteArray& tsprites, sectortype* pSector, int 
 	pTSprite->statnum = nStatnum;
 	pTSprite->sectp = pSector;
 
-	vec3_t pos = { 0,0,0 };
+	DVector3 pos = { 0,0,0 };
 	if (parentTSprite)
 	{
-		pos = parentTSprite->int_pos();
+		pos = parentTSprite->pos;
 		pTSprite->ownerActor = parentTSprite->ownerActor;
-		pTSprite->ang = parentTSprite->ang;
+		pTSprite->copy_ang(parentTSprite);
 	}
-	pos.X += Cos(gCameraAng) >> 25;
-	pos.Y += Sin(gCameraAng) >> 25;
-	pTSprite->set_int_pos(pos);
+	pos.X += gCameraAng.Cos() * 2;
+	pos.Y += gCameraAng.Sin() * 2;
+	pTSprite->pos = pos;
 	return pTSprite;
 }
 
@@ -221,7 +221,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		if (!pNSprite)
 			break;
 
-		pNSprite->set_int_z(pTSprite->int_pos().Z);
+		pNSprite->pos.Z = pTSprite->pos.Z;
 		pNSprite->cstat |= CSTAT_SPRITE_TRANSLUCENT;
 		pNSprite->shade = -128;
 		pNSprite->xrepeat = pTSprite->xrepeat;
@@ -272,7 +272,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 	}
 	case kViewEffectTrail:
 	{
-		int nAng = pTSprite->ang;
+		int nAng = pTSprite->int_ang();
 		if (pTSprite->cstat & CSTAT_SPRITE_ALIGNMENT_WALL)
 		{
 			nAng = (nAng + 512) & 2047;
@@ -314,7 +314,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 			break;
 
 		pNSprite->shade = -128;
-		pNSprite->set_int_z(pTSprite->int_pos().Z);
+		pNSprite->pos.Z = pTSprite->pos.Z;
 		pNSprite->picnum = 908;
 		pNSprite->statnum = kStatDecoration;
 		pNSprite->xrepeat = pNSprite->yrepeat = (tileWidth(pTSprite->picnum) * pTSprite->xrepeat) / 64;
@@ -431,7 +431,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		pNSprite->shade = -128;
 		pNSprite->pal = 2;
 		pNSprite->cstat |= CSTAT_SPRITE_TRANSLUCENT;
-		pNSprite->set_int_z(pTSprite->int_pos().Z);
+		pNSprite->pos.Z = pTSprite->pos.Z;
 		pNSprite->xrepeat = pTSprite->xrepeat;
 		pNSprite->yrepeat = pTSprite->yrepeat;
 		pNSprite->picnum = 2427;
@@ -451,7 +451,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		pNSprite->pal = 2;
 		pNSprite->xrepeat = pNSprite->yrepeat = 64;
 		pNSprite->cstat |= CSTAT_SPRITE_ONE_SIDE | CSTAT_SPRITE_ALIGNMENT_FLOOR | CSTAT_SPRITE_YFLIP | CSTAT_SPRITE_TRANSLUCENT;
-		pNSprite->ang = pTSprite->ang;
+		pNSprite->copy_ang(pTSprite);
 		pNSprite->ownerActor = pTSprite->ownerActor;
 		break;
 	}
@@ -469,7 +469,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		pNSprite->pal = 2;
 		pNSprite->xrepeat = pNSprite->yrepeat = nShade;
 		pNSprite->cstat |= CSTAT_SPRITE_ONE_SIDE | CSTAT_SPRITE_ALIGNMENT_FLOOR | CSTAT_SPRITE_TRANSLUCENT;
-		pNSprite->ang = pTSprite->ang;
+		pNSprite->copy_ang(pTSprite);
 		pNSprite->ownerActor = pTSprite->ownerActor;
 		break;
 	}
@@ -479,7 +479,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		if (!pNSprite)
 			break;
 
-		pNSprite->set_int_z(pTSprite->int_pos().Z);
+		pNSprite->pos.Z = pTSprite->pos.Z;
 		if (gDetail > 1)
 			pNSprite->cstat |= CSTAT_SPRITE_TRANSLUCENT | CSTAT_SPRITE_TRANS_FLIP;
 		pNSprite->shade = ClipLow(pTSprite->shade - 32, -128);
@@ -507,17 +507,17 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		auto& nVoxel = voxelIndex[nTile];
 		if (cl_showweapon == 2 && r_voxels && nVoxel != -1)
 		{
-			pNSprite->ang = (gView->actor->spr.ang + 512) & 2047; // always face viewer
+			pNSprite->set_int_ang((gView->actor->int_ang() + 512) & 2047); // always face viewer
 			pNSprite->cstat |= CSTAT_SPRITE_ALIGNMENT_SLAB;
 			pNSprite->cstat &= ~CSTAT_SPRITE_YFLIP;
 			pNSprite->picnum = nVoxel;
 			if (pPlayer->curWeapon == kWeapLifeLeech) // position lifeleech behind player
 			{
-				pNSprite->add_int_x(MulScale(128, Cos(gView->actor->spr.ang), 30));
-				pNSprite->add_int_y(MulScale(128, Sin(gView->actor->spr.ang), 30));
+				pNSprite->add_int_x(MulScale(128, Cos(gView->actor->int_ang()), 30));
+				pNSprite->add_int_y(MulScale(128, Sin(gView->actor->int_ang()), 30));
 			}
 			if ((pPlayer->curWeapon == kWeapLifeLeech) || (pPlayer->curWeapon == kWeapVoodooDoll))  // make lifeleech/voodoo doll always face viewer like sprite
-				pNSprite->ang = (pNSprite->ang + 512) & 2047; // offset angle 90 degrees
+				pNSprite->set_int_ang((pNSprite->int_ang() + 512) & 2047); // offset angle 90 degrees
 		}
 		break;
 	}
@@ -546,7 +546,7 @@ static void viewApplyDefaultPal(tspritetype* pTSprite, sectortype const* pSector
 //
 //---------------------------------------------------------------------------
 
-void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t cZ, int32_t cA, int32_t smoothratio)
+void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t cZ, DAngle cA, int32_t smoothratio)
 {
 	int nViewSprites = tsprites.Size();
 	// shift before interpolating to increase precision.
@@ -578,8 +578,8 @@ void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t 
 
 		if (cl_interpolate && owneractor->interpolated && !(pTSprite->flags & 512))
 		{
-			pTSprite->set_int_pos(owneractor->interpolatedvec3(gInterpolate));
-			pTSprite->ang = owneractor->interpolatedang(gInterpolate);
+			pTSprite->pos = owneractor->interpolatedvec3(gInterpolate);
+			pTSprite->angle = owneractor->interpolatedang(gInterpolate);
 		}
 		int nAnim = 0;
 		switch (picanm[nTile].extra & 7) {
@@ -610,7 +610,7 @@ void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t 
 			}
 			int dX = cX - pTSprite->int_pos().X;
 			int dY = cY - pTSprite->int_pos().Y;
-			RotateVector(&dX, &dY, 128 - pTSprite->ang);
+			RotateVector(&dX, &dY, 128 - pTSprite->int_ang());
 			nAnim = GetOctant(dX, dY);
 			if (nAnim <= 4)
 			{
@@ -632,7 +632,7 @@ void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t 
 			}
 			int dX = cX - pTSprite->int_pos().X;
 			int dY = cY - pTSprite->int_pos().Y;
-			RotateVector(&dX, &dY, 128 - pTSprite->ang);
+			RotateVector(&dX, &dY, 128 - pTSprite->int_ang());
 			nAnim = GetOctant(dX, dY);
 			break;
 		}
@@ -669,7 +669,7 @@ void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t 
 					pTSprite->picnum = voxelIndex[pTSprite->picnum];
 					if ((picanm[nTile].extra & 7) == 7)
 					{
-						pTSprite->ang = myclock & 2047;
+						pTSprite->set_int_ang( myclock & 2047);
 					}
 				}
 			}
@@ -902,8 +902,8 @@ void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t 
 					auto pNTSprite = viewAddEffect(tsprites, nTSprite, kViewEffectShoot);
 					if (pNTSprite) {
 						POSTURE* pPosture = &pPlayer->pPosture[pPlayer->lifeMode][pPlayer->posture];
-						pNTSprite->add_int_x(MulScale(pPosture->zOffset, Cos(pTSprite->ang), 28));
-						pNTSprite->add_int_y(MulScale(pPosture->zOffset, Sin(pTSprite->ang), 28));
+						pNTSprite->add_int_x(MulScale(pPosture->zOffset, Cos(pTSprite->int_ang()), 28));
+						pNTSprite->add_int_y(MulScale(pPosture->zOffset, Sin(pTSprite->int_ang()), 28));
 						pNTSprite->set_int_z(pPlayer->actor->int_pos().Z - pPosture->xOffset);
 					}
 				}
@@ -979,7 +979,7 @@ void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t 
 		{
 			int dX = cX - pTSprite->int_pos().X;
 			int dY = cY - pTSprite->int_pos().Y;
-			RotateVector(&dX, &dY, 128 - pTSprite->ang);
+			RotateVector(&dX, &dY, 128 - pTSprite->int_ang());
 			nAnim = GetOctant(dX, dY);
 			if (nAnim <= 4)
 			{
@@ -996,7 +996,7 @@ void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t 
 		{
 			int dX = cX - pTSprite->int_pos().X;
 			int dY = cY - pTSprite->int_pos().Y;
-			RotateVector(&dX, &dY, 128 - pTSprite->ang);
+			RotateVector(&dX, &dY, 128 - pTSprite->int_ang());
 			nAnim = GetOctant(dX, dY);
 			break;
 		}
@@ -1016,9 +1016,9 @@ void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t 
 //
 //---------------------------------------------------------------------------
 
-void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, binangle viewang, double smoothRatio)
+void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double smoothRatio)
 {
-	viewProcessSprites(tsprites, viewx, viewy, viewz, viewang.asbuild(), int(smoothRatio));
+	viewProcessSprites(tsprites, viewx, viewy, viewz, viewang, int(smoothRatio));
 }
 
 int display_mirror;

@@ -53,8 +53,6 @@ int gViewIndex;
 
 double gInterpolate;
 
-int gScreenTilt;
-
 //---------------------------------------------------------------------------
 //
 // 
@@ -374,8 +372,10 @@ void UpdateBlend()
 
 // int gVisibility;
 
-int deliriumTilt, deliriumTurn, deliriumPitch;
-int gScreenTiltO, deliriumTurnO, deliriumPitchO;
+int deliriumTilt, deliriumPitch;
+int deliriumPitchO;
+DAngle deliriumTurnO, deliriumTurn;
+DAngle gScreenTiltO, gScreenTilt;
 
 int gShowFrameRate = 1;
 
@@ -404,25 +404,25 @@ void viewUpdateDelirium(void)
 		}
 		int sin2 = Sin(2 * timer) >> 1;
 		int sin3 = Sin(3 * timer) >> 1;
-		gScreenTilt = MulScale(sin2 + sin3, tilt1, 30);
+		gScreenTilt = DAngle::fromBuild(MulScale(sin2 + sin3, tilt1, 30));
 		int sin4 = Sin(4 * timer) >> 1;
-		deliriumTurn = MulScale(sin3 + sin4, tilt2, 30);
+		deliriumTurn = DAngle::fromBuild(MulScale(sin3 + sin4, tilt2, 30));
 		int sin5 = Sin(5 * timer) >> 1;
 		deliriumPitch = MulScale(sin4 + sin5, pitch, 30);
 		return;
 	}
-	gScreenTilt = ((gScreenTilt + 1024) & 2047) - 1024;
-	if (gScreenTilt > 0)
+	gScreenTilt = gScreenTilt.Normalized180();
+	if (gScreenTilt > nullAngle)
 	{
-		gScreenTilt -= 8;
-		if (gScreenTilt < 0)
-			gScreenTilt = 0;
+		gScreenTilt -= DAngle::fromBuild(8);
+		if (gScreenTilt < nullAngle)
+			gScreenTilt = nullAngle;
 	}
-	else if (gScreenTilt < 0)
+	else if (gScreenTilt < nullAngle)
 	{
-		gScreenTilt += 8;
-		if (gScreenTilt >= 0)
-			gScreenTilt = 0;
+		gScreenTilt += DAngle::fromBuild(8);
+		if (gScreenTilt >= nullAngle)
+			gScreenTilt = nullAngle;
 	}
 }
 
@@ -432,7 +432,7 @@ void viewUpdateDelirium(void)
 //
 //---------------------------------------------------------------------------
 
-void viewUpdateShake(int& cX, int& cY, int& cZ, binangle& cA, fixedhoriz& cH, double& pshakeX, double& pshakeY)
+void viewUpdateShake(int& cX, int& cY, int& cZ, DAngle& cA, fixedhoriz& cH, double& pshakeX, double& pshakeY)
 {
 	auto doEffect = [&](const int& effectType)
 	{
@@ -440,7 +440,7 @@ void viewUpdateShake(int& cX, int& cY, int& cZ, binangle& cA, fixedhoriz& cH, do
 		{
 			int nValue = ClipHigh(effectType * 8, 2000);
 			cH += buildhoriz(QRandom2(nValue >> 8));
-			cA += buildang(QRandom2(nValue >> 8));
+			cA += DAngle::fromBuild(QRandom2(nValue >> 8));
 			cX += QRandom2(nValue >> 4);
 			cY += QRandom2(nValue >> 4);
 			cZ += QRandom2(nValue);
@@ -474,7 +474,7 @@ static void DrawMap(DBloodActor* view)
 	VIEW* pView = &gPrevView[gViewIndex];
 	int x = interpolatedvalue(pView->x, view->int_pos().X, gInterpolate);
 	int y = interpolatedvalue(pView->y, view->int_pos().Y, gInterpolate);
-	int ang = (!SyncInput() ? gView->angle.sum() : gView->angle.interpolatedsum(gInterpolate)).asbuild();
+	int ang = (!SyncInput() ? gView->angle.sum() : gView->angle.interpolatedsum(gInterpolate)).Buildang();
 	DrawOverheadMap(x, y, ang, gInterpolate);
 	if (tm)
 		setViewport(hud_size);
@@ -486,7 +486,7 @@ static void DrawMap(DBloodActor* view)
 //
 //---------------------------------------------------------------------------
 
-void SetupView(int& cX, int& cY, int& cZ, binangle& cA, fixedhoriz& cH, sectortype*& pSector, double& zDelta, double& shakeX, double& shakeY, binangle& rotscrnang)
+void SetupView(int& cX, int& cY, int& cZ, DAngle& cA, fixedhoriz& cH, sectortype*& pSector, double& zDelta, double& shakeX, double& shakeY, DAngle& rotscrnang)
 {
 	int bobWidth, bobHeight;
 
@@ -550,8 +550,8 @@ void SetupView(int& cX, int& cY, int& cZ, binangle& cA, fixedhoriz& cH, sectorty
 	{
 		if (cl_viewhbob)
 		{
-			cX -= MulScale(bobWidth, Sin(cA.asbuild()), 30) >> 4;
-			cY += MulScale(bobWidth, Cos(cA.asbuild()), 30) >> 4;
+			cX -= MulScale(bobWidth, Sin(cA.Buildang()), 30) >> 4;
+			cY += MulScale(bobWidth, Cos(cA.Buildang()), 30) >> 4;
 		}
 		if (cl_viewvbob)
 		{
@@ -601,7 +601,7 @@ void renderCrystalBall()
 	int vd4 = pOther->actor->spr.y;
 	int vd0 = pOther->zView;
 	int vcc = pOther->actor->spr.sectnum;
-	int v50 = pOther->actor->spr.ang;
+	int v50 = pOther->actor->spr.angle;
 	int v54 = 0;
 	if (pOther->flickerEffect)
 	{
@@ -634,7 +634,6 @@ void renderCrystalBall()
 #endif
 }
 
-void render3DViewPolymost(int nSectnum, int cX, int cY, int cZ, binangle cA, fixedhoriz cH);
 
 //---------------------------------------------------------------------------
 //
@@ -681,20 +680,19 @@ void viewDrawScreen(bool sceneonly)
 		UpdateBlend();
 
 		int cX, cY, cZ;
-		binangle cA;
+		DAngle cA, rotscrnang;
 		fixedhoriz cH;
 		sectortype* pSector;
 		double zDelta;
 		double shakeX, shakeY;
-		binangle rotscrnang;
 		SetupView(cX, cY, cZ, cA, cH, pSector, zDelta, shakeX, shakeY, rotscrnang);
 
-		binangle tilt = interpolatedangle(buildang(gScreenTiltO), buildang(gScreenTilt), gInterpolate);
+		DAngle tilt = interpolatedangle(gScreenTiltO, gScreenTilt, gInterpolate);
 		bool bDelirium = powerupCheck(gView, kPwUpDeliriumShroom) > 0;
 		static bool bDeliriumOld = false;
 		//int tiltcs, tiltdim;
 		uint8_t otherview = powerupCheck(gView, kPwUpCrystalBall) > 0;
-		if (tilt.asbam() || bDelirium)
+		if (tilt.Degrees() || bDelirium)
 		{
 			rotscrnang = tilt;
 		}
@@ -712,7 +710,7 @@ void viewDrawScreen(bool sceneonly)
 		if (!bDelirium)
 		{
 			deliriumTilt = 0;
-			deliriumTurn = 0;
+			deliriumTurn = DAngle::fromDeg(0.);
 			deliriumPitch = 0;
 		}
 		int brightness = 0;
@@ -738,7 +736,7 @@ void viewDrawScreen(bool sceneonly)
 			}
 		}
 		g_relvisibility = (int32_t)(ClipLow(gVisibility - 32 * gView->visibility - brightness, 0)) - g_visibility;
-		cA += interpolatedangle(buildang(deliriumTurnO), buildang(deliriumTurn), gInterpolate);
+		cA += interpolatedangle(deliriumTurnO, deliriumTurn, gInterpolate);
 
 		if (pSector != nullptr)
 		{
@@ -756,7 +754,7 @@ void viewDrawScreen(bool sceneonly)
 
 		cH = q16horiz(ClipRange(cH.asq16(), gi->playerHorizMin(), gi->playerHorizMax()));
 
-		if ((tilt.asbam() || bDelirium) && !sceneonly)
+		if ((tilt.Degrees() || bDelirium) && !sceneonly)
 		{
 			if (gDeliriumBlur)
 			{
@@ -854,7 +852,7 @@ FString GameInterface::GetCoordString()
 	FString out;
 
 	out.Format("pos= %d, %d, %d - angle = %2.3f",
-		gMe->actor->int_pos().X, gMe->actor->int_pos().Y, gMe->actor->int_pos().Z, gMe->actor->spr.ang * BAngToDegree);
+		gMe->actor->int_pos().X, gMe->actor->int_pos().Y, gMe->actor->int_pos().Z, gMe->actor->spr.int_ang() * BAngToDegree);
 
 	return out;
 }

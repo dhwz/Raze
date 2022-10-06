@@ -84,7 +84,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 				break;
 			}
 
-			k = (((t->ang + 3072 + 128 - a) & 2047) >> 8) & 7;
+			k = (((t->int_ang() + 3072 + 128 - a) & 2047) >> 8) & 7;
 			if (k > 4)
 			{
 				k = 8 - k;
@@ -163,16 +163,16 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 		}
 
 		if (t->statnum == 99) continue;
-		if (h->spr.statnum != STAT_ACTOR && h->spr.picnum == APLAYER && ps[h->spr.yvel].newOwner == nullptr && h->GetOwner())
+		auto pp = &ps[h->PlayerIndex()];
+		if (h->spr.statnum != STAT_ACTOR && h->spr.picnum == APLAYER && pp->newOwner == nullptr && h->GetOwner())
 		{
-			t->add_int_x(-MulScale(MaxSmoothRatio - smoothratio, ps[h->spr.yvel].pos.X - ps[h->spr.yvel].opos.X, 16));
-			t->add_int_y(-MulScale(MaxSmoothRatio - smoothratio, ps[h->spr.yvel].pos.Y - ps[h->spr.yvel].opos.Y, 16));
-			t->set_int_z(interpolatedvalue(ps[h->spr.yvel].opos.Z, ps[h->spr.yvel].pos.Z, smoothratio));
-			t->add_int_z(PHEIGHT_DUKE);
+			t->pos.X -= MulScaleF(MaxSmoothRatio - smoothratio, pp->pos.X - pp->opos.X, 16);
+			t->pos.Y -= MulScaleF(MaxSmoothRatio - smoothratio, pp->pos.Y - pp->opos.Y, 16);
+			t->pos.Z = interpolatedvalue(pp->opos.Z, pp->pos.Z, smoothratio) + gs.playerheight;
 		}
 		else if (!actorflag(h, SFLAG_NOINTERPOLATE))
 		{
-			t->set_int_pos(h->interpolatedvec3(smoothratio));
+			t->pos = h->interpolatedvec3(smoothratio);
 		}
 
 		auto sectp = h->sector();
@@ -203,14 +203,8 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 		case FORCESPHERE:
 			if (t->statnum == STAT_MISC && OwnerAc)
 			{
-				int sqa =
-					getangle(
-						OwnerAc->int_pos().X - ps[screenpeek].pos.X,
-						OwnerAc->int_pos().Y - ps[screenpeek].pos.Y);
-				int sqb =
-					getangle(
-						OwnerAc->int_pos().X - t->int_pos().X,
-						OwnerAc->int_pos().Y - t->int_pos().Y);
+				int sqa = getangle( OwnerAc->spr.pos.XY() - ps[screenpeek].pos.XY());
+				int sqb = getangle(OwnerAc->spr.pos.XY() - t->pos.XY());
 
 				if (abs(getincangle(sqa, sqb)) > 512)
 					if (ldist(OwnerAc, t) < ldist(ps[screenpeek].GetActor(), OwnerAc))
@@ -225,15 +219,15 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 					t->xrepeat = 0;
 				else
 				{
-					t->ang = getangle(x - t->int_pos().X, y - t->int_pos().Y);
-					t->set_int_x(OwnerAc->int_pos().X + bcos(t->ang, -10));
-					t->set_int_y(OwnerAc->int_pos().Y + bsin(t->ang, -10));
+					t->set_int_ang(getangle(x - t->int_pos().X, y - t->int_pos().Y));
+					t->pos.X = OwnerAc->spr.pos.X + t->angle.Cos();
+					t->pos.Y = OwnerAc->spr.pos.Y + t->angle.Sin();
 				}
 			}
 			break;
 
 		case ATOMICHEALTH:
-			t->add_int_z(-(4 << 8));
+			t->pos.Z -= 4;
 			break;
 		case CRYSTALAMMO:
 			t->shade = bsin(PlayClock << 4, -10);
@@ -267,7 +261,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 			}
 
 			k = getangle(h->int_pos().X - x, h->int_pos().Y - y);
-			k = (((h->spr.ang + 3072 + 128 - k) & 2047) / 170);
+			k = (((h->int_ang() + 3072 + 128 - k) & 2047) / 170);
 			if (k > 6)
 			{
 				k = 12 - k;
@@ -286,8 +280,8 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 
 			k = getangle(h->int_pos().X - x, h->int_pos().Y - y);
 			if (h->temp_data[0] < 4)
-				k = (((h->spr.ang + 3072 + 128 - k) & 2047) / 170);
-			else k = (((h->spr.ang + 3072 + 128 - k) & 2047) / 170);
+				k = (((h->int_ang() + 3072 + 128 - k) & 2047) / 170);
+			else k = (((h->int_ang() + 3072 + 128 - k) & 2047) / 170);
 
 			if (k > 6)
 			{
@@ -315,7 +309,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 				{
 					t->x = interpolatedvalue(omyx, myx, smoothratio);
 					t->y = interpolatedvalue(omyy, myy, smoothratio);
-					t->z = interpolatedvalue(omyz, myz, smoothratio) + PHEIGHT_DUKE;
+					t->z = interpolatedvalue(omyz, myz, smoothratio) + gs_playerheight;
 					t->ang = interpolatedangle(omyang, myang, smoothratio).asbuild();
 					t->sector = mycursectnum;
 				}
@@ -354,9 +348,8 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 				case DEVISTATOR_WEAPON:  newtspr->picnum = DEVISTATORSPRITE;     break;
 				}
 
-				if (h->GetOwner())
-					newtspr->set_int_z(ps[p].pos.Z - (12 << 8));
-				else newtspr->set_int_z(h->int_pos().Z - (51 << 8));
+				if (h->GetOwner()) newtspr->pos.Z = ps[p].pos.Z - 12;
+				else newtspr->pos.Z = h->spr.pos.Z - 51;
 				if (ps[p].curr_weapon == HANDBOMB_WEAPON)
 				{
 					newtspr->xrepeat = 10;
@@ -379,7 +372,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 				}
 				else
 				{
-					k = (((h->spr.ang + 3072 + 128 - a) & 2047) >> 8) & 7;
+					k = (((h->int_ang() + 3072 + 128 - a) & 2047) >> 8) & 7;
 					if (k > 4)
 					{
 						k = 8 - k;
@@ -389,7 +382,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 				}
 
 				if (t->sectp->lotag == 2) k += 1795 - 1405;
-				else if ((h->floorz - h->int_pos().Z) > (64 << 8)) k += 60;
+				else if ((h->floorz - h->spr.pos.Z) > 64) k += 60;
 
 				t->picnum += k;
 				t->pal = ps[p].palookup;
@@ -399,9 +392,9 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 
 			if (ps[p].on_crane == nullptr && (h->sector()->lotag & 0x7ff) != 1)
 			{
-				l = h->int_pos().Z - ps[p].GetActor()->floorz + (3 << 8);
-				if (l > 1024 && h->spr.yrepeat > 32 && h->spr.extra > 0)
-					h->spr.yoffset = (int8_t)(l / (h->spr.yrepeat << 2));
+				double v = h->spr.pos.Z - ps[p].GetActor()->floorz + 3;
+				if (v > 4 && h->spr.yrepeat > 32 && h->spr.extra > 0)
+					h->spr.yoffset = (int8_t)(v * (1/REPEAT_SCALE) / h->spr.yrepeat);
 				else h->spr.yoffset = 0;
 			}
 
@@ -428,8 +421,8 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 
 			if (!h->GetOwner()) continue;
 
-			if (t->int_pos().Z > h->floorz && t->xrepeat < 32)
-				t->set_int_z(h->floorz);
+			if (t->pos.Z > h->floorz && t->xrepeat < 32)
+				t->pos.Z = h->floorz;
 
 			break;
 
@@ -502,12 +495,12 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 				else switch (l) 
 				{
 				case 2:
-					k = (((h->spr.ang + 3072 + 128 - a) & 2047) >> 8) & 1;
+					k = (((h->int_ang() + 3072 + 128 - a) & 2047) >> 8) & 1;
 					break;
 
 				case 3:
 				case 4:
-					k = (((h->spr.ang + 3072 + 128 - a) & 2047) >> 7) & 7;
+					k = (((h->int_ang() + 3072 + 128 - a) & 2047) >> 7) & 7;
 					if (k > 3)
 					{
 						t->cstat |= CSTAT_SPRITE_XFLIP;
@@ -518,7 +511,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 
 				case 5:
 					k = getangle(h->int_pos().X - x, h->int_pos().Y - y);
-					k = (((h->spr.ang + 3072 + 128 - k) & 2047) >> 8) & 7;
+					k = (((h->int_ang() + 3072 + 128 - k) & 2047) >> 8) & 7;
 					if (k > 4)
 					{
 						k = 8 - k;
@@ -528,7 +521,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 					break;
 				case 7:
 					k = getangle(h->int_pos().X - x, h->int_pos().Y - y);
-					k = (((h->spr.ang + 3072 + 128 - k) & 2047) / 170);
+					k = (((h->int_ang() + 3072 + 128 - k) & 2047) / 170);
 					if (k > 6)
 					{
 						k = 12 - k;
@@ -537,7 +530,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 					else t->cstat &= ~CSTAT_SPRITE_XFLIP;
 					break;
 				case 8:
-					k = (((h->spr.ang + 3072 + 128 - a) & 2047) >> 8) & 7;
+					k = (((h->int_ang() + 3072 + 128 - a) & 2047) >> 8) & 7;
 					t->cstat &= ~CSTAT_SPRITE_XFLIP;
 					break;
 				default:
@@ -568,15 +561,15 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 				{
 					if (r_shadows && !(h->spr.cstat2 & CSTAT2_SPRITE_NOSHADOW))
 					{
-						int daz;
+						double floorz;
 
 						if ((sectp->lotag & 0xff) > 2 || h->spr.statnum == 4 || h->spr.statnum == 5 || h->spr.picnum == DRONE || h->spr.picnum == COMMANDER)
-							daz = sectp->int_floorz();
+							floorz = sectp->floorz;
 						else
-							daz = h->floorz;
+							floorz = h->floorz;
 
 
-						if ((h->int_pos().Z - daz) < (8 << 8) && ps[screenpeek].pos.Z < daz)
+						if (h->spr.pos.Z - floorz < 8 && ps[screenpeek].pos.Z < floorz)
 						{
 							auto shadowspr = tsprites.newTSprite();
 							*shadowspr = *t;
@@ -588,7 +581,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 							shadowspr->shade = 127;
 							shadowspr->cstat |= CSTAT_SPRITE_TRANSLUCENT;
 
-							shadowspr->set_int_z(daz);
+							shadowspr->pos.Z = floorz;
 							shadowspr->pal = 4;
 
 							if (hw_models && md_tilehasmodel(t->picnum, t->pal) >= 0)
@@ -602,9 +595,9 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 							else
 							{
 								// Alter the shadow's position so that it appears behind the sprite itself.
-								int look = getangle(shadowspr->int_pos().X - ps[screenpeek].pos.X, shadowspr->int_pos().Y - ps[screenpeek].pos.Y);
-								shadowspr->add_int_x(bcos(look, -9));
-								shadowspr->add_int_y(bsin(look, -9));
+								auto look = VecToAngle(shadowspr->pos.XY() - ps[screenpeek].pos.XY());
+								shadowspr->pos.X += look.Cos() * 2;
+								shadowspr->pos.Y += look.Sin() * 2;
 							}
 						}
 					}
@@ -669,7 +662,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 			}
 			else
 			{
-			k = (((t->ang + 3072 + 128 - a) & 2047) >> 8) & 7;
+			k = (((t->int_ang() + 3072 + 128 - a) & 2047) >> 8) & 7;
 			if (k > 4)
 			{
 				k = 8 - k;
@@ -712,7 +705,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 					t->picnum = OwnerAc->dispicnum;
 					t->pal = OwnerAc->spr.pal;
 					t->shade = OwnerAc->spr.shade;
-					t->ang = OwnerAc->spr.ang;
+					t->angle = OwnerAc->spr.angle;
 					t->cstat = CSTAT_SPRITE_TRANSLUCENT | OwnerAc->spr.cstat;
 				}
 			}
@@ -726,7 +719,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 				break;
 			}
 
-			k = (((t->ang + 3072 + 128 - a) & 2047) >> 8) & 7;
+			k = (((t->int_ang() + 3072 + 128 - a) & 2047) >> 8) & 7;
 			if (k > 4)
 			{
 				k = 8 - k;

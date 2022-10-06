@@ -60,7 +60,7 @@ void hud_input(int plnum)
 {
 	int i, k;
 	uint8_t dainv;
-	struct player_struct* p;
+	player_struct* p;
 
 	p = &ps[plnum];
 	auto pact = p->GetActor();
@@ -285,9 +285,9 @@ void hud_input(int plnum)
 
 							auto pactor =
 								EGS(p->cursector,
-									p->pos.X,
-									p->pos.Y,
-									p->pos.Z + (30 << 8), TILE_APLAYER, -64, 0, 0, p->angle.ang.asbuild(), 0, 0, nullptr, 10);
+									p->player_int_pos().X,
+									p->player_int_pos().Y,
+									p->player_int_pos().Z + (30 << 8), TILE_APLAYER, -64, 0, 0, p->angle.ang.Buildang(), 0, 0, nullptr, 10);
 							pactor->temp_data[3] = pactor->temp_data[4] = 0;
 							p->holoduke_on = pactor;
 							pactor->spr.yvel = plnum;
@@ -479,7 +479,7 @@ void hud_input(int plnum)
 			}
 		}
 
-		if (PlayerInput(plnum, SB_TURNAROUND) && p->angle.spin == 0 && p->on_crane == nullptr)
+		if (PlayerInput(plnum, SB_TURNAROUND) && p->angle.spin == nullAngle && p->on_crane == nullptr)
 		{
 			SetGameVarID(g_iReturnVarID, 0, nullptr, plnum);
 			OnEvent(EVENT_TURNAROUND, plnum, nullptr, -1);
@@ -846,14 +846,14 @@ void GameInterface::GetInput(ControlInfo* const hidInput, double const scaleAdju
 
 		p->angle.processhelpers(scaleAdjust);
 		p->horizon.processhelpers(scaleAdjust);
-		p->GetActor()->spr.ang = p->angle.ang.asbuild();
+		p->GetActor()->set_int_ang(p->angle.ang.Buildang());
 	}
 
 	if (packet)
 	{
 		*packet = loc;
-		packet->fvel = MulScale(loc.fvel, p->angle.ang.bcos(), 9) + MulScale(loc.svel, p->angle.ang.bsin(), 9) + p->fric.X;
-		packet->svel = MulScale(loc.fvel, p->angle.ang.bsin(), 9) - MulScale(loc.svel, p->angle.ang.bcos(), 9) + p->fric.Y;
+		packet->fvel = MulScale(loc.fvel, p->angle.ang.Cos() * (1 << 14), 9) + MulScale(loc.svel, p->angle.ang.Sin() * (1 << 14), 9) + p->fric.X;
+		packet->svel = MulScale(loc.fvel, p->angle.ang.Sin() * (1 << 14), 9) - MulScale(loc.svel, p->angle.ang.Cos() * (1 << 14), 9) + p->fric.Y;
 		loc = {};
 	}
 }

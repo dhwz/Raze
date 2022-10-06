@@ -41,7 +41,7 @@ BEGIN_DUKE_NS
 //
 //---------------------------------------------------------------------------
 
-void incur_damage_r(struct player_struct* p)
+void incur_damage_r(player_struct* p)
 {
 	int  damage = 0, shield_damage = 0;
 	int gut = 0;
@@ -153,7 +153,7 @@ static void shootmelee(DDukeActor *actor, int p, int sx, int sy, int sz, int sa,
 			if (p >= 0)
 			{
 				auto k = spawn(wpn, SMALLSMOKE);
-				if (k) k->add_int_z(-(8 << 8));
+				if (k) k->spr.pos.Z -= 8;
 				if (atwith == KNEE) S_PlayActorSound(KICK_HIT, wpn);
 				else if (isRRRA() && atwith == SLINGBLADE)	S_PlayActorSound(260, wpn);
 			}
@@ -186,7 +186,7 @@ static void shootmelee(DDukeActor *actor, int p, int sx, int sy, int sz, int sa,
 			if (splash)
 			{
 				splash->set_int_xy(hit.hitpos.X, hit.hitpos.Y);
-				splash->spr.ang = ps[p].angle.ang.asbuild(); // Total tweek
+				splash->set_int_ang(ps[p].angle.ang.Buildang()); // Total tweek
 				splash->spr.xvel = 32;
 				ssp(actor, 0);
 				splash->spr.xvel = 0;
@@ -244,7 +244,7 @@ static void shootweapon(DDukeActor* actor, int p, int sx, int sy, int sz, int sa
 		int x;
 		int j = findplayer(actor, &x);
 		sz -= (4 << 8);
-		zvel = ((ps[j].pos.Z - sz) << 8) / (ldist(ps[j].GetActor(), actor));
+		zvel = ((ps[j].player_int_pos().Z - sz) << 8) / (ldist(ps[j].GetActor(), actor));
 		if (actor->spr.picnum != BOSS1)
 		{
 			zvel += 128 - (krand() & 255);
@@ -253,7 +253,7 @@ static void shootweapon(DDukeActor* actor, int p, int sx, int sy, int sz, int sa
 		else
 		{
 			zvel += 128 - (krand() & 255);
-			sa = getangle(ps[j].pos.X - sx, ps[j].pos.Y - sy) + 64 - (krand() & 127);
+			sa = getangle(ps[j].player_int_pos().X - sx, ps[j].player_int_pos().Y - sy) + 64 - (krand() & 127);
 		}
 	}
 
@@ -334,10 +334,10 @@ static void shootweapon(DDukeActor* actor, int p, int sx, int sy, int sz, int sa
 				spark->spr.xrepeat = spark->spr.yrepeat = 0;
 				if (l)
 				{
-					l->add_int_z(4 << 8);
+					l->spr.pos.Z += 4;
 					l->spr.xvel = 16;
 					l->spr.xrepeat = l->spr.yrepeat = 24;
-					l->spr.ang += 64 - (krand() & 127);
+					l->add_int_ang(64 - (krand() & 127));
 				}
 			}
 			else spawn(spark, SMALLSMOKE);
@@ -411,7 +411,7 @@ static void shootweapon(DDukeActor* actor, int p, int sx, int sy, int sz, int sa
 							{
 								hole->spr.xvel = -1;
 								auto delta = hit.hitWall->delta();
-								hole->spr.ang = getangle(-delta.X, -delta.Y) + 512;
+								hole->set_int_ang(getangle(-delta.X, -delta.Y) + 512);
 								ssp(hole, CLIPMASK0);
 								hole->spr.cstat2 |= CSTAT2_SPRITE_DECAL;
 							}
@@ -489,8 +489,8 @@ static void shootstuff(DDukeActor* actor, int p, int sx, int sy, int sz, int sa,
 		sz -= (4 << 7);
 		if (actor->spr.picnum == 4649)
 		{
-			sx += bcos(actor->spr.ang + 256, -6);
-			sy += bsin(actor->spr.ang + 256, -6);
+			sx += bcos(actor->int_ang() + 256, -6);
+			sy += bsin(actor->int_ang() + 256, -6);
 			sz += (12 << 8);
 		}
 		if (actor->spr.picnum == VIXEN)
@@ -503,8 +503,8 @@ static void shootstuff(DDukeActor* actor, int p, int sx, int sy, int sz, int sa,
 	{
 		auto aimed = aim(actor, AUTO_AIM_ANGLE);
 
-		sx += bcos(actor->spr.ang + 160, -7);
-		sy += bsin(actor->spr.ang + 160, -7);
+		sx += bcos(actor->int_ang() + 160, -7);
+		sy += bsin(actor->int_ang() + 160, -7);
 
 		if (aimed)
 		{
@@ -529,7 +529,7 @@ static void shootstuff(DDukeActor* actor, int p, int sx, int sy, int sz, int sa,
 		else if (actor->spr.picnum != UFOBEAM)
 			sa += 16 - (krand() & 31);
 
-		zvel = (((ps[j].opos.Z - sz + (3 << 8))) * vel) / ldist(ps[j].GetActor(), actor);
+		zvel = (((ps[j].player_int_opos().Z - sz + (3 << 8))) * vel) / ldist(ps[j].GetActor(), actor);
 	}
 
 	int oldzvel = zvel;
@@ -578,7 +578,7 @@ static void shootstuff(DDukeActor* actor, int p, int sx, int sy, int sz, int sa,
 		j->spr.cstat = CSTAT_SPRITE_YCENTER;
 		j->spr.clipdist = 4;
 
-		sa = actor->spr.ang + 32 - (krand() & 63);
+		sa = actor->int_ang() + 32 - (krand() & 63);
 		zvel = oldzvel + 512 - (krand() & 1023);
 
 		if (atwith == FIRELASER)
@@ -644,7 +644,7 @@ static void shootrpg(DDukeActor* actor, int p, int sx, int sy, int sz, int sa, i
 	{
 		int x;
 		int j = findplayer(actor, &x);
-		sa = getangle(ps[j].opos.X - sx, ps[j].opos.Y - sy);
+		sa = getangle(ps[j].player_int_opos().X - sx, ps[j].player_int_opos().Y - sy);
 		if (actor->spr.picnum == BOSS3)
 			sz -= (32 << 8);
 		else if (actor->spr.picnum == BOSS2)
@@ -654,10 +654,10 @@ static void shootrpg(DDukeActor* actor, int p, int sx, int sy, int sz, int sa, i
 		}
 
 		l = ldist(ps[j].GetActor(), actor);
-		zvel = ((ps[j].opos.Z - sz) * vel) / l;
+		zvel = ((ps[j].player_int_opos().Z - sz) * vel) / l;
 
 		if (badguy(actor) && (actor->spr.hitag & face_player_smart))
-			sa = actor->spr.ang + (krand() & 31) - 16;
+			sa = actor->int_ang() + (krand() & 31) - 16;
 	}
 
 	if (p < 0) aimed = nullptr;
@@ -717,7 +717,7 @@ static void shootrpg(DDukeActor* actor, int p, int sx, int sy, int sz, int sa, i
 	else if (ps[p].curr_weapon == TIT_WEAPON)
 	{
 		spawned->spr.extra >>= 2;
-		spawned->spr.ang += 16 - (krand() & 31);
+		spawned->add_int_ang(16 - (krand() & 31));
 		spawned->spr.zvel += 256 - (krand() & 511);
 
 		if (ps[p].hbomb_hold_delay)
@@ -791,7 +791,7 @@ static void shootwhip(DDukeActor* actor, int p, int sx, int sy, int sz, int sa, 
 			sa -= (krand() & 16);
 		else
 			sa += 16 - (krand() & 31);
-		zvel = (((ps[j].opos.Z - sz + (3 << 8))) * vel) / ldist(ps[j].GetActor(), actor);
+		zvel = (((ps[j].player_int_opos().Z - sz + (3 << 8))) * vel) / ldist(ps[j].GetActor(), actor);
 	}
 
 	int oldzvel = zvel;
@@ -809,7 +809,7 @@ static void shootwhip(DDukeActor* actor, int p, int sx, int sy, int sz, int sa, 
 		j->spr.cstat = CSTAT_SPRITE_YCENTER;
 		j->spr.clipdist = 4;
 
-		sa = actor->spr.ang + 32 - (krand() & 63);
+		sa = actor->int_ang() + 32 - (krand() & 63);
 		zvel = oldzvel + 512 - (krand() & 1023);
 
 		scount--;
@@ -835,17 +835,17 @@ void shoot_r(DDukeActor* actor, int atwith)
 	{
 		p = actor->spr.yvel;
 
-		sx = ps[p].pos.X;
-		sy = ps[p].pos.Y;
-		sz = ps[p].pos.Z + ps[p].pyoff + (4 << 8);
-		sa = ps[p].angle.ang.asbuild();
+		sx = ps[p].player_int_pos().X;
+		sy = ps[p].player_int_pos().Y;
+		sz = ps[p].player_int_pos().Z + ps[p].pyoff + (4 << 8);
+		sa = ps[p].angle.ang.Buildang();
 
 		if (isRRRA()) ps[p].crack_time = CRACK_TIME;
 	}
 	else
 	{
 		p = -1;
-		sa = actor->spr.ang;
+		sa = actor->int_ang();
 		sx = actor->int_pos().X;
 		sy = actor->int_pos().Y;
 		sz = actor->int_pos().Z - ((actor->spr.yrepeat * tileHeight(actor->spr.picnum)) << 1) + (4 << 8);
@@ -894,7 +894,7 @@ void shoot_r(DDukeActor* actor, int atwith)
 		if (j)
 		{
 			j->spr.xvel = 32;
-			j->spr.ang = actor->spr.ang;
+			j->spr.angle = actor->spr.angle;
 			j->add_int_z(-(5 << 8));
 		}
 		break;
@@ -905,7 +905,7 @@ void shoot_r(DDukeActor* actor, int atwith)
 		if (j)
 		{
 			j->spr.xvel = 250;
-			j->spr.ang = actor->spr.ang;
+			j->spr.angle = actor->spr.angle;
 			j->add_int_z(-(15 << 8));
 		}
 		break;
@@ -1229,7 +1229,7 @@ void selectweapon_r(int snum, int weap)
 //
 //---------------------------------------------------------------------------
 
-int doincrements_r(struct player_struct* p)
+int doincrements_r(player_struct* p)
 {
 	int snum;
 	auto pact = p->GetActor();
@@ -1321,8 +1321,8 @@ int doincrements_r(struct player_struct* p)
 		{
 			p->noise_radius = 16384;
 			madenoise(screenpeek);
-			p->vel.X += p->angle.ang.bcos(4);
-			p->vel.Y += p->angle.ang.bsin(4);
+			p->vel.X += p->angle.ang.Cos() * (1 << 18);
+			p->vel.Y += p->angle.ang.Sin() * (1 << 18);
 		}
 		p->eat -= 4;
 		if (p->eat < 0)
@@ -1493,7 +1493,7 @@ int doincrements_r(struct player_struct* p)
 //
 //---------------------------------------------------------------------------
 
-void checkweapons_r(struct player_struct* p)
+void checkweapons_r(player_struct* p)
 {
 	static const uint16_t weapon_sprites[MAX_WEAPONS] = { KNEE, FIRSTGUNSPRITE, SHOTGUNSPRITE,
 			CHAINGUNSPRITE, RPGSPRITE, HEAVYHBOMB, SHRINKERSPRITE, DEVISTATORSPRITE,
@@ -1506,7 +1506,7 @@ void checkweapons_r(struct player_struct* p)
 			auto j = spawn(p->GetActor(), 7220);
 			if (j)
 			{
-				j->spr.ang = p->angle.ang.asbuild();
+				j->set_int_ang(p->angle.ang.Buildang());
 				j->saved_ammo = p->ammo_amount[MOTORCYCLE_WEAPON];
 			}
 			p->OnMotorcycle = 0;
@@ -1525,7 +1525,7 @@ void checkweapons_r(struct player_struct* p)
 			auto j = spawn(p->GetActor(), 7233);
 			if (j)
 			{
-				j->spr.ang = p->angle.ang.asbuild();
+				j->set_int_ang(p->angle.ang.Buildang());
 				j->saved_ammo = p->ammo_amount[BOAT_WEAPON];
 			}
 			p->OnBoat = 0;
@@ -1801,17 +1801,17 @@ static void onMotorcycle(int snum, ESyncBits &actions)
 			}
 		}
 
-		p->vel.X += currSpeed * bcos(velAdjustment * -51 + p->angle.ang.asbuild(), 4);
-		p->vel.Y += currSpeed * bsin(velAdjustment * -51 + p->angle.ang.asbuild(), 4);
-		p->angle.addadjustment(getincanglebam(p->angle.ang, p->angle.ang - bamang(angAdjustment)));
+		p->vel.X += currSpeed * bcos(velAdjustment * -51 + p->angle.ang.Buildang(), 4);
+		p->vel.Y += currSpeed * bsin(velAdjustment * -51 + p->angle.ang.Buildang(), 4);
+		p->angle.addadjustment(deltaangle(p->angle.ang, p->angle.ang - DAngle::fromBam(angAdjustment)));
 	}
 	else if (p->MotoSpeed >= 20 && p->on_ground == 1 && (p->moto_on_mud || p->moto_on_oil))
 	{
 		rng = krand() & 1;
 		velAdjustment = rng == 0 ? -10 : 10;
 		currSpeed = MulScale(currSpeed, p->moto_on_oil ? 10 : 5, 7);
-		p->vel.X += currSpeed * bcos(velAdjustment * -51 + p->angle.ang.asbuild(), 4);
-		p->vel.Y += currSpeed * bsin(velAdjustment * -51 + p->angle.ang.asbuild(), 4);
+		p->vel.X += currSpeed * bcos(velAdjustment * -51 + p->angle.ang.Buildang(), 4);
+		p->vel.Y += currSpeed * bsin(velAdjustment * -51 + p->angle.ang.Buildang(), 4);
 	}
 
 	p->moto_on_mud = p->moto_on_oil = 0;
@@ -2045,9 +2045,9 @@ static void onBoat(int snum, ESyncBits &actions)
 			angAdjustment >>= 6;
 		}
 
-		p->vel.X += currSpeed * bcos(velAdjustment * -51 + p->angle.ang.asbuild(), 4);
-		p->vel.Y += currSpeed * bsin(velAdjustment * -51 + p->angle.ang.asbuild(), 4);
-		p->angle.addadjustment(getincanglebam(p->angle.ang, p->angle.ang - bamang(angAdjustment)));
+		p->vel.X += currSpeed * bcos(velAdjustment * -51 + p->angle.ang.Buildang(), 4);
+		p->vel.Y += currSpeed * bsin(velAdjustment * -51 + p->angle.ang.Buildang(), 4);
+		p->angle.addadjustment(deltaangle(p->angle.ang, p->angle.ang - DAngle::fromBam(angAdjustment)));
 	}
 	if (p->NotOnWater && p->MotoSpeed > 50)
 		p->MotoSpeed -= (p->MotoSpeed / 2.);
@@ -2084,7 +2084,7 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, int fz, int
 		}
 		else i = 12;
 
-		if (shrunk == 0 && truefdist <= gs.playerheight)
+		if (shrunk == 0 && truefdist <= gs.int_playerheight)
 		{
 			if (p->on_ground == 1)
 			{
@@ -2115,15 +2115,15 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, int fz, int
 		footprints(snum);
 	}
 
-	if (p->pos.Z < (fz - (i << 8))) //falling
+	if (p->player_int_pos().Z < (fz - (i << 8))) //falling
 	{
-		if ((actions & (SB_JUMP|SB_CROUCH)) == 0 && p->on_ground && (psect->floorstat & CSTAT_SECTOR_SLOPE) && p->pos.Z >= (fz - (i << 8) - (16 << 8)))
-			p->pos.Z = fz - (i << 8);
+		if ((actions & (SB_JUMP|SB_CROUCH)) == 0 && p->on_ground && (psect->floorstat & CSTAT_SECTOR_SLOPE) && p->player_int_pos().Z >= (fz - (i << 8) - (16 << 8)))
+			p->player_set_int_z(fz - (i << 8));
 		else
 		{
 			p->on_ground = 0;
 
-			if ((p->OnMotorcycle || p->OnBoat) && fz - (i << 8) * 2 > p->pos.Z)
+			if ((p->OnMotorcycle || p->OnBoat) && fz - (i << 8) * 2 > p->player_int_pos().Z)
 			{
 				if (p->MotoOnGround)
 				{
@@ -2153,7 +2153,7 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, int fz, int
 					S_PlayActorSound(DUKE_SCREAM, pact);
 			}
 
-			if ((p->pos.Z + p->vel.Z) >= (fz - (i << 8))) // hit the ground
+			if ((p->player_int_pos().Z + p->vel.Z) >= (fz - (i << 8))) // hit the ground
 			{
 				S_StopSound(DUKE_SCREAM, pact);
 				if (!p->insector() || p->cursector->lotag != 1)
@@ -2213,18 +2213,18 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, int fz, int
 		{
 			//Smooth on the ground
 
-			int k = ((fz - (i << 8)) - p->pos.Z) >> 1;
+			int k = ((fz - (i << 8)) - p->player_int_pos().Z) >> 1;
 			if (abs(k) < 256) k = 0;
-			p->pos.Z += k;
+			p->player_add_int_z(k);
 			p->vel.Z -= 768;
 			if (p->vel.Z < 0) p->vel.Z = 0;
 		}
 		else if (p->jumping_counter == 0)
 		{
-			p->pos.Z += ((fz - (i << 7)) - p->pos.Z) >> 1; //Smooth on the water
-			if (p->on_warping_sector == 0 && p->pos.Z > fz - (16 << 8))
+			p->player_add_int_z(((fz - (i << 7)) - p->player_int_pos().Z) >> 1); //Smooth on the water
+			if (p->on_warping_sector == 0 && p->player_int_pos().Z > fz - (16 << 8))
 			{
-				p->pos.Z = fz - (16 << 8);
+				p->player_set_int_z(fz - (16 << 8));
 				p->vel.Z >>= 1;
 			}
 		}
@@ -2271,15 +2271,15 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, int fz, int
 		}
 	}
 
-	p->pos.Z += p->vel.Z;
+	p->player_add_int_z(p->vel.Z);
 
-	if (p->pos.Z < (cz + (4 << 8)))
+	if (p->player_int_pos().Z < (cz + (4 << 8)))
 	{
 		p->jumping_counter = 0;
 		if (p->vel.Z < 0)
 			p->vel.X = p->vel.Y = 0;
 		p->vel.Z = 128;
-		p->pos.Z = cz + (4 << 8);
+		p->player_set_int_z(cz + (4 << 8));
 	}
 }
 
@@ -2334,14 +2334,14 @@ static void underwater(int snum, ESyncBits actions, int fz, int cz)
 	if (p->vel.Z > 2048)
 		p->vel.Z >>= 1;
 
-	p->pos.Z += p->vel.Z;
+	p->player_add_int_z(p->vel.Z);
 
-	if (p->pos.Z > (fz - (15 << 8)))
-		p->pos.Z += ((fz - (15 << 8)) - p->pos.Z) >> 1;
+	if (p->player_int_pos().Z > (fz - (15 << 8)))
+		p->player_add_int_z(((fz - (15 << 8)) - p->player_int_pos().Z) >> 1);
 
-	if (p->pos.Z < (cz + (4 << 8)))
+	if (p->player_int_pos().Z < (cz + (4 << 8)))
 	{
-		p->pos.Z = cz + (4 << 8);
+		p->player_set_int_z(cz + (4 << 8));
 		p->vel.Z = 0;
 	}
 
@@ -2350,10 +2350,10 @@ static void underwater(int snum, ESyncBits actions, int fz, int cz)
 		auto j = spawn(pact, WATERBUBBLE);
 		if (j)
 		{
-			j->add_int_pos({ bcos(p->angle.ang.asbuild() + 64 - (global_random & 128) + 128, -6), bsin(p->angle.ang.asbuild() + 64 - (global_random & 128) + 128, -6), 0 });
+			j->add_int_pos({ bcos(p->angle.ang.Buildang() + 64 - (global_random & 128) + 128, -6), bsin(p->angle.ang.Buildang() + 64 - (global_random & 128) + 128, -6), 0 });
 			j->spr.xrepeat = 3;
 			j->spr.yrepeat = 2;
-			j->set_int_z(p->pos.Z + (8 << 8));
+			j->set_int_z(p->player_int_pos().Z + (8 << 8));
 			j->spr.cstat = CSTAT_SPRITE_TRANS_FLIP | CSTAT_SPRITE_TRANSLUCENT;
 		}
 	}
@@ -2369,10 +2369,10 @@ void onMotorcycleMove(int snum, walltype* wal)
 {
 	auto p = &ps[snum];
 	auto pact = p->GetActor();
-	int angleDelta = abs(p->angle.ang.asbuild() - getangle(wal->delta()));
+	int angleDelta = abs(p->angle.ang.Buildang() - getangle(wal->delta()));
 	double damageAmount = p->MotoSpeed * p->MotoSpeed;
 
-	p->angle.addadjustment(buildfang(p->MotoSpeed / (krand() & 1 ? -2 : 2)));
+	p->angle.addadjustment(DAngle::fromBuildf(p->MotoSpeed / (krand() & 1 ? -2 : 2)));
 
 	if (angleDelta >= 441 && angleDelta <= 581)
 	{
@@ -2424,9 +2424,9 @@ void onBoatMove(int snum, int psectlotag, walltype* wal)
 	auto p = &ps[snum];
 	auto pact = p->GetActor();
 	auto delta = wal->delta();
-	int angleDelta = abs(p->angle.ang.asbuild() - getangle(wal->delta()));
+	int angleDelta = abs(p->angle.ang.Buildang() - getangle(wal->delta()));
 
-	p->angle.addadjustment(buildfang(p->MotoSpeed / (krand() & 1 ? -4 : 4)));
+	p->angle.addadjustment(DAngle::fromBuildf(p->MotoSpeed / (krand() & 1 ? -4 : 4)));
 
 	if (angleDelta >= 441 && angleDelta <= 581)
 	{
@@ -2471,7 +2471,7 @@ void onMotorcycleHit(int snum, DDukeActor* victim)
 			if (numplayers == 1)
 			{
 				Collision coll;
-				int ang = int(p->TiltStatus * 20 + p->angle.ang.asbuild());
+				int ang = int(p->TiltStatus * 20 + p->angle.ang.Buildang());
 				movesprite_ex(victim, bcos(ang, -8), bsin(ang, -8), victim->spr.zvel, CLIPMASK0, coll);
 			}
 		}
@@ -2531,7 +2531,7 @@ void onBoatHit(int snum, DDukeActor* victim)
 			if (numplayers == 1)
 			{
 				Collision coll;
-				int ang = int(p->TiltStatus * 20 + p->angle.ang.asbuild());
+				int ang = int(p->TiltStatus * 20 + p->angle.ang.Buildang());
 				movesprite_ex(victim, bcos(ang, -9), bsin(ang, -9), victim->spr.zvel, CLIPMASK0, coll);
 			}
 		}
@@ -2745,23 +2745,23 @@ static void operateweapon(int snum, ESyncBits actions, sectortype* psectp)
 			}
 
 			auto spawned = EGS(p->cursector,
-				p->pos.X + p->angle.ang.bcos(-6),
-				p->pos.Y + p->angle.ang.bsin(-6),
-				p->pos.Z, HEAVYHBOMB, -16, 9, 9,
-				p->angle.ang.asbuild(), (k + (p->hbomb_hold_delay << 5)) * 2, i, pact, 1);
+				p->player_int_pos().X + p->angle.ang.Cos() * (1 << 8),
+				p->player_int_pos().Y + p->angle.ang.Sin() * (1 << 8),
+				p->player_int_pos().Z, HEAVYHBOMB, -16, 9, 9,
+				p->angle.ang.Buildang(), (k + (p->hbomb_hold_delay << 5)) * 2, i, pact, 1);
 
 			if (spawned)
 			{
 				if (k == 15)
 				{
 					spawned->spr.yvel = 3;
-					spawned->add_int_z(8 << 8);
+					spawned->spr.pos.Z += 8;
 				}
 
 				k = hits(p->GetActor());
 				if (k < 512)
 				{
-					spawned->spr.ang += 1024;
+					spawned->add_int_ang(1024);
 					spawned->spr.zvel /= 3;
 					spawned->spr.xvel /= 3;
 				}
@@ -2800,8 +2800,8 @@ static void operateweapon(int snum, ESyncBits actions, sectortype* psectp)
 			p->visibility = 0;
 			if (psectlotag != 857)
 			{
-				p->vel.X -= p->angle.ang.bcos(4);
-				p->vel.Y -= p->angle.ang.bsin(4);
+				p->vel.X -= p->angle.ang.Cos() * (1 << 18);
+				p->vel.Y -= p->angle.ang.Sin() * (1 << 18);
 			}
 		}
 		else if (p->kickback_pic == 2)
@@ -2900,14 +2900,14 @@ static void operateweapon(int snum, ESyncBits actions, sectortype* psectp)
 
 				if (psectlotag != 857)
 				{
-					p->vel.X -= p->angle.ang.bcos(5);
-					p->vel.Y -= p->angle.ang.bsin(5);
+					p->vel.X -= p->angle.ang.Cos() * (1 << 19);
+					p->vel.Y -= p->angle.ang.Sin() * (1 << 19);
 				}
 			}
 			else if (psectlotag != 857)
 			{
-				p->vel.X -= p->angle.ang.bcos(4);
-				p->vel.Y -= p->angle.ang.bsin(4);
+				p->vel.X -= p->angle.ang.Cos() * (1 << 18);
+				p->vel.Y -= p->angle.ang.Sin() * (1 << 18);
 			}
 		}
 
@@ -2977,10 +2977,9 @@ static void operateweapon(int snum, ESyncBits actions, sectortype* psectp)
 					if (j)
 					{
 
-						j->spr.ang += 1024;
-						j->spr.ang &= 2047;
+						j->set_int_ang((j->int_ang() + 1024) & 2047);
 						j->spr.xvel += 32;
-						j->add_int_z(3 << 8);
+						j->spr.pos.Z += 3;
 						ssp(j, CLIPMASK0);
 					}
 				}
@@ -2994,8 +2993,8 @@ static void operateweapon(int snum, ESyncBits actions, sectortype* psectp)
 
 				if (psectlotag != 857)
 				{
-					p->vel.X -= p->angle.ang.bcos(4);
-					p->vel.Y -= p->angle.ang.bsin(4);
+					p->vel.X -= p->angle.ang.Cos() * (1 << 18);
+					p->vel.Y -= p->angle.ang.Sin() * (1 << 18);
 				}
 				checkavailweapon(p);
 
@@ -3055,11 +3054,11 @@ static void operateweapon(int snum, ESyncBits actions, sectortype* psectp)
 		}
 		if (p->kickback_pic == 2)
 		{
-			p->angle.addadjustment(buildang(16));
+			p->angle.addadjustment(DAngle::fromBuild(16));
 		}
 		else if (p->kickback_pic == 4)
 		{
-			p->angle.addadjustment(buildang(-16));
+			p->angle.addadjustment(DAngle::fromBuild(-16));
 		}
 		if (p->kickback_pic > 4)
 			p->kickback_pic = 1;
@@ -3085,11 +3084,11 @@ static void operateweapon(int snum, ESyncBits actions, sectortype* psectp)
 		}
 		if (p->kickback_pic == 2)
 		{
-			p->angle.addadjustment(buildang(4));
+			p->angle.addadjustment(DAngle::fromBuild(4));
 		}
 		else if (p->kickback_pic == 4)
 		{
-			p->angle.addadjustment(buildang(-4));
+			p->angle.addadjustment(DAngle::fromBuild(-4));
 		}
 		if (p->kickback_pic > 4)
 			p->kickback_pic = 1;
@@ -3135,8 +3134,8 @@ static void operateweapon(int snum, ESyncBits actions, sectortype* psectp)
 		}
 		else if (p->kickback_pic == 12)
 		{
-			p->vel.X -= p->angle.ang.bcos(4);
-			p->vel.Y -= p->angle.ang.bsin(4);
+			p->vel.X -= p->angle.ang.Cos() * (1 << 18);
+			p->vel.Y -= p->angle.ang.Sin() * (1 << 18);
 			p->horizon.addadjustment(buildhoriz(20));
 			p->recoil += 20;
 		}
@@ -3161,10 +3160,10 @@ static void operateweapon(int snum, ESyncBits actions, sectortype* psectp)
 			}
 
 			EGS(p->cursector,
-				p->pos.X + p->angle.ang.bcos(-6),
-				p->pos.Y + p->angle.ang.bsin(-6),
-				p->pos.Z, POWDERKEG, -16, 9, 9,
-				p->angle.ang.asbuild(), k * 2, i, pact, 1);
+				p->player_int_pos().X + p->angle.ang.Cos() * (1 << 8),
+				p->player_int_pos().Y + p->angle.ang.Sin() * (1 << 8),
+				p->player_int_pos().Z, POWDERKEG, -16, 9, 9,
+				p->angle.ang.Buildang(), k * 2, i, pact, 1);
 		}
 		p->kickback_pic++;
 		if (p->kickback_pic > 20)
@@ -3185,8 +3184,8 @@ static void operateweapon(int snum, ESyncBits actions, sectortype* psectp)
 		}
 		if (p->kickback_pic < 30)
 		{
-			p->vel.X += p->angle.ang.bcos(4);
-			p->vel.Y += p->angle.ang.bsin(4);
+			p->vel.X -= p->angle.ang.Cos() * (1 << 18);
+			p->vel.Y -= p->angle.ang.Sin() * (1 << 18);
 		}
 		p->kickback_pic++;
 		if (p->kickback_pic > 40)
@@ -3380,7 +3379,7 @@ void processinput_r(int snum)
 		while (auto act2 = it.Next())
 		{
 			if (act2->spr.picnum == RRTILE380)
-				if (act2->int_pos().Z - (8 << 8) < p->pos.Z)
+				if (act2->int_pos().Z - (8 << 8) < p->player_int_pos().Z)
 					psectlotag = 2;
 		}
 	}
@@ -3401,24 +3400,24 @@ void processinput_r(int snum)
 	int tempfz;
 	if (pact->spr.clipdist == 64)
 	{
-		getzrange(p->pos, psectp, &cz, chz, &fz, clz, 163L, CLIPMASK0);
-		tempfz = getflorzofslopeptr(psectp, p->pos.X, p->pos.Y);
+		getzrange(p->player_int_pos(), psectp, &cz, chz, &fz, clz, 163L, CLIPMASK0);
+		tempfz = getflorzofslopeptr(psectp, p->player_int_pos().X, p->player_int_pos().Y);
 	}
 	else
 	{
-		getzrange(p->pos, psectp, &cz, chz, &fz, clz, 4L, CLIPMASK0);
-		tempfz = getflorzofslopeptr(psectp, p->pos.X, p->pos.Y);
+		getzrange(p->player_int_pos(), psectp, &cz, chz, &fz, clz, 4L, CLIPMASK0);
+		tempfz = getflorzofslopeptr(psectp, p->player_int_pos().X, p->player_int_pos().Y);
 	}
 
-	p->truefz = tempfz;
-	p->truecz = getceilzofslopeptr(psectp, p->pos.X, p->pos.Y);
+	p->truefz = tempfz * zinttoworld;
+	p->truecz = getceilzofslopeptr(psectp, p->player_int_pos().X, p->player_int_pos().Y) * zinttoworld;
 
-	truefdist = abs(p->pos.Z - tempfz);
-	if (clz.type == kHitSector && psectlotag == 1 && truefdist > gs.playerheight + (16 << 8))
+	truefdist = abs(p->player_int_pos().Z - tempfz);
+	if (clz.type == kHitSector && psectlotag == 1 && truefdist > gs.int_playerheight + (16 << 8))
 		psectlotag = 0;
 
-	pact->floorz = fz;
-	pact->ceilingz = cz;
+	pact->floorz = fz * zinttoworld;
+	pact->ceilingz = cz * zinttoworld;
 
 	if (SyncInput())
 	{
@@ -3431,7 +3430,7 @@ void processinput_r(int snum)
 		if (chz.actor()->spr.statnum == 1 && chz.actor()->spr.extra >= 0)
 		{
 			chz.setNone();
-			cz = p->truecz;
+			cz = p->truecz * zworldtoint;
 		}
 		else if (chz.actor()->spr.picnum == LADDER)
 		{
@@ -3441,7 +3440,7 @@ void processinput_r(int snum)
 				if ((actions & SB_JUMP) && !p->OnMotorcycle)
 				{
 					chz.setNone();
-					cz = p->truecz;
+					cz = p->truecz * zworldtoint;
 				}
 			}
 			else
@@ -3475,7 +3474,7 @@ void processinput_r(int snum)
 		}
 		else if (badguy(clz.actor()) && clz.actor()->spr.xrepeat > 24 && abs(pact->int_pos().Z - clz.actor()->int_pos().Z) < (84 << 8))
 		{
-			int j = getangle(clz.actor()->int_pos().X - p->pos.X, clz.actor()->int_pos().Y - p->pos.Y);
+			int j = getangle(clz.actor()->int_pos().X - p->player_int_pos().X, clz.actor()->int_pos().Y - p->player_int_pos().Y);
 			p->vel.X -= bcos(j, 4);
 			p->vel.Y -= bsin(j, 4);
 		}
@@ -3580,7 +3579,7 @@ void processinput_r(int snum)
 
 	p->playerweaponsway(pact->spr.xvel);
 
-	pact->spr.xvel = clamp(ksqrt((p->pos.X - p->bobpos.X) * (p->pos.X - p->bobpos.X) + (p->pos.Y - p->bobpos.Y) * (p->pos.Y - p->bobpos.Y)), 0, 512);
+	pact->spr.xvel = int(clamp((p->pos.XY() - p->bobpos).Length(), 0., 32.) * worldtoint);
 	if (p->on_ground) p->bobcounter += p->GetActor()->spr.xvel >> 1;
 
 	p->backuppos(ud.clipping == 0 && ((p->insector() && p->cursector->floorpicnum == MIRROR) || !p->insector()));
@@ -3642,7 +3641,7 @@ void processinput_r(int snum)
 		int j = pact->sector()->floorpicnum;
 		k = 0;
 
-		if (p->on_ground && truefdist <= gs.playerheight + (16 << 8))
+		if (p->on_ground && truefdist <= gs.int_playerheight + (16 << 8))
 		{
 			int whichsound = (gs.tileinfo[j].flags & TFLAG_ELECTRIC) ? 0 : j == FLOORSLIME ? 1 : j == FLOORPLASMA ? 2 :
 				(isRRRA() && (j == RRTILE7768 || j == RRTILE7820) ? 3 : -1);
@@ -3679,7 +3678,7 @@ void processinput_r(int snum)
 				p->NotOnWater = 1;
 		}
 
-		if (truefdist < gs.playerheight + (8 << 8) && (k == 1 || k == 3))
+		if (truefdist < gs.int_playerheight + (8 << 8) && (k == 1 || k == 3))
 		{
 			if (p->spritebridge == 0 && p->walking_snd_toggle == 0 && p->on_ground)
 			{
@@ -3795,16 +3794,15 @@ HORIZONLY:
 	Collision clip{};
 	if (ud.clipping)
 	{
-		p->pos.X += p->vel.X >> 14;
-		p->pos.Y += p->vel.Y >> 14;
-		updatesector(p->pos.X, p->pos.Y, &p->cursector);
+		p->player_add_int_xy({ p->vel.X >> 14, p->vel.Y >> 14 });
+		updatesector(p->player_int_pos().X, p->player_int_pos().Y, &p->cursector);
 		ChangeActorSect(pact, p->cursector);
 	}
 	else
 		clipmove(p->pos, &p->cursector, p->vel.X, p->vel.Y, 164, (4 << 8), i, CLIPMASK0, clip);
 
 	if (p->jetpack_on == 0 && psectlotag != 2 && psectlotag != 1 && shrunk)
-		p->pos.Z += 32 << 8;
+		p->pos.Z += 32;
 
 	if (clip.type != kHitNone)
 		checkplayerhurt_r(p, clip);
@@ -3830,10 +3828,10 @@ HORIZONLY:
 				if (wal->lotag < 44)
 				{
 					dofurniture(clip.hitWall, p->cursector, snum);
-					pushmove(&p->pos, &p->cursector, 172L, (4L << 8), (4L << 8), CLIPMASK0);
+					pushmove(p->pos, &p->cursector, 172L, (4L << 8), (4L << 8), CLIPMASK0);
 				}
 				else
-					pushmove(&p->pos, &p->cursector, 172L, (4L << 8), (4L << 8), CLIPMASK0);
+					pushmove(p->pos, &p->cursector, 172L, (4L << 8), (4L << 8), CLIPMASK0);
 			}
 		}
 	}
@@ -3898,7 +3896,7 @@ HORIZONLY:
 	}
 
 	// RBG***
-	SetActor(pact, { p->pos.X, p->pos.Y, p->pos.Z + gs.playerheight });
+	SetActor(pact, p->pos.plusZ(gs.playerheight));
 
 	if (psectlotag == 800 && (!isRRRA() || !p->lotag800kill))
 	{
@@ -3921,7 +3919,7 @@ HORIZONLY:
 		}
 	}
 
-	if (truefdist < gs.playerheight && p->on_ground && psectlotag != 1 && shrunk == 0 && p->insector() && p->cursector->lotag == 1)
+	if (truefdist < gs.int_playerheight && p->on_ground && psectlotag != 1 && shrunk == 0 && p->insector() && p->cursector->lotag == 1)
 		if (!S_CheckActorSoundPlaying(pact, DUKE_ONWATER))
 			if (!isRRRA() || (!p->OnBoat && !p->OnMotorcycle && p->cursector->hitag != 321))
 				S_PlayActorSound(DUKE_ONWATER, pact);
@@ -3934,11 +3932,11 @@ HORIZONLY:
 	{
 		int blocked;
 		if (pact->spr.clipdist == 64)
-			blocked = (pushmove(&p->pos, &p->cursector, 128, (4 << 8), (4 << 8), CLIPMASK0) < 0 && furthestangle(p->GetActor(), 8) < 512);
+			blocked = (pushmove(p->pos, &p->cursector, 128, (4 << 8), (4 << 8), CLIPMASK0) < 0 && furthestangle(p->GetActor(), 8) < 512);
 		else
-			blocked = (pushmove(&p->pos, &p->cursector, 16, (4 << 8), (4 << 8), CLIPMASK0) < 0 && furthestangle(p->GetActor(), 8) < 512);
+			blocked = (pushmove(p->pos, &p->cursector, 16, (4 << 8), (4 << 8), CLIPMASK0) < 0 && furthestangle(p->GetActor(), 8) < 512);
 
-		if (abs(pact->floorz - pact->ceilingz) < (48 << 8) || blocked)
+		if (fabs(pact->floorz - pact->ceilingz) < 48 || blocked)
 		{
 			if (!(pact->sector()->lotag & 0x8000) && (isanunderoperator(pact->sector()->lotag) ||
 				isanearoperator(pact->sector()->lotag)))
@@ -4041,15 +4039,15 @@ HORIZONLY:
 //
 //---------------------------------------------------------------------------
 
-void OnMotorcycle(struct player_struct *p, DDukeActor* motosprite)
+void OnMotorcycle(player_struct *p, DDukeActor* motosprite)
 {
 	if (!p->OnMotorcycle && !(p->cursector->lotag == 2))
 	{
 		if (motosprite)
 		{
-			p->pos.X = motosprite->int_pos().X;
-			p->pos.Y = motosprite->int_pos().Y;
-			p->angle.ang = buildang(motosprite->spr.ang);
+			p->pos.X = motosprite->spr.pos.X;
+			p->pos.Y = motosprite->spr.pos.Y;
+			p->angle.ang = motosprite->spr.angle;
 			p->ammo_amount[MOTORCYCLE_WEAPON] = motosprite->saved_ammo;
 			deletesprite(motosprite);
 		}
@@ -4072,7 +4070,7 @@ void OnMotorcycle(struct player_struct *p, DDukeActor* motosprite)
 //
 //---------------------------------------------------------------------------
 
-void OffMotorcycle(struct player_struct *p)
+void OffMotorcycle(player_struct *p)
 {
 	auto pact = p->GetActor();
 	if (p->OnMotorcycle)
@@ -4101,15 +4099,15 @@ void OffMotorcycle(struct player_struct *p)
 		p->TurbCount = 0;
 		p->vel.X = 0;
 		p->vel.Y = 0;
-		p->vel.X -= p->angle.ang.bcos(7);
-		p->vel.Y -= p->angle.ang.bsin(7);
+		p->vel.X -= p->angle.ang.Cos() * (1 << 7);
+		p->vel.Y -= p->angle.ang.Sin() * (1 << 7);
 		p->moto_underwater = 0;
 		auto spawned = spawn(p->GetActor(), EMPTYBIKE);
 		if (spawned)
 		{
-			spawned->spr.ang = p->angle.ang.asbuild();
-			spawned->spr.xvel += p->angle.ang.bcos(7);
-			spawned->spr.yvel += p->angle.ang.bsin(7);
+			spawned->set_int_ang(p->angle.ang.Buildang());
+			spawned->spr.xvel += p->angle.ang.Cos() * (1 << 7);
+			spawned->spr.yvel += p->angle.ang.Sin() * (1 << 7);
 			spawned->saved_ammo = p->ammo_amount[MOTORCYCLE_WEAPON];
 		}
 	}
@@ -4121,15 +4119,15 @@ void OffMotorcycle(struct player_struct *p)
 //
 //---------------------------------------------------------------------------
 
-void OnBoat(struct player_struct *p, DDukeActor* boat)
+void OnBoat(player_struct *p, DDukeActor* boat)
 {
 	if (!p->OnBoat)
 	{
 		if (boat)
 		{
-			p->pos.X = boat->int_pos().X;
-			p->pos.Y = boat->int_pos().Y;
-			p->angle.ang = buildang(boat->spr.ang);
+			p->pos.X = boat->spr.pos.X;
+			p->pos.Y = boat->spr.pos.Y;
+			p->angle.ang = boat->spr.angle;
 			p->ammo_amount[BOAT_WEAPON] = boat->saved_ammo;
 			deletesprite(boat);
 		}
@@ -4150,7 +4148,7 @@ void OnBoat(struct player_struct *p, DDukeActor* boat)
 //
 //---------------------------------------------------------------------------
 
-void OffBoat(struct player_struct *p)
+void OffBoat(player_struct *p)
 {
 	if (p->OnBoat)
 	{
@@ -4168,15 +4166,15 @@ void OffBoat(struct player_struct *p)
 		p->TurbCount = 0;
 		p->vel.X = 0;
 		p->vel.Y = 0;
-		p->vel.X -= p->angle.ang.bcos(7);
-		p->vel.Y -= p->angle.ang.bsin(7);
+		p->vel.X -= p->angle.ang.Cos() * (1 << 7);
+		p->vel.Y -= p->angle.ang.Sin() * (1 << 7);
 		p->moto_underwater = 0;
 		auto spawned = spawn(p->GetActor(), EMPTYBOAT);
 		if (spawned)
 		{
-			spawned->spr.ang = p->angle.ang.asbuild();
-			spawned->spr.xvel += p->angle.ang.bcos(7);
-			spawned->spr.yvel += p->angle.ang.bsin(7);
+			spawned->set_int_ang(p->angle.ang.Buildang());
+			spawned->spr.xvel += p->angle.ang.Cos() * (1 << 7);
+			spawned->spr.yvel += p->angle.ang.Sin() * (1 << 7);
 			spawned->saved_ammo = p->ammo_amount[BOAT_WEAPON];
 		}
 	}
