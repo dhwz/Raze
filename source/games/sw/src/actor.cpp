@@ -90,7 +90,7 @@ int DoActorDie(DSWActor* actor, DSWActor* weapActor, int meansofdeath)
     change_actor_stat(actor, STAT_DEAD_ACTOR);
     actor->user.Flags |= (SPR_DEAD);
     actor->user.Flags &= ~(SPR_FALLING | SPR_JUMPING);
-    actor->user.floor_dist = Z(40);
+    actor->user.floor_dist = (40);
 
     // test for gibable dead bodies
     actor->spr.extra |= (SPRX_BREAKABLE);
@@ -291,7 +291,7 @@ void DoDebrisCurrent(DSWActor* actor)
     nx = MulScale((sectp->speed >> 2), bcos(sectp->ang), 14);
     ny = MulScale((sectp->speed >> 2), bsin(sectp->ang), 14);
 
-    Collision ret = move_sprite(actor, nx, ny, 0, actor->user.ceiling_dist, actor->user.floor_dist, 0, ACTORMOVETICS);
+    Collision ret = move_sprite(actor, nx, ny, 0, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), 0, ACTORMOVETICS);
 
     // attempt to move away from wall
     if (ret.type != kHitNone)
@@ -301,10 +301,10 @@ void DoDebrisCurrent(DSWActor* actor)
         nx = MulScale((sectp->speed >> 2), bcos(sectp->ang + rang), 14);
         nx = MulScale((sectp->speed >> 2), bsin(sectp->ang + rang), 14);
 
-        move_sprite(actor, nx, ny, 0, actor->user.ceiling_dist, actor->user.floor_dist, 0, ACTORMOVETICS);
+        move_sprite(actor, nx, ny, 0, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), 0, ACTORMOVETICS);
     }
 
-    actor->set_int_z(actor->user.loz);
+    actor->spr.pos.Z = actor->user.loz;
 }
 
 int DoActorSectorDamage(DSWActor* actor)
@@ -349,7 +349,7 @@ int DoActorSectorDamage(DSWActor* actor)
     }
 
     // note that most squishing is done in vator.c
-    if (actor->user.lo_sectp && actor->user.hi_sectp && labs(actor->user.loz - actor->user.hiz) < (ActorSizeZ(actor) >> 1))
+    if (actor->user.lo_sectp && actor->user.hi_sectp && abs(actor->user.int_loz() - actor->user.int_hiz()) < (ActorSizeZ(actor) >> 1))
     {
         actor->user.Health = 0;
         if (SpawnShrap(actor, nullptr, WPN_NM_SECTOR_SQUISH))
@@ -373,7 +373,7 @@ int DoActorSectorDamage(DSWActor* actor)
 bool move_debris(DSWActor* actor, int xchange, int ychange, int zchange)
 {
     actor->user.coll = move_sprite(actor, xchange, ychange, zchange,
-                         actor->user.ceiling_dist, actor->user.floor_dist, 0, ACTORMOVETICS);
+                         actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), 0, ACTORMOVETICS);
 
     return actor->user.coll.type == kHitNone;
 }
@@ -397,7 +397,7 @@ int DoActorDebris(DSWActor* actor)
         KillActor(actor);
         return 0;
     case ZILLA_RUN_R0:
-        getzsofslopeptr(actor->sector(), actor->int_pos().X, actor->int_pos().Y, &actor->user.hiz, &actor->user.loz);
+        getzsofslopeptr(actor->sector(), actor->spr.pos.X, actor->spr.pos.Y, &actor->user.hiz, &actor->user.loz);
         actor->user.lo_sectp = actor->sector();
         actor->user.hi_sectp = actor->sector();
         actor->user.lowActor = nullptr;
@@ -429,12 +429,12 @@ int DoActorDebris(DSWActor* actor)
         if (actor->sector()->hasU() && FixedToInt(actor->sector()->depth_fixed) > 10) // JBF: added null check
         {
             actor->user.WaitTics = (actor->user.WaitTics + (ACTORMOVETICS << 3)) & 1023;
-            actor->set_int_z(actor->user.loz - MulScale(Z(2), bsin(actor->user.WaitTics), 14));
+            actor->set_int_z(actor->user.int_loz() - MulScale(Z(2), bsin(actor->user.WaitTics), 14));
         }
     }
     else
     {
-        actor->set_int_z(actor->user.loz);
+        actor->spr.pos.Z = actor->user.loz;
     }
 
     return 0;
@@ -456,7 +456,7 @@ int DoFireFly(DSWActor* actor)
 
     actor->user.WaitTics = (actor->user.WaitTics + (ACTORMOVETICS << 1)) & 2047;
 
-    actor->set_int_z(actor->user.pos.Z + MulScale(Z(32), bsin(actor->user.WaitTics), 14));
+    actor->set_int_z(actor->user.int_upos().Z + MulScale(Z(32), bsin(actor->user.WaitTics), 14));
     return 0;
 }
 
@@ -514,7 +514,7 @@ void KeepActorOnFloor(DSWActor* actor)
                 // was swimming but have now stopped
                 actor->user.Flags &= ~(SPR_SWIMMING);
                 actor->spr.cstat &= ~(CSTAT_SPRITE_YCENTER);
-                actor->set_int_z(actor->user.oz = actor->user.loz);
+                actor->spr.pos.Z = actor->user.oz = actor->user.loz;
                 actor->backupz();
                 return;
             }
@@ -525,7 +525,7 @@ void KeepActorOnFloor(DSWActor* actor)
             }
 
             // are swimming
-            actor->set_int_z(actor->user.oz = actor->user.loz - Z(depth));
+            actor->spr.pos.Z = actor->user.oz = actor->user.loz - depth;
             actor->backupz();
         }
         else
@@ -534,7 +534,7 @@ void KeepActorOnFloor(DSWActor* actor)
             if (actor->user.Rot == actor->user.ActorActionSet->Run || actor->user.Rot == actor->user.ActorActionSet->Swim)
             {
                 NewStateGroup(actor, actor->user.ActorActionSet->Swim);
-                actor->set_int_z(actor->user.oz = actor->user.loz - Z(depth));
+                actor->spr.pos.Z = actor->user.oz = actor->user.loz - depth;
                 actor->backupz();
                 actor->user.Flags |= (SPR_SWIMMING);
                 actor->spr.cstat |= (CSTAT_SPRITE_YCENTER);
@@ -543,7 +543,7 @@ void KeepActorOnFloor(DSWActor* actor)
             {
                 actor->user.Flags &= ~(SPR_SWIMMING);
                 actor->spr.cstat &= ~(CSTAT_SPRITE_YCENTER);
-                actor->set_int_z(actor->user.oz = actor->user.loz);
+                actor->spr.pos.Z = actor->user.oz = actor->user.loz;
                 actor->backupz();
             }
         }
@@ -558,17 +558,17 @@ void KeepActorOnFloor(DSWActor* actor)
 #if 1
     if (actor->user.Flags & (SPR_MOVED))
     {
-        actor->set_int_z(actor->user.oz = actor->user.loz);
+        actor->spr.pos.Z = actor->user.oz = actor->user.loz;
         actor->backupz();
     }
     else
     {
-        int ceilz, florz;
+        double ceilz, florz;
         Collision ctrash, ftrash;
         FAFgetzrangepoint(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->sector(),
                           &ceilz, &ctrash, &florz, &ftrash);
 
-        actor->set_int_z(actor->user.oz = florz);
+        actor->spr.pos.Z = actor->user.oz = florz;
         actor->backupz();
     }
 #endif
@@ -663,7 +663,7 @@ int DoActorJump(DSWActor* actor)
     actor->add_int_z(actor->user.jump_speed * ACTORMOVETICS);
 
     // if player gets to close the ceiling while jumping
-    int minh = actor->user.hiz + (tileHeight(actor->spr.picnum) << 8);
+    int minh = actor->user.int_hiz() + (tileHeight(actor->spr.picnum) << 8);
     if (actor->int_pos().Z < minh)
     {
         // put player at the ceiling
@@ -718,7 +718,7 @@ int DoActorFall(DSWActor* actor)
     actor->add_int_z(actor->user.jump_speed * ACTORMOVETICS);
 
     // Stick like glue when you hit the ground
-    if (actor->int_pos().Z > actor->user.loz)
+    if (actor->spr.pos.Z > actor->user.loz)
     {
         DoActorStopFall(actor);
     }
@@ -728,7 +728,7 @@ int DoActorFall(DSWActor* actor)
 
 int DoActorStopFall(DSWActor* actor)
 {
-    actor->set_int_z(actor->user.loz);
+    actor->spr.pos.Z = actor->user.loz;
 
     actor->user.Flags &= ~(SPR_FALLING | SPR_JUMPING);
     actor->spr.cstat &= ~(CSTAT_SPRITE_YFLIP);
@@ -829,7 +829,7 @@ int DoJump(DSWActor* actor)
     actor->add_int_z(actor->user.jump_speed * ACTORMOVETICS);
 
     // if player gets to close the ceiling while jumping
-    int minh = actor->user.hiz + (tileHeight(actor->spr.picnum) << 8);
+    int minh = actor->user.int_hiz() + (tileHeight(actor->spr.picnum) << 8);
     if (actor->int_pos().Z < minh)
     {
         // put player at the ceiling
@@ -867,9 +867,9 @@ int DoFall(DSWActor* actor)
     actor->add_int_z(actor->user.jump_speed * ACTORMOVETICS);
 
     // Stick like glue when you hit the ground
-    if (actor->int_pos().Z > actor->user.loz - actor->user.floor_dist)
+    if (actor->int_pos().Z > actor->user.int_loz() - actor->user.int_floor_dist())
     {
-        actor->set_int_z(actor->user.loz - actor->user.floor_dist);
+        actor->set_int_z(actor->user.int_loz() - actor->user.int_floor_dist());
         actor->user.Flags &= ~(SPR_FALLING);
     }
 

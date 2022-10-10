@@ -20,13 +20,27 @@ int32_t CONFIG_ReadSetup(void);
 
 bool WarpSectorInfo(sectortype* sect, DSWActor** sp_warp);
 DSWActor* Warp(int32_t* x, int32_t* y, int32_t* z, sectortype** sect);
+inline DSWActor* Warp(DVector3& pos, sectortype** sect)
+{
+	vec3_t vv = { int(pos.X * worldtoint), int(pos.Y * worldtoint), int(pos.Z * zworldtoint) };
+	auto act = Warp(&vv.X, &vv.Y, &vv.Z, sect);
+	pos = { vv.X * inttoworld, vv.Y * inttoworld, vv.Z * zinttoworld };
+	return act;
+}
 DSWActor* WarpPlane(int32_t* x, int32_t* y, int32_t* z, sectortype** sect);
+inline DSWActor* WarpPlane(DVector3& pos, sectortype** sect)
+{
+	vec3_t vv = { int(pos.X * worldtoint), int(pos.Y * worldtoint), int(pos.Z * zworldtoint) };
+	auto act = WarpPlane(&vv.X, &vv.Y, &vv.Z, sect);
+	pos = { vv.X * inttoworld, vv.Y * inttoworld, vv.Z * zinttoworld };
+	return act;
+}
 
 
 
 void ProcessVisOn(void);
 void VisViewChange(PLAYER* pp, int* vis);
-void SpawnVis(DSWActor* Parent, sectortype* sect, int x, int y, int z, int amt);
+void SpawnVis(DSWActor* Parent, sectortype* sect, const DVector3& pos, int amt);
 
 enum TriggerType { TRIGGER_TYPE_REMOTE_SO };
 
@@ -34,7 +48,7 @@ int ActorFollowTrack(DSWActor*, short locktics);
 void ActorLeaveTrack(DSWActor*);
 void RefreshPoints(SECTOR_OBJECT* sop, int nx, int ny, bool dynamic);
 void TrackSetup(void);
-void PlaceSectorObject(SECTOR_OBJECT* sop, int newx, int newy);
+void PlaceSectorObject(SECTOR_OBJECT* sop, const DVector2& newpos);
 void PlaceSectorObjectsOnTracks(void);
 void PlaceActorsOnTracks(void);
 void SetupSectorObject(sectortype* sect, short tag);

@@ -740,7 +740,7 @@ void movefallers_d(void)
 				}
 			}
 			act->set_int_ang(act->temp_data[1]);
-			act->add_int_z(+(16 << 8));
+			act->spr.pos.Z += 16;
 		}
 		else if (act->temp_data[0] == 1)
 		{
@@ -770,14 +770,14 @@ void movefallers_d(void)
 						x = gs.gravity;
 				}
 
-				if (act->int_pos().Z < (sectp->int_floorz() - FOURSLEIGHT))
+				if (act->spr.pos.Z < sectp->floorz - 1)
 				{
 					act->spr.zvel += x;
 					if (act->spr.zvel > 6144)
 						act->spr.zvel = 6144;
 					act->add_int_z(act->spr.zvel);
 				}
-				if ((sectp->int_floorz() - act->int_pos().Z) < (16 << 8))
+				if ((sectp->floorz - act->spr.pos.Z) < 16)
 				{
 					j = 1 + (krand() & 7);
 					for (x = 0; x < j; x++) RANDOMSCRAP(act);
@@ -1645,7 +1645,7 @@ static void weaponcommon_d(DDukeActor* proj)
 						if (proj->spr.zvel < 0)
 						{
 							spawned->spr.cstat |= CSTAT_SPRITE_YFLIP; 
-							spawned->add_int_z(72 << 8);
+							spawned->spr.pos.Z += 72;
 						}
 					}
 				}
@@ -1749,7 +1749,7 @@ void moveweapons_d(void)
 void movetransports_d(void)
 {
 	int warpspriteto;
-	int ll;
+	double ll;
 
 	DukeStatIterator iti(STAT_TRANSPORT);
 	while (auto act = iti.Next())
@@ -1932,17 +1932,17 @@ void movetransports_d(void)
 			case STAT_FALLER:
 			case STAT_DUMMYPLAYER:
 
-				ll = abs(act2->spr.zvel);
+				ll = abs(act2->spr.zvel) * zinttoworld;
 
 				{
 					warpspriteto = 0;
-					if (ll && sectlotag == 2 && act2->int_pos().Z < (sectp->int_ceilingz() + ll))
+					if (ll && sectlotag == 2 && act2->spr.pos.Z < (sectp->ceilingz + ll))
 						warpspriteto = 1;
 
-					if (ll && sectlotag == 1 && act2->int_pos().Z > (sectp->int_floorz() - ll))
+					if (ll && sectlotag == 1 && act2->spr.pos.Z > (sectp->floorz - ll))
 						warpspriteto = 1;
 
-					if (sectlotag == 0 && (onfloorz || abs(act2->int_pos().Z - act->int_pos().Z) < 4096))
+					if (sectlotag == 0 && (onfloorz || abs(act2->spr.pos.Z - act->spr.pos.Z) < 16))
 					{
 						if ((!Owner || Owner->GetOwner() != Owner) && onfloorz && act->temp_data[0] > 0 && act2->spr.statnum != STAT_MISC)
 						{
@@ -1991,7 +1991,7 @@ void movetransports_d(void)
 								{
 									if (act2->spr.statnum == STAT_PROJECTILE || (checkcursectnums(act->sector()) == -1 && checkcursectnums(Owner->sector()) == -1))
 									{
-										act2->add_int_pos({ (Owner->int_pos().X - act->int_pos().X),(Owner->int_pos().Y - act->int_pos().Y), -(act->int_pos().Z - Owner->sector()->int_floorz()) });
+										act2->spr.pos += (Owner->spr.pos - act->spr.pos.XY()).plusZ(-Owner->sector()->floorz);
 										act2->spr.angle = Owner->spr.angle;
 
 										act2->backupang();
@@ -2016,24 +2016,21 @@ void movetransports_d(void)
 								}
 								else
 								{
-									act2->spr.pos.X += Owner->spr.pos.X - act->spr.pos.X;
-									act2->spr.pos.Y += Owner->spr.pos.Y - act->spr.pos.Y;
+									act2->spr.pos.XY() += Owner->spr.pos.XY() - act->spr.pos.XY();
 									act2->spr.pos.Z = Owner->spr.pos.Z + 16;
 									act2->backupz();
 									ChangeActorSect(act2, Owner->sector());
 								}
 								break;
 							case ST_1_ABOVE_WATER:
-								act2->spr.pos.X += Owner->spr.pos.X - act->spr.pos.X;
-								act2->spr.pos.Y += Owner->spr.pos.Y - act->spr.pos.Y;
-								act2->set_int_z(Owner->sector()->int_ceilingz() + ll);
+								act2->spr.pos.XY() += Owner->spr.pos.XY() - act->spr.pos.XY();
+								act2->spr.pos.Z = Owner->sector()->ceilingz + ll;
 								act2->backupz();
 								ChangeActorSect(act2, Owner->sector());
 								break;
 							case ST_2_UNDERWATER:
-								act2->spr.pos.X += Owner->spr.pos.X - act->spr.pos.X;
-								act2->spr.pos.Y += Owner->spr.pos.Y - act->spr.pos.Y;
-								act2->set_int_z(Owner->sector()->int_floorz() - ll);
+								act2->spr.pos.XY() += Owner->spr.pos.XY() - act->spr.pos.XY();
+								act2->spr.pos.Z = Owner->sector()->ceilingz - ll;
 								act2->backupz();
 								ChangeActorSect(act2, Owner->sector());
 								break;
@@ -2610,7 +2607,7 @@ static void heavyhbomb(DDukeActor *actor)
 
 	if (actor->sector()->lotag == 1 && actor->spr.zvel == 0)
 	{
-		actor->add_int_z(32 << 8);
+		actor->spr.pos.Z += 32;
 		if (actor->temp_data[5] == 0)
 		{
 			actor->temp_data[5] = 1;
@@ -2957,16 +2954,11 @@ static void fireflyflyingeffect(DDukeActor *actor)
 	else
 		actor->spr.cstat &= ~CSTAT_SPRITE_INVISIBLE;
 
-	double dx = Owner->int_pos().X - ps[p].GetActor()->int_pos().X;
-	double dy = Owner->int_pos().Y - ps[p].GetActor()->int_pos().Y;
-	double dist = sqrt(dx * dx + dy * dy);
-	if (dist != 0.0) 
-	{
-		dx /= dist;
-		dy /= dist;
-	}
+	auto dvec = Owner->spr.pos.XY() - ps[p].GetActor()->spr.pos.XY();
+	double dist = dvec.Length();
 
-	actor->set_int_pos({ (int)(Owner->int_pos().X - (dx * -10.0)), (int)(Owner->int_pos().Y - (dy * -10.0)), Owner->int_pos().Z + 2048 });
+	if (dist != 0.0) dvec /= dist;
+	actor->spr.pos = Owner->spr.pos + DVector3(dvec.X * -0.625, dvec.Y * -0.625, 8);
 
 	if (Owner->spr.extra <= 0) 
 	{
@@ -3141,7 +3133,7 @@ void moveexplosions_d(void)  // STATNUM 5
 
 		case SHELL:
 		case SHOTGUNSHELL:
-			shell(act, (sectp->int_floorz() + (24 << 8)) < act->int_pos().Z);
+			shell(act, sectp->floorz + 24 < act->spr.pos.Z);
 			continue;
 
 		case GLASSPIECES:

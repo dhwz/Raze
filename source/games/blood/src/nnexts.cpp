@@ -746,8 +746,8 @@ void nnExtInitModernStuff(TArray<DBloodActor*>& actors)
 
 		// very quick fix for floor sprites with Touch trigger flag if their Z is equals sector florz / ceilgz
 		if (actor->insector() && actor->xspr.Touch && (actor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_FLOOR)) {
-			if (actor->int_pos().Z == actor->sector()->int_floorz()) actor->add_int_z(-1);
-			else if (actor->int_pos().Z == actor->sector()->int_ceilingz()) actor->add_int_z(1);
+			if (actor->spr.pos.Z == actor->sector()->floorz) actor->spr.pos.Z -= zmaptoworld;
+			else if (actor->spr.pos.Z == actor->sector()->ceilingz) actor->spr.pos.Z += zmaptoworld;
 		}
 
 		// make Proximity flag work not just for dudes and things...
@@ -977,7 +977,7 @@ static DBloodActor* randomDropPickupObject(DBloodActor* sourceactor, int prevIte
 			if (spawned)
 			{
 				sourceactor->xspr.dropMsg = uint8_t(spawned->spr.type); // store dropped item type in dropMsg
-				spawned->set_int_pos(sourceactor->int_pos());
+				spawned->spr.pos = sourceactor->spr.pos;
 
 				if ((sourceactor->spr.flags & kModernTypeFlag1) && (sourceactor->xspr.txID > 0 || (sourceactor->xspr.txID != 3 && sourceactor->xspr.lockMsg > 0)))
 				{
@@ -1676,10 +1676,8 @@ void debrisMove(int listIndex)
 		auto oldcstat = actor->spr.cstat;
 		actor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
 
-		auto pos = actor->int_pos();
-		ClipMove(pos, &pSector, actor->vel.X >> 12,
+		ClipMove(actor->spr.pos, &pSector, actor->vel.X >> 12,
 			actor->vel.Y >> 12, clipDist, ceilDist, floorDist, CLIPMASK0, moveHit);
-		actor->set_int_pos(pos);
 		actor->hit.hit = moveHit;
 
 		actor->spr.cstat = oldcstat;
@@ -1749,7 +1747,7 @@ void debrisMove(int listIndex)
 	}
 	else if ((actor->xspr.physAttr & kPhysGravity) && bottom < floorZ)
 	{
-		actor->add_int_z(455);
+		actor->spr.pos.Z += 1.777;
 		actor->vel.Z += 58254;
 
 	}
@@ -7712,7 +7710,7 @@ bool nnExtCanMove(DBloodActor* actor, DBloodActor* target, int nAngle, int nRang
 	int x = actor->int_pos().X, y = actor->int_pos().Y, z = actor->int_pos().Z;
 	auto pSector = actor->sector();
 	HitScan(actor, z, Cos(nAngle) >> 16, Sin(nAngle) >> 16, 0, CLIPMASK0, nRange);
-	int nDist = approxDist(x - gHitInfo.hitpos.X, y - gHitInfo.hitpos.Y);
+	int nDist = approxDist(x - gHitInfo.int_hitpos().X, y - gHitInfo.int_hitpos().Y);
 	if (target != nullptr && nDist - (actor->spr.clipdist << 2) < nRange)
 		return (target == gHitInfo.actor());
 

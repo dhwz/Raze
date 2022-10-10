@@ -2895,7 +2895,7 @@ bool actHealDude(DBloodActor* actor, int add, int threshold)
 	threshold <<= 4;
 	if (actor->xspr.health < (unsigned)threshold)
 	{
-		if (actor->IsPlayerActor()) sfxPlay3DSound(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, 780, actor->sector());
+		if (actor->IsPlayerActor()) sfxPlay3DSound(actor->spr.pos, 780, actor->sector());
 		actor->xspr.health = min<uint32_t>(actor->xspr.health + add, threshold);
 		return true;
 	}
@@ -3728,7 +3728,7 @@ static int actDamageThing(DBloodActor* source, DBloodActor* actor, int damage, D
 			{
 			case -1:
 				GibSprite(actor, GIBTYPE_14, nullptr, nullptr);
-				sfxPlay3DSound(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, 312, actor->sector());
+				sfxPlay3DSound(actor->spr.pos, 312, actor->sector());
 				actPostSprite(actor, kStatFree);
 				break;
 
@@ -3901,7 +3901,7 @@ static void actImpactMissile(DBloodActor* missileActor, int hitCode)
 
 	case kMissileArcGargoyle:
 		sfxKill3DSound(missileActor, -1, -1);
-		sfxPlay3DSound(missileActor->int_pos().X, missileActor->int_pos().Y, missileActor->int_pos().Z, 306, missileActor->sector());
+		sfxPlay3DSound(missileActor->spr.pos, 306, missileActor->sector());
 		GibSprite(missileActor, GIBTYPE_6, NULL, NULL);
 
 		if (hitCode == 3 && actorHit && (pThingInfo || pDudeInfo))
@@ -3915,7 +3915,7 @@ static void actImpactMissile(DBloodActor* missileActor, int hitCode)
 	case kMissileLifeLeechAltNormal:
 	case kMissileLifeLeechAltSmall:
 		sfxKill3DSound(missileActor, -1, -1);
-		sfxPlay3DSound(missileActor->int_pos().X, missileActor->int_pos().Y, missileActor->int_pos().Z, 306, missileActor->sector());
+		sfxPlay3DSound(missileActor->spr.pos, 306, missileActor->sector());
 
 		if (hitCode == 3 && actorHit && (pThingInfo || pDudeInfo))
 		{
@@ -4029,7 +4029,7 @@ static void actImpactMissile(DBloodActor* missileActor, int hitCode)
 
 	case kMissileEctoSkull:
 		sfxKill3DSound(missileActor, -1, -1);
-		sfxPlay3DSound(missileActor->int_pos().X, missileActor->int_pos().Y, missileActor->int_pos().Z, 522, missileActor->sector());
+		sfxPlay3DSound(missileActor->spr.pos, 522, missileActor->sector());
 		actPostSprite(missileActor, kStatDebris);
 		seqSpawn(20, missileActor, -1);
 		if (hitCode == 3 && actorHit && actorHit->hasX())
@@ -4062,7 +4062,7 @@ static void actImpactMissile(DBloodActor* missileActor, int hitCode)
 
 	case kMissileTeslaRegular:
 		sfxKill3DSound(missileActor, -1, -1);
-		sfxPlay3DSound(missileActor->int_pos().X, missileActor->int_pos().Y, missileActor->int_pos().Z, 518, missileActor->sector());
+		sfxPlay3DSound(missileActor->spr.pos, 518, missileActor->sector());
 		GibSprite(missileActor, (hitCode == 2) ? GIBTYPE_23 : GIBTYPE_22, NULL, NULL);
 		evKillActor(missileActor);
 		seqKill(missileActor);
@@ -4296,7 +4296,7 @@ static void checkHit(DBloodActor* actor)
 				break;
 
 			case kThingZombieHead:
-				sfxPlay3DSound(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, 357, actor->sector());
+				sfxPlay3DSound(actor->spr.pos, 357, actor->sector());
 				actKickObject(actor, actor2);
 				actDamageSprite(nullptr, actor2, kDamageFall, 80);
 				break;
@@ -4374,7 +4374,7 @@ static void checkFloorHit(DBloodActor* actor)
 					pPlayer->kickPower = PlayClock + 60;
 				}
 				actKickObject(actor, actor2);
-				sfxPlay3DSound(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, 357, actor->sector());
+				sfxPlay3DSound(actor->spr.pos, 357, actor->sector());
 				sfxPlay3DSound(actor, 374, 0, 0);
 				break;
 			case kThingZombieHead:
@@ -4384,7 +4384,7 @@ static void checkFloorHit(DBloodActor* actor)
 					pPlayer->kickPower = PlayClock + 60;
 				}
 				actKickObject(actor, actor2);
-				sfxPlay3DSound(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, 357, actor->sector());
+				sfxPlay3DSound(actor->spr.pos, 357, actor->sector());
 				actDamageSprite(nullptr, actor2, kDamageFall, 80);
 				break;
 			case kTrapSawCircular:
@@ -4541,9 +4541,7 @@ static Collision MoveThing(DBloodActor* actor)
 		actor->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
 		if ((actor->GetOwner()) && !cl_bloodvanillaexplosions && !VanillaMode())
 			enginecompatibility_mode = ENGINECOMPATIBILITY_NONE; // improved clipmove accuracy
-		auto pos = actor->int_pos();
-		ClipMove(pos, &pSector, actor->vel.X >> 12, actor->vel.Y >> 12, actor->spr.clipdist << 2, (actor->int_pos().Z - top) / 4, (bottom - actor->int_pos().Z) / 4, CLIPMASK0, lhit);
-		actor->set_int_pos(pos);
+		ClipMove(actor->spr.pos, &pSector, actor->vel.X >> 12, actor->vel.Y >> 12, actor->spr.clipdist << 2, (actor->int_pos().Z - top) / 4, (bottom - actor->int_pos().Z) / 4, CLIPMASK0, lhit);
 		actor->hit.hit = lhit;
 		enginecompatibility_mode = bakCompat; // restore
 		actor->spr.cstat = bakCstat;
@@ -4586,7 +4584,7 @@ static Collision MoveThing(DBloodActor* actor)
 
 	if ((actor->spr.flags & 2) && bottom < floorZ)
 	{
-		actor->add_int_z(455);
+		actor->spr.pos.Z += 1.777;
 		actor->vel.Z += 58254;
 		if (actor->spr.type == kThingZombieHead)
 		{
@@ -4763,9 +4761,7 @@ void MoveDude(DBloodActor* actor)
 		{
 			auto bakCstat = actor->spr.cstat;
 			actor->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-			auto pos = actor->int_pos();
-			ClipMove(pos, &pSector, actor->vel.X >> 12, actor->vel.Y >> 12, wd, tz, bz, CLIPMASK0, actor->hit.hit);
-			actor->set_int_pos(pos);
+			ClipMove(actor->spr.pos, &pSector, actor->vel.X >> 12, actor->vel.Y >> 12, wd, tz, bz, CLIPMASK0, actor->hit.hit);
 			if (pSector == nullptr)
 			{
 				pSector = actor->sector();
@@ -5353,9 +5349,7 @@ int MoveMissile(DBloodActor* actor)
 		}
 		CheckLink(actor);
 		gHitInfo.hitSector = actor->sector();
-		gHitInfo.hitpos.X = actor->int_pos().X;
-		gHitInfo.hitpos.Y = actor->int_pos().Y;
-		gHitInfo.hitpos.Z = actor->int_pos().Z;
+		gHitInfo.hitpos = actor->spr.pos;
 		break;
 	}
 	if (Owner) Owner->spr.cstat = bakCstat;
@@ -5533,7 +5527,7 @@ void actActivateGibObject(DBloodActor* actor)
 	if (gib1 > 0) GibSprite(actor, (GIBTYPE)(gib1 - 1), nullptr, nullptr);
 	if (gib2 > 0) GibSprite(actor, (GIBTYPE)(gib2 - 1), nullptr, nullptr);
 	if (gib3 > 0 && actor->xspr.burnTime > 0) GibSprite(actor, (GIBTYPE)(gib3 - 1), nullptr, nullptr);
-	if (sound > 0) sfxPlay3DSound(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, sound, actor->sector());
+	if (sound > 0) sfxPlay3DSound(actor->spr.pos, sound, actor->sector());
 	if (dropmsg > 0) actDropObject(actor, dropmsg);
 
 	if (!(actor->spr.cstat & CSTAT_SPRITE_INVISIBLE) && !(actor->spr.flags & kHitagRespawn))
@@ -6414,8 +6408,8 @@ DBloodActor* actFireThing(DBloodActor* actor, int a2, int a3, int a4, int thingT
 	y += MulScale(actor->spr.clipdist, Sin(actor->int_ang()), 28);
 	if (HitScan(actor, z, x - actor->int_pos().X, y - actor->int_pos().Y, 0, CLIPMASK0, actor->spr.clipdist) != -1)
 	{
-		x = gHitInfo.hitpos.X - MulScale(actor->spr.clipdist << 1, Cos(actor->int_ang()), 28);
-		y = gHitInfo.hitpos.Y - MulScale(actor->spr.clipdist << 1, Sin(actor->int_ang()), 28);
+		x = gHitInfo.int_hitpos().X - MulScale(actor->spr.clipdist << 1, Cos(actor->int_ang()), 28);
+		y = gHitInfo.int_hitpos().Y - MulScale(actor->spr.clipdist << 1, Sin(actor->int_ang()), 28);
 	}
 	auto fired = actSpawnThing(actor->sector(), x, y, z, thingType);
 	fired->SetOwner(actor);
@@ -6531,13 +6525,13 @@ DBloodActor* actFireMissile(DBloodActor* actor, int a2, int a3, int a4, int a5, 
 		if (hit == 3 || hit == 0)
 		{
 			impact = true;
-			x = gHitInfo.hitpos.X - MulScale(Cos(actor->int_ang()), 16, 30);
-			y = gHitInfo.hitpos.Y - MulScale(Sin(actor->int_ang()), 16, 30);
+			x = gHitInfo.int_hitpos().X - MulScale(Cos(actor->int_ang()), 16, 30);
+			y = gHitInfo.int_hitpos().Y - MulScale(Sin(actor->int_ang()), 16, 30);
 		}
 		else
 		{
-			x = gHitInfo.hitpos.X - MulScale(pMissileInfo->clipDist << 1, Cos(actor->int_ang()), 28);
-			y = gHitInfo.hitpos.Y - MulScale(pMissileInfo->clipDist << 1, Sin(actor->int_ang()), 28);
+			x = gHitInfo.int_hitpos().X - MulScale(pMissileInfo->clipDist << 1, Cos(actor->int_ang()), 28);
+			y = gHitInfo.int_hitpos().Y - MulScale(pMissileInfo->clipDist << 1, Sin(actor->int_ang()), 28);
 		}
 	}
 	auto spawned = actSpawnSprite(actor->sector(), x, y, z, 5, 1);
@@ -6706,16 +6700,16 @@ void actFireVector(DBloodActor* shooter, int a2, int a3, int a4, int a5, int a6,
 			if (powerupCheck(pPlayer, kPwUpReflectShots))
 			{
 				gHitInfo.hitActor = shooter;
-				gHitInfo.hitpos = shooter->int_pos();
+				gHitInfo.hitpos = shooter->spr.pos;
 			}
 		}
 	}
-	int x = gHitInfo.hitpos.X - MulScale(a4, 16, 14);
-	int y = gHitInfo.hitpos.Y - MulScale(a5, 16, 14);
-	int z = gHitInfo.hitpos.Z - MulScale(a6, 256, 14);
+	int x = gHitInfo.int_hitpos().X - MulScale(a4, 16, 14);
+	int y = gHitInfo.int_hitpos().Y - MulScale(a5, 16, 14);
+	int z = gHitInfo.int_hitpos().Z - MulScale(a6, 256, 14);
 	auto pSector = gHitInfo.hitSector;
 	uint8_t nSurf = kSurfNone;
-	if (nRange == 0 || approxDist(gHitInfo.hitpos.X - shooter->int_pos().X, gHitInfo.hitpos.Y - shooter->int_pos().Y) < nRange)
+	if (nRange == 0 || approxDist(gHitInfo.int_hitpos().X - shooter->int_pos().X, gHitInfo.int_hitpos().Y - shooter->int_pos().Y) < nRange)
 	{
 		switch (hit)
 		{
@@ -6741,9 +6735,9 @@ void actFireVector(DBloodActor* shooter, int a2, int a3, int a4, int a5, int a6,
 			nSurf = surfType[pWall->picnum];
 			if (actCanSplatWall(pWall))
 			{
-				int xx = gHitInfo.hitpos.X - MulScale(a4, 16, 14);
-				int yy = gHitInfo.hitpos.Y - MulScale(a5, 16, 14);
-				int zz = gHitInfo.hitpos.Z - MulScale(a6, 256, 14);
+				int xx = gHitInfo.int_hitpos().X - MulScale(a4, 16, 14);
+				int yy = gHitInfo.int_hitpos().Y - MulScale(a5, 16, 14);
+				int zz = gHitInfo.int_hitpos().Z - MulScale(a6, 256, 14);
 				int nnSurf = surfType[pWall->picnum];
 				assert(nnSurf < kSurfMax);
 				if (pVectorData->surfHit[nnSurf].fx1 >= 0)
@@ -6833,17 +6827,17 @@ void actFireVector(DBloodActor* shooter, int a2, int a3, int a4, int a5, int a6,
 					a4 += Random3(4000);
 					a5 += Random3(4000);
 					a6 += Random3(4000);
-					if (HitScan(actor, gHitInfo.hitpos.Z, a4, a5, a6, CLIPMASK1, tt) == 0)
+					if (HitScan(actor, gHitInfo.int_hitpos().Z, a4, a5, a6, CLIPMASK1, tt) == 0)
 					{
-						if (approxDist(gHitInfo.hitpos.X - actor->int_pos().X, gHitInfo.hitpos.Y - actor->int_pos().Y) <= tt)
+						if (approxDist(gHitInfo.int_hitpos().X - actor->int_pos().X, gHitInfo.int_hitpos().Y - actor->int_pos().Y) <= tt)
 						{
 							auto pWall = gHitInfo.hitWall;
 							auto pSector1 = gHitInfo.hitSector;
 							if (actCanSplatWall(pWall))
 							{
-								int xx = gHitInfo.hitpos.X - MulScale(a4, 16, 14);
-								int yy = gHitInfo.hitpos.Y - MulScale(a5, 16, 14);
-								int zz = gHitInfo.hitpos.Z - MulScale(a6, 16 << 4, 14);
+								int xx = gHitInfo.int_hitpos().X - MulScale(a4, 16, 14);
+								int yy = gHitInfo.int_hitpos().Y - MulScale(a5, 16, 14);
+								int zz = gHitInfo.int_hitpos().Z - MulScale(a6, 16 << 4, 14);
 								int nnSurf = surfType[pWall->picnum];
 								const VECTORDATA* pVectorData1 = &gVectorData[19];
 								FX_ID t2 = pVectorData1->surfHit[nnSurf].fx2;

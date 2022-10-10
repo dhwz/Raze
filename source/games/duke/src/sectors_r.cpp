@@ -313,7 +313,7 @@ void operaterespawns_r(int low)
 			if (badguypic(act->spr.hitag) && ud.monsters_off) break;
 
 			auto star = spawn(act, TRANSPORTERSTAR);
-			if (star) star->add_int_z(-(32 << 8));
+			if (star) star->spr.pos.Z -= 32;
 
 			act->spr.extra = 66 - 12;   // Just a way to killit
 			break;
@@ -997,7 +997,7 @@ void checkhitwall_r(DDukeActor* spr, walltype* wal, int x, int y, int z, int atw
 
 	if (((wal->cstat & CSTAT_WALL_MASKED) || wal->overpicnum == BIGFORCE) && wal->twoSided())
 		if (wal->nextSector()->int_floorz() > z)
-			if (wal->nextSector()->int_floorz() - wal->nextSector()->int_ceilingz())
+			if (wal->nextSector()->floorz - wal->nextSector()->ceilingz)
 				switch (wal->overpicnum)
 				{
 				case FANSPRITE:
@@ -2284,7 +2284,7 @@ void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 		}
 		{
 			auto spawned = spawn(targ, STEAM);
-			if (spawned) spawned->set_int_z(targ->sector()->int_floorz() - (32 << 8));
+			if (spawned) spawned->spr.pos.Z = targ->sector()->floorz - 32;
 		}
 		break;
 

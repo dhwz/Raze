@@ -947,7 +947,7 @@ int InitRipper2Hang(DSWActor* actor)
         if (hit.hitSector == nullptr)
             continue;
 
-        dist = Distance(actor->int_pos().X, actor->int_pos().Y, hit.hitpos.X, hit.hitpos.Y);
+		dist = DistanceI(actor->spr.pos, hit.hitpos);
 
         if (hit.hitWall == nullptr || dist < 2000 || dist > 7000)
         {
@@ -1070,7 +1070,7 @@ int DoRipper2BeginJumpAttack(DSWActor* actor)
     // Always jump at player if mad.
 
 	Collision coll = move_sprite(actor, bcos(tang, -7), bsin(tang, -7),
-							   0, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_ACTOR, ACTORMOVETICS);
+							   0, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_ACTOR, ACTORMOVETICS);
     if (coll.type != kHitNone)
         actor->set_int_ang(NORM_ANGLE((actor->int_ang() + 1024) + (RANDOM_NEG(256, 6) >> 6)));
     else
@@ -1171,7 +1171,7 @@ int DoRipper2RipHeart(DSWActor* actor)
     actor->user.WaitTics = 6 * 120;
 
     // player face ripper2
-    target->set_int_ang(getangle(actor->int_pos().X - target->int_pos().X, actor->int_pos().Y - target->int_pos().Y));
+    target->spr.angle = VecToAngle(actor->spr.pos - target->spr.pos);
     return 0;
 }
 

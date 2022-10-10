@@ -479,7 +479,7 @@ int seq_GetSeqPicnum(int16_t nSeq, int16_t edx, int16_t ebx)
 int seq_PlotArrowSequence(int nSprite, int16_t nSeq, int nVal)
 {
     tspritetype* pTSprite = mytspriteArray->get(nSprite);
-    int nAngle = GetMyAngle(nCamerax - pTSprite->int_pos().X, nCameray - pTSprite->int_pos().Y);
+    int nAngle = getangle(nCamerax - pTSprite->int_pos().X, nCameray - pTSprite->int_pos().Y);
 
     int nSeqOffset = ((((pTSprite->int_ang() + 512) - nAngle) + 128) & kAngleMask) >> 8;
 
@@ -527,7 +527,7 @@ int seq_PlotArrowSequence(int nSprite, int16_t nSeq, int nVal)
 int seq_PlotSequence(int nSprite, int16_t edx, int16_t nFrame, int16_t ecx)
 {
     tspritetype* pTSprite = mytspriteArray->get(nSprite);
-    int nAngle = GetMyAngle(nCamerax - pTSprite->int_pos().X, nCameray - pTSprite->int_pos().Y);
+    int nAngle = getangle(nCamerax - pTSprite->int_pos().X, nCameray - pTSprite->int_pos().Y);
 
 
     int val;
@@ -581,7 +581,7 @@ int seq_PlotSequence(int nSprite, int16_t edx, int16_t nFrame, int16_t ecx)
         }
 
         tspritetype* tsp = mytspriteArray->newTSprite();
-        tsp->set_int_pos(pTSprite->int_pos());
+        tsp->pos = pTSprite->pos;
 
         tsp->shade = shade;
         tsp->pal = pTSprite->pal;
@@ -632,7 +632,7 @@ int seq_PlotSequence(int nSprite, int16_t edx, int16_t nFrame, int16_t ecx)
             }
 
             pTSprite->cstat = CSTAT_SPRITE_ALIGNMENT_FLOOR | CSTAT_SPRITE_TRANSLUCENT;
-            pTSprite->set_int_z(nFloorZ);
+            pTSprite->pos.Z = pSector->floorz;
             pTSprite->yrepeat = (uint8_t)edx;
             pTSprite->xrepeat = (uint8_t)edx;
             pTSprite->statnum = -3;

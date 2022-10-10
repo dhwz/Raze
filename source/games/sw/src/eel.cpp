@@ -360,9 +360,9 @@ int DoEelMatchPlayerZ(DSWActor* actor);
 void EelCommon(DSWActor* actor)
 {
     actor->spr.clipdist = (100) >> 2;
-    actor->user.floor_dist = Z(16);
-    actor->user.floor_dist = Z(16);
-    actor->user.ceiling_dist = Z(20);
+    actor->user.floor_dist = (16);
+    actor->user.floor_dist = (16);
+    actor->user.ceiling_dist = (20);
 
     actor->user.pos.Z = actor->int_pos().Z;
 
@@ -394,7 +394,7 @@ int SetupEel(DSWActor* actor)
     EelCommon(actor);
 
     actor->user.Flags &= ~(SPR_SHADOW); // Turn off shadows
-    actor->user.zclip = Z(8);
+    actor->user.zclip = (8);
 
     return 0;
 }
@@ -424,19 +424,19 @@ int DoEelMatchPlayerZ(DSWActor* actor)
     {
         if (actor->user.hi_sectp)
         {
-            actor->user.hiz = actor->sector()->int_ceilingz() + Z(16);
+            actor->user.hiz = actor->sector()->ceilingz + 16;
             actor->user.hi_sectp = actor->sector();
         }
         else
         {
-            if (actor->user.hiz < actor->sector()->int_ceilingz() + Z(16))
-                actor->user.hiz = actor->sector()->int_ceilingz() + Z(16);
+            if (actor->user.hiz < actor->sector()->ceilingz + 16)
+                actor->user.hiz = actor->sector()->ceilingz + 16;
         }
     }
 
     // actor does a sine wave about actor->user.sz - this is the z mid point
 
-    zdiff = (ActorZOfBottom(actor->user.targetActor) - Z(8)) - actor->user.pos.Z;
+    zdiff = (ActorZOfBottom(actor->user.targetActor) - Z(8)) - actor->user.int_upos().Z;
 
     // check z diff of the player and the sprite
     zdist = Z(20 + RandomRange(64)); // put a random amount
@@ -444,16 +444,16 @@ int DoEelMatchPlayerZ(DSWActor* actor)
     {
         if (zdiff > 0)
             // manipulate the z midpoint
-            actor->user.pos.Z += 160 * ACTORMOVETICS;
+            actor->user.pos.Z += 160 * ACTORMOVETICS * zmaptoworld;
         else
-            actor->user.pos.Z -= 160 * ACTORMOVETICS;
+            actor->user.pos.Z -= 160 * ACTORMOVETICS * zmaptoworld;
     }
 
     const int EEL_BOB_AMT = (Z(4));
 
     // save off lo and hi z
-    loz = actor->user.loz;
-    hiz = actor->user.hiz;
+    loz = actor->user.int_loz();
+    hiz = actor->user.int_hiz();
 
     // adjust loz/hiz for water depth
     if (actor->user.lo_sectp && actor->user.lo_sectp->hasU() && FixedToInt(actor->user.lo_sectp->depth_fixed))
@@ -464,16 +464,16 @@ int DoEelMatchPlayerZ(DSWActor* actor)
     {
         DISTANCE(actor->int_pos().X, actor->int_pos().Y, actor->user.lowActor->int_pos().X, actor->user.lowActor->int_pos().Y, dist, a, b, c);
         if (dist <= 300)
-            bound = actor->user.pos.Z;
+            bound = actor->user.int_upos().Z;
         else
-            bound = loz - actor->user.floor_dist;
+            bound = loz - actor->user.int_floor_dist();
     }
     else
-        bound = loz - actor->user.floor_dist - EEL_BOB_AMT;
+        bound = loz - actor->user.int_floor_dist() - EEL_BOB_AMT;
 
-    if (actor->user.pos.Z > bound)
+    if (actor->user.int_upos().Z > bound)
     {
-        actor->user.pos.Z = bound;
+        actor->user.pos.Z = bound * zinttoworld;
     }
 
     // upper bound
@@ -481,29 +481,30 @@ int DoEelMatchPlayerZ(DSWActor* actor)
     {
         DISTANCE(actor->int_pos().X, actor->int_pos().Y, actor->user.highActor->int_pos().X, actor->user.highActor->int_pos().Y, dist, a, b, c);
         if (dist <= 300)
-            bound = actor->user.pos.Z;
+            bound = actor->user.int_upos().Z;
         else
-            bound = hiz + actor->user.ceiling_dist;
+            bound = hiz + actor->user.int_ceiling_dist();
     }
     else
-        bound = hiz + actor->user.ceiling_dist + EEL_BOB_AMT;
+        bound = hiz + actor->user.int_ceiling_dist() + EEL_BOB_AMT;
 
-    if (actor->user.pos.Z < bound)
+    if (actor->user.int_upos().Z < bound)
     {
-        actor->user.pos.Z = bound;
+        actor->user.pos.Z = bound * zinttoworld;
     }
 
-    actor->user.pos.Z = min(actor->user.pos.Z, loz - actor->user.floor_dist);
-    actor->user.pos.Z = max(actor->user.pos.Z, hiz + actor->user.ceiling_dist);
+    actor->user.pos.Z = min(actor->user.int_upos().Z, loz - actor->user.int_floor_dist()) * zinttoworld;
+    actor->user.pos.Z = max(actor->user.int_upos().Z, hiz + actor->user.int_ceiling_dist()) * zinttoworld;
 
     actor->user.Counter = (actor->user.Counter + (ACTORMOVETICS << 3) + (ACTORMOVETICS << 1)) & 2047;
-    actor->set_int_z(actor->user.pos.Z + MulScale(EEL_BOB_AMT, bsin(actor->user.Counter), 14));
+    actor->set_int_z(actor->user.int_upos().Z + MulScale(EEL_BOB_AMT, bsin(actor->user.Counter), 14));
 
-    bound = actor->user.hiz + actor->user.ceiling_dist + EEL_BOB_AMT;
+    bound = actor->user.int_hiz() + actor->user.int_ceiling_dist() + EEL_BOB_AMT;
     if (actor->int_pos().Z < bound)
     {
         // bumped something
-        actor->set_int_z(actor->user.pos.Z = bound + EEL_BOB_AMT);
+        actor->set_int_z(bound + EEL_BOB_AMT);
+        actor->user.pos.Z = actor->spr.pos.Z;
     }
 
     return 0;
@@ -530,11 +531,11 @@ int DoEelDeath(DSWActor* actor)
     nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14);
     ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14);
 
-    actor->user.coll = move_sprite(actor, nx, ny, 0L, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, ACTORMOVETICS);
+    actor->user.coll = move_sprite(actor, nx, ny, 0L, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, ACTORMOVETICS);
     DoFindGroundPoint(actor);
 
     // on the ground
-    if (actor->int_pos().Z >= actor->user.loz)
+    if (actor->spr.pos.Z >= actor->user.loz)
     {
         actor->user.Flags &= ~(SPR_FALLING|SPR_SLIDING);
         if (RandomRange(1000) > 500)

@@ -107,6 +107,23 @@ ANIMATOR DoFastShrapJumpFall;
 int SpawnSmokePuff(DSWActor* actor);
 bool WarpToUnderwater(sectortype** sect, int *x, int *y, int *z);
 bool WarpToSurface(sectortype** sect, int *x, int *y, int *z);
+
+inline bool WarpToSurface(DVector3& pos, sectortype** sect)
+{
+    vec3_t vv = { int(pos.X * worldtoint), int(pos.Y * worldtoint), int(pos.Z * zworldtoint) };
+    auto act = WarpToSurface(sect, &vv.X, &vv.Y, &vv.Z);
+    pos = { vv.X * inttoworld, vv.Y * inttoworld, vv.Z * zinttoworld };
+    return act;
+}
+
+inline bool WarpToUnderwater(DVector3& pos, sectortype** sect)
+{
+    vec3_t vv = { int(pos.X * worldtoint), int(pos.Y * worldtoint), int(pos.Z * zworldtoint) };
+    auto act = WarpToUnderwater(sect, &vv.X, &vv.Y, &vv.Z);
+    pos = { vv.X * inttoworld, vv.Y * inttoworld, vv.Z * zinttoworld };
+    return act;
+}
+
 bool TestDontStickSector(sectortype* hit_sect);
 ANIMATOR SpawnShrapX;
 bool WeaponMoveHit(DSWActor* actor);
@@ -120,7 +137,7 @@ int SpawnDemonFist(DSWActor*);
 void SpawnTankShellExp(DSWActor*);
 void SpawnMicroExp(DSWActor*);
 void SpawnExpZadjust(DSWActor* actor, DSWActor* expActor, int upper_zsize, int lower_zsize);
-int BulletHitSprite(DSWActor* actor, DSWActor* hitActor, int hit_x, int hit_y, int hit_z, short ID);
+int BulletHitSprite(DSWActor* actor, DSWActor* hitActor, const DVector3& pos, short ID);
 int SpawnSplashXY(int hit_x,int hit_y,int hit_z,sectortype*);
 DSWActor* SpawnBoatSparks(PLAYER* pp, sectortype* hit_sect, walltype* hit_wall, int hit_x, int hit_y, int hit_z, short hit_ang);
 
@@ -3707,9 +3724,11 @@ AutoShrap:
                 break;
             case Vomit1:
                 shrap_bounce = false;
-                actor->add_int_z(-Z(4));
-                shrap_xsize = actor->user.pos.X = 12 + (RANDOM_P2(32<<8)>>8);
-                shrap_ysize = actor->user.pos.Y = 12 + (RANDOM_P2(32<<8)>>8);
+				actor->spr.pos.Z -= 4;
+                shrap_xsize = 12 + (RANDOM_P2(32<<8)>>8);
+                shrap_ysize = 12 + (RANDOM_P2(32<<8)>>8);
+                actor->user.pos.X = shrap_xsize; // notreallypos
+                actor->user.pos.Y = shrap_ysize;
                 actor->user.Counter = (RANDOM_P2(2048<<5)>>5);
 
                 nx = bcos(actor->int_ang(), -6);
@@ -3722,9 +3741,11 @@ AutoShrap:
                 break;
             case EMP:
                 shrap_bounce = false;
-                actor->add_int_z(-Z(4));
-                shrap_xsize = actor->user.pos.X = 5 + (RANDOM_P2(4<<8)>>8);
-                shrap_ysize = actor->user.pos.Y = 5 + (RANDOM_P2(4<<8)>>8);
+				actor->spr.pos.Z -= 4;
+                shrap_xsize = 5 + (RANDOM_P2(4<<8)>>8);
+                shrap_ysize = 5 + (RANDOM_P2(4<<8)>>8);
+                actor->user.pos.X = shrap_xsize; // notreallypos
+                actor->user.pos.Y = shrap_ysize;
                 break;
             }
 
@@ -3748,8 +3769,8 @@ AutoShrap:
             actor->spr.xvel = p->min_vel*2;
             actor->spr.xvel += RandomRange(p->max_vel - p->min_vel);
 
-            actor->user.floor_dist = shrap_floor_dist;
-            actor->user.ceiling_dist = shrap_ceiling_dist;
+            actor->user.floor_dist = shrap_floor_dist * zinttoworld;
+            actor->user.ceiling_dist = shrap_ceiling_dist * zinttoworld;
             actor->user.jump_speed = p->min_jspeed;
             actor->user.jump_speed += RandomRange(p->max_jspeed - p->min_jspeed);
             actor->user.jump_speed = -actor->user.jump_speed;
@@ -3771,14 +3792,15 @@ AutoShrap:
 
 void DoShrapMove(DSWActor* actor)
 {
-    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, 0, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS*2);
+    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, 0, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS*2);
 }
 
 int DoVomit(DSWActor* actor)
 {
     actor->user.Counter = NORM_ANGLE(actor->user.Counter + (30*MISSILEMOVETICS));
-    actor->spr.xrepeat = actor->user.pos.X + MulScale(12, bcos(actor->user.Counter), 14);
-    actor->spr.yrepeat = actor->user.pos.Y + MulScale(12, bsin(actor->user.Counter), 14);
+    // notreallypos
+    actor->spr.xrepeat = int(actor->user.pos.X) + MulScale(12, bcos(actor->user.Counter), 14);
+    actor->spr.yrepeat = int(actor->user.pos.Y) + MulScale(12, bsin(actor->user.Counter), 14);
     if (actor->user.Flags & (SPR_JUMPING))
     {
         DoJump(actor);
@@ -3796,8 +3818,9 @@ int DoVomit(DSWActor* actor)
         ChangeState(actor, s_VomitSplash);
         DoFindGroundPoint(actor);
         MissileWaterAdjust(actor);
-        actor->set_int_z(actor->user.loz);
+        actor->spr.pos.Z = actor->user.loz;
         actor->user.WaitTics = 60;
+        // notreallypos
         actor->user.pos.X = actor->spr.xrepeat;
         actor->user.pos.Y = actor->spr.yrepeat;
         return 0;
@@ -4120,7 +4143,7 @@ int SpawnBlood(DSWActor* actor, DSWActor* weapActor, short hit_ang, int hit_x, i
             // so add it in
             actorNew->spr.xvel += actor->spr.xvel;
 
-            actorNew->user.ceiling_dist = actorNew->user.floor_dist = Z(2);
+            actorNew->user.ceiling_dist = actorNew->user.floor_dist = 2;
             actorNew->user.jump_speed = p->min_jspeed;
             actorNew->user.jump_speed += RandomRange(p->max_jspeed - p->min_jspeed);
             actorNew->user.jump_speed = -actorNew->user.jump_speed;
@@ -4246,7 +4269,7 @@ bool WeaponMoveHit(DSWActor* actor)
         ASSERT(sectp->extra != -1);
 
         // hit floor - closer to floor than ceiling
-        if (actor->int_pos().Z > ((actor->user.hiz + actor->user.loz) >> 1))
+        if (actor->spr.pos.Z > ((actor->user.hiz + actor->user.loz) * 0.5))
         {
             // hit a floor sprite
             if (actor->user.lowActor)
@@ -4442,13 +4465,13 @@ bool WeaponMoveHit(DSWActor* actor)
 
 int DoUziSmoke(DSWActor* actor)
 {
-    actor->add_int_z(-200); // !JIM! Make them float up
+	actor->spr.pos.Z -= 0.78125; // !JIM! Make them float up
     return 0;
 }
 
 int DoShotgunSmoke(DSWActor* actor)
 {
-    actor->add_int_z(-200); // !JIM! Make them float up
+	actor->spr.pos.Z -= 0.78125; // !JIM! Make them float up
     return 0;
 }
 
@@ -4469,7 +4492,7 @@ int DoFireballFlames(DSWActor* actor)
     DSWActor* attach = actor->user.attachActor;
     if (attach != nullptr)
     {
-        actor->set_int_pos({ attach->int_pos().X, attach->int_pos().Y, ActorZOfMiddle(attach) });
+        actor->spr.pos = DVector3(attach->spr.pos.XY(), ActorZOfMiddle(attach));
 
         if ((attach->spr.extra & SPRX_BURNABLE))
         {
@@ -4497,7 +4520,7 @@ int DoFireballFlames(DSWActor* actor)
         {
             if (actor->sector()->hasU() && FixedToInt(actor->sector()->depth_fixed) > 0)
             {
-                if (labs(actor->sector()->int_floorz() - actor->int_pos().Z) <= Z(4))
+                if (abs(actor->sector()->floorz - actor->spr.pos.Z) <= 4)
                 {
                     KillActor(actor);
                     return 0;
@@ -4570,7 +4593,7 @@ int DoBreakFlames(DSWActor* actor)
     {
         if (actor->sector()->hasU() && FixedToInt(actor->sector()->depth_fixed) > 0)
         {
-            if (labs(actor->sector()->int_floorz() - actor->int_pos().Z) <= Z(4))
+            if (abs(actor->sector()->floorz - actor->spr.pos.Z) <= 4)
             {
                 KillActor(actor);
                 return 0;
@@ -7092,7 +7115,7 @@ int DoFlamesDamageTest(DSWActor* actor)
 
             if (actor->user.Radius > 200) // Note: No weaps have bigger radius than 200 cept explosion stuff
             {
-                if (FAFcansee(itActor->int_pos().X,itActor->int_pos().Y,ActorZOfMiddle(actor),itActor->sector(),actor->int_pos().X,actor->int_pos().Y,ActorZOfMiddle(actor),actor->sector()))
+                if (FAFcansee(itActor->int_pos().X,itActor->int_pos().Y,int_ActorZOfMiddle(actor),itActor->sector(),actor->int_pos().X,actor->int_pos().Y,int_ActorZOfMiddle(actor),actor->sector()))
                 {
                     DoDamage(itActor, actor);
                 }
@@ -7237,7 +7260,7 @@ int DoExpDamageTest(DSWActor* actor)
                 // Second parameter MUST have blocking bits set or cansee won't work
                 // added second check for FAF water - hitscans were hitting ceiling
                 if (!FAFcansee(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->sector(), itActor->int_pos().X, itActor->int_pos().Y, ActorUpperZ(actor), itActor->sector()) &&
-                    !FAFcansee(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->sector(), itActor->int_pos().X, itActor->int_pos().Y, ActorLowerZ(actor), itActor->sector()))
+                    !FAFcansee(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->sector(), itActor->int_pos().X, itActor->int_pos().Y, int_ActorLowerZ(actor), itActor->sector()))
                     continue;
 
                 DoDamage(itActor, actor);
@@ -7262,11 +7285,11 @@ int DoExpDamageTest(DSWActor* actor)
             if ((unsigned)dist > actor->user.Radius)
                 continue;
 
-            dist = FindDistance3D(itActor->int_pos().X - actor->int_pos().X, itActor->int_pos().Y - actor->int_pos().Y, ActorZOfMiddle(itActor) - actor->int_pos().Z);
+            dist = FindDistance3D(itActor->int_pos().X - actor->int_pos().X, itActor->int_pos().Y - actor->int_pos().Y, int_ActorZOfMiddle(itActor) - actor->int_pos().Z);
             if ((unsigned)dist > actor->user.Radius)
                 continue;
 
-            if (!FAFcansee(itActor->int_pos().X, itActor->int_pos().Y, ActorZOfMiddle(itActor), itActor->sector(), actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->sector()))
+            if (!FAFcansee(itActor->int_pos().X, itActor->int_pos().Y, int_ActorZOfMiddle(itActor), itActor->sector(), actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->sector()))
                 continue;
 
             if ((itActor->spr.extra & SPRX_BREAKABLE))
@@ -7376,12 +7399,12 @@ int DoStar(DSWActor* actor)
                 SpawnBubble(actor);
         }
 
-        actor->add_int_z(128 * MISSILEMOVETICS);
+        actor->spr.pos.Z += 0.5 * MISSILEMOVETICS;
 
         DoActorZrange(actor);
         MissileWaterAdjust(actor);
 
-        if (actor->int_pos().Z > actor->user.loz)
+        if (actor->spr.pos.Z > actor->user.loz)
         {
             KillActor(actor);
             return true;
@@ -7399,7 +7422,7 @@ int DoStar(DSWActor* actor)
         }
     }
 
-    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     MissileHitDiveArea(actor);
 
@@ -7438,8 +7461,8 @@ int DoStar(DSWActor* actor)
                 actor->spr.yrepeat -= 16;
                 actor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
                 actor->spr.clipdist = 16L >> 2;
-                actor->user.ceiling_dist = Z(2);
-                actor->user.floor_dist = Z(2);
+                actor->user.ceiling_dist = (2);
+                actor->user.floor_dist = (2);
                 // treat this just like a KillSprite but don't kill
                 QueueStar(actor);
                 return 0;
@@ -7464,7 +7487,7 @@ int DoStar(DSWActor* actor)
             bool did_hit_wall;
             auto hit_sect = actor->user.coll.hitSector;
 
-            if (actor->int_pos().Z > ((actor->user.hiz + actor->user.loz) >> 1))
+            if (actor->spr.pos.Z > ((actor->user.hiz + actor->user.loz) * 0.5))
             {
                 if (hit_sect->hasU() && FixedToInt(hit_sect->depth_fixed) > 0)
                 {
@@ -7494,7 +7517,7 @@ int DoStar(DSWActor* actor)
             actor->user.change.X = MulScale(actor->user.change.X, 64000 + (RandomRange(64000) - 32000), 16);
             actor->user.change.Y = MulScale(actor->user.change.Y, 64000 + (RandomRange(64000) - 32000), 16);
 
-            if (actor->int_pos().Z > ((actor->user.hiz + actor->user.loz) >> 1))
+            if (actor->spr.pos.Z > ((actor->user.hiz + actor->user.loz) * 0.5))
                 actor->user.change.Z = MulScale(actor->user.change.Z, 50000, 16); // floor
             else
                 actor->user.change.Z = MulScale(actor->user.change.Z, 40000, 16); // ceiling
@@ -7536,7 +7559,7 @@ int DoStar(DSWActor* actor)
             // 32000 to 96000
             actor->user.change.X = MulScale(actor->user.change.X, 64000 + (RandomRange(64000) - 32000), 16);
             actor->user.change.Y = MulScale(actor->user.change.Y, 64000 + (RandomRange(64000) - 32000), 16);
-            if (actor->int_pos().Z > ((actor->user.hiz + actor->user.loz) >> 1))
+            if (actor->spr.pos.Z > ((actor->user.hiz + actor->user.loz) * 0.5))
                 actor->user.change.Z = MulScale(actor->user.change.Z, 50000, 16); // floor
             else
                 actor->user.change.Z = MulScale(actor->user.change.Z, 40000, 16); // ceiling
@@ -7974,12 +7997,8 @@ int DoPlasmaFountain(DSWActor* actor)
 int DoPlasma(DSWActor* actor)
 {
     int32_t dax, day, daz;
-    int ox,oy,oz;
-
-    ox = actor->int_pos().X;
-    oy = actor->int_pos().Y;
-    oz = actor->int_pos().Z;
-
+	
+	auto oldv = actor->spr.pos;
     DoBlurExtend(actor, 0, 4);
 
     dax = MOVEx(actor->spr.xvel, actor->int_ang());
@@ -8001,7 +8020,7 @@ int DoPlasma(DSWActor* actor)
 
                 if (hitActor->hasU() && hitActor != actor->user.WpnGoalActor)
                 {
-                    actor->set_int_pos({ ox, oy, oz });
+					actor->spr.pos = oldv;
 
                     hitActor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
                     actor->user.coll = move_missile(actor, dax, day, daz, Z(16), Z(16), CLIPMASK_MISSILE, MISSILEMOVETICS);
@@ -8041,7 +8060,7 @@ int DoPlasma(DSWActor* actor)
 
 int DoCoolgFire(DSWActor* actor)
 {
-    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     MissileHitDiveArea(actor);
     if (actor->user.Flags & (SPR_UNDERWATER) && (RANDOM_P2(1024 << 4) >> 4) < 256)
@@ -8196,7 +8215,7 @@ int DoGrenade(DSWActor* actor)
     }
 
     actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z,
-                          actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+                          actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     MissileHitDiveArea(actor);
 
@@ -8290,7 +8309,7 @@ int DoGrenade(DSWActor* actor)
                 else
                 {
                     // hit a sector
-                    if (actor->int_pos().Z > ((actor->user.hiz + actor->user.loz) >> 1))
+                    if (actor->spr.pos.Z > ((actor->user.hiz + actor->user.loz) * 0.5))
                     {
                         // hit a floor
                         if (!(actor->user.Flags & SPR_BOUNCE))
@@ -8326,7 +8345,7 @@ int DoGrenade(DSWActor* actor)
             else
             {
                 // hit floor
-                if (actor->int_pos().Z > ((actor->user.hiz + actor->user.loz) >> 1))
+                if (actor->spr.pos.Z > ((actor->user.hiz + actor->user.loz) * 0.5))
                 {
                     if (actor->user.Flags & (SPR_UNDERWATER))
                         actor->user.Flags |= (SPR_BOUNCE); // no bouncing underwater
@@ -8412,7 +8431,7 @@ int DoVulcanBoulder(DSWActor* actor)
     actor->user.change.Z += actor->user.Counter;
 
     actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z,
-                          actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+                          actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     int32_t const vel = ksqrt(SQ(actor->user.change.X) + SQ(actor->user.change.Y));
 
@@ -8489,7 +8508,7 @@ int DoVulcanBoulder(DSWActor* actor)
                 else
                 {
                     // hit a sloped sector
-                    if (actor->int_pos().Z > ((actor->user.hiz + actor->user.loz) >> 1))
+                    if (actor->spr.pos.Z > ((actor->user.hiz + actor->user.loz) * 0.5))
                     {
                         // hit a floor
                         actor->user.change.X = MulScale(actor->user.change.X, 30000, 16);
@@ -8514,7 +8533,7 @@ int DoVulcanBoulder(DSWActor* actor)
             else
             {
                 // hit unsloped floor
-                if (actor->int_pos().Z > ((actor->user.hiz + actor->user.loz) >> 1))
+                if (actor->spr.pos.Z > ((actor->user.hiz + actor->user.loz) * 0.5))
                 {
                     actor->user.coll.setNone();
                     actor->user.Counter = 0;
@@ -8614,7 +8633,7 @@ int DoMineStuck(DSWActor* actor)
             actor->user.WaitTics = SEC(1)/2;
         }
 
-        vec3_t pos = { attachActor->int_pos().X, attachActor->int_pos().Y, attachActor->int_pos().Z - actor->user.pos.Z };
+        vec3_t pos = { attachActor->int_pos().X, attachActor->int_pos().Y, attachActor->int_pos().Z - actor->user.int_upos().Z };
         SetActorZ(actor, &pos);
         actor->set_int_z(attachActor->int_pos().Z - (ActorSizeZ(attachActor) >> 1));
     }
@@ -8780,7 +8799,7 @@ int DoMine(DSWActor* actor)
     }
 
     actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z,
-                          actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+                          actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     MissileHitDiveArea(actor);
 
@@ -8813,7 +8832,7 @@ int DoMine(DSWActor* actor)
 
                 // attach weapon to sprite
                 SetAttach(hitActor, actor);
-                actor->user.pos.Z = hitActor->int_pos().Z - actor->int_pos().Z;
+                actor->user.pos.Z = hitActor->spr.pos.Z - actor->spr.pos.Z;
 
                 auto own = GetOwner(actor);
                 if (own && own->hasU())
@@ -8842,7 +8861,7 @@ int DoMine(DSWActor* actor)
                 else if ((hitActor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_FLOOR))
                 {
                     // hit floor
-                    if (actor->int_pos().Z > ((actor->user.hiz + actor->user.loz) >> 1))
+                    if (actor->spr.pos.Z > ((actor->user.hiz + actor->user.loz) * 0.5))
                         actor->user.Flags2 |= (SPR2_ATTACH_FLOOR);
                     else
                         actor->user.Flags2 |= (SPR2_ATTACH_CEILING);
@@ -8894,7 +8913,7 @@ int DoMine(DSWActor* actor)
             SetMineStuck(actor);
 
             // hit floor
-            if (actor->int_pos().Z > ((actor->user.hiz + actor->user.loz) >> 1))
+            if (actor->spr.pos.Z > ((actor->user.hiz + actor->user.loz) * 0.5))
                 actor->user.Flags2 |= (SPR2_ATTACH_FLOOR);
             else
                 actor->user.Flags2 |= (SPR2_ATTACH_CEILING);
@@ -8969,7 +8988,7 @@ int DoTracer(DSWActor* actor)
 {
     for (int i = 0; i < 4; i++)
     {
-        actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+        actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
         MissileHitDiveArea(actor);
 
@@ -8992,7 +9011,7 @@ int DoEMP(DSWActor* actor)
 {
     for (int i = 0; i < 4; i++)
     {
-        actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+        actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
         MissileHitDiveArea(actor);
 
@@ -9027,7 +9046,7 @@ int DoEMPBurst(DSWActor* actor)
     DSWActor* attachActor = actor->user.attachActor;
     if (attachActor != nullptr)
     {
-        vec3_t pos = { attachActor->int_pos().X, attachActor->int_pos().Y, attachActor->int_pos().Z - actor->user.pos.Z };
+        vec3_t pos = { attachActor->int_pos().X, attachActor->int_pos().Y, attachActor->int_pos().Z - actor->user.int_upos().Z };
         SetActorZ(actor, &pos);
         actor->set_int_ang(NORM_ANGLE(attachActor->int_ang() + 1024));
     }
@@ -9074,7 +9093,7 @@ int DoTankShell(DSWActor* actor)
 
     for (i = 0; i < 4; i++)
     {
-        actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+        actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
         MissileHitDiveArea(actor);
 
@@ -9095,7 +9114,7 @@ int DoTankShell(DSWActor* actor)
 int DoTracerStart(DSWActor* actor)
 {
     actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z,
-                          actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+                          actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     MissileHitDiveArea(actor);
 
@@ -9119,7 +9138,7 @@ int DoLaser(DSWActor* actor)
 
     while (true)
     {
-        actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+        actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
         MissileHitDiveArea(actor);
 
@@ -9156,7 +9175,7 @@ int DoLaserStart(DSWActor* actor)
 {
     if (SW_SHAREWARE) return false; // JBF: verify
 
-    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     MissileHitDiveArea(actor);
 
@@ -9181,7 +9200,7 @@ int DoRail(DSWActor* actor)
 
     while (true)
     {
-        actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+        actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
         MissileHitDiveArea(actor);
 
@@ -9256,7 +9275,7 @@ int DoRailStart(DSWActor* actor)
 {
     if (SW_SHAREWARE) return false; // JBF: verify
 
-    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     MissileHitDiveArea(actor);
 
@@ -9292,7 +9311,7 @@ int DoRocket(DSWActor* actor)
         VectorMissileSeek(actor, 30, 16, 128, 768);
     }
 
-    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     MissileHitDiveArea(actor);
 
@@ -9351,7 +9370,7 @@ int DoMicroMini(DSWActor* actor)
 
     for (i = 0; i < 3; i++)
     {
-        actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+        actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
         MissileHitDiveArea(actor);
 
@@ -9402,7 +9421,7 @@ int DoMicro(DSWActor* actor)
     if (SW_SHAREWARE) return false; // JBF: verify
 
     actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z,
-                          actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+                          actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     MissileHitDiveArea(actor);
 
@@ -9475,7 +9494,7 @@ int DoUziBullet(DSWActor* actor)
 
         sx = actor->int_pos().X;
         sy = actor->int_pos().Y;
-        actor->user.coll = move_missile(actor, dax, day, daz, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+        actor->user.coll = move_missile(actor, dax, day, daz, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
         actor->user.Dist += Distance(sx, sy, actor->int_pos().X, actor->int_pos().Y);
 
         MissileHitDiveArea(actor);
@@ -9612,7 +9631,7 @@ int DoElectro(DSWActor* actor)
 int DoLavaBoulder(DSWActor* actor)
 {
     actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z,
-                          actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+                          actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     MissileHitDiveArea(actor);
     if (actor->user.Flags & (SPR_UNDERWATER) && (RANDOM_P2(1024 << 4) >> 4) < 256)
@@ -9637,7 +9656,7 @@ int DoLavaBoulder(DSWActor* actor)
 int DoSpear(DSWActor* actor)
 {
     actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z,
-                          actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+                          actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     MissileHitDiveArea(actor);
 
@@ -9944,7 +9963,7 @@ void SpawnBoltExp(DSWActor* actor)
     DoExpDamageTest(expActor);
 
     SetExpQuake(actor); // !JIM! made rocket launcher shake things
-    SpawnVis(nullptr, expActor->sector(), expActor->int_pos().X, expActor->int_pos().Y, expActor->int_pos().Z, 16);
+    SpawnVis(nullptr, expActor->sector(), expActor->spr.pos, 16);
 }
 
 int SpawnBunnyExp(DSWActor* actor)
@@ -9990,7 +10009,7 @@ void SpawnTankShellExp(DSWActor* actor)
 
     SpawnExpZadjust(actor, expActor, Z(40), Z(40));
     DoExpDamageTest(expActor);
-    SpawnVis(nullptr, expActor->sector(), expActor->int_pos().X, expActor->int_pos().Y, expActor->int_pos().Z, 16);
+    SpawnVis(nullptr, expActor->sector(), expActor->spr.pos, 16);
 }
 
 
@@ -10007,8 +10026,8 @@ void SpawnNuclearSecondaryExp(DSWActor* actor, short ang)
     expActor->spr.xrepeat = 218;
     expActor->spr.yrepeat = 152;
     expActor->spr.clipdist = actor->spr.clipdist;
-    expActor->user.ceiling_dist = Z(16);
-    expActor->user.floor_dist = Z(16);
+    expActor->user.ceiling_dist = (16);
+    expActor->user.floor_dist = (16);
     expActor->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     expActor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
 
@@ -10018,7 +10037,7 @@ void SpawnNuclearSecondaryExp(DSWActor* actor, short ang)
     expActor->user.change.Y = MOVEy(vel, ang);
     expActor->user.Radius = 200; // was NUKE_RADIUS
     expActor->user.coll = move_missile(expActor, expActor->user.change.X, expActor->user.change.Y, 0,
-                           expActor->user.ceiling_dist, expActor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+                           expActor->user.int_ceiling_dist(),expActor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     if (FindDistance3D(expActor->int_pos() - actor->int_pos()) < 1024)
     {
@@ -10171,7 +10190,7 @@ void SpawnMicroExp(DSWActor* actor)
     //
 
     SpawnExpZadjust(actor, expActor, Z(20), Z(20));
-    SpawnVis(nullptr, expActor->sector(), expActor->int_pos().X, expActor->int_pos().Y, expActor->int_pos().Z, 16);
+    SpawnVis(nullptr, expActor->sector(), expActor->spr.pos, 16);
 }
 
 void AddSpriteToSectorObject(DSWActor* actor, SECTOR_OBJECT* sop)
@@ -10197,9 +10216,8 @@ void AddSpriteToSectorObject(DSWActor* actor, SECTOR_OBJECT* sop)
 
     actor->user.Flags |= (SPR_ON_SO_SECTOR|SPR_SO_ATTACHED);
 
-    actor->user.pos.X = sop->pmid.X - actor->int_pos().X;
-    actor->user.pos.Y = sop->pmid.Y - actor->int_pos().Y;
-    actor->user.pos.Z = sop->mid_sector->int_floorz() - actor->int_pos().Z;
+    actor->user.pos.XY() = sop->pmid.XY() - actor->spr.pos.XY();
+    actor->user.pos.Z = sop->mid_sector->floorz - actor->spr.pos.Z;
 
     actor->user.sang = actor->int_ang();
 }
@@ -10249,19 +10267,17 @@ void SpawnBigGunFlames(DSWActor* actor, DSWActor* Operator, SECTOR_OBJECT* sop, 
     if (actor->user.Flags & (SPR_ON_SO_SECTOR))
     {
         // move with sector its on
-        expActor->set_int_z(actor->sector()->int_floorz() - actor->user.pos.Z);
+        expActor->spr.pos.Z = actor->sector()->floorz - actor->user.pos.Z;
         expActor->backupz();
     }
     else
     {
         // move with the mid sector
-        expActor->set_int_z(sop->mid_sector->int_floorz() - actor->user.pos.Z);
+        expActor->spr.pos.Z = sop->mid_sector->floorz - actor->user.pos.Z;
         expActor->backupz();
     }
 
-    expActor->user.pos.X = actor->user.pos.X;
-    expActor->user.pos.Y = actor->user.pos.Y;
-    expActor->user.pos.Z = actor->user.pos.Z;
+    expActor->user.pos = actor->user.pos;
 }
 
 void SpawnGrenadeSecondaryExp(DSWActor* actor, int ang)
@@ -10278,8 +10294,8 @@ void SpawnGrenadeSecondaryExp(DSWActor* actor, int ang)
     expActor->spr.xrepeat = 32;
     expActor->spr.yrepeat = 32;
     expActor->spr.clipdist = actor->spr.clipdist;
-    expActor->user.ceiling_dist = Z(16);
-    expActor->user.floor_dist = Z(16);
+    expActor->user.ceiling_dist = (16);
+    expActor->user.floor_dist = (16);
     expActor->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     expActor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
 
@@ -10289,7 +10305,7 @@ void SpawnGrenadeSecondaryExp(DSWActor* actor, int ang)
     expActor->user.change.Y = MOVEy(vel, ang);
 
     expActor->user.coll = move_missile(expActor, expActor->user.change.X, expActor->user.change.Y, 0,
-                           expActor->user.ceiling_dist, expActor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+                           expActor->user.int_ceiling_dist(),expActor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     if (FindDistance3D(expActor->int_pos() - actor->int_pos()) < 1024)
     {
@@ -10335,7 +10351,7 @@ void SpawnGrenadeExp(DSWActor* actor)
     {
         dx += RandomRange(1000)-RandomRange(1000);
         dy += RandomRange(1000)-RandomRange(1000);
-        dz = ActorZOfMiddle(actor) + RandomRange(1000)-RandomRange(1000);
+        dz = int_ActorZOfMiddle(actor) + RandomRange(1000)-RandomRange(1000);
     }
 
     auto expActor = SpawnActor(STAT_MISSILE, GRENADE_EXP, s_GrenadeExp, actor->sector(),
@@ -10362,7 +10378,7 @@ void SpawnGrenadeExp(DSWActor* actor)
     DoExpDamageTest(expActor);
 
     SetExpQuake(expActor);
-    SpawnVis(nullptr, expActor->sector(), expActor->int_pos().X, expActor->int_pos().Y, expActor->int_pos().Z, 0);
+    SpawnVis(nullptr, expActor->sector(), expActor->spr.pos, 0);
 }
 
 void SpawnExpZadjust(DSWActor* actor, DSWActor* expActor, int upper_zsize, int lower_zsize)
@@ -10376,14 +10392,14 @@ void SpawnExpZadjust(DSWActor* actor, DSWActor* expActor, int upper_zsize, int l
         tos_z = expActor->int_pos().Z - upper_zsize;
         bos_z = expActor->int_pos().Z + lower_zsize;
 
-        if (tos_z <= actor->user.hiz + Z(4))
+        if (tos_z <= actor->user.int_hiz() + Z(4))
         {
-            expActor->set_int_z(actor->user.hiz + upper_zsize);
+            expActor->set_int_z(actor->user.int_hiz() + upper_zsize);
             expActor->spr.cstat |= (CSTAT_SPRITE_YFLIP);
         }
-        else if (bos_z > actor->user.loz)
+        else if (bos_z > actor->user.int_loz())
         {
-            expActor->set_int_z(actor->user.loz - lower_zsize);
+            expActor->set_int_z(actor->user.int_loz() - lower_zsize);
         }
     }
     else
@@ -10437,7 +10453,7 @@ void SpawnMineExp(DSWActor* actor)
     //
 
     SpawnExpZadjust(actor, expActor, Z(100), Z(20));
-    SpawnVis(nullptr, expActor->sector(), expActor->int_pos().X, expActor->int_pos().Y, expActor->int_pos().Z, 16);
+    SpawnVis(nullptr, expActor->sector(), expActor->spr.pos, 16);
 
     SetExpQuake(expActor);
 }
@@ -10478,7 +10494,7 @@ DSWActor* SpawnSectorExp(DSWActor* actor)
 
     DoExpDamageTest(expActor);
     SetExpQuake(expActor);
-    SpawnVis(nullptr, expActor->sector(), expActor->int_pos().X, expActor->int_pos().Y, expActor->int_pos().Z, 16);
+    SpawnVis(nullptr, expActor->sector(), expActor->spr.pos, 16);
 
     return expActor;
 }
@@ -10504,7 +10520,7 @@ DSWActor* SpawnLargeExp(DSWActor* actor)
     // Should not cause other sectors to explode
     DoExpDamageTest(expActor);
     SetExpQuake(expActor);
-    SpawnVis(nullptr, expActor->sector(), expActor->int_pos().X, expActor->int_pos().Y, expActor->int_pos().Z, 16);
+    SpawnVis(nullptr, expActor->sector(), expActor->spr.pos, 16);
 
     return expActor;
 }
@@ -10564,7 +10580,7 @@ void SpawnLittleExp(DSWActor* actor)
     expActor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
     expActor->user.Radius = DamageData[DMG_BASIC_EXP].radius;
     DoExpDamageTest(expActor);
-    SpawnVis(nullptr, expActor->sector(), expActor->int_pos().X, expActor->int_pos().Y, expActor->int_pos().Z, 16);
+    SpawnVis(nullptr, expActor->sector(), expActor->spr.pos, 16);
 }
 
 int DoFireball(DSWActor* actor)
@@ -10580,7 +10596,7 @@ int DoFireball(DSWActor* actor)
         }
     }
 
-    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     MissileHitDiveArea(actor);
 
@@ -10729,9 +10745,7 @@ int DoFindGroundPoint(DSWActor* actor)
 
 int DoNapalm(DSWActor* actor)
 {
-    int ox, oy, oz;
-
-    DoBlurExtend(actor, 1, 7);
+     DoBlurExtend(actor, 1, 7);
 
     if (actor->user.Flags & (SPR_UNDERWATER))
     {
@@ -10744,11 +10758,9 @@ int DoNapalm(DSWActor* actor)
         }
     }
 
-    ox = actor->int_pos().X;
-    oy = actor->int_pos().Y;
-    oz = actor->int_pos().Z;
+	auto oldv = actor->spr.pos;
 
-    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     MissileHitDiveArea(actor);
 
@@ -10766,10 +10778,10 @@ int DoNapalm(DSWActor* actor)
             {
                 auto hcstat = hitActor->spr.cstat;
 
-                actor->set_int_pos({ ox, oy, oz });
+				actor->spr.pos = oldv;
 
                 hitActor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
-                actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+                actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
                 hitActor->spr.cstat = hcstat;
             }
         }
@@ -10800,7 +10812,7 @@ int DoNapalm(DSWActor* actor)
 
         DoFindGroundPoint(expActor);
         MissileWaterAdjust(expActor);
-        expActor->set_int_z(expActor->user.loz);
+        expActor->spr.pos.Z = expActor->user.loz;
         expActor->backupz();
 
         if (actor->user.Flags & (SPR_UNDERWATER))
@@ -10829,7 +10841,7 @@ int DoBloodWorm(DSWActor* actor)
     int bx,by;
     int amt;
 
-    actor->user.coll = move_ground_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+    actor->user.coll = move_ground_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     if (actor->user.coll.type != kHitNone)
     {
@@ -10905,17 +10917,13 @@ int DoMeteor(DSWActor* actor)
 
 int DoSerpMeteor(DSWActor* actor)
 {
-    int ox, oy, oz;
-
-    ox = actor->int_pos().X;
-    oy = actor->int_pos().Y;
-    oz = actor->int_pos().Z;
+	auto oldv = actor->spr.pos;
 
     actor->spr.xrepeat += MISSILEMOVETICS * 2;
     if (actor->spr.xrepeat > 80)
         actor->spr.xrepeat = 80;
 
-    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     if (actor->user.coll.type != kHitNone)
     {
@@ -10929,10 +10937,10 @@ int DoSerpMeteor(DSWActor* actor)
             {
                 auto hcstat = hitActor->spr.cstat;
 
-                actor->set_int_pos({ ox, oy, oz });
+				actor->spr.pos = oldv;
 
                 hitActor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
-                actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+                actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
                 hitActor->spr.cstat = hcstat;
             }
         }
@@ -10954,7 +10962,7 @@ int DoMirvMissile(DSWActor* actor)
     if (actor->spr.xrepeat > 80)
         actor->spr.xrepeat = 80;
 
-    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     if (actor->user.Flags & (SPR_UNDERWATER) && (RANDOM_P2(1024 << 4) >> 4) < 256)
         SpawnBubble(actor);
@@ -10973,7 +10981,7 @@ int DoMirvMissile(DSWActor* actor)
 
 int DoMirv(DSWActor* actor)
 {
-    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS);
+    actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS);
 
     MissileHitDiveArea(actor);
 
@@ -11010,8 +11018,8 @@ int DoMirv(DSWActor* actor)
             actorNew->spr.zvel = 0;
             actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
 
-            actorNew->user.ceiling_dist = Z(16);
-            actorNew->user.floor_dist = Z(16);
+            actorNew->user.ceiling_dist = (16);
+            actorNew->user.floor_dist = (16);
             actorNew->user.Dist = 200;
             //actorNew->user.Dist = 0;
 
@@ -11145,11 +11153,11 @@ int DoRing(DSWActor* actor)
     int z;
     // move the center with the player
     if (pp)
-        z = pp->pos.Z + Z(20);
+        z = pp->int_ppos().Z + Z(20);
     else
-        z = ActorZOfMiddle(own) + Z(30);
+        z = int_ActorZOfMiddle(own) + Z(30);
 
-    actor->set_int_pos({ own->int_pos().X, own->int_pos().Y, z });
+	actor->spr.pos = DVector3(own->spr.pos.XY(), z * zinttoworld);
 
     // go out until its time to come back in
     if (actor->user.Counter2 == false)
@@ -11231,7 +11239,7 @@ void InitSpellRing(PLAYER* pp)
 
     for (missiles = 0, ang = ang_start; missiles < max_missiles; ang += ang_diff, missiles++)
     {
-        auto actorNew = SpawnActor(STAT_MISSILE_SKIP4, FIREBALL1, s_Ring, pp->cursector, pp->pos.X, pp->pos.Y, pp->pos.Z, ang, 0);
+        auto actorNew = SpawnActor(STAT_MISSILE_SKIP4, FIREBALL1, s_Ring, pp->cursector, pp->int_ppos().X, pp->int_ppos().Y, pp->int_ppos().Z, ang, 0);
 
         actorNew->spr.hitag = LUMINOUS; //Always full brightness
         actorNew->spr.xvel = 500;
@@ -11241,16 +11249,16 @@ void InitSpellRing(PLAYER* pp)
         actorNew->spr.yrepeat = 32;
         actorNew->spr.zvel = 0;
 
-        actorNew->user.pos.Z = Z(20);
+        actorNew->user.pos.Z = 20;
         actorNew->user.Dist = RING_INNER_DIST;
         actorNew->user.Counter = max_missiles;
         actorNew->user.Counter2 = 0;
-        actorNew->user.ceiling_dist = Z(10);
-        actorNew->user.floor_dist = Z(10);
+        actorNew->user.ceiling_dist = 10;
+        actorNew->user.floor_dist = 10;
 
         // put it out there
         actorNew->add_int_pos({ MulScale(actorNew->user.Dist, bcos(actorNew->int_ang()), 14), MulScale(actorNew->user.Dist, bsin(actorNew->int_ang()), 14),
-                pp->pos.Z + Z(20) + ((actorNew->user.Dist * (-pp->horizon.horiz.asq16() >> 9)) >> 9) });
+                pp->int_ppos().Z + Z(20) + ((actorNew->user.Dist * (-pp->horizon.horiz.asq16() >> 9)) >> 9) });
 
         actorNew->set_int_ang(NORM_ANGLE(actorNew->int_ang() + 512));
 
@@ -11279,11 +11287,11 @@ int DoSerpRing(DSWActor* actor)
     }
 
     int z = actor->int_pos().Z + actor->spr.zvel;
-    if (z > own->int_pos().Z - actor->user.pos.Z)
-        z = own->int_pos().Z - actor->user.pos.Z;
+    if (z > own->int_pos().Z - actor->user.int_upos().Z)
+        z = own->int_pos().Z - actor->user.int_upos().Z;
 
     // move the center with the player
-    actor->set_int_pos({ own->int_pos().X, own->int_pos().Y, z });
+	actor->spr.pos = DVector3(own->spr.pos.XY(), z * zinttoworld);
 
 
     // go out until its time to come back in
@@ -11399,8 +11407,8 @@ int InitLavaThrow(DSWActor* actor)
     actorNew->user.Radius = 200;
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.clipdist = 256>>2;
-    actorNew->user.ceiling_dist = Z(14);
-    actorNew->user.floor_dist = Z(14);
+    actorNew->user.ceiling_dist = (14);
+    actorNew->user.floor_dist = (14);
 
     actorNew->user.change.X = MOVEx(actorNew->spr.xvel, actorNew->int_ang());
     actorNew->user.change.Y = MOVEy(actorNew->spr.xvel, actorNew->int_ang());
@@ -11409,7 +11417,7 @@ int InitLavaThrow(DSWActor* actor)
     MissileSetPos(actorNew, DoLavaBoulder, 1200);
 
     // find the distance to the target (player)
-    dist = Distance(actorNew->int_pos().X, actorNew->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+    dist = DistanceI(actorNew->spr.pos, actor->user.targetActor->spr.pos);
 
     if (dist != 0)
         actorNew->user.change.Z = actorNew->spr.zvel = (actorNew->spr.xvel * (ActorUpperZ(actor->user.targetActor) - actorNew->int_pos().Z)) / dist;
@@ -11460,8 +11468,8 @@ void InitVulcanBoulder(DSWActor* actor)
     actorNew->user.Radius = 200;
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.clipdist = 256>>2;
-    actorNew->user.ceiling_dist = zsize/2;
-    actorNew->user.floor_dist = zsize/2;
+    actorNew->user.ceiling_dist = zsize/2 * inttoworld;
+    actorNew->user.floor_dist = zsize/2 * inttoworld;
     if (RANDOM_P2(1024) > 512)
         actorNew->spr.cstat |= (CSTAT_SPRITE_XFLIP);
     if (RANDOM_P2(1024) > 512)
@@ -11518,7 +11526,7 @@ int InitSerpRing(DSWActor* actor)
         actorNew->spr.pal = 0;
 
         actorNew->set_int_z(ActorZOfTop(actor) - Z(20));
-        actorNew->user.pos.Z = Z(50);
+        actorNew->user.pos.Z = 50;
 
         // ang around the serp is now slide_ang
         actorNew->user.slide_ang = actorNew->int_ang();
@@ -11578,7 +11586,7 @@ void InitSpellNapalm(PLAYER* pp)
     for (i = 0; i < SIZ(mp); i++)
     {
         auto actor = SpawnActor(STAT_MISSILE, FIREBALL1, s_Napalm, pp->cursector,
-                                pp->pos.X, pp->pos.Y, pp->pos.Z + Z(12), pp->angle.ang.Buildang(), NAPALM_VELOCITY*2);
+                                pp->int_ppos().X, pp->int_ppos().Y, pp->int_ppos().Z + Z(12), pp->angle.ang.Buildang(), NAPALM_VELOCITY*2);
 
         actor->spr.hitag = LUMINOUS; //Always full brightness
 
@@ -11597,8 +11605,8 @@ void InitSpellNapalm(PLAYER* pp)
         actor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
         actor->user.Flags2 |= (SPR2_BLUR_TAPER_FAST);
 
-        actor->user.floor_dist = Z(1);
-        actor->user.ceiling_dist = Z(1);
+        actor->user.floor_dist = (1);
+        actor->user.ceiling_dist = (1);
         actor->user.Dist = 200;
 
         auto oclipdist = plActor->spr.clipdist;
@@ -11670,8 +11678,8 @@ int InitEnemyNapalm(DSWActor* actor)
         actorNew->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
         actorNew->user.Flags2 |= (SPR2_BLUR_TAPER_FAST);
 
-        actorNew->user.floor_dist = Z(1);
-        actorNew->user.ceiling_dist = Z(1);
+        actorNew->user.floor_dist = (1);
+        actorNew->user.ceiling_dist = (1);
         actorNew->user.Dist = 200;
 
         auto oclipdist = actor->spr.clipdist;
@@ -11685,7 +11693,7 @@ int InitEnemyNapalm(DSWActor* actor)
         }
 
         // find the distance to the target (player)
-        dist = Distance(actorNew->int_pos().X, actorNew->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+		dist = DistanceI(actorNew->spr.pos, actor->user.targetActor->spr.pos);
 
         if (dist != 0)
             actorNew->spr.zvel = (actorNew->spr.xvel * (ActorUpperZ(actor->user.targetActor) - actorNew->int_pos().Z)) / dist;
@@ -11712,7 +11720,7 @@ int InitSpellMirv(PLAYER* pp)
         return 0;
 
     auto actorNew = SpawnActor(STAT_MISSILE, FIREBALL1, s_Mirv, pp->cursector,
-                            pp->pos.X, pp->pos.Y, pp->pos.Z + Z(12), pp->angle.ang.Buildang(), MIRV_VELOCITY);
+                            pp->int_ppos().X, pp->int_ppos().Y, pp->int_ppos().Z + Z(12), pp->angle.ang.Buildang(), MIRV_VELOCITY);
 
     PlaySound(DIGI_MIRVWIZ, actorNew, v3df_follow);
 
@@ -11725,8 +11733,8 @@ int InitSpellMirv(PLAYER* pp)
     actorNew->spr.cstat |= (CSTAT_SPRITE_TRANSLUCENT | CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
 
-    actorNew->user.floor_dist = Z(16);
-    actorNew->user.ceiling_dist = Z(16);
+    actorNew->user.floor_dist = (16);
+    actorNew->user.ceiling_dist = (16);
     actorNew->user.Dist = 200;
 
     DSWActor* plActor = pp->actor;
@@ -11764,8 +11772,8 @@ int InitEnemyMirv(DSWActor* actor)
     actorNew->spr.cstat |= (CSTAT_SPRITE_TRANSLUCENT | CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
 
-    actorNew->user.floor_dist = Z(16);
-    actorNew->user.ceiling_dist = Z(16);
+    actorNew->user.floor_dist = (16);
+    actorNew->user.ceiling_dist = (16);
     actorNew->user.Dist = 200;
 
     actorNew->user.change.X = MOVEx(actorNew->spr.xvel, actorNew->int_ang());
@@ -11775,7 +11783,7 @@ int InitEnemyMirv(DSWActor* actor)
     MissileSetPos(actorNew, DoMirv, 600);
 
     // find the distance to the target (player)
-    dist = Distance(actorNew->int_pos().X, actorNew->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+	dist = DistanceI(actorNew->spr.pos, actor->user.targetActor->spr.pos);
 
     if (dist != 0)
         actorNew->user.change.Z = actorNew->spr.zvel = (actorNew->spr.xvel * (ActorUpperZ(actor->user.targetActor) - actorNew->int_pos().Z)) / dist;
@@ -11817,7 +11825,7 @@ int InitSwordAttack(PLAYER* pp)
                 nx = MOVEx((1024 + 256) * 3, NORM_ANGLE(bubble->int_ang() + dangs[i] + random_amt));
                 ny = MOVEy((1024 + 256) * 3, NORM_ANGLE(bubble->int_ang() + dangs[i] + random_amt));
 
-                move_missile(bubble, nx, ny, 0, plActor->user.ceiling_dist, plActor->user.floor_dist, CLIPMASK_PLAYER, 1);
+                move_missile(bubble, nx, ny, 0, plActor->user.int_ceiling_dist(), plActor->user.int_floor_dist(), CLIPMASK_PLAYER, 1);
             }
         }
     }
@@ -11836,7 +11844,7 @@ int InitSwordAttack(PLAYER* pp)
             if (!(itActor->spr.extra & SPRX_PLAYER_OR_ENEMY))
                 continue;
 
-            dist = Distance(pp->pos.X, pp->pos.Y, itActor->int_pos().X, itActor->int_pos().Y);
+            dist = Distance(pp->int_ppos().X, pp->int_ppos().Y, itActor->int_pos().X, itActor->int_pos().Y);
 
             reach = 1000; // !JIM! was 800
             face = 200;
@@ -11845,7 +11853,7 @@ int InitSwordAttack(PLAYER* pp)
             {
                 if (SpriteOverlapZ(pp->actor, itActor, Z(20)))
                 {
-                    if (FAFcansee(itActor->int_pos().X, itActor->int_pos().Y, ActorZOfMiddle(itActor), itActor->sector(), plActor->int_pos().X, plActor->int_pos().Y, ActorZOfMiddle(plActor), plActor->sector()))
+                    if (FAFcansee(itActor->int_pos().X, itActor->int_pos().Y, int_ActorZOfMiddle(itActor), itActor->sector(), plActor->int_pos().X, plActor->int_pos().Y, int_ActorZOfMiddle(plActor), plActor->sector()))
                         DoDamage(itActor, pp->actor);
                 }
             }
@@ -11861,7 +11869,7 @@ int InitSwordAttack(PLAYER* pp)
         daang = pp->angle.ang.Buildang();
         daz = -MulScale(pp->horizon.horiz.asq16(), 2000, 16) + (RandomRange(24000) - 12000);
 
-        FAFhitscan(pp->pos.X, pp->pos.Y, pp->pos.Z, pp->cursector,       // Start position
+        FAFhitscan(pp->int_ppos().X, pp->int_ppos().Y, pp->int_ppos().Z, pp->cursector,       // Start position
             bcos(daang),      // X vector of 3D ang
             bsin(daang),      // Y vector of 3D ang
             daz,              // Z vector of 3D ang
@@ -11870,7 +11878,7 @@ int InitSwordAttack(PLAYER* pp)
         if (hit.hitSector == nullptr)
             return 0;
 
-        if (FindDistance3D(pp->pos - hit.hitpos) < 700)
+        if (FindDistance3D(pp->int_ppos() - hit.int_hitpos()) < 700)
         {
 
             if (hit.actor() != nullptr)
@@ -11883,8 +11891,8 @@ int InitSwordAttack(PLAYER* pp)
                     switch (hitActor->user.ID)
                     {
                     case ZILLA_RUN_R0:
-                        SpawnSwordSparks(pp, hit.hitSector, nullptr, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang);
-                        PlaySound(DIGI_SWORDCLANK, &hit.hitpos, v3df_none);
+                        SpawnSwordSparks(pp, hit.hitSector, nullptr, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang);
+                        PlaySound(DIGI_SWORDCLANK, hit.int_hitpos(), v3df_none);
                         break;
                     case TRASHCAN:
                         if (hitActor->user.WaitTics <= 0)
@@ -11892,8 +11900,8 @@ int InitSwordAttack(PLAYER* pp)
                             hitActor->user.WaitTics = SEC(2);
                             ChangeState(hitActor, s_TrashCanPain);
                         }
-                        SpawnSwordSparks(pp, hit.hitSector, nullptr, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang);
-                        PlaySound(DIGI_SWORDCLANK, &hit.hitpos, v3df_none);
+                        SpawnSwordSparks(pp, hit.hitSector, nullptr, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang);
+                        PlaySound(DIGI_SWORDCLANK, hit.int_hitpos(), v3df_none);
                         PlaySound(DIGI_TRASHLID, hitActor, v3df_none);
                         break;
                     case PACHINKO1:
@@ -11901,8 +11909,8 @@ int InitSwordAttack(PLAYER* pp)
                     case PACHINKO3:
                     case PACHINKO4:
                     case 623:
-                        SpawnSwordSparks(pp, hit.hitSector, nullptr, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang);
-                        PlaySound(DIGI_SWORDCLANK, &hit.hitpos, v3df_none);
+                        SpawnSwordSparks(pp, hit.hitSector, nullptr, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang);
+                        PlaySound(DIGI_SWORDCLANK, hit.int_hitpos(), v3df_none);
                         break;
                     }
                 }
@@ -11932,7 +11940,7 @@ int InitSwordAttack(PLAYER* pp)
                 {
                     if ((hit.hitWall->nextSector()->ceilingstat & CSTAT_SECTOR_SKY))
                     {
-                        if (hit.hitpos.Z < hit.hitWall->nextSector()->int_ceilingz())
+                        if (hit.hitpos.Z < hit.hitWall->nextSector()->ceilingz)
                         {
                             return 0;
                         }
@@ -11941,13 +11949,13 @@ int InitSwordAttack(PLAYER* pp)
 
                 if (hit.hitWall->lotag == TAG_WALL_BREAK)
                 {
-                    HitBreakWall(hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang, plActor->user.ID);
+                    HitBreakWall(hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang, plActor->user.ID);
                 }
                 // hit non breakable wall - do sound and puff
                 else
                 {
-                    SpawnSwordSparks(pp, hit.hitSector, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang);
-                    PlaySound(DIGI_SWORDCLANK, &hit.hitpos, v3df_none);
+                    SpawnSwordSparks(pp, hit.hitSector, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang);
+                    PlaySound(DIGI_SWORDCLANK, hit.int_hitpos(), v3df_none);
                 }
             }
         }
@@ -11988,7 +11996,7 @@ int InitFistAttack(PLAYER* pp)
                 nx = MOVEx((1024+256)*3, NORM_ANGLE(bubble->int_ang() + dangs[i] + random_amt));
                 ny = MOVEy((1024+256)*3, NORM_ANGLE(bubble->int_ang() + dangs[i] + random_amt));
 
-                move_missile(bubble, nx, ny, 0L, plActor->user.ceiling_dist, plActor->user.floor_dist, CLIPMASK_PLAYER, 1);
+                move_missile(bubble, nx, ny, 0, plActor->user.int_ceiling_dist(), plActor->user.int_floor_dist(), CLIPMASK_PLAYER, 1);
             }
         }
     }
@@ -12004,7 +12012,7 @@ int InitFistAttack(PLAYER* pp)
             if (!(itActor->spr.extra & SPRX_PLAYER_OR_ENEMY))
                 continue;
 
-            dist = Distance(pp->pos.X, pp->pos.Y, itActor->int_pos().X, itActor->int_pos().Y);
+            dist = Distance(pp->int_ppos().X, pp->int_ppos().Y, itActor->int_pos().X, itActor->int_pos().Y);
 
             if (pp->InventoryActive[2]) // Shadow Bombs give you demon fist
             {
@@ -12021,7 +12029,7 @@ int InitFistAttack(PLAYER* pp)
             {
                 if (SpriteOverlapZ(pp->actor, itActor, Z(20)) || face == 190)
                 {
-                    if (FAFcansee(itActor->int_pos().X, itActor->int_pos().Y, ActorZOfMiddle(itActor), itActor->sector(), plActor->int_pos().X, plActor->int_pos().Y, ActorZOfMiddle(plActor), plActor->sector()))
+                    if (FAFcansee(itActor->int_pos().X, itActor->int_pos().Y, int_ActorZOfMiddle(itActor), itActor->sector(), plActor->int_pos().X, plActor->int_pos().Y, int_ActorZOfMiddle(plActor), plActor->sector()))
                         DoDamage(itActor, plActor);
                     if (face == 190)
                     {
@@ -12042,7 +12050,7 @@ int InitFistAttack(PLAYER* pp)
         daang = pp->angle.ang.Buildang();
         daz = -MulScale(pp->horizon.horiz.asq16(), 2000, 16) + (RandomRange(24000) - 12000);
 
-        FAFhitscan(pp->pos.X, pp->pos.Y, pp->pos.Z, pp->cursector,       // Start position
+        FAFhitscan(pp->int_ppos().X, pp->int_ppos().Y, pp->int_ppos().Z, pp->cursector,       // Start position
                    bcos(daang),      // X vector of 3D ang
                    bsin(daang),      // Y vector of 3D ang
                    daz,              // Z vector of 3D ang
@@ -12051,7 +12059,7 @@ int InitFistAttack(PLAYER* pp)
         if (hit.hitSector == nullptr)
             return 0;
 
-        if (FindDistance3D(pp->pos - hit.hitpos) < 700)
+        if (FindDistance3D(pp->int_ppos() - hit.int_hitpos()) < 700)
         {
 
             if (hit.actor() != nullptr)
@@ -12064,8 +12072,8 @@ int InitFistAttack(PLAYER* pp)
                     switch (hitActor->user.ID)
                     {
                     case ZILLA_RUN_R0:
-                        SpawnSwordSparks(pp, hit.hitSector, nullptr, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang);
-                        PlaySound(DIGI_ARMORHIT, &hit.hitpos, v3df_none);
+                        SpawnSwordSparks(pp, hit.hitSector, nullptr, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang);
+                        PlaySound(DIGI_ARMORHIT, hit.int_hitpos(), v3df_none);
                         break;
                     case TRASHCAN:
                         if (hitActor->user.WaitTics <= 0)  
@@ -12073,8 +12081,8 @@ int InitFistAttack(PLAYER* pp)
                             hitActor->user.WaitTics = SEC(2);
                             ChangeState(hitActor, s_TrashCanPain);
                         }
-                        SpawnSwordSparks(pp, hit.hitSector, nullptr, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang);
-                        PlaySound(DIGI_ARMORHIT, &hit.hitpos, v3df_none);
+                        SpawnSwordSparks(pp, hit.hitSector, nullptr, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang);
+                        PlaySound(DIGI_ARMORHIT, hit.int_hitpos(), v3df_none);
                         PlaySound(DIGI_TRASHLID, hitActor, v3df_none);
                         break;
                     case PACHINKO1:
@@ -12082,8 +12090,8 @@ int InitFistAttack(PLAYER* pp)
                     case PACHINKO3:
                     case PACHINKO4:
                     case 623:
-                        SpawnSwordSparks(pp, hit.hitSector, nullptr, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang);
-                        PlaySound(DIGI_ARMORHIT, &hit.hitpos, v3df_none);
+                        SpawnSwordSparks(pp, hit.hitSector, nullptr, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang);
+                        PlaySound(DIGI_ARMORHIT, hit.int_hitpos(), v3df_none);
                         break;
                     }
                 }
@@ -12110,8 +12118,8 @@ int InitFistAttack(PLAYER* pp)
                 case 5062:
                 case 5063:
                 case 4947:
-                    SpawnSwordSparks(pp, hit.hitSector, nullptr, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang);
-                    PlaySound(DIGI_ARMORHIT, &hit.hitpos, v3df_none);
+                    SpawnSwordSparks(pp, hit.hitSector, nullptr, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang);
+                    PlaySound(DIGI_ARMORHIT, hit.int_hitpos(), v3df_none);
                     if (RandomRange(1000) > 700)
                         PlayerUpdateHealth(pp,1); // Give some health
                     hitActor->spr.cstat |= (CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
@@ -12126,7 +12134,7 @@ int InitFistAttack(PLAYER* pp)
                 {
                     if ((hit.hitWall->nextSector()->ceilingstat & CSTAT_SECTOR_SKY))
                     {
-                        if (hit.hitpos.Z < hit.hitWall->nextSector()->int_ceilingz())
+                        if (hit.hitpos.Z < hit.hitWall->nextSector()->ceilingz)
                         {
                             return 0;
                         }
@@ -12135,13 +12143,13 @@ int InitFistAttack(PLAYER* pp)
 
                 if (hit.hitWall->lotag == TAG_WALL_BREAK)
                 {
-                    HitBreakWall(hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang, plActor->user.ID);
+                    HitBreakWall(hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang, plActor->user.ID);
                 }
                 // hit non breakable wall - do sound and puff
                 else
                 {
-                    SpawnSwordSparks(pp, hit.hitSector, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang);
-                    PlaySound(DIGI_ARMORHIT, &hit.hitpos, v3df_none);
+                    SpawnSwordSparks(pp, hit.hitSector, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang);
+                    PlaySound(DIGI_ARMORHIT, hit.int_hitpos(), v3df_none);
                     if (PlayerTakeDamage(pp, nullptr))
                     {
                         PlayerUpdateHealth(pp, -(RandomRange(2<<8)>>8));
@@ -12190,8 +12198,8 @@ int InitSumoNapalm(DSWActor* actor)
             actorNew->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
             actorNew->user.Flags2 |= (SPR2_BLUR_TAPER_FAST);
 
-            actorNew->user.floor_dist = Z(1);
-            actorNew->user.ceiling_dist = Z(1);
+            actorNew->user.floor_dist = (1);
+            actorNew->user.ceiling_dist = (1);
             actorNew->user.Dist = 200;
 
             auto oclipdist = actor->spr.clipdist;
@@ -12205,7 +12213,7 @@ int InitSumoNapalm(DSWActor* actor)
             }
 
             // find the distance to the target (player)
-            dist = Distance(actorNew->int_pos().X, actorNew->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+			dist = DistanceI(actorNew->spr.pos, actor->user.targetActor->spr.pos);
 
             if (dist != 0)
                 actorNew->spr.zvel = (actorNew->spr.xvel * (ActorUpperZ(actor->user.targetActor) - actorNew->int_pos().Z)) / dist;
@@ -12236,7 +12244,7 @@ int InitSumoSkull(DSWActor* actor)
 
     PlaySound(DIGI_SERPSUMMONHEADS, actor, v3df_none);
 
-    auto actorNew = SpawnActor(STAT_ENEMY, SKULL_R0, &s_SkullWait[0][0], actor->sector(), actor->int_pos().X, actor->int_pos().Y, ActorZOfMiddle(actor), actor->int_ang(), 0);
+    auto actorNew = SpawnActor(STAT_ENEMY, SKULL_R0, &s_SkullWait[0][0], actor->sector(), actor->int_pos().X, actor->int_pos().Y, int_ActorZOfMiddle(actor), actor->int_ang(), 0);
 
     actorNew->spr.xvel = 500;
     SetOwner(actor, actorNew);
@@ -12258,7 +12266,7 @@ int InitSumoSkull(DSWActor* actor)
     actorNew->user.Attrib = &SkullAttrib;
     DoActorSetSpeed(actor, NORM_SPEED);
     actorNew->user.Counter = RANDOM_P2(2048);
-    actorNew->user.pos.Z = actorNew->int_pos().Z;
+    actorNew->user.pos.Z = actorNew->spr.pos.Z;
     actorNew->user.Health = 100;
 
     // defaults do change the statnum
@@ -12293,13 +12301,13 @@ int InitSumoStompAttack(DSWActor* actor)
             if (!(itActor->spr.extra & SPRX_PLAYER_OR_ENEMY))
                 continue;
 
-            dist = Distance(actor->int_pos().X, actor->int_pos().Y, itActor->int_pos().X, itActor->int_pos().Y);
+			dist = DistanceI(actor->spr.pos, itActor->spr.pos);
 
             reach = 16384;
 
             if (dist < CloseRangeDist(itActor, actor, reach))
             {
-                if (FAFcansee(itActor->int_pos().X, itActor->int_pos().Y, ActorZOfMiddle(itActor), itActor->sector(), actor->int_pos().X, actor->int_pos().Y, ActorZOfMiddle(actor), actor->sector()))
+                if (FAFcansee(itActor->int_pos().X, itActor->int_pos().Y, int_ActorZOfMiddle(itActor), itActor->sector(), actor->int_pos().X, actor->int_pos().Y, int_ActorZOfMiddle(actor), actor->sector()))
                     DoDamage(itActor, actor);
             }
         }
@@ -12317,7 +12325,7 @@ int InitMiniSumoClap(DSWActor* actor)
     auto targetActor = actor->user.targetActor;
     if (!targetActor) return 0;
 
-    dist = Distance(actor->int_pos().X, actor->int_pos().Y, targetActor->int_pos().X, targetActor->int_pos().Y);
+	dist = DistanceI(actor->spr.pos, targetActor->spr.pos);
 
     reach = 10000;
 
@@ -12325,7 +12333,7 @@ int InitMiniSumoClap(DSWActor* actor)
     {
         if (SpriteOverlapZ(actor, targetActor, Z(20)))
         {
-            if (FAFcansee(targetActor->int_pos().X, targetActor->int_pos().Y, ActorZOfMiddle(targetActor), targetActor->sector(), actor->int_pos().X, actor->int_pos().Y, ActorZOfMiddle(actor), actor->sector()))
+            if (FAFcansee(targetActor->int_pos().X, targetActor->int_pos().Y, int_ActorZOfMiddle(targetActor), targetActor->sector(), actor->int_pos().X, actor->int_pos().Y, int_ActorZOfMiddle(actor), actor->sector()))
             {
                 PlaySound(DIGI_CGTHIGHBONE, actor, v3df_follow | v3df_dontpan);
                 DoDamage(targetActor, actor);
@@ -12334,7 +12342,7 @@ int InitMiniSumoClap(DSWActor* actor)
     }
     else if (dist < CloseRangeDist(targetActor, actor, reach))
     {
-        if (FAFcansee(targetActor->int_pos().X, targetActor->int_pos().Y, ActorZOfMiddle(targetActor), targetActor->sector(), actor->int_pos().X, actor->int_pos().Y, ActorZOfMiddle(actor), actor->sector()))
+        if (FAFcansee(targetActor->int_pos().X, targetActor->int_pos().Y, int_ActorZOfMiddle(targetActor), targetActor->sector(), actor->int_pos().X, actor->int_pos().Y, int_ActorZOfMiddle(actor), actor->sector()))
         {
             PlaySound(DIGI_30MMEXPLODE, actor, v3df_none);
             SpawnFireballFlames(actor, targetActor);
@@ -12554,7 +12562,7 @@ void WeaponHitscanShootFeet(DSWActor* actor, DSWActor* hitActor, int *zvect)
     ang = NORM_ANGLE(getangle(hitActor->int_pos().X - actor->int_pos().X, hitActor->int_pos().Y - actor->int_pos().Y));
 
     // find the distance to the target
-    dist = ksqrt(SQ(actor->int_pos().X - hitActor->int_pos().X) + SQ(actor->int_pos().Y - hitActor->int_pos().Y));
+	dist = int((actor->spr.pos.XY() - hitActor->spr.pos.XY()).Length() * worldtoint);
 
     if (dist != 0)
     {
@@ -12592,10 +12600,10 @@ int InitStar(PLAYER* pp)
     if (!pp->insector())
         return 0;
 
-    nx = pp->pos.X;
-    ny = pp->pos.Y;
+    nx = pp->int_ppos().X;
+    ny = pp->int_ppos().Y;
 
-    nz = pp->pos.Z + pp->bob_z + Z(8);
+    nz = pp->int_ppos().Z + pp->bob_z + Z(8);
 
     // Spawn a shot
     // Inserting and setting up variables
@@ -12610,8 +12618,8 @@ int InitStar(PLAYER* pp)
     // long var
     zvel = -MulScale(pp->horizon.horiz.asq16(), HORIZ_MULT+STAR_HORIZ_ADJ, 16);
 
-    actorNew->user.ceiling_dist = Z(1);
-    actorNew->user.floor_dist = Z(1);
+    actorNew->user.ceiling_dist = (1);
+    actorNew->user.floor_dist = (1);
     actorNew->user.WeaponNum = plActor->user.WeaponNum;
     actorNew->user.Radius = 100;
     actorNew->user.Counter = 0;
@@ -12698,7 +12706,7 @@ void InitHeartAttack(PLAYER* pp)
         return;
 
     auto actorNew = SpawnActor(STAT_MISSILE_SKIP4, BLOOD_WORM, s_BloodWorm, pp->cursector,
-                            pp->pos.X, pp->pos.Y, pp->pos.Z + Z(12), pp->angle.ang.Buildang(), BLOOD_WORM_VELOCITY*2);
+                            pp->int_ppos().X, pp->int_ppos().Y, pp->int_ppos().Z + Z(12), pp->angle.ang.Buildang(), BLOOD_WORM_VELOCITY*2);
 
     actorNew->spr.hitag = LUMINOUS; //Always full brightness
 
@@ -12712,8 +12720,8 @@ void InitHeartAttack(PLAYER* pp)
     actorNew->user.Flags2 |= (SPR2_DONT_TARGET_OWNER);
     actorNew->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
 
-    actorNew->user.floor_dist = Z(1);
-    actorNew->user.ceiling_dist = Z(1);
+    actorNew->user.floor_dist = (1);
+    actorNew->user.ceiling_dist = (1);
     actorNew->user.Dist = 200;
 
     auto oclipdist = plActor->spr.clipdist;
@@ -12746,13 +12754,13 @@ int ContinueHitscan(PLAYER* pp, sectortype* sect, int x, int y, int z, short ang
 
     if (hit.actor() == nullptr && hit.hitWall == nullptr)
     {
-        if (labs(hit.hitpos.Z - hit.hitSector->int_ceilingz()) <= Z(1))
+        if (abs(hit.hitpos.Z - hit.hitSector->ceilingz) <= 1)
         {
-            hit.hitpos.Z += Z(16);
+            hit.hitpos.Z += 16;
             if ((hit.hitSector->ceilingstat & CSTAT_SECTOR_SKY))
                 return 0;
         }
-        else if (labs(hit.hitpos.Z - hit.hitSector->int_floorz()) <= Z(1))
+        else if (abs(hit.hitpos.Z - hit.hitSector->floorz) <= 1)
         {
         }
     }
@@ -12763,7 +12771,7 @@ int ContinueHitscan(PLAYER* pp, sectortype* sect, int x, int y, int z, short ang
         {
             if ((hit.hitWall->nextSector()->ceilingstat & CSTAT_SECTOR_SKY))
             {
-                if (hit.hitpos.Z < hit.hitWall->nextSector()->int_ceilingz())
+                if (hit.hitpos.Z < hit.hitWall->nextSector()->ceilingz)
                 {
                     return 0;
                 }
@@ -12772,11 +12780,11 @@ int ContinueHitscan(PLAYER* pp, sectortype* sect, int x, int y, int z, short ang
 
         if (hit.hitWall->lotag == TAG_WALL_BREAK)
         {
-            HitBreakWall(hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, ang, actor->user.ID);
+            HitBreakWall(hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, ang, actor->user.ID);
             return 0;
         }
 
-        QueueHole(hit.hitSector, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z);
+        QueueHole(hit.hitSector, hit.hitWall, hit.hitpos);
     }
 
     // hit a sprite?
@@ -12796,7 +12804,7 @@ int ContinueHitscan(PLAYER* pp, sectortype* sect, int x, int y, int z, short ang
             return 0;
         }
 
-        if (BulletHitSprite(pp->actor, hit.actor(), hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, 0))
+        if (BulletHitSprite(pp->actor, hit.actor(), hit.hitpos, 0))
             return 0;
 
         // hit a switch?
@@ -12806,7 +12814,7 @@ int ContinueHitscan(PLAYER* pp, sectortype* sect, int x, int y, int z, short ang
         }
     }
 
-    auto j = SpawnShotgunSparks(pp, hit.hitSector, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, ang);
+    auto j = SpawnShotgunSparks(pp, hit.hitSector, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, ang);
     DoHitscanDamage(j, hit.actor());
 
     return 0;
@@ -12838,9 +12846,9 @@ int InitShotgun(PLAYER* pp)
         }
     }
 
-    nx = pp->pos.X;
-    ny = pp->pos.Y;
-    daz = nz = pp->pos.Z + pp->bob_z;
+    nx = pp->int_ppos().X;
+    ny = pp->int_ppos().Y;
+    daz = nz = pp->int_ppos().Z + pp->bob_z;
 
     daang = 64;
     if (WeaponAutoAimHitscan(pp->actor, &daz, &daang, false) != nullptr)
@@ -12879,9 +12887,9 @@ int InitShotgun(PLAYER* pp)
 
         if (hit.actor() == nullptr && hit.hitWall == nullptr)
         {
-            if (labs(hit.hitpos.Z - hit.hitSector->int_ceilingz()) <= Z(1))
+            if (abs(hit.hitpos.Z - hit.hitSector->ceilingz) <= 1)
             {
-                hit.hitpos.Z += Z(16);
+                hit.hitpos.Z += 16;
                 cstat |= (CSTAT_SPRITE_YFLIP);
 
                 if ((hit.hitSector->ceilingstat & CSTAT_SECTOR_SKY))
@@ -12889,21 +12897,21 @@ int InitShotgun(PLAYER* pp)
 
                 if (SectorIsUnderwaterArea(hit.hitSector))
                 {
-                    WarpToSurface(&hit.hitSector, &hit.hitpos.X, &hit.hitpos.Y, &hit.hitpos.Z);
-                    ContinueHitscan(pp, hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, ndaang, xvect, yvect, zvect);
+                    WarpToSurface(hit.hitpos, &hit.hitSector);
+                    ContinueHitscan(pp, hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, ndaang, xvect, yvect, zvect);
                     continue;
                 }
             }
-            else if (labs(hit.hitpos.Z - hit.hitSector->int_floorz()) <= Z(1))
+            else if (abs(hit.hitpos.Z - hit.hitSector->floorz) <= 1)
             {
                 if ((hit.hitSector->extra & SECTFX_LIQUID_MASK) != SECTFX_LIQUID_NONE)
                 {
-                    SpawnSplashXY(hit.hitpos.X,hit.hitpos.Y,hit.hitpos.Z,hit.hitSector);
+                    SpawnSplashXY(hit.int_hitpos().X,hit.int_hitpos().Y,hit.int_hitpos().Z,hit.hitSector);
 
                     if (SectorIsDiveArea(hit.hitSector))
                     {
-                        WarpToUnderwater(&hit.hitSector, &hit.hitpos.X, &hit.hitpos.Y, &hit.hitpos.Z);
-                        ContinueHitscan(pp, hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, ndaang, xvect, yvect, zvect);
+						WarpToUnderwater(hit.hitpos, &hit.hitSector);
+                        ContinueHitscan(pp, hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, ndaang, xvect, yvect, zvect);
                     }
 
                     continue;
@@ -12917,7 +12925,7 @@ int InitShotgun(PLAYER* pp)
             {
                 if ((hit.hitWall->nextSector()->ceilingstat & CSTAT_SECTOR_SKY))
                 {
-                    if (hit.hitpos.Z < hit.hitWall->nextSector()->int_ceilingz())
+                    if (hit.hitpos.Z < hit.hitWall->nextSector()->ceilingz)
                     {
                         continue;
                     }
@@ -12926,11 +12934,11 @@ int InitShotgun(PLAYER* pp)
 
             if (hit.hitWall->lotag == TAG_WALL_BREAK)
             {
-                HitBreakWall(hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, ndaang, actor->user.ID);
+                HitBreakWall(hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, ndaang, actor->user.ID);
                 continue;
             }
 
-            QueueHole(hit.hitSector, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z);
+            QueueHole(hit.hitSector, hit.hitWall, hit.hitpos);
         }
 
         // hit a sprite?
@@ -12962,7 +12970,7 @@ int InitShotgun(PLAYER* pp)
                 continue;
             }
 
-            if (BulletHitSprite(pp->actor, hitActor, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, SHOTGUN_SMOKE))
+            if (BulletHitSprite(pp->actor, hitActor, hit.hitpos, SHOTGUN_SMOKE))
                 continue;
 
             // hit a switch?
@@ -12972,7 +12980,7 @@ int InitShotgun(PLAYER* pp)
             }
         }
 
-        auto j = SpawnShotgunSparks(pp, hit.hitSector, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, ndaang);
+        auto j = SpawnShotgunSparks(pp, hit.hitSector, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, ndaang);
         DoHitscanDamage(j, hit.actor());
     }
 
@@ -12992,10 +13000,10 @@ int InitLaser(PLAYER* pp)
     if (!pp->insector())
         return 0;
 
-    nx = pp->pos.X;
-    ny = pp->pos.Y;
+    nx = pp->int_ppos().X;
+    ny = pp->int_ppos().Y;
 
-    nz = pp->pos.Z + pp->bob_z + Z(8);
+    nz = pp->int_ppos().Z + pp->bob_z + Z(8);
 
     // Spawn a shot
     // Inserting and setting up variables
@@ -13015,8 +13023,8 @@ int InitLaser(PLAYER* pp)
 
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = 200;
-    actorNew->user.ceiling_dist = Z(1);
-    actorNew->user.floor_dist = Z(1);
+    actorNew->user.ceiling_dist = (1);
+    actorNew->user.floor_dist = (1);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat |= (CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
 
@@ -13095,10 +13103,10 @@ int InitRail(PLAYER* pp)
     if (!pp->insector())
         return 0;
 
-    nx = pp->pos.X;
-    ny = pp->pos.Y;
+    nx = pp->int_ppos().X;
+    ny = pp->int_ppos().Y;
 
-    nz = pp->pos.Z + pp->bob_z + Z(11);
+    nz = pp->int_ppos().Z + pp->bob_z + Z(11);
 
     // Spawn a shot
     // Inserting and setting up variables
@@ -13118,8 +13126,8 @@ int InitRail(PLAYER* pp)
 
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = RAIL_RADIUS;
-    actorNew->user.ceiling_dist = Z(1);
-    actorNew->user.floor_dist = Z(1);
+    actorNew->user.ceiling_dist = (1);
+    actorNew->user.floor_dist = (1);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER|CSTAT_SPRITE_INVISIBLE);
     actorNew->spr.cstat |= (CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
 
@@ -13194,8 +13202,8 @@ int InitZillaRail(DSWActor* actor)
 
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = RAIL_RADIUS;
-    actorNew->user.ceiling_dist = Z(1);
-    actorNew->user.floor_dist = Z(1);
+    actorNew->user.ceiling_dist = (1);
+    actorNew->user.floor_dist = (1);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER|CSTAT_SPRITE_INVISIBLE);
     actorNew->spr.cstat |= (CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
 
@@ -13264,13 +13272,13 @@ int InitRocket(PLAYER* pp)
     if (!pp->insector())
         return 0;
 
-    nx = pp->pos.X;
-    ny = pp->pos.Y;
+    nx = pp->int_ppos().X;
+    ny = pp->int_ppos().Y;
 
     // Spawn a shot
     // Inserting and setting up variables
 
-    nz = pp->pos.Z + pp->bob_z + Z(8);
+    nz = pp->int_ppos().Z + pp->bob_z + Z(8);
     auto actorNew = SpawnActor(STAT_MISSILE, BOLT_THINMAN_R0, &s_Rocket[0][0], pp->cursector,
                     nx, ny, nz, pp->angle.ang.Buildang(), ROCKET_VELOCITY);
 
@@ -13287,8 +13295,8 @@ int InitRocket(PLAYER* pp)
 
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = 2000;
-    actorNew->user.ceiling_dist = Z(3);
-    actorNew->user.floor_dist = Z(3);
+    actorNew->user.ceiling_dist = (3);
+    actorNew->user.floor_dist = (3);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat |= (CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
 
@@ -13371,14 +13379,14 @@ int InitBunnyRocket(PLAYER* pp)
     if (!pp->insector())
         return 0;
 
-    nx = pp->pos.X;
-    ny = pp->pos.Y;
+    nx = pp->int_ppos().X;
+    ny = pp->int_ppos().Y;
 
     // Spawn a shot
     // Inserting and setting up variables
 
     //nz = pp->posz + pp->bob_z + Z(12);
-    nz = pp->pos.Z + pp->bob_z + Z(8);
+    nz = pp->int_ppos().Z + pp->bob_z + Z(8);
     auto actorNew = SpawnActor(STAT_MISSILE, BOLT_THINMAN_R4, &s_BunnyRocket[0][0], pp->cursector,
                     nx, ny, nz, pp->angle.ang.Buildang(), ROCKET_VELOCITY);
 
@@ -13395,8 +13403,8 @@ int InitBunnyRocket(PLAYER* pp)
 
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = 2000;
-    actorNew->user.ceiling_dist = Z(3);
-    actorNew->user.floor_dist = Z(3);
+    actorNew->user.ceiling_dist = (3);
+    actorNew->user.floor_dist = (3);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat |= (CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
     actorNew->user.Flags |= (SPR_XFLIP_TOGGLE);
@@ -13474,13 +13482,13 @@ int InitNuke(PLAYER* pp)
     if (!pp->insector())
         return 0;
 
-    nx = pp->pos.X;
-    ny = pp->pos.Y;
+    nx = pp->int_ppos().X;
+    ny = pp->int_ppos().Y;
 
     // Spawn a shot
     // Inserting and setting up variables
 
-    nz = pp->pos.Z + pp->bob_z + Z(8);
+    nz = pp->int_ppos().Z + pp->bob_z + Z(8);
     auto actorNew = SpawnActor(STAT_MISSILE, BOLT_THINMAN_R0, &s_Rocket[0][0], pp->cursector,
                     nx, ny, nz, pp->angle.ang.Buildang(), 700);
 
@@ -13499,8 +13507,8 @@ int InitNuke(PLAYER* pp)
 
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = NUKE_RADIUS;
-    actorNew->user.ceiling_dist = Z(3);
-    actorNew->user.floor_dist = Z(3);
+    actorNew->user.ceiling_dist = (3);
+    actorNew->user.floor_dist = (3);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat |= (CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
 
@@ -13583,8 +13591,8 @@ int InitEnemyNuke(DSWActor* actor)
 
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = NUKE_RADIUS;
-    actorNew->user.ceiling_dist = Z(3);
-    actorNew->user.floor_dist = Z(3);
+    actorNew->user.ceiling_dist = (3);
+    actorNew->user.floor_dist = (3);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat |= (CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
 
@@ -13629,8 +13637,8 @@ int InitMicro(PLAYER* pp)
     TARGET_SORT* ts = TargetSort;
     DSWActor* picked = nullptr;
 
-    nx = pp->pos.X;
-    ny = pp->pos.Y;
+    nx = pp->int_ppos().X;
+    ny = pp->int_ppos().Y;
 
     const int MAX_MICRO = 1;
 
@@ -13658,7 +13666,7 @@ int InitMicro(PLAYER* pp)
             ang = pp->angle.ang.Buildang();
         }
 
-        nz = pp->pos.Z + pp->bob_z + Z(14);
+        nz = pp->int_ppos().Z + pp->bob_z + Z(14);
         nz += Z(RandomRange(20)) - Z(10);
 
         // Spawn a shot
@@ -13682,8 +13690,8 @@ int InitMicro(PLAYER* pp)
 
         actorNew->user.WeaponNum = actor->user.WeaponNum;
         actorNew->user.Radius = 200;
-        actorNew->user.ceiling_dist = Z(2);
-        actorNew->user.floor_dist = Z(2);
+        actorNew->user.ceiling_dist = (2);
+        actorNew->user.floor_dist = (2);
         actorNew->spr.cstat &= ~(CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
         actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
         actorNew->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
@@ -13720,7 +13728,7 @@ int InitMicro(PLAYER* pp)
 
         if (picked)
         {
-            dist = Distance(actorNew->int_pos().X, actorNew->int_pos().Y, picked->int_pos().X, picked->int_pos().Y);
+			dist = DistanceI(actorNew->spr.pos, picked->spr.pos);
             if (dist != 0)
             {
                 int zh;
@@ -13835,36 +13843,9 @@ int InitSerpSlash(DSWActor* actor)
 
 bool WallSpriteInsideSprite(DSWActor* wactor, DSWActor* actor)
 {
-    int x1, y1, x2, y2;
-    int xoff;
-    int dax, day;
-    int xsiz, mid_dist;
-
-    x1 = wactor->int_pos().X;
-    y1 = wactor->int_pos().Y;
-
-    xoff = (int) tileLeftOffset(wactor->spr.picnum) + (int) wactor->spr.xoffset;
-
-    if ((wactor->spr.cstat & CSTAT_SPRITE_XFLIP))
-        xoff = -xoff;
-
-    // x delta
-    dax = bsin(wactor->int_ang()) * wactor->spr.xrepeat;
-    // y delta
-    day = -bcos(wactor->int_ang()) * wactor->spr.xrepeat;
-
-    xsiz = tileWidth(wactor->spr.picnum);
-    mid_dist = (xsiz >> 1) + xoff;
-
-    // starting from the center find the first point
-    x1 -= MulScale(dax, mid_dist, 16);
-    // starting from the first point find the end point
-    x2 = x1 + MulScale(dax, xsiz, 16);
-
-    y1 -= MulScale(day, mid_dist, 16);
-    y2 = y1 + MulScale(day, xsiz, 16);
-
-    return !!clipinsideboxline(actor->int_pos().X, actor->int_pos().Y, x1, y1, x2, y2, ((int) actor->spr.clipdist) << 2);
+    DVector2 out[2];
+    GetWallSpritePosition(&wactor->spr, wactor->spr.pos, out);
+    return IsCloseToLine(actor->spr.pos.XY(), out[0], out[1], (((int) actor->spr.clipdist) << 2) * inttoworld) != EClose::Outside;
 }
 
 
@@ -13936,7 +13917,7 @@ int DoStaticFlamesDamage(DSWActor* actor)
                 DoDamage(itActor, actor);
             else if (actor->user.Radius > 200)
             {
-                if (FAFcansee(actor->int_pos().X,actor->int_pos().Y,ActorZOfMiddle(actor),actor->sector(),itActor->int_pos().X,itActor->int_pos().Y,ActorZOfMiddle(itActor),itActor->sector()))
+                if (FAFcansee(actor->int_pos().X,actor->int_pos().Y,int_ActorZOfMiddle(actor),actor->sector(),itActor->int_pos().X,itActor->int_pos().Y,int_ActorZOfMiddle(itActor),itActor->sector()))
                     DoDamage(itActor, actor);
             }
         }
@@ -14079,8 +14060,8 @@ int InitSerpSpell(DSWActor* actor)
         actorNew->spr.zvel = 0;
         actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
 
-        actorNew->user.ceiling_dist = Z(16);
-        actorNew->user.floor_dist = Z(16);
+        actorNew->user.ceiling_dist = (16);
+        actorNew->user.floor_dist = (16);
         actorNew->user.Dist = 200;
 
         auto oclipdist = actor->spr.clipdist;
@@ -14091,7 +14072,7 @@ int InitSerpSpell(DSWActor* actor)
         actorNew->set_int_ang(NORM_ANGLE(actorNew->int_ang() - lat_ang[i]));
 
         // find the distance to the target (player)
-        dist = Distance(actorNew->int_pos().X, actorNew->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+		dist = DistanceI(actorNew->spr.pos, actor->user.targetActor->spr.pos);
         if (dist != 0)
             actorNew->spr.zvel = (actorNew->spr.xvel * (ActorUpperZ(actor->user.targetActor) - actorNew->int_pos().Z)) / dist;
 
@@ -14117,7 +14098,7 @@ int SpawnDemonFist(DSWActor* actor)
         return -1;
 
     auto expActor = SpawnActor(STAT_MISSILE, 0, s_TeleportEffect, actor->sector(),
-                            actor->int_pos().X, actor->int_pos().Y, ActorZOfMiddle(actor), actor->int_ang(), 0);
+                            actor->int_pos().X, actor->int_pos().Y, int_ActorZOfMiddle(actor), actor->int_ang(), 0);
 
     expActor->spr.hitag = LUMINOUS; //Always full brightness
     expActor->spr.shade = -40;
@@ -14176,8 +14157,8 @@ int InitSerpMonstSpell(DSWActor* actor)
         actorNew->spr.zvel = 0;
         actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
 
-        actorNew->user.ceiling_dist = Z(16);
-        actorNew->user.floor_dist = Z(16);
+        actorNew->user.ceiling_dist = (16);
+        actorNew->user.floor_dist = (16);
 
         actorNew->user.Dist = 200;
 
@@ -14189,7 +14170,7 @@ int InitSerpMonstSpell(DSWActor* actor)
         actorNew->set_int_ang(NORM_ANGLE(actorNew->int_ang() - lat_ang[i]));
 
         // find the distance to the target (player)
-        dist = Distance(actorNew->int_pos().X, actorNew->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+		dist = DistanceI(actorNew->spr.pos, actor->user.targetActor->spr.pos);
         if (dist != 0)
             actorNew->spr.zvel = (actorNew->spr.xvel * (ActorUpperZ(actor->user.targetActor) - actorNew->int_pos().Z)) / dist;
 
@@ -14268,7 +14249,7 @@ int InitEnemyRocket(DSWActor* actor)
     MissileSetPos(actorNew, DoBoltThinMan, 400);
 
     // find the distance to the target (player)
-    dist = Distance(actorNew->int_pos().X, actorNew->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+	dist = DistanceI(actorNew->spr.pos, actor->user.targetActor->spr.pos);
 
     if (dist != 0)
         actorNew->user.change.Z = actorNew->spr.zvel = (actorNew->spr.xvel * (ActorUpperZ(actor->user.targetActor) - actorNew->int_pos().Z)) / dist;
@@ -14330,8 +14311,8 @@ int InitEnemyRail(DSWActor* actor)
     NewStateGroup(actorNew, &sg_Rail[0]);
 
     actorNew->user.Radius = 200;
-    actorNew->user.ceiling_dist = Z(1);
-    actorNew->user.floor_dist = Z(1);
+    actorNew->user.ceiling_dist = (1);
+    actorNew->user.floor_dist = (1);
     actorNew->user.Flags2 |= (SPR2_SO_MISSILE);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER|CSTAT_SPRITE_INVISIBLE);
     actorNew->spr.cstat |= (CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
@@ -14349,7 +14330,7 @@ int InitEnemyRail(DSWActor* actor)
     }
 
     // find the distance to the target (player)
-    dist = Distance(actorNew->int_pos().X, actorNew->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+	dist = DistanceI(actorNew->spr.pos, actor->user.targetActor->spr.pos);
 
     if (dist != 0)
         actorNew->user.change.Z = actorNew->spr.zvel = (actorNew->spr.xvel * (ActorUpperZ(actor->user.targetActor) - actorNew->int_pos().Z)) / dist;
@@ -14424,7 +14405,7 @@ int InitZillaRocket(DSWActor* actor)
         MissileSetPos(actorNew, DoBoltThinMan, mp[i].dist_out);
 
         // find the distance to the target (player)
-        dist = Distance(actorNew->int_pos().X, actorNew->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+		dist = DistanceI(actorNew->spr.pos, actor->user.targetActor->spr.pos);
 
         if (dist != 0)
             actorNew->user.change.Z = actorNew->spr.zvel = (actorNew->spr.xvel * (ActorUpperZ(actor->user.targetActor) - actorNew->int_pos().Z)) / dist;
@@ -14442,7 +14423,7 @@ int InitEnemyStar(DSWActor* actor)
 
     nx = actor->int_pos().X;
     ny = actor->int_pos().Y;
-    nz = ActorZOfMiddle(actor);
+    nz = int_ActorZOfMiddle(actor);
 
     // Spawn a shot
     auto actorNew = SpawnActor(STAT_MISSILE, STAR1, s_Star, actor->sector(),
@@ -14463,7 +14444,7 @@ int InitEnemyStar(DSWActor* actor)
     MissileSetPos(actorNew, DoStar, 400);
 
     // find the distance to the target (player)
-    dist = Distance(actorNew->int_pos().X, actorNew->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+	dist = DistanceI(actorNew->spr.pos, actor->user.targetActor->spr.pos);
 
     if (dist != 0)
         actorNew->user.change.Z = actorNew->spr.zvel = (actorNew->spr.xvel * (ActorUpperZ(actor->user.targetActor) - actorNew->int_pos().Z)) / dist;
@@ -14481,7 +14462,7 @@ int InitEnemyCrossbow(DSWActor* actor)
 
     nx = actor->int_pos().X;
     ny = actor->int_pos().Y;
-    nz = ActorZOfMiddle(actor)-Z(14);
+    nz = int_ActorZOfMiddle(actor)-Z(14);
 
     // Spawn a shot
     auto actorNew = SpawnActor(STAT_MISSILE, CROSSBOLT, &s_CrossBolt[0][0], actor->sector(),
@@ -14507,7 +14488,7 @@ int InitEnemyCrossbow(DSWActor* actor)
     MissileSetPos(actorNew, DoStar, 400);
 
     // find the distance to the target (player)
-    dist = Distance(actorNew->int_pos().X, actorNew->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+	dist = DistanceI(actorNew->spr.pos, actor->user.targetActor->spr.pos);
 
     if (dist != 0)
         actorNew->user.change.Z = actorNew->spr.zvel = (actorNew->spr.xvel * (ActorUpperZ(actor->user.targetActor) - actorNew->int_pos().Z)) / dist;
@@ -14545,7 +14526,7 @@ int InitSkelSpell(DSWActor* actor)
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
 
     // find the distance to the target (player)
-    dist = Distance(nx, ny, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+	dist = DistanceI(actorNew->spr.pos, actor->user.targetActor->spr.pos);
 
     if (dist != 0)
         actorNew->spr.zvel = (actorNew->spr.xvel * (ActorUpperZ(actor->user.targetActor) - nz)) / dist;
@@ -14588,8 +14569,8 @@ int InitCoolgFire(DSWActor* actor)
     actorNew->spr.zvel = 0;
     actorNew->set_int_ang(nang);
     actorNew->spr.clipdist = 32>>2;
-    actorNew->user.ceiling_dist = Z(4);
-    actorNew->user.floor_dist = Z(4);
+    actorNew->user.ceiling_dist = (4);
+    actorNew->user.floor_dist = (4);
     if (actor->user.ID == RIPPER_RUN_R0)
         actorNew->user.spal = actorNew->spr.pal = 27; // Bright Green
     else
@@ -14598,7 +14579,7 @@ int InitCoolgFire(DSWActor* actor)
     PlaySound(DIGI_MAGIC1, actorNew, v3df_follow|v3df_doppler);
 
     // find the distance to the target (player)
-    dist = Distance(nx, ny, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+	dist = DistanceI(actorNew->spr.pos, actor->user.targetActor->spr.pos);
 
     if (dist != 0)
         // (velocity * difference between the target and the throwing star) /
@@ -14612,7 +14593,7 @@ int InitCoolgFire(DSWActor* actor)
     nx = MulScale(728, bcos(nang), 14);
     ny = MulScale(728, bsin(nang), 14);
 
-    move_missile(actorNew, nx, ny, 0, actorNew->user.ceiling_dist, actorNew->user.floor_dist, 0, 3L);
+    move_missile(actorNew, nx, ny, 0, actorNew->user.int_ceiling_dist(), actorNew->user.int_floor_dist(), 0, 3);
 
     return 0;
 }
@@ -14622,9 +14603,9 @@ int DoCoolgDrip(DSWActor* actor)
     actor->user.Counter += 220;
     actor->add_int_z(actor->user.Counter);
 
-    if (actor->int_pos().Z > actor->user.loz - actor->user.floor_dist)
+    if (actor->int_pos().Z > actor->user.int_loz() - actor->user.int_floor_dist())
     {
-        actor->set_int_z(actor->user.loz - actor->user.floor_dist);
+        actor->set_int_z(actor->user.int_loz() - actor->user.int_floor_dist());
         actor->spr.yrepeat = actor->spr.xrepeat = 32;
         ChangeState(actor, s_GoreFloorSplash);
         if (actor->user.spal == PALETTE_BLUE_LIGHTING)
@@ -14650,8 +14631,8 @@ int InitCoolgDrip(DSWActor* actor)
     actorNew->spr.shade = -5;
     actorNew->spr.zvel = 0;
     actorNew->spr.clipdist = 16L>>2;
-    actorNew->user.ceiling_dist = Z(4);
-    actorNew->user.floor_dist = Z(4);
+    actorNew->user.ceiling_dist = (4);
+    actorNew->user.floor_dist = (4);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
 
     DoFindGroundPoint(actor);
@@ -14689,8 +14670,8 @@ int GenerateDrips(DSWActor* actor)
         actorNew->spr.shade = -10;
         actorNew->spr.zvel = 0;
         actorNew->spr.clipdist = 16L>>2;
-        actorNew->user.ceiling_dist = Z(4);
-        actorNew->user.floor_dist = Z(4);
+        actorNew->user.ceiling_dist = (4);
+        actorNew->user.floor_dist = (4);
         actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
         if (TEST_BOOL1(actor))
             actorNew->user.spal = actorNew->spr.pal = PALETTE_BLUE_LIGHTING;
@@ -14802,7 +14783,7 @@ void InitSpearTrap(DSWActor* actor)
 
     nx = actor->int_pos().X;
     ny = actor->int_pos().Y;
-    nz = ActorZOfMiddle(actor);
+    nz = int_ActorZOfMiddle(actor);
 
     // Spawn a shot
     auto actorNew = SpawnActor(STAT_MISSILE, CROSSBOLT, &s_CrossBolt[0][0], actor->sector(), nx, ny, nz, actor->int_ang(), 750);
@@ -14850,9 +14831,9 @@ int InitTracerUzi(PLAYER* pp)
 
     short lat_dist[] = {800,-800};
 
-    nx = pp->pos.X;
-    ny = pp->pos.Y;
-    nz = pp->pos.Z + Z(8) + -MulScale(pp->horizon.horiz.asq16(), 72, 16);
+    nx = pp->int_ppos().X;
+    ny = pp->int_ppos().Y;
+    nz = pp->int_ppos().Z + Z(8) + -MulScale(pp->horizon.horiz.asq16(), 72, 16);
 
     // Spawn a shot
     // Inserting and setting up variables
@@ -14871,8 +14852,8 @@ int InitTracerUzi(PLAYER* pp)
 
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = 50;
-    actorNew->user.ceiling_dist = Z(3);
-    actorNew->user.floor_dist = Z(3);
+    actorNew->user.ceiling_dist = (3);
+    actorNew->user.floor_dist = (3);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
 
@@ -14938,8 +14919,8 @@ int InitTracerTurret(DSWActor* actor, DSWActor* Operator, fixed_t q16horiz)
 
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = 50;
-    actorNew->user.ceiling_dist = Z(1);
-    actorNew->user.floor_dist = Z(1);
+    actorNew->user.ceiling_dist = (1);
+    actorNew->user.floor_dist = (1);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
 
@@ -14983,8 +14964,8 @@ int InitTracerAutoTurret(DSWActor* actor, int xchange, int ychange, int zchange)
 
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = 50;
-    actorNew->user.ceiling_dist = Z(1);
-    actorNew->user.floor_dist = Z(1);
+    actorNew->user.ceiling_dist = (1);
+    actorNew->user.floor_dist = (1);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
 
@@ -14998,9 +14979,8 @@ int InitTracerAutoTurret(DSWActor* actor, int xchange, int ychange, int zchange)
     return 0;
 }
 
-int BulletHitSprite(DSWActor* actor, DSWActor* hitActor, int hit_x, int hit_y, int hit_z, short ID)
+int BulletHitSprite(DSWActor* actor, DSWActor* hitActor, const DVector3& hit_pos, short ID)
 {
-    vec3_t hit_pos = { hit_x, hit_y, hit_z };
     short id;
 
     // hit a NPC or PC?
@@ -15018,7 +14998,7 @@ int BulletHitSprite(DSWActor* actor, DSWActor* hitActor, int hit_x, int hit_y, i
 
         if (ID>0) id = ID;
 
-        auto actorNew = SpawnActor(STAT_MISSILE, id, s_UziSmoke, &sector[0], hit_x, hit_y, hit_z, actor->int_ang(), 0);
+        auto actorNew = SpawnActor(STAT_MISSILE, id, s_UziSmoke, &sector[0], hit_pos, actor->spr.angle, 0);
         actorNew->spr.shade = -40;
 
         if (hitActor->user.PlayerP)
@@ -15049,10 +15029,13 @@ int BulletHitSprite(DSWActor* actor, DSWActor* hitActor, int hit_x, int hit_y, i
         SetOwner(actor, actorNew);
         actorNew->spr.angle = actor->spr.angle;
 
-        SetActorZ(actorNew, &hit_pos);
+        SetActorZ(actorNew, hit_pos);
         actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
         actorNew->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
 
+		int hit_x = int(hit_pos.X * worldtoint);
+		int hit_y = int(hit_pos.Y * worldtoint);
+		int hit_z = int(hit_pos.Z * zworldtoint);
         if ((RANDOM_P2(1024<<5)>>5) < 512+128)
         {
             if (!hitActor->user.PlayerP)
@@ -15078,33 +15061,6 @@ int BulletHitSprite(DSWActor* actor, DSWActor* hitActor, int hit_x, int hit_y, i
     return false;
 }
 
-// not used
-DSWActor* SpawnWallHole(sectortype* hit_sect, walltype* hit_wall, int hit_x, int hit_y, int hit_z)
-{
-    short w,nw,wall_ang;
-
-    auto actor = insertActor(hit_sect, STAT_DEFAULT);
-    actor->spr.xrepeat = actor->spr.yrepeat = 16;
-    actor->spr.cstat = 0;
-    actor->spr.pal = 0;
-    actor->spr.shade = 0;
-    actor->spr.extra = 0;
-    actor->spr.clipdist = 0;
-    actor->spr.xoffset = actor->spr.yoffset = 0;
-    actor->set_int_pos({ hit_x, hit_y, hit_z });
-    actor->spr.picnum = 2151;
-
-    //actor->spr.cstat |= (CSTAT_SPRITE_TRANSLUCENT|CSTAT_SPRITE_ALIGNMENT_WALL);
-    actor->spr.cstat |= (CSTAT_SPRITE_ALIGNMENT_WALL);
-    actor->spr.cstat |= (CSTAT_SPRITE_ONE_SIDE);
-
-    wall_ang = NORM_ANGLE(getangle(hit_wall->delta())-512);
-
-    actor->set_int_ang(NORM_ANGLE(wall_ang + 1024));
-
-    return actor;
-}
-
 bool HitscanSpriteAdjust(DSWActor* actor, walltype* hit_wall)
 {
     int16_t ang;
@@ -15124,9 +15080,7 @@ bool HitscanSpriteAdjust(DSWActor* actor, walltype* hit_wall)
     auto sect = actor->sector();
 
     Collision coll;
-    auto pos = actor->int_pos();
-    clipmove(pos, &sect, xvect, yvect, 4, 4 << 8, 4 << 8, CLIPMASK_MISSILE, coll);
-    actor->set_int_pos(pos);
+    clipmove(actor->spr.pos, &sect, xvect, yvect, 4, 4 << 8, 4 << 8, CLIPMASK_MISSILE, coll);
 
     if (actor->sector() != sect)
         ChangeActorSect(actor, sect);
@@ -15176,8 +15130,8 @@ int InitUzi(PLAYER* pp)
     if (RANDOM_P2(1024) < 400)
         InitTracerUzi(pp);
 
-    nz = pp->pos.Z + pp->bob_z;
-    daz = pp->pos.Z + pp->bob_z;
+    nz = pp->int_ppos().Z + pp->bob_z;
+    daz = pp->int_ppos().Z + pp->bob_z;
     daang = 32;
     if (WeaponAutoAimHitscan(pp->actor, &daz, &daang, false) != nullptr)
     {
@@ -15196,7 +15150,7 @@ int InitUzi(PLAYER* pp)
     xvect = bcos(daang);
     yvect = bsin(daang);
     zvect = daz;
-    FAFhitscan(pp->pos.X, pp->pos.Y, nz, pp->cursector,       // Start position
+    FAFhitscan(pp->int_ppos().X, pp->int_ppos().Y, nz, pp->cursector,       // Start position
                xvect,yvect,zvect,
                hit, CLIPMASK_MISSILE);
 
@@ -15210,9 +15164,9 @@ int InitUzi(PLAYER* pp)
     // check to see what you hit
     if (hit.actor() == nullptr && hit.hitWall == nullptr)
     {
-        if (labs(hit.hitpos.Z - hit.hitSector->int_ceilingz()) <= Z(1))
+        if (abs(hit.hitpos.Z - hit.hitSector->ceilingz) <= 1)
         {
-            hit.hitpos.Z += Z(16);
+            hit.hitpos.Z += 16;
             cstat |= (CSTAT_SPRITE_YFLIP);
 
             if ((hit.hitSector->ceilingstat & CSTAT_SECTOR_SKY))
@@ -15220,21 +15174,21 @@ int InitUzi(PLAYER* pp)
 
             if (SectorIsUnderwaterArea(hit.hitSector))
             {
-                WarpToSurface(&hit.hitSector, &hit.hitpos.X, &hit.hitpos.Y, &hit.hitpos.Z);
-                ContinueHitscan(pp, hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang, xvect, yvect, zvect);
+				WarpToSurface(hit.hitpos, &hit.hitSector);
+                ContinueHitscan(pp, hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang, xvect, yvect, zvect);
                 return 0;
             }
         }
-        else if (labs(hit.hitpos.Z - hit.hitSector->int_floorz()) <= Z(1))
+        else if (abs(hit.hitpos.Z - hit.hitSector->floorz) <= 1)
         {
             if ((hit.hitSector->extra & SECTFX_LIQUID_MASK) != SECTFX_LIQUID_NONE)
             {
-                SpawnSplashXY(hit.hitpos.X,hit.hitpos.Y,hit.hitpos.Z,hit.hitSector);
+                SpawnSplashXY(hit.int_hitpos().X,hit.int_hitpos().Y,hit.int_hitpos().Z,hit.hitSector);
 
                 if (SectorIsDiveArea(hit.hitSector))
                 {
-                    WarpToUnderwater(&hit.hitSector, &hit.hitpos.X, &hit.hitpos.Y, &hit.hitpos.Z);
-                    ContinueHitscan(pp, hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang, xvect, yvect, zvect);
+					WarpToUnderwater(hit.hitpos, &hit.hitSector);
+                    ContinueHitscan(pp, hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang, xvect, yvect, zvect);
                     return 0;
                 }
 
@@ -15249,7 +15203,7 @@ int InitUzi(PLAYER* pp)
         {
             if ((hit.hitWall->nextSector()->ceilingstat & CSTAT_SECTOR_SKY))
             {
-                if (hit.hitpos.Z < hit.hitWall->nextSector()->int_ceilingz())
+                if (hit.hitpos.Z < hit.hitWall->nextSector()->ceilingz)
                 {
                     return 0;
                 }
@@ -15259,11 +15213,11 @@ int InitUzi(PLAYER* pp)
 
         if (hit.hitWall->lotag == TAG_WALL_BREAK)
         {
-            HitBreakWall(hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang, actor->user.ID);
+            HitBreakWall(hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang, actor->user.ID);
             return 0;
         }
 
-        QueueHole(hit.hitSector, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z);
+        QueueHole(hit.hitSector, hit.hitWall, hit.hitpos);
     }
 
     // hit a sprite?
@@ -15295,7 +15249,7 @@ int InitUzi(PLAYER* pp)
             return 0;
         }
 
-        if (BulletHitSprite(pp->actor, hitActor, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, 0))
+        if (BulletHitSprite(pp->actor, hitActor, hit.hitpos, 0))
             return 0;
 
         // hit a switch?
@@ -15306,7 +15260,7 @@ int InitUzi(PLAYER* pp)
     }
 
 
-    auto actorNew = SpawnActor(STAT_MISSILE, UZI_SMOKE, s_UziSmoke, hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang, 0);
+    auto actorNew = SpawnActor(STAT_MISSILE, UZI_SMOKE, s_UziSmoke, hit.hitSector, hit.hitpos, DAngle::fromBuild(daang), 0);
     actorNew->spr.shade = -40;
     actorNew->spr.xrepeat = UZI_SMOKE_REPEAT;
     actorNew->spr.yrepeat = UZI_SMOKE_REPEAT;
@@ -15317,7 +15271,7 @@ int InitUzi(PLAYER* pp)
     HitscanSpriteAdjust(actorNew, hit.hitWall);
     DoHitscanDamage(actorNew, hit.actor());
 
-    actorNew = SpawnActor(STAT_MISSILE, UZI_SPARK, s_UziSpark, hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang, 0);
+    actorNew = SpawnActor(STAT_MISSILE, UZI_SPARK, s_UziSpark, hit.hitSector, hit.hitpos, DAngle::fromBuild(daang), 0);
 
     actorNew->spr.shade = -40;
     actorNew->spr.xrepeat = UZI_SPARK_REPEAT;
@@ -15357,8 +15311,8 @@ int InitTankShell(DSWActor* actor, PLAYER* pp)
 
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = 50;
-    actorNew->user.ceiling_dist = Z(4);
-    actorNew->user.floor_dist = Z(4);
+    actorNew->user.ceiling_dist = (4);
+    actorNew->user.floor_dist = (4);
     actorNew->user.Flags2 |= (SPR2_SO_MISSILE);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
@@ -15442,8 +15396,8 @@ int InitTurretMicro(DSWActor* actor, PLAYER* pp)
 
         actorNew->user.WeaponNum = plActor->user.WeaponNum;
         actorNew->user.Radius = 200;
-        actorNew->user.ceiling_dist = Z(2);
-        actorNew->user.floor_dist = Z(2);
+        actorNew->user.ceiling_dist = (2);
+        actorNew->user.floor_dist = (2);
         actorNew->spr.cstat &= ~(CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
         actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
         actorNew->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
@@ -15454,7 +15408,7 @@ int InitTurretMicro(DSWActor* actor, PLAYER* pp)
 
         if (picked)
         {
-            dist = Distance(actorNew->int_pos().X, actorNew->int_pos().Y, picked->int_pos().X, picked->int_pos().Y);
+			dist = DistanceI(actorNew->spr.pos, picked->spr.pos);
             if (dist != 0)
             {
                 int zh;
@@ -15496,8 +15450,8 @@ int InitTurretRocket(DSWActor* actor, PLAYER* pp)
 
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = 50;
-    actorNew->user.ceiling_dist = Z(4);
-    actorNew->user.floor_dist = Z(4);
+    actorNew->user.ceiling_dist = (4);
+    actorNew->user.floor_dist = (4);
     actorNew->user.Flags2 |= (SPR2_SO_MISSILE);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
 
@@ -15533,8 +15487,8 @@ int InitTurretFireball(DSWActor* actor, PLAYER* pp)
 
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = 50;
-    actorNew->user.ceiling_dist = Z(4);
-    actorNew->user.floor_dist = Z(4);
+    actorNew->user.ceiling_dist = (4);
+    actorNew->user.floor_dist = (4);
     actorNew->user.Flags2 |= (SPR2_SO_MISSILE);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
 
@@ -15584,8 +15538,8 @@ int InitTurretRail(DSWActor* actor, PLAYER* pp)
     NewStateGroup(actorNew, &sg_Rail[0]);
 
     actorNew->user.Radius = 200;
-    actorNew->user.ceiling_dist = Z(1);
-    actorNew->user.floor_dist = Z(1);
+    actorNew->user.ceiling_dist = (1);
+    actorNew->user.floor_dist = (1);
     actorNew->user.Flags2 |= (SPR2_SO_MISSILE);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER|CSTAT_SPRITE_INVISIBLE);
     actorNew->spr.cstat |= (CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
@@ -15632,8 +15586,8 @@ int InitTurretLaser(DSWActor* actor, PLAYER* pp)
     actorNew->spr.zvel = -pp->horizon.horiz.asq16() >> 11;
 
     actorNew->user.Radius = 200;
-    actorNew->user.ceiling_dist = Z(1);
-    actorNew->user.floor_dist = Z(1);
+    actorNew->user.ceiling_dist = (1);
+    actorNew->user.floor_dist = (1);
     actorNew->user.Flags2 |= (SPR2_SO_MISSILE);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat |= (CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
@@ -15699,19 +15653,19 @@ int InitSobjMachineGun(DSWActor* actor, PLAYER* pp)
 
     if (hit.actor() == nullptr && hit.hitWall == nullptr)
     {
-        if (labs(hit.hitpos.Z - hit.hitSector->int_ceilingz()) <= Z(1))
+        if (abs(hit.hitpos.Z - hit.hitSector->ceilingz) <= 1)
         {
-            hit.hitpos.Z += Z(16);
+            hit.hitpos.Z += 16;
             cstat |= (CSTAT_SPRITE_YFLIP);
 
             if ((hit.hitSector->ceilingstat & CSTAT_SECTOR_SKY))
                 return 0;
         }
-        else if (labs(hit.hitpos.Z - hit.hitSector->int_floorz()) <= Z(1))
+        else if (abs(hit.hitpos.Z - hit.hitSector->floorz) <= 1)
         {
             if ((hit.hitSector->extra & SECTFX_LIQUID_MASK) != SECTFX_LIQUID_NONE)
             {
-                SpawnSplashXY(hit.hitpos.X,hit.hitpos.Y,hit.hitpos.Z,hit.hitSector);
+                SpawnSplashXY(hit.int_hitpos().X,hit.int_hitpos().Y,hit.int_hitpos().Z,hit.hitSector);
                 return 0;
             }
         }
@@ -15725,7 +15679,7 @@ int InitSobjMachineGun(DSWActor* actor, PLAYER* pp)
         if (hitActor->spr.lotag == TAG_SPRITE_HIT_MATCH)
         {
             // spawn sparks here and pass the sprite as SO_MISSILE
-            spark = SpawnBoatSparks(pp, hit.hitSector, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang);
+            spark = SpawnBoatSparks(pp, hit.hitSector, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang);
             spark->user.Flags2 |= SPR2_SO_MISSILE;
             if (MissileHitMatch(spark, -1, hit.actor()))
                 return 0;
@@ -15738,7 +15692,7 @@ int InitSobjMachineGun(DSWActor* actor, PLAYER* pp)
             return 0;
         }
 
-        if (BulletHitSprite(pp->actor, hit.actor(), hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, 0))
+        if (BulletHitSprite(pp->actor, hit.actor(), hit.hitpos, 0))
             return 0;
 
         // hit a switch?
@@ -15748,7 +15702,7 @@ int InitSobjMachineGun(DSWActor* actor, PLAYER* pp)
         }
     }
 
-    spark = SpawnBoatSparks(pp, hit.hitSector, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang);
+    spark = SpawnBoatSparks(pp, hit.hitSector, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang);
     DoHitscanDamage(spark, hit.actor());
 
     return 0;
@@ -15790,7 +15744,7 @@ int InitSobjGun(PLAYER* pp)
             {
             case 32:
             case 0:
-                SpawnVis(actor, nullptr, -1, -1, -1, 8);
+                SpawnVis(actor, nullptr, {}, 8);
                 SpawnBigGunFlames(actor, pp->actor, pp->sop, false);
                 SetGunQuake(actor);
                 InitTankShell(actor, pp);
@@ -15800,7 +15754,7 @@ int InitSobjGun(PLAYER* pp)
                     pp->FirePause = SP_TAG5(actor);
                 break;
             case 1:
-                SpawnVis(actor, nullptr, -1, -1, -1, 32);
+                SpawnVis(actor, nullptr, {}, 32);
                 SpawnBigGunFlames(actor, pp->actor, pp->sop, true);
                 InitSobjMachineGun(actor, pp);
                 if (!SP_TAG5(actor))
@@ -15810,7 +15764,7 @@ int InitSobjGun(PLAYER* pp)
                 break;
             case 2:
                 if (SW_SHAREWARE) break;
-                SpawnVis(actor, nullptr, -1, -1, -1, 32);
+                SpawnVis(actor, nullptr, {}, 32);
                 InitTurretLaser(actor, pp);
                 if (!SP_TAG5(actor))
                     pp->FirePause = 120;
@@ -15819,7 +15773,7 @@ int InitSobjGun(PLAYER* pp)
                 break;
             case 3:
                 if (SW_SHAREWARE) break;
-                SpawnVis(actor, nullptr, -1, -1, -1, 32);
+                SpawnVis(actor, nullptr, {}, 32);
                 InitTurretRail(actor, pp);
                 if (!SP_TAG5(actor))
                     pp->FirePause = 120;
@@ -15828,7 +15782,7 @@ int InitSobjGun(PLAYER* pp)
                 break;
             case 4:
                 if (SW_SHAREWARE) break;
-                SpawnVis(actor, nullptr, -1, -1, -1, 32);
+                SpawnVis(actor, nullptr, {}, 32);
                 InitTurretFireball(actor, pp);
                 if (!SP_TAG5(actor))
                     pp->FirePause = 20;
@@ -15837,7 +15791,7 @@ int InitSobjGun(PLAYER* pp)
                 break;
             case 5:
                 if (SW_SHAREWARE) break;
-                SpawnVis(actor, nullptr, -1, -1, -1, 32);
+                SpawnVis(actor, nullptr, {}, 32);
                 InitTurretRocket(actor, pp);
                 if (!SP_TAG5(actor))
                     pp->FirePause = 100;
@@ -15846,7 +15800,7 @@ int InitSobjGun(PLAYER* pp)
                 break;
             case 6:
                 if (SW_SHAREWARE) break;
-                SpawnVis(actor, nullptr, -1, -1, -1, 32);
+                SpawnVis(actor, nullptr, {}, 32);
                 InitTurretMicro(actor, pp);
                 if (!SP_TAG5(actor))
                     pp->FirePause = 100;
@@ -16006,7 +15960,7 @@ int InitTurretMgun(SECTOR_OBJECT* sop)
     short delta;
     int xvect,yvect,zvect;
 
-    PlaySound(DIGI_BOATFIRE, &sop->pmid, v3df_dontpan|v3df_doppler);
+    PlaySound(DIGI_BOATFIRE, sop->pmid, v3df_dontpan|v3df_doppler);
 
     for (i = 0; sop->so_actors[i] != nullptr; i++)
     {
@@ -16080,19 +16034,19 @@ int InitTurretMgun(SECTOR_OBJECT* sop)
 
             if (hit.actor() == nullptr && hit.hitWall == nullptr)
             {
-                if (labs(hit.hitpos.Z - hit.hitSector->int_ceilingz()) <= Z(1))
+                if (abs(hit.hitpos.Z - hit.hitSector->ceilingz) <= 1)
                 {
-                    hit.hitpos.Z += Z(16);
+                    hit.hitpos.Z += 16;
                     cstat |= (CSTAT_SPRITE_YFLIP);
 
                     if ((hit.hitSector->ceilingstat & CSTAT_SECTOR_SKY))
                         continue;
                 }
-                else if (labs(hit.hitpos.Z - hit.hitSector->int_floorz()) <= Z(1))
+                else if (abs(hit.hitpos.Z - hit.hitSector->floorz) <= 1)
                 {
                     if ((hit.hitSector->extra & SECTFX_LIQUID_MASK) != SECTFX_LIQUID_NONE)
                     {
-                        SpawnSplashXY(hit.hitpos.X,hit.hitpos.Y,hit.hitpos.Z,hit.hitSector);
+                        SpawnSplashXY(hit.int_hitpos().X,hit.int_hitpos().Y,hit.int_hitpos().Z,hit.hitSector);
                         continue;
                     }
                 }
@@ -16105,7 +16059,7 @@ int InitTurretMgun(SECTOR_OBJECT* sop)
                 {
                     if ((hit.hitWall->nextSector()->ceilingstat & CSTAT_SECTOR_SKY))
                     {
-                        if (hit.hitpos.Z < hit.hitWall->nextSector()->int_ceilingz())
+                        if (hit.hitpos.Z < hit.hitWall->nextSector()->ceilingz)
                         {
                             return 0;
                         }
@@ -16114,11 +16068,11 @@ int InitTurretMgun(SECTOR_OBJECT* sop)
 
                 if (hit.hitWall->lotag == TAG_WALL_BREAK)
                 {
-                    HitBreakWall(hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang, 0);
+                    HitBreakWall(hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang, 0);
                     continue;
                 }
 
-                QueueHole(hit.hitSector, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z);
+                QueueHole(hit.hitSector, hit.hitWall, hit.hitpos);
             }
 
             // hit a sprite?
@@ -16138,7 +16092,7 @@ int InitTurretMgun(SECTOR_OBJECT* sop)
                     continue;
                 }
 
-                if (BulletHitSprite(actor, hit.actor(), hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, 0))
+                if (BulletHitSprite(actor, hit.actor(), hit.hitpos, 0))
                     continue;
 
                 // hit a switch?
@@ -16149,7 +16103,7 @@ int InitTurretMgun(SECTOR_OBJECT* sop)
             }
 
 
-            auto j = SpawnTurretSparks(hit.hitSector, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang);
+            auto j = SpawnTurretSparks(hit.hitSector, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang);
             DoHitscanDamage(j, hit.actor());
         }
     }
@@ -16238,7 +16192,7 @@ int InitEnemyUzi(DSWActor* actor)
         {
             if ((hit.hitWall->nextSector()->ceilingstat & CSTAT_SECTOR_SKY))
             {
-                if (hit.hitpos.Z < hit.hitWall->nextSector()->int_ceilingz())
+                if (hit.hitpos.Z < hit.hitWall->nextSector()->ceilingz)
                 {
                     return 0;
                 }
@@ -16247,20 +16201,20 @@ int InitEnemyUzi(DSWActor* actor)
 
         if (hit.hitWall->lotag == TAG_WALL_BREAK)
         {
-            HitBreakWall(hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang, actor->user.ID);
+            HitBreakWall(hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, daang, actor->user.ID);
             return 0;
         }
 
-        QueueHole(hit.hitSector, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z);
+        QueueHole(hit.hitSector, hit.hitWall, hit.hitpos);
     }
 
     if (hit.actor() != nullptr)
     {
-        if (BulletHitSprite(actor, hit.actor(), hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, 0))
+        if (BulletHitSprite(actor, hit.actor(), hit.hitpos, 0))
             return 0;
     }
 
-    auto actorNew = SpawnActor(STAT_MISSILE, UZI_SMOKE+2, s_UziSmoke, hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang, 0);
+    auto actorNew = SpawnActor(STAT_MISSILE, UZI_SMOKE+2, s_UziSmoke, hit.hitSector, hit.hitpos, DAngle::fromBuild(daang), 0);
 
     actorNew->spr.shade = -40;
     actorNew->spr.xrepeat = UZI_SMOKE_REPEAT;
@@ -16276,7 +16230,7 @@ int InitEnemyUzi(DSWActor* actor)
 
     actorNew->spr.clipdist = 32L >> 2;
 
-    actorNew = SpawnActor(STAT_MISSILE, UZI_SMOKE, s_UziSmoke, hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang, 0);
+    actorNew = SpawnActor(STAT_MISSILE, UZI_SMOKE, s_UziSmoke, hit.hitSector, hit.hitpos, DAngle::fromBuild(daang), 0);
     actorNew->spr.shade = -40;
     actorNew->spr.xrepeat = UZI_SMOKE_REPEAT;
     actorNew->spr.yrepeat = UZI_SMOKE_REPEAT;
@@ -16287,7 +16241,7 @@ int InitEnemyUzi(DSWActor* actor)
     HitscanSpriteAdjust(actorNew, hit.hitWall);
     DoHitscanDamage(actorNew, hit.actor());
 
-    actorNew = SpawnActor(STAT_MISSILE, UZI_SPARK, s_UziSpark, hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, daang, 0);
+    actorNew = SpawnActor(STAT_MISSILE, UZI_SPARK, s_UziSpark, hit.hitSector, hit.hitpos, DAngle::fromBuild(daang), 0);
 
     actorNew->spr.shade = -40;
     actorNew->spr.xrepeat = UZI_SPARK_REPEAT;
@@ -16329,9 +16283,9 @@ int InitGrenade(PLAYER* pp)
     if (!pp->insector())
         return 0;
 
-    nx = pp->pos.X;
-    ny = pp->pos.Y;
-    nz = pp->pos.Z + pp->bob_z + Z(8);
+    nx = pp->int_ppos().X;
+    ny = pp->int_ppos().Y;
+    nz = pp->int_ppos().Z + pp->bob_z + Z(8);
 
     // Spawn a shot
     // Inserting and setting up variables
@@ -16357,8 +16311,8 @@ int InitGrenade(PLAYER* pp)
     actorNew->spr.clipdist = 32L>>2;
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = 200;
-    actorNew->user.ceiling_dist = Z(3);
-    actorNew->user.floor_dist = Z(3);
+    actorNew->user.ceiling_dist = (3);
+    actorNew->user.floor_dist = (3);
     actorNew->user.Counter = 0;
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat |= (CSTAT_SPRITE_BLOCK);
@@ -16435,8 +16389,8 @@ int InitSpriteGrenade(DSWActor* actor)
     actorNew->spr.clipdist = 32L>>2;
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = 200;
-    actorNew->user.ceiling_dist = Z(3);
-    actorNew->user.floor_dist = Z(3);
+    actorNew->user.ceiling_dist = (3);
+    actorNew->user.floor_dist = (3);
     actorNew->user.Counter = 0;
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat |= (CSTAT_SPRITE_BLOCK);
@@ -16474,9 +16428,9 @@ int InitMine(PLAYER* pp)
     if (!pp->insector())
         return 0;
 
-    nx = pp->pos.X;
-    ny = pp->pos.Y;
-    nz = pp->pos.Z + pp->bob_z + Z(8);
+    nx = pp->int_ppos().X;
+    ny = pp->int_ppos().Y;
+    nz = pp->int_ppos().Z + pp->bob_z + Z(8);
 
     // Spawn a shot
     // Inserting and setting up variables
@@ -16492,8 +16446,8 @@ int InitMine(PLAYER* pp)
     actorNew->spr.zvel = -pp->horizon.horiz.asq16() >> 9;
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = 200;
-    actorNew->user.ceiling_dist = Z(5);
-    actorNew->user.floor_dist = Z(5);
+    actorNew->user.ceiling_dist = (5);
+    actorNew->user.floor_dist = (5);
     actorNew->user.Counter = 0;
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat &= ~(CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
@@ -16544,8 +16498,8 @@ int InitEnemyMine(DSWActor* actor)
 
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = 200;
-    actorNew->user.ceiling_dist = Z(5);
-    actorNew->user.floor_dist = Z(5);
+    actorNew->user.ceiling_dist = (5);
+    actorNew->user.floor_dist = (5);
     actorNew->user.Counter = 0;
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat &= ~(CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
@@ -16605,10 +16559,10 @@ int InitFireball(PLAYER* pp)
     if (!pp->insector())
         return 0;
 
-    nx += pp->pos.X;
-    ny += pp->pos.Y;
+    nx += pp->int_ppos().X;
+    ny += pp->int_ppos().Y;
 
-    nz = pp->pos.Z + pp->bob_z + Z(15);
+    nz = pp->int_ppos().Z + pp->bob_z + Z(15);
 
     auto actorNew = SpawnActor(STAT_MISSILE, FIREBALL1, s_Fireball, pp->cursector, nx, ny, nz, pp->angle.ang.Buildang(), FIREBALL_VELOCITY);
 
@@ -16621,8 +16575,8 @@ int InitFireball(PLAYER* pp)
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->user.Radius = 100;
 
-    actorNew->user.ceiling_dist = Z(6);
-    actorNew->user.floor_dist = Z(6);
+    actorNew->user.ceiling_dist = (6);
+    actorNew->user.floor_dist = (6);
     zvel = -MulScale(pp->horizon.horiz.asq16(), 240, 16);
 
     // at certain angles the clipping box was big enough to block the
@@ -16937,7 +16891,7 @@ bool SpriteWarpToUnderwater(DSWActor* actor)
         ChangeActorSect(actor, over);
     }
 
-    actor->set_int_z(underActor->sector()->int_ceilingz() + actor->user.ceiling_dist+Z(1));
+    actor->set_int_z(underActor->sector()->int_ceilingz() + actor->user.int_ceiling_dist() + Z(1));
 
     actor->backuppos();
 
@@ -17006,7 +16960,7 @@ bool SpriteWarpToSurface(DSWActor* actor)
         ChangeActorSect(actor, over);
     }
 
-    actor->set_int_z(overActor->sector()->int_floorz() - Z(2));
+    actor->spr.pos.Z = overActor->sector()->floorz - 2;
 
     // set z range and wade depth so we know how high to set view
     DoActorZrange(actor);
@@ -17038,7 +16992,7 @@ int SpawnSplash(DSWActor* actor)
     DoActorZrange(actor);
     MissileWaterAdjust(actor);
 
-    auto actorNew = SpawnActor(STAT_MISSILE, SPLASH, s_Splash, actor->sector(), actor->int_pos().X, actor->int_pos().Y, actor->user.loz, actor->int_ang(), 0);
+    auto actorNew = SpawnActor(STAT_MISSILE, SPLASH, s_Splash, actor->sector(), DVector3(actor->spr.pos.XY(), actor->user.loz), actor->spr.angle, 0);
 
     if (sectu && (sectp->extra & SECTFX_LIQUID_MASK) == SECTFX_LIQUID_LAVA)
         actorNew->user.spal = actorNew->spr.pal = PALETTE_RED_LIGHTING;
@@ -17092,11 +17046,11 @@ bool MissileHitDiveArea(DSWActor* actor)
         if (SpriteInDiveArea(actor))
         {
             // make sure you are close to the floor
-            if (actor->int_pos().Z < ((actor->user.hiz + actor->user.loz) >> 1))
+            if (actor->spr.pos.Z < (actor->user.hiz + actor->user.loz) * 0.5)
                 return false;
 
             // Check added by Jim because of sprite bridge over water
-            if (actor->int_pos().Z < (hit_sect->int_floorz()-Z(20)))
+            if (actor->spr.pos.Z < hit_sect->floorz - 20)
                 return false;
 
             actor->user.Flags |= (SPR_UNDERWATER);
@@ -17109,7 +17063,7 @@ bool MissileHitDiveArea(DSWActor* actor)
         else if (SpriteInUnderwaterArea(actor))
         {
             // make sure you are close to the ceiling
-            if (actor->int_pos().Z > ((actor->user.hiz + actor->user.loz) >> 1))
+            if (actor->spr.pos.Z > ((actor->user.hiz + actor->user.loz) * 0.5))
                 return false;
 
             actor->user.Flags &= ~(SPR_UNDERWATER);
@@ -17134,10 +17088,11 @@ DSWActor* SpawnBubble(DSWActor* actor)
 
     actorNew->spr.xrepeat = 8 + (RANDOM_P2(8 << 8) >> 8);
     actorNew->spr.yrepeat = actorNew->spr.xrepeat;
+    // notreallypos
     actorNew->user.pos.X = actorNew->spr.xrepeat;
     actorNew->user.pos.Y = actorNew->spr.yrepeat;
-    actorNew->user.ceiling_dist = Z(1);
-    actorNew->user.floor_dist = Z(1);
+    actorNew->user.ceiling_dist = 1;
+    actorNew->user.floor_dist = 1;
     actorNew->spr.shade = actor->sector()->floorshade - 10;
     actorNew->user.WaitTics = 120 * 120;
     actorNew->spr.zvel = 512;
@@ -17226,6 +17181,7 @@ int DoBubble(DSWActor* actor)
     if (actor->spr.zvel > 768)
         actor->spr.zvel = 768;
 
+    // notreallypos
     actor->user.pos.X += 1;
     actor->user.pos.Y += 1;
 
@@ -17235,10 +17191,10 @@ int DoBubble(DSWActor* actor)
         actor->user.pos.Y = 32;
     }
 
-    actor->spr.xrepeat = actor->user.pos.X + (RANDOM_P2(8 << 8) >> 8) - 4;
-    actor->spr.yrepeat = actor->user.pos.Y + (RANDOM_P2(8 << 8) >> 8) - 4;
+    actor->spr.xrepeat = int(actor->user.pos.X) + (RANDOM_P2(8 << 8) >> 8) - 4;
+    actor->spr.yrepeat = int(actor->user.pos.Y) + (RANDOM_P2(8 << 8) >> 8) - 4;
 
-    if (actor->int_pos().Z < actor->sector()->int_ceilingz())
+    if (actor->spr.pos.Z < actor->sector()->ceilingz)
     {
         if (SectorIsUnderwaterArea(actor->user.hi_sectp))
         {
@@ -17402,7 +17358,7 @@ int QueueStar(DSWActor* actor)
     return 0;
 }
 
-void QueueHole(sectortype* hit_sect, walltype* hit_wall, int hit_x, int hit_y, int hit_z)
+void QueueHole(sectortype* hit_sect, walltype* hit_wall, const DVector3& pos)
 {
     short w,nw,wall_ang;
     DSWActor* spawnedActor;
@@ -17425,7 +17381,7 @@ void QueueHole(sectortype* hit_sect, walltype* hit_wall, int hit_x, int hit_y, i
     spawnedActor->spr.extra = 0;
     spawnedActor->spr.clipdist = 0;
     spawnedActor->spr.xoffset = spawnedActor->spr.yoffset = 0;
-    spawnedActor->set_int_pos({ hit_x, hit_y, hit_z });
+    spawnedActor->spr.pos = pos;
     spawnedActor->spr.picnum = 2151;
     ChangeActorSect(spawnedActor, hit_sect);
 
@@ -17445,9 +17401,7 @@ void QueueHole(sectortype* hit_sect, walltype* hit_wall, int hit_x, int hit_y, i
     auto sect = spawnedActor->sector();
 
     Collision coll;
-    auto pos = spawnedActor->int_pos();
-    clipmove(pos, &sect, nx, ny, 0, 0, 0, CLIPMASK_MISSILE, coll, 1);
-    spawnedActor->set_int_pos(pos);
+    clipmove(spawnedActor->spr.pos, &sect, nx, ny, 0, 0, 0, CLIPMASK_MISSILE, coll, 1);
 
     if (spawnedActor->sector() != sect)
         ChangeActorSect(spawnedActor, sect);
@@ -17504,8 +17458,7 @@ int QueueFloorBlood(DSWActor* actor)
     spawnedActor->spr.extra = 0;
     spawnedActor->spr.clipdist = 0;
     spawnedActor->spr.xoffset = spawnedActor->spr.yoffset = 0;
-    spawnedActor->spr.pos = actor->spr.pos;
-    spawnedActor->add_int_z(Z(1));
+    spawnedActor->spr.pos = actor->spr.pos.plusZ(1);
     spawnedActor->set_int_ang(RANDOM_P2(2048)); // Just make it any old angle
     spawnedActor->spr.shade -= 5;  // Brighten it up just a bit
 
@@ -17669,6 +17622,7 @@ DSWActor* QueueWallBlood(DSWActor* actor, short ang)
     short rndnum;
     int daz;
     HitInfo hit{};
+	DAngle bang = DAngle::fromBuild(ang);
 
     if (actor->user.Flags & (SPR_UNDERWATER) || SpriteInUnderwaterArea(actor) || SpriteInDiveArea(actor))
         return nullptr;   // No blood underwater!
@@ -17687,7 +17641,7 @@ DSWActor* QueueWallBlood(DSWActor* actor, short ang)
         return nullptr;
 
     const int WALLBLOOD_DIST_MAX = 2500;
-    if (Distance(hit.hitpos.X, hit.hitpos.Y, actor->int_pos().X, actor->int_pos().Y) > WALLBLOOD_DIST_MAX)
+    if (DistanceI(hit.hitpos, actor->spr.pos) > WALLBLOOD_DIST_MAX)
         return nullptr;
 
     // hit a sprite?
@@ -17711,22 +17665,22 @@ DSWActor* QueueWallBlood(DSWActor* actor, short ang)
     if (rndnum > 768)
     {
         WallBloodQueue[WallBloodQueueHead] = spawnedActor =
-                                                 SpawnActor(STAT_WALLBLOOD_QUEUE, WALLBLOOD1, s_WallBlood1, hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, ang, 0);
+                                                 SpawnActor(STAT_WALLBLOOD_QUEUE, WALLBLOOD1, s_WallBlood1, hit.hitSector, hit.hitpos, bang, 0);
     }
     else if (rndnum > 512)
     {
         WallBloodQueue[WallBloodQueueHead] = spawnedActor =
-                                                 SpawnActor(STAT_WALLBLOOD_QUEUE, WALLBLOOD2, s_WallBlood2, hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, ang, 0);
+                                                 SpawnActor(STAT_WALLBLOOD_QUEUE, WALLBLOOD2, s_WallBlood2, hit.hitSector, hit.hitpos, bang, 0);
     }
     else if (rndnum > 128)
     {
         WallBloodQueue[WallBloodQueueHead] = spawnedActor =
-                                                 SpawnActor(STAT_WALLBLOOD_QUEUE, WALLBLOOD3, s_WallBlood3, hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, ang, 0);
+                                                 SpawnActor(STAT_WALLBLOOD_QUEUE, WALLBLOOD3, s_WallBlood3, hit.hitSector, hit.hitpos, bang, 0);
     }
     else
     {
         WallBloodQueue[WallBloodQueueHead] = spawnedActor =
-                                                 SpawnActor(STAT_WALLBLOOD_QUEUE, WALLBLOOD4, s_WallBlood4, hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, ang, 0);
+                                                 SpawnActor(STAT_WALLBLOOD_QUEUE, WALLBLOOD4, s_WallBlood4, hit.hitSector, hit.hitpos, bang, 0);
     }
 
     WallBloodQueueHead = (WallBloodQueueHead+1) & (MAX_WALLBLOOD_QUEUE-1);
@@ -17739,7 +17693,7 @@ DSWActor* QueueWallBlood(DSWActor* actor, short ang)
     spawnedActor->spr.extra = 0;
     spawnedActor->spr.clipdist = 0;
     spawnedActor->spr.xoffset = spawnedActor->spr.yoffset = 0;
-    spawnedActor->set_int_pos(hit.hitpos);
+    spawnedActor->spr.pos = hit.hitpos;
     spawnedActor->spr.shade -= 5;  // Brighten it up just a bit
     spawnedActor->tempwall = hit.hitWall; // pass hitinfo.wall
 
@@ -17758,9 +17712,7 @@ DSWActor* QueueWallBlood(DSWActor* actor, short ang)
     auto sect = spawnedActor->sector();
 
     Collision coll;
-    auto pos = spawnedActor->int_pos();
-    clipmove(pos, &sect, nx, ny, 0, 0, 0, CLIPMASK_MISSILE, coll, 1);
-    spawnedActor->set_int_pos(pos);
+    clipmove(spawnedActor->spr.pos, &sect, nx, ny, 0, 0, 0, CLIPMASK_MISSILE, coll, 1);
 
     if (spawnedActor->sector() != sect)
         ChangeActorSect(spawnedActor, sect);
@@ -17807,7 +17759,7 @@ int DoFloorBlood(DSWActor* actor)
         {
             pp = &Player[pnum];
 
-            DISTANCE(actor->int_pos().X, actor->int_pos().Y, pp->pos.X, pp->pos.Y, dist, a, b, c);
+            DISTANCE(actor->int_pos().X, actor->int_pos().Y, pp->int_ppos().X, pp->int_ppos().Y, dist, a, b, c);
 
             if (dist < near_dist)
             {
@@ -17837,7 +17789,7 @@ int DoWallBlood(DSWActor* actor)
     if (actor->spr.yrepeat < 80)
     {
         actor->spr.yrepeat++;
-        actor->add_int_z(128);
+        actor->spr.pos.Z += 0.5;
     }
 
     return 0;
@@ -17957,7 +17909,7 @@ int DoShrapVelocity(DSWActor* actor)
     }
 
     actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z,
-                          actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS*2);
+                          actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS*2);
 
     MissileHitDiveArea(actor);
 
@@ -18005,7 +17957,7 @@ int DoShrapVelocity(DSWActor* actor)
                 else
                 {
                     // hit a sector
-                    if (actor->int_pos().Z > ((actor->user.hiz + actor->user.loz) >> 1))
+                    if (actor->spr.pos.Z > ((actor->user.hiz + actor->user.loz) * 0.5))
                     {
                         // hit a floor
                         if (!(actor->user.Flags & SPR_BOUNCE))
@@ -18034,9 +17986,9 @@ int DoShrapVelocity(DSWActor* actor)
             else
             {
                 // hit floor
-                if (actor->int_pos().Z > ((actor->user.hiz + actor->user.loz) >> 1))
+                if (actor->spr.pos.Z > ((actor->user.hiz + actor->user.loz) * 0.5))
                 {
-                    actor->set_int_z(actor->user.loz);
+                    actor->spr.pos.Z = actor->user.loz;
                     if (actor->user.Flags & (SPR_UNDERWATER))
                         actor->user.Flags |= (SPR_BOUNCE); // no bouncing underwater
 
@@ -18269,7 +18221,7 @@ int DoItemFly(DSWActor* actor)
     }
 
     actor->user.coll = move_missile(actor, actor->user.change.X, actor->user.change.Y, actor->user.change.Z,
-                          actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, MISSILEMOVETICS*2);
+                          actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, MISSILEMOVETICS*2);
 
     MissileHitDiveArea(actor);
 
@@ -18307,9 +18259,9 @@ int DoItemFly(DSWActor* actor)
         case kHitSector:
         {
             // hit floor
-            if (actor->int_pos().Z > ((actor->user.hiz + actor->user.loz) >> 1))
+            if (actor->spr.pos.Z > ((actor->user.hiz + actor->user.loz) * 0.5))
             {
-                actor->set_int_z(actor->user.loz);
+                actor->spr.pos.Z = actor->user.loz;
                 actor->user.Counter = 0;
                 actor->spr.xvel = 0;
                 actor->user.change.Z = actor->user.change.X = actor->user.change.Y = 0;

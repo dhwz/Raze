@@ -39,22 +39,20 @@ static actionSeq SetSeq[] = {
     {74, 1}
 };
 
-void BuildSet(DExhumedActor* pActor, int x, int y, int z, sectortype* pSector, int nAngle, int nChannel)
+void BuildSet(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, int nAngle, int nChannel)
 {
     if (pActor == nullptr)
     {
         pActor = insertActor(pSector, 120);
+		pActor->spr.pos = pos;
     }
     else
     {
         ChangeActorStat(pActor, 120);
-        x = pActor->int_pos().X;
-        y = pActor->int_pos().Y;
-        z = pActor->sector()->int_floorz();
+		pActor->spr.pos.Z = pActor->sector()->floorz;
         nAngle = pActor->int_ang();
     }
 
-    pActor->set_int_pos({ x, y, z });
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     pActor->spr.shade = -12;
     pActor->spr.clipdist = 110;
@@ -110,7 +108,7 @@ void BuildSoul(DExhumedActor* pSet)
     pActor->spr.xvel = 0;
     pActor->spr.yvel = 0;
     pActor->spr.zvel = (-256) - RandomSize(10);
-    pActor->set_int_pos({ pSet->int_pos().X, pSet->int_pos().Y, (RandomSize(8) << 8) + 8192 + pActor->sector()->int_ceilingz() - GetActorHeight(pActor) });
+    pActor->spr.pos = DVector3(pSet->spr.pos.XY(), RandomSize(8) + 32 + pActor->sector()->ceilingz - GetActorHeightF(pActor));
 
     //pActor->spr.hitag = nSet;
 	pActor->pTarget = pSet;
@@ -150,7 +148,7 @@ void AISoul::Tick(RunListEvent* ev)
         pActor->spr.cstat = 0;
         pActor->spr.yrepeat = 1;
         pActor->spr.xrepeat = 1;
-        pActor->set_int_pos({ pSet->int_pos().X, pSet->int_pos().Y, pSet->int_pos().Z - (GetActorHeight(pSet) >> 1) });
+        pActor->spr.pos = pSet->spr.pos.plusZ(-GetActorHeightF(pSet) * 0.5);
         ChangeActorSect(pActor, pSet->sector());
         return;
     }
@@ -406,9 +404,9 @@ void AISet::Tick(RunListEvent* ev)
 
                 if (pSector)
                 {
-                    if ((pActor->int_pos().Z - pSector->int_floorz()) < 55000)
+                    if ((pActor->spr.pos.Z - pSector->floorz) < (55000/256.))
                     {
-                        if (pActor->int_pos().Z > pSector->int_ceilingz())
+                        if (pActor->spr.pos.Z > pSector->ceilingz)
                         {
                             pActor->nIndex = 1;
                             pActor->nAction = 7;
@@ -429,9 +427,9 @@ void AISet::Tick(RunListEvent* ev)
             {
                 if (pTarget == nMov.actor())
                 {
-                    int nAng = getangle(pTarget->int_pos().X - pActor->int_pos().X, pTarget->int_pos().Y - pActor->int_pos().Y);
-                    if (AngleDiff(pActor->int_ang(), nAng) < 64)
-                    {
+					auto nAngDiff = AngleDiff(pActor->spr.angle, VecToAngle(pTarget->spr.pos - pActor->spr.pos));
+					if (nAngDiff < 64)
+                   {
                         pActor->nAction = 4;
                         pActor->nFrame = 0;
                     }
@@ -572,9 +570,9 @@ void AISet::Tick(RunListEvent* ev)
     {
         if (nFlag & 0x80)
         {
-            pActor->add_int_z(-GetActorHeight(pActor));
+            pActor->spr.pos.Z -= GetActorHeightF(pActor);
             BuildCreatureChunk(pActor, seq_GetSeqPicnum(kSeqSet, 76, 0));
-            pActor->add_int_z(GetActorHeight(pActor));
+			pActor->spr.pos.Z += GetActorHeightF(pActor);
         }
 
         if (bVal)

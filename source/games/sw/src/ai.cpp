@@ -324,7 +324,7 @@ int DoActorPickClosePlayer(DSWActor* actor)
             //    continue;
         }
 
-        DISTANCE(actor->int_pos().X, actor->int_pos().Y, pp->pos.X, pp->pos.Y, dist, a, b, c);
+        DISTANCE(actor->int_pos().X, actor->int_pos().Y, pp->int_ppos().X, pp->int_ppos().Y, dist, a, b, c);
 
         if (dist < near_dist)
         {
@@ -350,7 +350,7 @@ int DoActorPickClosePlayer(DSWActor* actor)
                 continue;
         }
 
-        DISTANCE(actor->int_pos().X, actor->int_pos().Y, pp->pos.X, pp->pos.Y, dist, a, b, c);
+        DISTANCE(actor->int_pos().X, actor->int_pos().Y, pp->int_ppos().X, pp->int_ppos().Y, dist, a, b, c);
 
         DSWActor* plActor = pp->actor;
         if (dist < near_dist && FAFcansee(actor->int_pos().X, actor->int_pos().Y, look_height, actor->sector(), plActor->int_pos().X, plActor->int_pos().Y, ActorUpperZ(plActor), plActor->sector()))
@@ -441,7 +441,7 @@ int DoActorOperate(DSWActor* actor)
         neartag({ actor->int_pos().X, actor->int_pos().Y, z[i] }, actor->sector(), actor->int_ang(), near, 1024, NTAG_SEARCH_LO_HI);
     }
 
-    if (near.hitSector != nullptr && near.hitpos.X < 1024)
+    if (near.hitSector != nullptr && near.int_hitpos().X < 1024)
     {
         if (OperateSector(near.hitSector, false))
         {
@@ -518,7 +518,7 @@ ANIMATOR* DoActorActionDecide(DSWActor* actor)
         DoActorOperate(actor);
 
         // if far enough away and cannot see the player
-        dist = Distance(actor->int_pos().X, actor->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+        dist = DistanceI(actor->spr.pos, actor->user.targetActor->spr.pos);
 
         if (dist > 30000 && !ICanSee)
         {
@@ -609,7 +609,7 @@ ANIMATOR* DoActorActionDecide(DSWActor* actor)
             DoActorPickClosePlayer(actor);
 
         // if close by
-        dist = Distance(actor->int_pos().X, actor->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+		dist = DistanceI(actor->spr.pos, actor->user.targetActor->spr.pos);
         if (dist < 15000 || ICanSee)
         {
             if ((Facing(actor, actor->user.targetActor) && dist < 10000) || ICanSee)
@@ -1273,7 +1273,7 @@ int InitActorDuck(DSWActor* actor)
     actor->user.ActorActionFunc = DoActorDuck;
     NewStateGroup(actor, actor->user.ActorActionSet->Duck);
 
-    dist = Distance(actor->int_pos().X, actor->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+	dist = DistanceI(actor->spr.pos, actor->user.targetActor->spr.pos);
 
     if (dist > 8000)
     {
@@ -1328,8 +1328,6 @@ Collision move_scan(DSWActor* actor, int ang, int dist, int *stopx, int *stopy, 
     int nx,ny;
     uint32_t cliptype = CLIPMASK_ACTOR;
 
-    int sang;
-    int x, y, z, loz, hiz;
     DSWActor* highActor;
     DSWActor* lowActor;
     sectortype* lo_sectp,* hi_sectp, *ssp;
@@ -1338,12 +1336,10 @@ Collision move_scan(DSWActor* actor, int ang, int dist, int *stopx, int *stopy, 
     // moves out a bit but keeps the sprites original postion/sector.
 
     // save off position info
-    x = actor->int_pos().X;
-    y = actor->int_pos().Y;
-    z = actor->int_pos().Z;
-    sang = actor->int_ang();
-    loz = actor->user.loz;
-    hiz = actor->user.hiz;
+	auto pos = actor->spr.pos;
+    auto sang = actor->spr.angle;
+    auto loz = actor->user.loz;
+    auto hiz = actor->user.hiz;
     lowActor = actor->user.lowActor;
     highActor = actor->user.highActor;
     lo_sectp = actor->user.lo_sectp;
@@ -1355,7 +1351,7 @@ Collision move_scan(DSWActor* actor, int ang, int dist, int *stopx, int *stopy, 
     nx = MulScale(dist, bcos(actor->int_ang()), 14);
     ny = MulScale(dist, bsin(actor->int_ang()), 14);
 
-    Collision ret = move_sprite(actor, nx, ny, 0, actor->user.ceiling_dist, actor->user.floor_dist, cliptype, 1);
+    Collision ret = move_sprite(actor, nx, ny, 0, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), cliptype, 1);
     // move_sprite DOES do a getzrange point?
 
     // should I look down with a FAFgetzrange to see where I am?
@@ -1366,8 +1362,8 @@ Collision move_scan(DSWActor* actor, int ang, int dist, int *stopx, int *stopy, 
     *stopz = actor->int_pos().Z;
 
     // reset position information
-    actor->set_int_pos({ x, y, z });
-    actor->set_int_ang(sang);
+	actor->spr.pos = pos;
+    actor->spr.angle = sang;
     actor->user.loz = loz;
     actor->user.hiz = hiz;
     actor->user.lowActor = lowActor;
@@ -1563,7 +1559,7 @@ int InitActorReposition(DSWActor* actor)
     actor->user.Dist = 0;
 
     rnum = RANDOM_P2(8<<8)>>8;
-    dist = Distance(actor->int_pos().X, actor->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y);
+	dist = DistanceI(actor->spr.pos, actor->user.targetActor->spr.pos);
 
     if (dist < PlayerDist[rnum] || (actor->user.Flags & SPR_RUN_AWAY))
     {

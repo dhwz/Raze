@@ -115,6 +115,7 @@ inline int RANDOM(void)
     return randomseed;
 }
 int RANDOM_P2(int pwr_of_2) { return (RANDOM() & (pwr_of_2 - 1)); }
+double RANDOM_P2F(int pwr_of_2) { return (RANDOM() & (pwr_of_2 - 1)) * maptoworld; }
 
 //
 // Map directions/degrees
@@ -576,7 +577,33 @@ struct REMOTE_CONTROL
 struct PLAYER
 {
     // variable that fit in the sprite or user structure
-    vec3_t pos, opos, oldpos;
+
+    DVector3 pos, opos, oldpos;
+
+    const vec3_t int_ppos() const
+    {
+        return { int(pos.X * worldtoint), int(pos.Y * worldtoint), int(pos.Z * zworldtoint) };
+    }
+    void set_int_ppos(vec3_t z)
+    {
+        pos = { z.X * inttoworld, z.Y * inttoworld, z.Z * zinttoworld };
+    }
+    void set_int_ppos_XY(vec2_t z)
+    {
+        pos.XY() = {z.X * inttoworld, z.Y * inttoworld };
+    }
+    void set_int_ppos_Z(int z)
+    {
+        pos.Z = z * zinttoworld;
+    }
+    void add_int_ppos_Z(int z)
+    {
+        pos.Z += z * zinttoworld;
+    }
+    void add_int_ppos_XY(vec2_t z)
+    {
+        pos.XY() += { z.X * inttoworld, z.Y * inttoworld };
+    }
 
     DSWActor* actor;    // this may not be a TObjPtr!
     TObjPtr<DSWActor*> lowActor, highActor;
@@ -639,7 +666,8 @@ struct PLAYER
     int16_t pnum; // carry along the player number
 
     sectortype* LadderSector;
-    vec3_t LadderPosition; // ladder x and y
+    DVector2 LadderPosition; // ladder x and y
+
     int16_t JumpDuration;
     int16_t WadeDepth;
     int16_t bob_amt;
@@ -902,6 +930,15 @@ struct USER
         memset(&WallP, 0, sizeof(USER) - myoffsetof(USER, WallP));
     }
 
+    int int_oz() const { return oz * zworldtoint; }
+    int int_loz() const { return loz * zworldtoint; }
+    int int_hiz() const { return hiz * zworldtoint; }
+    int int_z_tgt() const { return z_tgt * zworldtoint; }
+    int int_ceiling_dist() const { return ceiling_dist * zworldtoint; }
+    int int_floor_dist() const { return floor_dist * zworldtoint; }
+    int int_zclip() const { return zclip * zworldtoint; }
+    const vec3_t int_upos() const { return { int(pos.X * worldtoint), int(pos.Y * worldtoint),int(pos.Z * zworldtoint) }; }
+
     //
     // Variables that can be used by actors and Player
     //
@@ -932,10 +969,17 @@ struct USER
     TObjPtr<DSWActor*> flagOwnerActor;
     TObjPtr<DSWActor*> WpnGoalActor;
 
+    DVector3 pos;
+    double hiz, loz;
+    double oz; // serialized copy of sprite.oz
+    double z_tgt;
+    double ceiling_dist;
+    double floor_dist;
+    double zclip; // z height to move up for clipmove
+
     int Flags;
     int Flags2;
     int Tics;
-    int oz; // serialized copy of sprite.oz
 
     int16_t RotNum;
     int16_t ID;
@@ -953,11 +997,7 @@ struct USER
     int16_t jump_grav;
 
     // clipmove
-    int16_t ceiling_dist;
-    int16_t floor_dist;
     int16_t lo_step;
-    int hiz,loz;
-    int zclip; // z height to move up for clipmove
     int active_range;
     sectortype* hi_sectp, *lo_sectp;
 
@@ -973,8 +1013,6 @@ struct USER
 
     // precalculated vectors
     vec3_t change;
-
-    int  z_tgt;
 
     // velocity
     int  vel_tgt;
@@ -1024,7 +1062,6 @@ struct USER
 
     int16_t wait_active_check;  // for enemy checking of player
     int16_t inactive_time; // length of time actor has been unaware of his tgt
-    vec3_t pos;
     int16_t sang;
     uint8_t spal;  // save off default palette number
 
@@ -1404,6 +1441,10 @@ extern TRACK Track[MAX_TRACKS];
 
 struct SECTOR_OBJECT
 {
+    vec3_t int_pmid() const
+    {
+        return { int(pmid.X * worldtoint), int(pmid.Y * worldtoint),int(pmid.Z * zworldtoint) };
+    }
 
     soANIMATORp PreMoveAnimator;
     soANIMATORp PostMoveAnimator;
@@ -1412,7 +1453,7 @@ struct SECTOR_OBJECT
 
     TObjPtr<DSWActor*> sp_child;  // child sprite that holds info for the sector object
 
-    vec3_t pmid;  // midpoints of the sector object
+    DVector3 pmid;  // midpoints of the sector object
 
 	TObjPtr<DSWActor*> so_actors[MAX_SO_SPRITE];    // hold the actors of the object
 	TObjPtr<DSWActor*> match_event_actor; // spritenum of the match event sprite
@@ -1563,8 +1604,11 @@ enum
     SO_TURRET = 97,
     SO_VEHICLE = 98,
     // #define SO_SPEED_BOAT 99
-    MAXSO = INT32_MAX / 2
 };
+
+// make sure this does not overflow when converted to a Build int coordinate and survives a round trip through conversions.
+constexpr double MAXSO = 0x7fffffe0 / 32; 
+static_assert(MAXSO == int(MAXSO * worldtoint) * inttoworld);
 
 inline bool SO_EMPTY(SECTOR_OBJECT* sop) { return (sop->pmid.X == MAXSO); }
 
@@ -1580,9 +1624,20 @@ extern SECTOR_OBJECT SectorObject[MAX_SECTOR_OBJECTS];
 ANIMATOR NullAnimator;
 
 int Distance(int x1, int y1, int x2, int y2);
+int DistanceI(const DVector2& pos1, const DVector2& pos2)
+{
+	return Distance(int(pos1.X * worldtoint), int(pos1.Y * worldtoint), int(pos2.X * worldtoint), int(pos2.Y * worldtoint));
+}
+/*
+double Distance(const DVector2& pos1, const DVector2& pos2)
+{
+	return (pos2 - pos1).Length();
+}
+ */
 
 int NewStateGroup(DSWActor* actor, STATE* SpriteGroup[]);
 void SectorMidPoint(sectortype* sect, int *xmid, int *ymid, int *zmid);
+DVector3 SectorMidPoint(sectortype* sectp);
 void SpawnUser(DSWActor* actor, short id, STATE* state);
 
 short ActorFindTrack(DSWActor* actor, int8_t player_dir, int track_type, int *track_point_num, int *track_dir);
@@ -1607,7 +1662,7 @@ enum
 short SoundDist(int x, int y, int z, int basedist);
 short SoundAngle(int x, int  y);
 //void PlaySound(int num, short angle, short vol);
-int _PlaySound(int num, DSWActor* sprite, PLAYER* player, vec3_t *pos, int flags, int channel, EChanFlags sndflags);
+int _PlaySound(int num, DSWActor* sprite, PLAYER* player, const vec3_t *const pos, int flags, int channel, EChanFlags sndflags);
 void InitAmbient(int num, DSWActor* actor);
 
 inline void PlaySound(int num, PLAYER* player, int flags, int channel = 8, EChanFlags sndflags = CHANF_NONE)
@@ -1621,6 +1676,15 @@ inline void PlaySound(int num, int flags, int channel = 8, EChanFlags sndflags =
 inline void PlaySound(int num, vec3_t *pos, int flags, int channel = 8, EChanFlags sndflags = CHANF_NONE)
 {
     _PlaySound(num, nullptr, nullptr, pos, flags, channel, sndflags);
+}
+inline void PlaySound(int num, const vec3_t &pos, int flags, int channel = 8, EChanFlags sndflags = CHANF_NONE)
+{
+	_PlaySound(num, nullptr, nullptr, &pos, flags, channel, sndflags);
+}
+inline void PlaySound(int num, const DVector3& pos, int flags, int channel = 8, EChanFlags sndflags = CHANF_NONE)
+{
+    vec3_t ppos = { int(pos.X * worldtoint), int(pos.Y * worldtoint), int(pos.Z * zworldtoint) };
+    _PlaySound(num, nullptr, nullptr, &ppos, flags, channel, sndflags);
 }
 
 int _PlayerSound(int num, PLAYER* pp);
@@ -1705,10 +1769,30 @@ void FAFgetzrange(vec3_t pos, sectortype* sect,
                   int32_t* loz, Collision* florhit,
                   int32_t clipdist, int32_t clipmask);
 
+inline void FAFgetzrange(vec3_t pos, sectortype* sect,
+                  double* hiz, Collision* ceilhit,
+                  double* loz, Collision* florhit,
+                  int32_t clipdist, int32_t clipmask)
+{
+    int32_t hi, lo;
+    FAFgetzrange(pos, sect, &hi, ceilhit, &lo, florhit, clipdist, clipmask);
+    *hiz = hi * zinttoworld;
+    *loz = lo * zinttoworld;
+}
+
 void FAFgetzrangepoint(int32_t x, int32_t y, int32_t z, sectortype* sect,
                        int32_t* hiz, Collision* ceilhit,
                        int32_t* loz, Collision* florhit);
 
+inline void FAFgetzrangepoint(int32_t x, int32_t y, int32_t z, sectortype* sect,
+                       double* hiz, Collision* ceilhit,
+                       double* loz, Collision* florhit)
+{
+    int32_t hi, lo;
+    FAFgetzrangepoint(x, y, z, sect, &hi, ceilhit, &lo, florhit);
+    *hiz = hi * zinttoworld;
+    *loz = lo * zinttoworld;
+}
 
 enum SoundType
 {
@@ -1898,7 +1982,7 @@ struct GameInterface : public ::GameInterface
 	FSavegameInfo GetSaveSig() override;
     void SerializeGameState(FSerializer& arc);
     void SetAmbience(bool on) override { if (on) StartAmbientSound(); else StopAmbientSound(); }
-    FString GetCoordString() override;
+    std::pair<DVector3, DAngle> GetCoordinates() override;
     ReservedSpace GetReservedScreenSpace(int viewsize) override;
     void UpdateSounds() override;
     void ErrorCleanup() override;
@@ -1951,7 +2035,7 @@ inline bool SectorIsUnderwaterArea(sectortype* sect)
 
 inline bool PlayerFacingRange(PLAYER* pp, DSWActor* a, int range)
 {
-    return (abs(getincangle(getangle(a->int_pos().X - (pp)->pos.X, a->int_pos().Y - (pp)->pos.Y), (pp)->angle.ang.Buildang())) < (range));
+    return (abs(getincangle(getangle(a->int_pos().X - (pp)->int_ppos().X, a->int_pos().Y - (pp)->int_ppos().Y), (pp)->angle.ang.Buildang())) < (range));
 }
 
 inline bool FacingRange(DSWActor* a1, DSWActor* a2, int range)
@@ -2021,9 +2105,14 @@ inline int ActorZOfBottom(DSWActor* actor)
     return GetSpriteZOfBottom(&actor->spr);
 }
 
-inline int ActorZOfMiddle(DSWActor* actor)
+inline int int_ActorZOfMiddle(DSWActor* actor)
 {
     return (ActorZOfTop(actor) + ActorZOfBottom(actor)) >> 1;
+}
+
+inline double ActorZOfMiddle(DSWActor* actor)
+{
+	return (ActorZOfTop(actor) + ActorZOfBottom(actor)) * zinttoworld * 0.5;
 }
 
 inline int ActorSizeZ(DSWActor* actor)
@@ -2036,9 +2125,14 @@ inline int ActorUpperZ(DSWActor* actor)
     return (ActorZOfTop(actor) + (ActorSizeZ(actor) >> 2));
 }
 
-inline int ActorLowerZ(DSWActor* actor)
+inline int int_ActorLowerZ(DSWActor* actor)
 {
     return (ActorZOfBottom(actor) - (ActorSizeZ(actor) >> 2));
+}
+
+inline double ActorLowerZ(DSWActor* actor)
+{
+    return (ActorZOfBottom(actor) - (ActorSizeZ(actor) * 0.25)) * zinttoworld;
 }
 
 // Z size of top (TOS) and bottom (BOS) part of sprite
@@ -2112,13 +2206,13 @@ struct ANIM
 		case ANIM_Floorz:
             return sector[animindex].int_floorz();
 		case ANIM_SopZ:
-			return SectorObject[animindex].pmid.Z;
+			return SectorObject[animindex].int_pmid().Z;
 		case ANIM_Spritez:
             if (animactor == nullptr) return 0;
 			return animactor->spr.int_pos().Z;
 		case ANIM_Userz:
             if (animactor == nullptr) return 0;
-            return animactor->user.pos.Z;
+            return animactor->user.int_upos().Z;
 		case ANIM_SUdepth:
 			return sector[animindex].depth_fixed;
 		default:
@@ -2134,7 +2228,7 @@ struct ANIM
             sector[animindex].set_int_floorz(value);
 			break;
         case ANIM_SopZ:
-            SectorObject[animindex].pmid.Z = value;
+            SectorObject[animindex].pmid.Z = value * zinttoworld;
 			break;
         case ANIM_Spritez:
             if (animactor == nullptr) return;
@@ -2142,7 +2236,7 @@ struct ANIM
 			break;
         case ANIM_Userz:
             if (animactor == nullptr) return;
-            animactor->user.pos.Z = value;
+            animactor->user.pos.Z = value * inttoworld;
 			break;
         case ANIM_SUdepth:
             sector[animindex].depth_fixed = value;

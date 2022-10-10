@@ -41,22 +41,20 @@ static actionSeq LionSeq[] = {
 };
 
 
-void BuildLion(DExhumedActor* pActor, int x, int y, int z, sectortype* pSector, int nAngle)
+void BuildLion(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, int nAngle)
 {
     if (pActor == nullptr)
     {
         pActor = insertActor(pSector, 104);
+		pActor->spr.pos = pos;
     }
     else
     {
         ChangeActorStat(pActor, 104);
-        x = pActor->int_pos().X;
-        y = pActor->int_pos().Y;
-        z = pActor->sector()->int_floorz();
+        pActor->spr.pos.Z = pActor->sector()->floorz;
         nAngle = pActor->int_ang();
     }
 
-    pActor->set_int_pos({ x, y, z });
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     pActor->spr.clipdist = 60;
     pActor->spr.shade = -12;
@@ -311,9 +309,8 @@ void AILion::Tick(RunListEvent* ev)
                 }
                 else
                 {
-                    int nAng = getangle(pTarget->int_pos().X - pActor->int_pos().X, pTarget->int_pos().Y - pActor->int_pos().Y);
-
-                    if (AngleDiff(pActor->int_ang(), nAng) < 64)
+					auto nAngDiff = AngleDiff(pActor->spr.angle, VecToAngle(pTarget->spr.pos - pActor->spr.pos));
+					if (nAngDiff < 64)
                     {
                         pActor->nAction = 3;
                     }
@@ -395,12 +392,12 @@ void AILion::Tick(RunListEvent* ev)
             {
                 HitInfo hit{};
 
-                hitscan({ x, y, z }, pActor->sector(), { bcos(nScanAngle), bsin(nScanAngle), 0 }, hit, CLIPMASK1);
+                hitscan(vec3_t( x, y, z ), pActor->sector(), { bcos(nScanAngle), bsin(nScanAngle), 0 }, hit, CLIPMASK1);
 
                 if (hit.hitWall)
                 {
-                    int theX = abs(hit.hitpos.X - x);
-                    int theY = abs(hit.hitpos.Y - y);
+                    int theX = abs(hit.int_hitpos().X - x);
+                    int theY = abs(hit.int_hitpos().Y - y);
 
                     if ((theX + theY) < nCheckDist)
                     {
@@ -444,8 +441,8 @@ void AILion::Tick(RunListEvent* ev)
         {
             if (nMov.actor() == pTarget)
             {
-                int nAng = getangle(pTarget->int_pos().X - pActor->int_pos().X, pTarget->int_pos().Y - pActor->int_pos().Y);
-                if (AngleDiff(pActor->int_ang(), nAng) < 64)
+				auto nAngDiff = AngleDiff(pActor->spr.angle, VecToAngle(pTarget->spr.pos - pActor->spr.pos));
+				if (nAngDiff < 64)
                 {
                     pActor->nAction = 3;
                     pActor->nFrame = 0;

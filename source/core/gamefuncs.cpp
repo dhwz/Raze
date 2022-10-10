@@ -49,11 +49,11 @@ bool calcChaseCamPos(int* px, int* py, int* pz, DCoreActor* act, sectortype** ps
 	auto bakcstat = act->spr.cstat;
 	act->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
 	updatesectorz(*px, *py, *pz, psect);
-	hitscan({ *px, *py, *pz }, *psect, np, hitinfo, CLIPMASK1);
+	hitscan(vec3_t( *px, *py, *pz ), *psect, np, hitinfo, CLIPMASK1);
 	act->spr.cstat = bakcstat;
 
-	int hx = hitinfo.hitpos.X - *px;
-	int hy = hitinfo.hitpos.Y - *py;
+	int hx = hitinfo.int_hitpos().X - *px;
+	int hy = hitinfo.int_hitpos().Y - *py;
 
 	if (*psect == nullptr)
 	{
@@ -287,33 +287,32 @@ double SquareDistToSector(double px, double py, const sectortype* sect, DVector2
 //
 //==========================================================================
 
-void GetWallSpritePosition(const tspritetype* spr, vec2_t pos, vec2_t* out, bool render)
+void GetWallSpritePosition(const spritetypebase* spr, const DVector2& pos, DVector2* out, bool render)
 {
 	auto tex = tileGetTexture(spr->picnum);
 
-	int width, leftofs;
+	double width, xoffset;
 	if (render && hw_hightile && TileFiles.tiledata[spr->picnum].hiofs.xsize)
 	{
 		width = TileFiles.tiledata[spr->picnum].hiofs.xsize;
-		leftofs = (TileFiles.tiledata[spr->picnum].hiofs.xoffs + spr->xoffset);
+		xoffset = (TileFiles.tiledata[spr->picnum].hiofs.xoffs + spr->xoffset);
 	}
 	else
 	{
-		width = (int)tex->GetDisplayWidth();
-		leftofs = ((int)tex->GetDisplayLeftOffset() + spr->xoffset);
+		width = tex->GetDisplayWidth();
+		xoffset = tex->GetDisplayLeftOffset() + spr->xoffset;
 	}
 
-	int x = bsin(spr->int_ang()) * spr->xrepeat;
-	int y = -bcos(spr->int_ang()) * spr->xrepeat;
+	double x = spr->angle.Sin() * spr->xrepeat * (1. / 64.);
+	double y = -spr->angle.Cos() * spr->xrepeat * (1. / 64.);
 
-	int xoff = leftofs;
-	if (spr->cstat & CSTAT_SPRITE_XFLIP) xoff = -xoff;
-	int origin = (width >> 1) + xoff;
+	if (spr->cstat & CSTAT_SPRITE_XFLIP) xoffset = -xoffset;
+	double origin = (width * 0.5) + xoffset;
 
-	out[0].X = pos.X - MulScale(x, origin, 16);
-	out[0].Y = pos.Y - MulScale(y, origin, 16);
-	out[1].X = out[0].X + MulScale(x, width, 16);
-	out[1].Y = out[0].Y + MulScale(y, width, 16);
+	out[0].X = pos.X - x * origin;
+	out[0].Y = pos.Y - y * origin;
+	out[1].X = out[0].X + x * width;
+	out[1].Y = out[0].Y + y * width;
 }
 
 
@@ -323,49 +322,51 @@ void GetWallSpritePosition(const tspritetype* spr, vec2_t pos, vec2_t* out, bool
 //
 //==========================================================================
 
-void TGetFlatSpritePosition(const spritetypebase* spr, vec2_t pos, vec2_t* out, int* outz, int heinum, bool render)
+void TGetFlatSpritePosition(const spritetypebase* spr, const DVector2& pos, DVector2* out, double* outz, int heinum, bool render)
 {
 	auto tex = tileGetTexture(spr->picnum);
 
-	int width, height, leftofs, topofs;
-	int ratio = ksqrt(heinum * heinum + 4096 * 4096);
+	double width, height, leftofs, topofs;
+	double sloperatio = sqrt(heinum * heinum + 4096 * 4096) * (1. / 4096.);
+	double xrepeat = spr->xrepeat * (1. / 64.);
+	double yrepeat = spr->yrepeat * (1. / 64.);
 
 	int xo = heinum ? 0 : spr->xoffset;
 	int yo = heinum ? 0 : spr->yoffset;
 
 	if (render && hw_hightile && TileFiles.tiledata[spr->picnum].hiofs.xsize)
 	{
-		width = TileFiles.tiledata[spr->picnum].hiofs.xsize * spr->xrepeat;
-		height = TileFiles.tiledata[spr->picnum].hiofs.ysize * spr->yrepeat;
-		leftofs = (TileFiles.tiledata[spr->picnum].hiofs.xoffs + xo) * spr->xrepeat;
-		topofs = (TileFiles.tiledata[spr->picnum].hiofs.yoffs + yo) * spr->yrepeat;
+		width = TileFiles.tiledata[spr->picnum].hiofs.xsize * xrepeat;
+		height = TileFiles.tiledata[spr->picnum].hiofs.ysize * yrepeat;
+		leftofs = (TileFiles.tiledata[spr->picnum].hiofs.xoffs + xo) * xrepeat;
+		topofs = (TileFiles.tiledata[spr->picnum].hiofs.yoffs + yo) * yrepeat;
 	}
 	else
 	{
-		width = (int)tex->GetDisplayWidth() * spr->xrepeat;
-		height = (int)tex->GetDisplayHeight() * spr->yrepeat;
-		leftofs = ((int)tex->GetDisplayLeftOffset() + xo) * spr->xrepeat;
-		topofs = ((int)tex->GetDisplayTopOffset() + yo) * spr->yrepeat;
+		width = (int)tex->GetDisplayWidth() * xrepeat;
+		height = (int)tex->GetDisplayHeight() * yrepeat;
+		leftofs = ((int)tex->GetDisplayLeftOffset() + xo) * xrepeat;
+		topofs = ((int)tex->GetDisplayTopOffset() + yo) * yrepeat;
 	}
 
 	if (spr->cstat & CSTAT_SPRITE_XFLIP) leftofs = -leftofs;
 	if (spr->cstat & CSTAT_SPRITE_YFLIP) topofs = -topofs;
 
-	int sprcenterx = (width >> 1) + leftofs;
-	int sprcentery = (height >> 1) + topofs;
+	double sprcenterx = (width * 0.5) + leftofs;
+	double sprcentery = (height * 0.5) + topofs;
 
-	int cosang = bcos(spr->int_ang());
-	int sinang = bsin(spr->int_ang());
-	int cosangslope = DivScale(cosang, ratio, 12);
-	int sinangslope = DivScale(sinang, ratio, 12);
+	double cosang = spr->angle.Cos();
+	double sinang = spr->angle.Sin();
+	double cosangslope = cosang / sloperatio;
+	double sinangslope = sinang / sloperatio;
 
-	out[0].X = pos.X + DMulScale(sinang, sprcenterx, cosangslope, sprcentery, 16);
-	out[0].Y = pos.Y + DMulScale(sinangslope, sprcentery, -cosang, sprcenterx, 16);
+	out[0].X = pos.X + sinang * sprcenterx + cosangslope * sprcentery;
+	out[0].Y = pos.Y + sinangslope * sprcentery - cosang * sprcenterx;
 
-	out[1].X = out[0].X - MulScale(sinang, width, 16);
-	out[1].Y = out[0].Y + MulScale(cosang, width, 16);
+	out[1].X = out[0].X - sinang * width;
+	out[1].Y = out[0].Y + cosang * width;
 
-	vec2_t sub = { MulScale(cosangslope, height, 16), MulScale(sinangslope, height, 16) };
+	DVector2 sub = { cosangslope * height, sinangslope * height };
 	out[2] = out[1] - sub;
 	out[3] = out[0] - sub;
 	if (outz)
@@ -375,21 +376,63 @@ void TGetFlatSpritePosition(const spritetypebase* spr, vec2_t pos, vec2_t* out, 
 		{
 			for (int i = 0; i < 4; i++)
 			{
-				int spos = DMulScale(-sinang, out[i].Y - pos.Y, -cosang, out[i].X - pos.X, 4);
-				outz[i] = MulScale(heinum, spos, 18);
+				outz[i] = (sinang * (out[i].Y - pos.Y) + cosang * (out[i].X - pos.X)) * heinum * (1. / 4096);
 			}
 		}
 	}
 }
 
-void GetFlatSpritePosition(DCoreActor* actor, vec2_t pos, vec2_t* out, bool render)
+
+void GetFlatSpritePosition(DCoreActor* actor, const DVector2& pos, DVector2* out, bool render)
 {
 	TGetFlatSpritePosition(&actor->spr, pos, out, nullptr, spriteGetSlope(actor), render);
 }
 
-void GetFlatSpritePosition(const tspritetype* spr, vec2_t pos, vec2_t* out, int* outz, bool render)
+void GetFlatSpritePosition(const tspritetype* spr, const DVector2& pos, DVector2* out, double* outz, bool render)
 {
 	TGetFlatSpritePosition(spr, pos, out, outz, tspriteGetSlope(spr), render);
+}
+
+//==========================================================================
+//
+// checks if the given point is sufficiently close to the given line segment.
+//
+//==========================================================================
+
+EClose IsCloseToLine(const DVector2& point, const DVector2& start, const DVector2& end, double maxdist)
+{
+	auto const v1 = start - point;
+	auto const v2 = end - point;
+
+	// trivially outside the box.
+	if (
+		((v1.X < -maxdist) && (v2.X < -maxdist)) || // fully to the left
+		((v1.Y < -maxdist) && (v2.Y < -maxdist)) || // fully below
+		((v1.X >= maxdist) && (v2.X >= maxdist)) || // fully to the right
+		((v1.Y >= maxdist) && (v2.Y >= maxdist)))   // fully above
+		return EClose::Outside;
+
+	auto waldelta = end - start;
+
+	if (waldelta.X * v1.Y <= waldelta.Y * v1.X)
+	{
+		// is it in front?
+		waldelta.X *= waldelta.X > 0 ? v1.Y + maxdist : v1.Y - maxdist;
+		waldelta.Y *= waldelta.Y > 0 ? v1.X - maxdist : v1.X + maxdist;
+		return waldelta.X > waldelta.Y ? EClose::InFront : EClose::Outside;
+	}
+	else
+	{
+		// or behind?
+		waldelta.X *= waldelta.X > 0 ? v1.Y - maxdist : v1.Y + maxdist;
+		waldelta.Y *= waldelta.Y > 0 ? v1.X + maxdist : v1.X - maxdist;
+		return (waldelta.X <= waldelta.Y) ? EClose::Behind : EClose::Outside;
+	}
+}
+
+EClose IsCloseToWall(const DVector2& point, walltype* wal, double maxdist)
+{
+	return IsCloseToLine(point, wal->pos, wal->point2Wall()->pos, maxdist);
 }
 
 //==========================================================================

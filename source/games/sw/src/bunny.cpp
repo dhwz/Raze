@@ -781,9 +781,9 @@ int SetupBunny(DSWActor* actor)
     actor->user.Flags |= (SPR_XFLIP_TOGGLE);
 
 
-    actor->user.zclip = Z(16);
-    actor->user.floor_dist = Z(8);
-    actor->user.ceiling_dist = Z(8);
+    actor->user.zclip = (16);
+    actor->user.floor_dist = (8);
+    actor->user.ceiling_dist = (8);
     actor->user.lo_step = Z(16);
 
     return 0;
@@ -835,7 +835,7 @@ int DoBunnyBeginJumpAttack(DSWActor* actor)
     tang = getangle(target->int_pos().X - actor->int_pos().X, target->int_pos().Y - actor->int_pos().Y);
 
     Collision coll = move_sprite(actor, bcos(tang, -7), bsin(tang, -7),
-        0L, actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_ACTOR, ACTORMOVETICS);
+        0L, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_ACTOR, ACTORMOVETICS);
 
     if (coll.type != kHitNone)
         actor->set_int_ang(NORM_ANGLE(actor->int_ang() + 1024) + (RANDOM_NEG(256, 6) >> 6));
@@ -1003,7 +1003,7 @@ int DoBunnyQuickJump(DSWActor* actor)
                         if (pp == Player+myconnectindex)
                         {
                             choose_snd = StdRandomRange(2<<8)>>8;
-                            if (FAFcansee(actor->int_pos().X,actor->int_pos().Y,ActorZOfTop(actor),actor->sector(),pp->pos.X, pp->pos.Y, pp->pos.Z, pp->cursector) && Facing(actor, actor->user.targetActor))
+                            if (FAFcansee(actor->int_pos().X,actor->int_pos().Y,ActorZOfTop(actor),actor->sector(),pp->int_ppos().X, pp->int_ppos().Y, pp->int_ppos().Z, pp->cursector) && Facing(actor, actor->user.targetActor))
                                 PlayerSound(fagsnds[choose_snd], v3df_doppler|v3df_follow|v3df_dontpan,pp);
                         }
                     }
@@ -1018,7 +1018,7 @@ int DoBunnyQuickJump(DSWActor* actor)
                         if (pp == Player+myconnectindex)
                         {
                             choose_snd = StdRandomRange(3<<8)>>8;
-                            if (FAFcansee(actor->int_pos().X,actor->int_pos().Y,ActorZOfTop(actor),actor->sector(),pp->pos.X, pp->pos.Y, pp->pos.Z, pp->cursector) && Facing(actor, actor->user.targetActor))
+                            if (FAFcansee(actor->int_pos().X,actor->int_pos().Y,ActorZOfTop(actor),actor->sector(),pp->int_ppos().X, pp->int_ppos().Y, pp->int_ppos().Z, pp->cursector) && Facing(actor, actor->user.targetActor))
                                 PlayerSound(straightsnds[choose_snd], v3df_doppler|v3df_follow|v3df_dontpan,pp);
                         }
                     }
@@ -1084,7 +1084,7 @@ int DoBunnyRipHeart(DSWActor* actor)
     actor->user.WaitTics = 6 * 120;
 
     // player face bunny
-    target->set_int_ang(getangle(actor->int_pos().X - target->int_pos().X, actor->int_pos().Y - target->int_pos().Y));
+    target->spr.angle = VecToAngle(actor->spr.pos - target->spr.pos);
     return 0;
 }
 

@@ -103,7 +103,7 @@ static void shootmelee(DDukeActor *actor, int p, int sx, int sy, int sz, int sa,
 		sa = getangle(pspr->int_pos().X - sx, pspr->int_pos().Y - sy);
 	}
 
-	hitscan({ sx, sy, sz }, sectp, { bcos(sa), bsin(sa), zvel << 6 }, hit, CLIPMASK1);
+	hitscan(vec3_t( sx, sy, sz ), sectp, { bcos(sa), bsin(sa), zvel << 6 }, hit, CLIPMASK1);
 
 	if (isRRRA() && hit.hitSector != nullptr && ((hit.hitSector->lotag == 160 && zvel > 0) || (hit.hitSector->lotag == 161 && zvel < 0))
 		&& hit.actor() == nullptr && hit.hitWall == nullptr)
@@ -115,8 +115,8 @@ static void shootmelee(DDukeActor *actor, int p, int sx, int sy, int sz, int sa,
 				&& effector->spr.lotag == SE_7_TELEPORT)
 			{
 				int nx, ny, nz;
-				nx = hit.hitpos.X + (effector->GetOwner()->int_pos().X - effector->int_pos().X);
-				ny = hit.hitpos.Y + (effector->GetOwner()->int_pos().Y - effector->int_pos().Y);
+				nx = hit.int_hitpos().X + (effector->GetOwner()->int_pos().X - effector->int_pos().X);
+				ny = hit.int_hitpos().Y + (effector->GetOwner()->int_pos().Y - effector->int_pos().Y);
 				if (hit.hitSector->lotag == 161)
 				{
 					nz = effector->GetOwner()->sector()->int_floorz();
@@ -125,7 +125,7 @@ static void shootmelee(DDukeActor *actor, int p, int sx, int sy, int sz, int sa,
 				{
 					nz = effector->GetOwner()->sector()->int_ceilingz();
 				}
-				hitscan({ nx, ny, nz }, effector->GetOwner()->sector(), { bcos(sa), bsin(sa), zvel << 6 }, hit, CLIPMASK1);
+				hitscan(vec3_t( nx, ny, nz ), effector->GetOwner()->sector(), { bcos(sa), bsin(sa), zvel << 6 }, hit, CLIPMASK1);
 				break;
 			}
 		}
@@ -133,20 +133,20 @@ static void shootmelee(DDukeActor *actor, int p, int sx, int sy, int sz, int sa,
 
 	if (hit.hitSector == nullptr) return;
 
-	if ((abs(sx - hit.hitpos.X) + abs(sy - hit.hitpos.Y)) < 1024)
+	if ((abs(sx - hit.int_hitpos().X) + abs(sy - hit.int_hitpos().Y)) < 1024)
 	{
 		if (hit.hitWall != nullptr || hit.actor())
 		{
 			DDukeActor* wpn;
 			if (isRRRA() && atwith == SLINGBLADE)
 			{
-				wpn = EGS(hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, SLINGBLADE, -15, 0, 0, sa, 32, 0, actor, 4);
+				wpn = EGS(hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, SLINGBLADE, -15, 0, 0, sa, 32, 0, actor, 4);
 				if (!wpn) return;
 				wpn->spr.extra += 50;
 			}
 			else
 			{
-				wpn = EGS(hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, KNEE, -15, 0, 0, sa, 32, 0, actor, 4);
+				wpn = EGS(hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, KNEE, -15, 0, 0, sa, 32, 0, actor, 4);
 				if (!wpn) return;
 				wpn->spr.extra += (krand() & 7);
 			}
@@ -170,12 +170,12 @@ static void shootmelee(DDukeActor *actor, int p, int sx, int sy, int sz, int sa,
 			{
 				if (hit.hitWall->cstat & CSTAT_WALL_BOTTOM_SWAP)
 					if (hit.hitWall->twoSided())
-						if (hit.hitpos.Z >= (hit.hitWall->nextSector()->int_floorz()))
+						if (hit.hitpos.Z >= hit.hitWall->nextSector()->floorz)
 							hit.hitWall = hit.hitWall->nextWall();
 
 				if (hit.hitWall->picnum != ACCESSSWITCH && hit.hitWall->picnum != ACCESSSWITCH2)
 				{
-					fi.checkhitwall(wpn, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, atwith);
+					fi.checkhitwall(wpn, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, atwith);
 					if (p >= 0) fi.checkhitswitch(p, hit.hitWall, nullptr);
 				}
 			}
@@ -185,7 +185,7 @@ static void shootmelee(DDukeActor *actor, int p, int sx, int sy, int sz, int sa,
 			auto splash = spawn(ps[p].GetActor(), WATERSPLASH2);
 			if (splash)
 			{
-				splash->set_int_xy(hit.hitpos.X, hit.hitpos.Y);
+				splash->set_int_xy(hit.int_hitpos().X, hit.int_hitpos().Y);
 				splash->set_int_ang(ps[p].angle.ang.Buildang()); // Total tweek
 				splash->spr.xvel = 32;
 				ssp(actor, 0);
@@ -258,7 +258,7 @@ static void shootweapon(DDukeActor* actor, int p, int sx, int sy, int sz, int sa
 	}
 
 	actor->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-	hitscan({ sx, sy, sz }, sectp, { bcos(sa), bsin(sa),zvel << 6 }, hit, CLIPMASK1);
+	hitscan(vec3_t( sx, sy, sz ), sectp, { bcos(sa), bsin(sa),zvel << 6 }, hit, CLIPMASK1);
 
 	if (isRRRA() && hit.hitSector != nullptr && (((hit.hitSector->lotag == 160 && zvel > 0) || (hit.hitSector->lotag == 161 && zvel < 0))
 		&& hit.actor() == nullptr && hit.hitWall == nullptr))
@@ -270,8 +270,8 @@ static void shootweapon(DDukeActor* actor, int p, int sx, int sy, int sz, int sa
 				&& effector->spr.lotag == SE_7_TELEPORT)
 			{
 				int nx, ny, nz;
-				nx = hit.hitpos.X + (effector->GetOwner()->int_pos().X - effector->int_pos().X);
-				ny = hit.hitpos.Y + (effector->GetOwner()->int_pos().Y - effector->int_pos().Y);
+				nx = hit.int_hitpos().X + (effector->GetOwner()->int_pos().X - effector->int_pos().X);
+				ny = hit.int_hitpos().Y + (effector->GetOwner()->int_pos().Y - effector->int_pos().Y);
 				if (hit.hitSector->lotag == 161)
 				{
 					nz = effector->GetOwner()->sector()->int_floorz();
@@ -280,7 +280,7 @@ static void shootweapon(DDukeActor* actor, int p, int sx, int sy, int sz, int sa
 				{
 					nz = effector->GetOwner()->sector()->int_ceilingz();
 				}
-				hitscan({ nx, ny, nz }, effector->GetOwner()->sector(), { bcos(sa), bsin(sa), zvel << 6 }, hit, CLIPMASK1);
+				hitscan(vec3_t( nx, ny, nz ), effector->GetOwner()->sector(), { bcos(sa), bsin(sa), zvel << 6 }, hit, CLIPMASK1);
 				break;
 			}
 		}
@@ -296,12 +296,12 @@ static void shootweapon(DDukeActor* actor, int p, int sx, int sy, int sz, int sa
 				return;
 
 	if ((krand() & 15) == 0 && hit.hitSector->lotag == 2)
-		tracers(hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, sx, sy, sz, 8 - (ud.multimode >> 1));
+		tracers(hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, sx, sy, sz, 8 - (ud.multimode >> 1));
 
 	DDukeActor* spark;
 	if (p >= 0)
 	{
-		spark = EGS(hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, SHOTSPARK1, -15, 10, 10, sa, 0, 0, actor, 4);
+		spark = CreateActor(hit.hitSector, hit.hitpos, SHOTSPARK1, -15, 10, 10, sa, 0, 0, actor, 4);
 		if (!spark) return;
 		spark->spr.extra = ScriptCode[gs.actorinfo[atwith].scriptaddress];
 		spark->spr.extra += (krand() % 6);
@@ -421,15 +421,15 @@ static void shootweapon(DDukeActor* actor, int p, int sx, int sy, int sz, int sa
 
 			if (hit.hitWall->cstat & CSTAT_WALL_BOTTOM_SWAP)
 				if (hit.hitWall->twoSided())
-					if (hit.hitpos.Z >= (hit.hitWall->nextSector()->int_floorz()))
+					if (hit.hitpos.Z >= hit.hitWall->nextSector()->floorz)
 						hit.hitWall = hit.hitWall->nextWall();
 
-			fi.checkhitwall(spark, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, SHOTSPARK1);
+			fi.checkhitwall(spark, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, SHOTSPARK1);
 		}
 	}
 	else
 	{
-		spark = EGS(hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, SHOTSPARK1, -15, 24, 24, sa, 0, 0, actor, 4);
+		spark = CreateActor(hit.hitSector, hit.hitpos, SHOTSPARK1, -15, 24, 24, sa, 0, 0, actor, 4);
 		if (!spark) return;
 		spark->spr.extra = ScriptCode[gs.actorinfo[atwith].scriptaddress];
 
@@ -441,13 +441,12 @@ static void shootweapon(DDukeActor* actor, int p, int sx, int sy, int sz, int sa
 			else spark->spr.xrepeat = spark->spr.yrepeat = 0;
 		}
 		else if (hit.hitWall != nullptr)
-			fi.checkhitwall(spark, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, SHOTSPARK1);
+			fi.checkhitwall(spark, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, SHOTSPARK1);
 	}
 
 	if ((krand() & 255) < 10)
 	{
-		vec3_t v{ hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z };
-		S_PlaySound3D(PISTOL_RICOCHET, spark, v);
+		S_PlaySound3D(PISTOL_RICOCHET, spark, hit.int_hitpos());
 	}
 }
 
@@ -895,7 +894,7 @@ void shoot_r(DDukeActor* actor, int atwith)
 		{
 			j->spr.xvel = 32;
 			j->spr.angle = actor->spr.angle;
-			j->add_int_z(-(5 << 8));
+			j->spr.pos.Z -= 5;
 		}
 		break;
 	}
@@ -906,7 +905,7 @@ void shoot_r(DDukeActor* actor, int atwith)
 		{
 			j->spr.xvel = 250;
 			j->spr.angle = actor->spr.angle;
-			j->add_int_z(-(15 << 8));
+			j->spr.pos.Z -= 15;
 		}
 		break;
 	}
@@ -3957,7 +3956,7 @@ HORIZONLY:
 		break;
 	}
 
-	if (ud.clipping == 0 && (!p->cursector || (p->cursector && p->cursector->int_ceilingz() > (p->cursector->int_floorz() - (12 << 8)))))
+	if (ud.clipping == 0 && (!p->cursector || (p->cursector && p->cursector->ceilingz > (p->cursector->floorz - 12))))
 	{
 		quickkill(p);
 		return;

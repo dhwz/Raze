@@ -34,12 +34,12 @@ BEGIN_SW_NS
 
 inline int AngToSprite(DSWActor* actor, DSWActor* other)
 {
-    return (getangle(actor->int_pos().X - other->int_pos().X, actor->int_pos().Y - other->int_pos().Y));
+    return getangle(actor->spr.pos - other->spr.pos);
 }
 
 inline int AngToPlayer(PLAYER* player, DSWActor* other)
 {
-    return (getangle(player->pos.X - other->int_pos().X, player->pos.Y - other->int_pos().Y));
+    return getangle(player->pos - other->spr.pos);
 }
 
 
@@ -84,7 +84,7 @@ void DoPlayerBeginRecoil(PLAYER* pp, short pix_amt);
 SECTOR_OBJECT* DetectSectorObject(sectortype*);
 SECTOR_OBJECT* DetectSectorObjectByWall(walltype*);
 void ScaleSpriteVector(DSWActor* actor, int scale);
-void QueueHole(sectortype* hit_sect, walltype* hit_wall, int hit_x, int hit_y, int hit_z);
+void QueueHole(sectortype* hit_sect, walltype* hit_wall, const DVector3& pos);
 DSWActor* QueueWallBlood(DSWActor* hit, short ang);
 bool SlopeBounce(DSWActor*, bool *hit_wall);
 int SpawnSwordSparks(PLAYER* pp, sectortype* hit_sect, walltype* hit_wall, int hit_x, int hit_y, int hit_z, short hit_ang);
@@ -167,8 +167,6 @@ inline int CloseRangeDist(DSWActor* a1, DSWActor* a2, int fudge)
 
 
 extern short target_ang;
-
-bool SpriteOverlap(short, short);
 
 DSWActor* SpawnShotgunSparks(PLAYER* pp, sectortype* hit_sect, walltype* hit_wall, int hit_x, int hit_y, int hit_z, short hit_ang);
 int DoActorBeginSlide(DSWActor* actor, int ang, int vel, int dec);

@@ -108,7 +108,7 @@ public:
 		spr.pos.Y = y * inttoworld;
 	}
 
-	constexpr int16_t int_ang() const
+	constexpr int int_ang() const
 	{
 		return spr.angle.Buildang();
 	}
@@ -289,7 +289,7 @@ enum EHitBits
 // Not all utilities use all variables.
 struct HitInfoBase
 {
-	vec3_t hitpos;
+	DVector3 hitpos;
 	sectortype* hitSector;
 	walltype* hitWall;
 	DCoreActor* hitActor;
@@ -299,6 +299,24 @@ struct HitInfoBase
 		hitSector = nullptr;
 		hitWall = nullptr;
 		hitActor = nullptr;
+	}
+	
+	const vec3_t int_hitpos() const
+	{
+		return { int(hitpos.X * worldtoint), int(hitpos.Y * worldtoint), int(hitpos.Z * zworldtoint), };
+	}
+	
+	void set_int_hitpos(int x, int y, int z)
+	{
+		hitpos.X = x * inttoworld;
+		hitpos.Y = y * inttoworld;
+		hitpos.Z = z * zinttoworld;
+	}
+
+	void set_int_hitpos_xy(int x, int y)
+	{
+		hitpos.X = x * inttoworld;
+		hitpos.Y = y * inttoworld;
 	}
 };
 

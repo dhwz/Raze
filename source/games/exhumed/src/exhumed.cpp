@@ -208,8 +208,8 @@ void DoRedAlert(int nVal)
     {
         if (nVal)
         {
-            PlayFXAtXYZ(StaticSound[kSoundAlarm], ac->int_pos().X, ac->int_pos().Y, ac->int_pos().Z);
-            AddFlash(ac->sector(), ac->int_pos().X, ac->int_pos().Y, ac->int_pos().Z, 192);
+            PlayFXAtXYZ(StaticSound[kSoundAlarm], ac->spr.pos);
+            AddFlash(ac->sector(), ac->spr.pos, 192);
         }
     }
 }
@@ -599,6 +599,14 @@ bool GameInterface::CanSave()
 {
     return new GameInterface;
 }
+
+std::pair<DVector3, DAngle> GameInterface::GetCoordinates()
+{
+    auto pPlayerActor = PlayerList[nLocalPlayer].pActor;
+    if (!pPlayerActor) return std::make_pair(DVector3(DBL_MAX, 0, 0), nullAngle);
+    return std::make_pair(pPlayerActor->spr.pos, pPlayerActor->spr.angle);
+}
+
 
 void DExhumedActor::Serialize(FSerializer& arc)
 {

@@ -633,22 +633,12 @@ int SetupZilla(DSWActor* actor)
 
 int NullZilla(DSWActor* actor)
 {
-#if 0
-    if (actor->user.State == s_ZillaDie)
-    {
-        getzsofslopeptr(actor->sector(), actor->int_pos().X, actor->spr.y, &actor->user.hiz, &actor->user.loz);
-        actor->user.lo_sectp = actor->sector();
-        actor->user.hi_sectp = actor->sector();
-        actor->spr.z = actor->user.loz;
-    }
-#endif
-
     getzsofslopeptr(actor->sector(), actor->int_pos().X, actor->int_pos().Y, &actor->user.hiz, &actor->user.loz);
     actor->user.lo_sectp = actor->sector();
     actor->user.hi_sectp = actor->sector();
     actor->user.lowActor = nullptr;
     actor->user.highActor = nullptr;
-    actor->set_int_z(actor->user.loz);
+    actor->spr.pos.Z = actor->user.loz;
 
     DoActorSectorDamage(actor);
 
@@ -717,7 +707,7 @@ int DoZillaDeathMelt(DSWActor* actor)
     actor->user.hi_sectp = actor->sector();
     actor->user.lowActor = nullptr;
     actor->user.highActor = nullptr;
-    actor->set_int_z(actor->user.loz);
+    actor->spr.pos.Z = actor->user.loz;
 
     BossSpriteNum[2] = nullptr;
     return 0;

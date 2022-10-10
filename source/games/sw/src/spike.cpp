@@ -51,17 +51,17 @@ void ReverseSpike(DSWActor* actor)
     // moving toward to OFF pos
     if (actor->user.z_tgt == actor->user.oz)
     {
-        if (actor->int_pos().Z == actor->user.oz)
-            actor->user.z_tgt = actor->user.pos.Z;
-        else if (actor->user.pos.Z == actor->user.oz)
-            actor->user.z_tgt = actor->int_pos().Z;
+        if (actor->spr.pos.Z == actor->user.oz)
+            actor->user.z_tgt = actor->user.int_upos().Z * zinttoworld;
+        else if (actor->user.int_upos().Z == actor->user.int_oz())
+            actor->user.z_tgt = actor->spr.pos.Z;
     }
-    else if (actor->user.z_tgt == actor->user.pos.Z)
+    else if (actor->user.int_z_tgt() == actor->user.int_upos().Z)
     {
-        if (actor->int_pos().Z == actor->user.oz)
-            actor->user.z_tgt = actor->int_pos().Z;
-        else if (actor->user.pos.Z == actor->user.oz)
-            actor->user.z_tgt = actor->user.pos.Z;
+        if (actor->spr.pos.Z == actor->user.oz)
+            actor->user.z_tgt = actor->spr.pos.Z;
+        else if (actor->user.int_upos().Z == actor->user.int_oz())
+            actor->user.z_tgt = actor->user.int_upos().Z * zinttoworld;
     }
 
     actor->user.vel_rate = -actor->user.vel_rate;
@@ -102,11 +102,11 @@ void SetSpikeActive(DSWActor* actor)
     actor->user.Tics = 0;
 
     // moving to the ON position
-    if (actor->user.z_tgt == actor->int_pos().Z)
+    if (actor->user.z_tgt == actor->spr.pos.Z)
         VatorSwitch(SP_TAG2(actor), true);
     else
     // moving to the OFF position
-    if (actor->user.z_tgt == actor->user.pos.Z)
+    if (actor->user.int_z_tgt() == actor->user.int_upos().Z)
         VatorSwitch(SP_TAG2(actor), false);
 }
 
@@ -190,9 +190,9 @@ bool TestSpikeMatchActive(short match)
     return false;
 }
 
-int DoSpikeMove(DSWActor* actor, int *lptr)
+int DoSpikeMove(DSWActor* actor, double *lptr)
 {
-    int zval;
+    double zval;
 
     zval = *lptr;
 
@@ -200,7 +200,7 @@ int DoSpikeMove(DSWActor* actor, int *lptr)
     if (zval < actor->user.z_tgt)
     {
         // move it DOWN
-        zval += (synctics * actor->user.jump_speed);
+        zval += (synctics * actor->user.jump_speed) * zinttoworld;
 
         actor->user.jump_speed += actor->user.vel_rate * synctics;
 
@@ -213,7 +213,7 @@ int DoSpikeMove(DSWActor* actor, int *lptr)
     if (zval > actor->user.z_tgt)
     {
         // move it UP
-        zval -= (synctics * actor->user.jump_speed);
+        zval -= (synctics * actor->user.jump_speed) * zinttoworld;
 
         actor->user.jump_speed += actor->user.vel_rate * synctics;
 
@@ -232,16 +232,16 @@ void SpikeAlign(DSWActor* actor)
     if ((int8_t)SP_TAG7(actor) < 0)
     {
         if (actor->spr.cstat & (CSTAT_SPRITE_YFLIP))
-            alignceilslope(actor->sector(), actor->int_pos().X, actor->int_pos().Y, actor->user.zclip);
+            alignceilslope(actor->sector(), actor->int_pos().X, actor->int_pos().Y, actor->user.int_zclip());
         else
-            alignflorslope(actor->sector(), actor->int_pos().X, actor->int_pos().Y, actor->user.zclip);
+            alignflorslope(actor->sector(), actor->int_pos().X, actor->int_pos().Y, actor->user.int_zclip());
     }
     else
     {
         if (actor->spr.cstat & (CSTAT_SPRITE_YFLIP))
-            SOBJ_AlignCeilingToPoint(&SectorObject[SP_TAG7(actor)], actor->int_pos().X, actor->int_pos().Y, actor->user.zclip);
+            SOBJ_AlignCeilingToPoint(&SectorObject[SP_TAG7(actor)], actor->int_pos().X, actor->int_pos().Y, actor->user.int_zclip());
         else
-            SOBJ_AlignFloorToPoint(&SectorObject[SP_TAG7(actor)], actor->int_pos().X, actor->int_pos().Y, actor->user.zclip);
+            SOBJ_AlignFloorToPoint(&SectorObject[SP_TAG7(actor)], actor->int_pos().X, actor->int_pos().Y, actor->user.int_zclip());
     }
 }
 
@@ -265,27 +265,23 @@ void MoveSpritesWithSpike(sectortype* sect)
 
 int DoSpike(DSWActor* actor)
 {
-    int *lptr;
-
     // zclip = floor or ceiling z
     // oz = original z
     // z_tgt = target z - on pos
     // sz = starting z - off pos
 
-    lptr = &actor->user.zclip;
-
-    DoSpikeMove(actor, lptr);
+    DoSpikeMove(actor, &actor->user.zclip);
     MoveSpritesWithSpike(actor->sector());
     SpikeAlign(actor);
 
     // EQUAL this entry has finished
-    if (*lptr == actor->user.z_tgt)
+    if (actor->user.zclip == actor->user.z_tgt)
     {
         // in the ON position
-        if (actor->user.z_tgt == actor->int_pos().Z)
+        if (actor->user.z_tgt == actor->spr.pos.Z)
         {
             // change target
-            actor->user.z_tgt = actor->user.pos.Z;
+            actor->user.z_tgt = actor->user.int_upos().Z * zinttoworld;
             actor->user.vel_rate = -actor->user.vel_rate;
 
             SetSpikeInactive(actor);
@@ -295,14 +291,14 @@ int DoSpike(DSWActor* actor)
         }
         else
         // in the OFF position
-        if (actor->user.z_tgt == actor->user.pos.Z)
+        if (actor->user.int_z_tgt() == actor->user.int_upos().Z)
         {
             short match = SP_TAG2(actor);
 
             // change target
             actor->user.jump_speed = actor->user.vel_tgt;
             actor->user.vel_rate = (short)abs(actor->user.vel_rate);
-            actor->user.z_tgt = actor->int_pos().Z;
+            actor->user.z_tgt = actor->spr.pos.Z;
 
             SetSpikeInactive(actor);
 
@@ -326,7 +322,7 @@ int DoSpike(DSWActor* actor)
         }
 
         // setup to go back to the original z
-        if (*lptr != actor->user.oz)
+        if (actor->user.zclip != actor->user.oz)
         {
             if (actor->user.WaitTics)
                 actor->user.Tics = actor->user.WaitTics;
@@ -375,22 +371,18 @@ int DoSpike(DSWActor* actor)
 
 int DoSpikeAuto(DSWActor* actor)
 {
-    int *lptr;
-
-    lptr = &actor->user.zclip;
-
-    DoSpikeMove(actor, lptr);
+    DoSpikeMove(actor, &actor->user.zclip);
     MoveSpritesWithSpike(actor->sector());
     SpikeAlign(actor);
 
     // EQUAL this entry has finished
-    if (*lptr == actor->user.z_tgt)
+    if (actor->user.zclip == actor->user.z_tgt)
     {
         // in the UP position
-        if (actor->user.z_tgt == actor->int_pos().Z)
+        if (actor->user.z_tgt == actor->spr.pos.Z)
         {
             // change target
-            actor->user.z_tgt = actor->user.pos.Z;
+            actor->user.z_tgt = actor->user.int_upos().Z * zinttoworld;
             actor->user.vel_rate = -actor->user.vel_rate;
             actor->user.Tics = actor->user.WaitTics;
 
@@ -399,12 +391,12 @@ int DoSpikeAuto(DSWActor* actor)
         }
         else
         // in the DOWN position
-        if (actor->user.z_tgt == actor->user.pos.Z)
+        if (actor->user.int_z_tgt() == actor->user.int_upos().Z)
         {
             // change target
             actor->user.jump_speed = actor->user.vel_tgt;
             actor->user.vel_rate = (short)abs(actor->user.vel_rate);
-            actor->user.z_tgt = actor->int_pos().Z;
+            actor->user.z_tgt = actor->spr.pos.Z;
             actor->user.Tics = actor->user.WaitTics;
 
             if (SP_TAG6(actor) && TEST_BOOL5(actor))

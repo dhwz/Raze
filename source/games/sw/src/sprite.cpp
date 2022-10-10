@@ -850,28 +850,28 @@ void SpawnUser(DSWActor* actor, short id, STATE* state)
     actor->user.motion_blur_dist = 256;
 
     actor->backuppos();
-    actor->user.oz = actor->opos.Z * zworldtoint;
+    actor->user.oz = actor->opos.Z;
 
     actor->user.active_range = MIN_ACTIVE_RANGE;
 
     // default
 
     // based on clipmove z of 48 pixels off the floor
-    actor->user.floor_dist = Z(48) - Z(28);
-    actor->user.ceiling_dist = Z(8);
+    actor->user.floor_dist = 48 - 28;
+    actor->user.ceiling_dist = 8;
 
     // Problem with sprites spawned really close to white sector walls
     // cant do a getzrange there
     // Just put in some valid starting values
-    actor->user.loz = actor->sector()->int_floorz();
-    actor->user.hiz = actor->sector()->int_ceilingz();
+    actor->user.loz = actor->sector()->floorz;
+    actor->user.hiz = actor->sector()->ceilingz;
     actor->user.lowActor = nullptr;
     actor->user.highActor = nullptr;
     actor->user.lo_sectp = actor->sector();
     actor->user.hi_sectp = actor->sector();
 }
 
-DSWActor* SpawnActor(int stat, int id, STATE* state, sectortype* sect, int x, int y, int z, int init_ang, int vel)
+DSWActor* SpawnActor(int stat, int id, STATE* state, sectortype* sect, const DVector3& pos, DAngle init_ang, int vel)
 {
     if (sect == nullptr)
         return nullptr;
@@ -880,7 +880,7 @@ DSWActor* SpawnActor(int stat, int id, STATE* state, sectortype* sect, int x, in
 
     auto spawnedActor = insertActor(sect, stat);
 
-    spawnedActor->set_int_pos({ x, y, z });
+	spawnedActor->spr.pos = pos;
 
     SpawnUser(spawnedActor, id, state);
 
@@ -893,7 +893,7 @@ DSWActor* SpawnActor(int stat, int id, STATE* state, sectortype* sect, int x, in
 
     spawnedActor->spr.xrepeat = 64;
     spawnedActor->spr.yrepeat = 64;
-    spawnedActor->set_int_ang(NORM_ANGLE(init_ang));
+    spawnedActor->spr.angle = init_ang;
     spawnedActor->spr.xvel = vel;
 
     return spawnedActor;
@@ -1469,10 +1469,8 @@ void PreMapCombineFloors(void)
             {
                 if (itsect == dasect)
                 {
-                    pp->pos.X += dx;
-                    pp->pos.Y += dy;
-                    pp->opos.X = pp->oldpos.X = pp->pos.X;
-                    pp->opos.Y = pp->oldpos.Y = pp->pos.Y;
+                    pp->add_int_ppos_XY({ dx, dy });
+                    pp->opos.XY() = pp->oldpos.XY() = pp->pos.XY();
                     break;
                 }
             }
@@ -1517,8 +1515,8 @@ void SpriteSetupPost(void)
 
             SpawnUser(jActor, 0, nullptr);
             change_actor_stat(jActor, STAT_NO_STATE);
-            jActor->user.ceiling_dist = Z(4);
-            jActor->user.floor_dist = -Z(2);
+            jActor->user.ceiling_dist = 4;
+            jActor->user.floor_dist = -2;
 
             jActor->user.ActorActionFunc = DoActorDebris;
 
@@ -2044,8 +2042,8 @@ void SpriteSetup(void)
                     if (floor_vator)
                     {
                         // start off
-                        actor->user.pos.Z = sectp->int_floorz();
-                        actor->user.z_tgt = actor->int_pos().Z;
+                        actor->user.pos.Z = sectp->floorz;
+                        actor->user.z_tgt = actor->spr.pos.Z;
                         if (start_on)
                         {
                             int amt;
@@ -2053,20 +2051,20 @@ void SpriteSetup(void)
 
                             // start in the on position
                             sectp->add_int_floorz(amt);
-                            actor->user.z_tgt = actor->user.pos.Z;
+                            actor->user.z_tgt = actor->user.int_upos().Z * zinttoworld;
 
                             MoveSpritesWithSector(actor->sector(), amt, false); // floor
                         }
 
                         // set orig z
                         actor->opos.Z = sectp->floorz;
-                        actor->user.oz = actor->opos.Z * zworldtoint;
+                        actor->user.oz = actor->opos.Z;
                     }
                     else
                     {
                         // start off
-                        actor->user.pos.Z = sectp->int_ceilingz();
-                        actor->user.z_tgt = actor->int_pos().Z;
+                        actor->user.pos.Z = sectp->ceilingz;
+                        actor->user.z_tgt = actor->spr.pos.Z;
                         if (start_on)
                         {
                             int amt;
@@ -2074,14 +2072,14 @@ void SpriteSetup(void)
 
                             // starting in the on position
                             sectp->add_int_ceilingz(amt);
-                            actor->user.z_tgt = actor->user.pos.Z;
+                            actor->user.z_tgt = actor->user.int_upos().Z * zinttoworld;
 
                             MoveSpritesWithSector(actor->sector(), amt, true); // ceiling
                         }
 
                         // set orig z
                         actor->opos.Z = sectp->ceilingz;
-                        actor->user.oz = actor->opos.Z * zworldtoint;
+                        actor->user.oz = actor->opos.Z;
                     }
 
 
@@ -2249,41 +2247,41 @@ void SpriteSetup(void)
 
                     if (floor_vator)
                     {
-                        actor->user.zclip = florz;
+                        actor->user.zclip = florz * zinttoworld;
 
                         // start off
                         actor->user.pos.Z = actor->user.zclip;
-                        actor->user.z_tgt = actor->int_pos().Z;
+                        actor->user.z_tgt = actor->spr.pos.Z;
                         if (start_on)
                         {
                             // start in the on position
-                            actor->user.zclip = actor->int_pos().Z;
+                            actor->user.zclip = actor->spr.pos.Z;
                             actor->user.z_tgt = actor->user.pos.Z;
                             SpikeAlign(actor);
                         }
 
                         // set orig z
                         actor->user.oz = actor->user.zclip;
-                        actor->opos.Z = actor->user.oz * zinttoworld;
+                        actor->opos.Z = actor->user.oz;
                     }
                     else
                     {
-                        actor->user.zclip = ceilz;
+                        actor->user.zclip = ceilz * zinttoworld;
 
                         // start off
                         actor->user.pos.Z = actor->user.zclip;
-                        actor->user.z_tgt = actor->int_pos().Z;
+                        actor->user.z_tgt = actor->spr.pos.Z;
                         if (start_on)
                         {
                             // starting in the on position
-                            actor->user.zclip = actor->int_pos().Z;
+                            actor->user.zclip = actor->spr.pos.Z;
                             actor->user.z_tgt = actor->user.pos.Z;
                             SpikeAlign(actor);
                         }
 
                         // set orig z
                         actor->user.oz = actor->user.zclip;
-                        actor->opos.Z = actor->user.oz * zinttoworld;
+                        actor->opos.Z = actor->user.oz;
                     }
 
                     change_actor_stat(actor, STAT_SPIKE);
@@ -3493,8 +3491,8 @@ void SetupItemForJump(DSWActor* spawner, DSWActor* actor)
     if (SP_TAG7(spawner))
     {
         change_actor_stat(actor, STAT_SKIP4);
-        actor->user.ceiling_dist = Z(6);
-        actor->user.floor_dist = Z(0);
+        actor->user.ceiling_dist = (6);
+        actor->user.floor_dist = (0);
         actor->user.Counter = 0;
 
         actor->spr.xvel = (int)SP_TAG7(spawner)<<2;
@@ -3518,7 +3516,7 @@ int ActorCoughItem(DSWActor* actor)
         actorNew = insertActor(actor->sector(), STAT_SPAWN_ITEMS);
         actorNew->spr.cstat = 0;
         actorNew->spr.extra = 0;
-        actorNew->set_int_pos({ actor->int_pos().X, actor->int_pos().Y, ActorZOfMiddle(actor) });
+        actorNew->spr.pos = { actor->spr.pos.XY(), ActorZOfMiddle(actor) };
         actorNew->set_int_ang(0);
         actorNew->spr.extra = 0;
 
@@ -3557,7 +3555,7 @@ int ActorCoughItem(DSWActor* actor)
         actorNew = insertActor(actor->sector(), STAT_SPAWN_ITEMS);
         actorNew->spr.cstat = 0;
         actorNew->spr.extra = 0;
-        actorNew->set_int_pos({ actor->int_pos().X, actor->int_pos().Y, ActorZOfMiddle(actor) });
+        actorNew->spr.pos = { actor->spr.pos.XY(), ActorZOfMiddle(actor) };
         actorNew->set_int_ang(0);
         actorNew->spr.extra = 0;
 
@@ -3583,7 +3581,7 @@ int ActorCoughItem(DSWActor* actor)
         actorNew = insertActor(actor->sector(), STAT_SPAWN_ITEMS);
         actorNew->spr.cstat = 0;
         actorNew->spr.extra = 0;
-        actorNew->set_int_pos({ actor->int_pos().X, actor->int_pos().Y, ActorZOfMiddle(actor) });
+        actorNew->spr.pos = { actor->spr.pos.XY(), ActorZOfMiddle(actor) };
         actorNew->set_int_ang(0);
         actorNew->spr.extra = 0;
 
@@ -3612,7 +3610,7 @@ int ActorCoughItem(DSWActor* actor)
             actorNew = insertActor(actor->sector(), STAT_SPAWN_ITEMS);
             actorNew->spr.cstat = 0;
             actorNew->spr.extra = 0;
-            actorNew->set_int_pos({ actor->int_pos().X, actor->int_pos().Y, ActorZOfMiddle(actor) });
+	        actorNew->spr.pos = { actor->spr.pos.XY(), ActorZOfMiddle(actor) };
             actorNew->set_int_ang(0);
             actorNew->spr.extra = 0;
 
@@ -3672,7 +3670,7 @@ int ActorCoughItem(DSWActor* actor)
         actorNew = insertActor(actor->sector(), STAT_SPAWN_ITEMS);
         actorNew->spr.cstat = 0;
         actorNew->spr.extra = 0;
-        actorNew->set_int_pos({ actor->int_pos().X, actor->int_pos().Y, ActorZOfMiddle(actor) });
+        actorNew->spr.pos = { actor->spr.pos.XY(), ActorZOfMiddle(actor) };
         actorNew->set_int_ang(0);
         actorNew->spr.extra = 0;
 
@@ -3728,7 +3726,8 @@ int ActorCoughItem(DSWActor* actor)
         actorNew = insertActor(actor->sector(), STAT_SPAWN_ITEMS);
         actorNew->spr.cstat = 0;
         actorNew->spr.extra = 0;
-        actorNew->set_int_pos({ actor->int_pos().X, actor->int_pos().Y, ActorLowerZ(actor) + Z(10) });
+        actorNew->spr.pos.XY() = actor->spr.pos.XY();
+        actorNew->spr.pos.Z = ActorLowerZ(actor) + 10;
         actorNew->spr.angle = actor->spr.angle;
 
         // vel
@@ -4262,7 +4261,7 @@ bool SpriteOverlap(DSWActor* actor_a, DSWActor* actor_b)
     int spa_tos, spa_bos, spb_tos, spb_bos, overlap_z;
 
     if (!actor_a->hasU() || !actor_b->hasU()) return false;
-    if ((unsigned)Distance(actor_a->int_pos().X, actor_a->int_pos().Y, actor_b->int_pos().X, actor_b->int_pos().Y) > actor_a->user.Radius + actor_b->user.Radius)
+    if ((unsigned)DistanceI(actor_a->spr.pos, actor_b->spr.pos) > actor_a->user.Radius + actor_b->user.Radius)
     {
         return false;
     }
@@ -4484,13 +4483,13 @@ void DoActorZrange(DSWActor* actor)
     }
 }
 
-// !AIC - puts getzrange results into USER varaible actor->user.loz, actor->user.hiz, actor->user.lo_sectp, actor->user.hi_sectp, etc.
+// !AIC - puts getzrange results into USER varaible actor->user.loz. actor->user.hiz, actor->user.lo_sectp, actor->user.hi_sectp, etc.
 // The loz and hiz are used a lot.
 
 int DoActorGlobZ(DSWActor* actor)
 {
-    actor->user.loz = globloz;
-    actor->user.hiz = globhiz;
+    actor->user.loz = globloz * zinttoworld;
+    actor->user.hiz = globhiz * zinttoworld;
 
     actor->user.lo_sectp = actor->user.hi_sectp = nullptr;
     actor->user.highActor = nullptr;
@@ -4602,7 +4601,6 @@ bool DropAhead(DSWActor* actor, int  min_height)
 
 int move_actor(DSWActor* actor, int xchange, int ychange, int zchange)
 {
-    int x, y, z, loz, hiz;
     DSWActor* highActor;
     DSWActor* lowActor;
     sectortype* lo_sectp,* hi_sectp;
@@ -4614,15 +4612,13 @@ int move_actor(DSWActor* actor, int xchange, int ychange, int zchange)
     {
         // For COOLG & HORNETS
         // set to actual z before you move
-        actor->set_int_z(actor->user.pos.Z);
+        actor->set_int_z(actor->user.int_upos().Z);
     }
 
     // save off x,y values
-    x = actor->int_pos().X;
-    y = actor->int_pos().Y;
-    z = actor->int_pos().Z;
-    loz = actor->user.loz;
-    hiz = actor->user.hiz;
+    auto apos = actor->spr.pos;
+    auto loz = actor->user.loz;
+    auto hiz = actor->user.hiz;
     lowActor = actor->user.lowActor;
     highActor = actor->user.highActor;
     lo_sectp = actor->user.lo_sectp;
@@ -4630,7 +4626,7 @@ int move_actor(DSWActor* actor, int xchange, int ychange, int zchange)
     auto sect = actor->sector();
 
     actor->user.coll = move_sprite(actor, xchange, ychange, zchange,
-                         actor->user.ceiling_dist, actor->user.floor_dist, cliptype, ACTORMOVETICS);
+                         actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), cliptype, ACTORMOVETICS);
 
     ASSERT(actor->insector());
 
@@ -4640,8 +4636,8 @@ int move_actor(DSWActor* actor, int xchange, int ychange, int zchange)
         if (labs(actor->int_pos().Z - globloz) > actor->user.lo_step)
         {
             // cancel move
-            actor->set_int_pos({ x, y, z });
-            //actor->spr.z = actor->user.loz;             // place on ground in case you are in the air
+            actor->spr.pos = apos;
+            //actor->spr.pos.Z = actor->user.loz;             // place on ground in case you are in the air
             actor->user.loz = loz;
             actor->user.hiz = hiz;
             actor->user.lowActor = lowActor;
@@ -4656,8 +4652,8 @@ int move_actor(DSWActor* actor, int xchange, int ychange, int zchange)
         if (ActorDrop(actor, actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->sector(), actor->user.lo_step))
         {
             // cancel move
-            actor->set_int_pos({ x, y, z });
-            //actor->spr.z = actor->user.loz;             // place on ground in case you are in the air
+            actor->spr.pos = apos;
+            //actor->spr.pos.Z = actor->user.loz;             // place on ground in case you are in the air
             actor->user.loz = loz;
             actor->user.hiz = hiz;
             actor->user.lowActor = lowActor;
@@ -4675,7 +4671,7 @@ int move_actor(DSWActor* actor, int xchange, int ychange, int zchange)
     if (actor->user.coll.type == kHitNone)
     {
         // Keep track of how far sprite has moved
-        dist = Distance(x, y, actor->int_pos().X, actor->int_pos().Y);
+        dist = DistanceI(apos, actor->spr.pos);
         actor->user.TargetDist -= dist;
         actor->user.Dist += dist;
         actor->user.DistCheck += dist;
@@ -4690,7 +4686,7 @@ int move_actor(DSWActor* actor, int xchange, int ychange, int zchange)
 
 int DoStayOnFloor(DSWActor* actor)
 {
-    actor->set_int_z(actor->sector()->int_floorz());
+    actor->spr.pos.Z = actor->sector()->floorz;
     return 0;
 }
 
@@ -5025,7 +5021,7 @@ int DoGet(DSWActor* actor)
         if (pp->Flags & (PF_DEAD))
             continue;
 
-        DISTANCE(pp->pos.X, pp->pos.Y, actor->int_pos().X, actor->int_pos().Y, dist, a,b,c);
+        DISTANCE(pp->int_ppos().X, pp->int_ppos().Y, actor->int_pos().X, actor->int_pos().Y, dist, a,b,c);
         if ((unsigned)dist > (plActor->user.Radius + actor->user.Radius))
         {
             continue;
@@ -5039,7 +5035,7 @@ int DoGet(DSWActor* actor)
         auto cstat_bak = actor->spr.cstat;
         actor->spr.cstat |= (CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
         can_see = FAFcansee(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->sector(),
-                            pp->pos.X, pp->pos.Y, pp->pos.Z, pp->cursector);
+                            pp->int_ppos().X, pp->int_ppos().Y, pp->int_ppos().Z, pp->cursector);
         actor->spr.cstat = cstat_bak;
 
         if (!can_see)
@@ -6060,7 +6056,7 @@ void SpriteControl(void)
                 pp = &Player[pnum];
 
                 // Only update the ones closest
-                DISTANCE(pp->pos.X, pp->pos.Y, actor->int_pos().X, actor->int_pos().Y, dist, tx, ty, tmin);
+                DISTANCE(pp->int_ppos().X, pp->int_ppos().Y, actor->int_pos().X, actor->int_pos().Y, dist, tx, ty, tmin);
 
                 AdjustActiveRange(pp, actor, dist);
 
@@ -6236,7 +6232,7 @@ Collision move_sprite(DSWActor* actor, int xchange, int ychange, int zchange, in
     else
     {
         // move the center point up for moving
-        zh = actor->user.zclip;
+        zh = actor->user.int_zclip();
         clippos.Z -= zh;
     }
 
@@ -6275,7 +6271,7 @@ Collision move_sprite(DSWActor* actor, int xchange, int ychange, int zchange, in
 
     actor->spr.cstat = tempstat;
 
-    // !AIC - puts getzrange results into USER varaible actor->user.loz, actor->user.hiz, actor->user.lo_sectp, actor->user.hi_sectp, etc.
+    // !AIC - puts getzrange results into USER varaible actor->user.loz. actor->user.hiz, actor->user.lo_sectp, actor->user.hi_sectp, etc.
     // Takes info from global variables
     DoActorGlobZ(actor);
 
@@ -6307,20 +6303,19 @@ Collision move_sprite(DSWActor* actor, int xchange, int ychange, int zchange, in
     if ((actor->sector()->extra & SECTFX_WARP_SECTOR))
     {
         DSWActor* sp_warp;
-        pos = actor->int_pos();
-        if ((sp_warp = WarpPlane(&pos.X, &pos.Y, &pos.Z, &dasect)))
+        auto posv = actor->spr.pos;
+        if ((sp_warp = WarpPlane(posv, &dasect)))
         {
-            actor->set_int_pos(pos);
+            actor->spr.pos = posv;
             ActorWarpUpdatePos(actor, dasect);
             ActorWarpType(actor, sp_warp);
         }
 
         if (actor->sector() != lastsect)
         {
-            pos = actor->int_pos();
-            if ((sp_warp = Warp(&pos.X, &pos.Y, &pos.Z, &dasect)))
+            if ((sp_warp = Warp(posv, &dasect)))
             {
-                actor->set_int_pos(pos);
+                actor->spr.pos = posv;
                 ActorWarpUpdatePos(actor, dasect);
                 ActorWarpType(actor, sp_warp);
             }
@@ -6333,7 +6328,7 @@ Collision move_sprite(DSWActor* actor, int xchange, int ychange, int zchange, in
 void MissileWarpUpdatePos(DSWActor* actor, sectortype* sect)
 {
     actor->backuppos();
-    actor->user.oz = actor->opos.Z * zworldtoint;
+    actor->user.oz = actor->opos.Z;
     ChangeActorSect(actor, sect);
     MissileZrange(actor);
 }
@@ -6341,7 +6336,7 @@ void MissileWarpUpdatePos(DSWActor* actor, sectortype* sect)
 void ActorWarpUpdatePos(DSWActor* actor, sectortype* sect)
 {
     actor->backuppos();
-    actor->user.oz = actor->opos.Z * zworldtoint;
+    actor->user.oz = actor->opos.Z;
     ChangeActorSect(actor, sect);
     DoActorZrange(actor);
 }
@@ -6389,7 +6384,7 @@ int MissileWaterAdjust(DSWActor* actor)
     if (sectp && sectp->hasU())
     {
         if (FixedToInt(sectp->depth_fixed))
-            actor->user.loz -= Z(FixedToInt(sectp->depth_fixed));
+            actor->user.loz -= FixedToInt(sectp->depth_fixed);
     }
     return 0;
 }
@@ -6431,7 +6426,7 @@ Collision move_missile(DSWActor* actor, int xchange, int ychange, int zchange, i
     }
     else
     {
-        zh = actor->user.zclip;
+        zh = actor->user.int_zclip();
         clippos.Z -= zh;
     }
 
@@ -6473,16 +6468,16 @@ Collision move_missile(DSWActor* actor, int xchange, int ychange, int zchange, i
     // this case is currently treated like it hit a sector
 
     // test for hitting ceiling or floor
-    if (clippos.Z - zh <= actor->user.hiz + ceildist)
+    if (clippos.Z - zh <= actor->user.int_hiz() + ceildist)
     {
         // normal code
-        actor->set_int_z(actor->user.hiz + zh + ceildist);
+        actor->set_int_z(actor->user.int_hiz() + zh + ceildist);
         if (retval.type == kHitNone)
             retval.setSector(dasect);
     }
-    else if (clippos.Z - zh > actor->user.loz - flordist)
+    else if (clippos.Z - zh > actor->user.int_loz() - flordist)
     {
-        actor->set_int_z(actor->user.loz + zh - flordist);
+        actor->set_int_z(actor->user.int_loz() + zh - flordist);
         if (retval.type == kHitNone)
             retval.setSector(dasect);
     }
@@ -6498,20 +6493,19 @@ Collision move_missile(DSWActor* actor, int xchange, int ychange, int zchange, i
     {
         DSWActor* sp_warp;
 
-        auto pos = actor->int_pos();
-        if ((sp_warp = WarpPlane(&pos.X, &pos.Y, &pos.Z, &dasect)))
+        auto pos = actor->spr.pos;
+        if ((sp_warp = WarpPlane(pos, &dasect)))
         {
-            actor->set_int_pos(pos);
+            actor->spr.pos = pos;
             MissileWarpUpdatePos(actor, dasect);
             MissileWarpType(actor, sp_warp);
         }
 
         if (actor->sector() != lastsect)
         {
-            pos = actor->int_pos();
-            if ((sp_warp = Warp(&pos.X, &pos.Y, &pos.Z, &dasect)))
+            if ((sp_warp = Warp(pos, &dasect)))
             {
-                actor->set_int_pos(pos);
+                actor->spr.pos = pos;
                 MissileWarpUpdatePos(actor, dasect);
                 MissileWarpType(actor, sp_warp);
             }
@@ -6520,7 +6514,7 @@ Collision move_missile(DSWActor* actor, int xchange, int ychange, int zchange, i
 
     if (retval.type != kHitNone && (actor->sector()->ceilingstat & CSTAT_SECTOR_SKY))
     {
-        if (actor->int_pos().Z < actor->sector()->int_ceilingz())
+        if (actor->spr.pos.Z < actor->sector()->ceilingz)
         {
             retval.setVoid();
         }
@@ -6528,7 +6522,7 @@ Collision move_missile(DSWActor* actor, int xchange, int ychange, int zchange, i
 
     if (retval.type != kHitNone && (actor->sector()->floorstat & CSTAT_SECTOR_SKY))
     {
-        if (actor->int_pos().Z > actor->sector()->int_floorz())
+        if (actor->spr.pos.Z > actor->sector()->floorz)
         {
             retval.setVoid();
         }
@@ -6555,18 +6549,18 @@ Collision move_ground_missile(DSWActor* actor, int xchange, int ychange, int cei
     daz = actor->int_pos().Z;
 
     // climbing a wall
-    if (actor->user.z_tgt)
+    if (actor->user.int_z_tgt())
     {
-        if (labs(actor->user.z_tgt - actor->int_pos().Z) > Z(40))
+        if (labs(actor->user.int_z_tgt() - actor->int_pos().Z) > Z(40))
         {
-            if (actor->user.z_tgt > actor->int_pos().Z)
+            if (actor->user.int_z_tgt() > actor->int_pos().Z)
             {
-                actor->add_int_z(Z(30));
+				actor->spr.pos.Z += 30;
                 return retval;
             }
             else
             {
-                actor->add_int_z(-Z(30));
+                actor->spr.pos.Z -= 30;
                 return retval;
             }
         }
@@ -6619,9 +6613,9 @@ Collision move_ground_missile(DSWActor* actor, int xchange, int ychange, int cei
 
     actor->user.hi_sectp = actor->user.lo_sectp = actor->sector();
     actor->user.highActor = nullptr; actor->user.lowActor = nullptr;
-    actor->set_int_z(actor->user.loz - Z(8));
+    actor->spr.pos.Z = actor->user.loz - 8;
 
-    if (labs(actor->user.hiz - actor->user.loz) < Z(12))
+    if (abs(actor->user.hiz - actor->user.loz) < 12)
     {
         // we've gone into a very small place - kill it
         retval.setVoid();
@@ -6632,20 +6626,19 @@ Collision move_ground_missile(DSWActor* actor, int xchange, int ychange, int cei
     {
         DSWActor* sp_warp;
 
-        auto pos = actor->int_pos();
-        if ((sp_warp = WarpPlane(&pos.X, &pos.Y, &pos.Z, &dasect)))
+        auto pos = actor->spr.pos;
+        if ((sp_warp = WarpPlane(pos, &dasect)))
         {
-            actor->set_int_pos(pos);
+            actor->spr.pos = pos;
             MissileWarpUpdatePos(actor, dasect);
             MissileWarpType(actor, sp_warp);
         }
 
         if (actor->sector() != lastsect)
         {
-            pos = actor->int_pos();
-            if ((sp_warp = Warp(&pos.X, &pos.Y, &pos.Z, &dasect)))
+            if ((sp_warp = Warp(pos, &dasect)))
             {
-                actor->set_int_pos(pos);
+                actor->spr.pos = pos;
                 MissileWarpUpdatePos(actor, dasect);
                 MissileWarpType(actor, sp_warp);
             }

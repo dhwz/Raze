@@ -37,23 +37,19 @@ static actionSeq MummySeq[] = {
 };
 
 
-void BuildMummy(DExhumedActor* pActor, int x, int y, int z, sectortype* pSector, int nAngle)
+void BuildMummy(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, int nAngle)
 {
     if (pActor == nullptr)
     {
         pActor = insertActor(pSector, 102);
+		pActor->spr.pos = pos;
     }
     else
     {
-        x = pActor->int_pos().X;
-        y = pActor->int_pos().Y;
-        z = pActor->int_pos().Z;
         nAngle = pActor->int_ang();
-
         ChangeActorStat(pActor, 102);
     }
 
-    pActor->set_int_pos({ x, y, z });
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     pActor->spr.shade = -12;
     pActor->spr.clipdist = 32;
@@ -206,8 +202,8 @@ void AIMummy::Tick(RunListEvent* ev)
             {
                 if (RandomBit() && pTarget)
                 {
-                    if (cansee(pActor->int_pos().X, pActor->int_pos().Y, pActor->int_pos().Z - GetActorHeight(pActor), pActor->sector(),
-                        pTarget->int_pos().X, pTarget->int_pos().Y, pTarget->int_pos().Z - GetActorHeight(pTarget), pTarget->sector()))
+                    if (cansee(pActor->spr.pos.plusZ(-GetActorHeightF(pActor)), pActor->sector(),
+                        pTarget->spr.pos.plusZ(-GetActorHeightF(pTarget)), pTarget->sector()))
                     {
                         pActor->nAction = 3;
                         pActor->nFrame = 0;
@@ -274,8 +270,8 @@ void AIMummy::Tick(RunListEvent* ev)
         {
             if (nMov.actor() == pTarget)
             {
-                int nAngle = getangle(pTarget->int_pos().X - pActor->int_pos().X, pTarget->int_pos().Y - pActor->int_pos().Y);
-                if (AngleDiff(pActor->int_ang(), nAngle) < 64)
+				auto nAngDiff = AngleDiff(pActor->spr.angle, VecToAngle(pTarget->spr.pos - pActor->spr.pos));
+				if (nAngDiff < 64)
                 {
                     pActor->nAction = 2;
                     pActor->nFrame = 0;
@@ -448,7 +444,7 @@ void AIMummy::Damage(RunListEvent* ev)
         pActor->spr.xvel = 0;
         pActor->spr.yvel = 0;
         pActor->spr.zvel = 0;
-        pActor->set_int_z(pActor->sector()->int_floorz());
+        pActor->spr.pos.Z = pActor->sector()->floorz;
     }
     else
     {

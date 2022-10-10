@@ -245,16 +245,16 @@ static void shootknee(DDukeActor* actor, int p, int sx, int sy, int sz, int sa)
 		sa = getangle(pactor->int_pos().X - sx, pactor->int_pos().Y - sy);
 	}
 
-	hitscan({ sx, sy, sz }, sectp, { bcos(sa), bsin(sa), zvel << 6 }, hit, CLIPMASK1);
+	hitscan(vec3_t( sx, sy, sz ), sectp, { bcos(sa), bsin(sa), zvel << 6 }, hit, CLIPMASK1);
 
 
 	if (hit.hitSector == nullptr) return;
 
-	if ((abs(sx - hit.hitpos.X) + abs(sy - hit.hitpos.Y)) < 1024)
+	if ((abs(sx - hit.int_hitpos().X) + abs(sy - hit.int_hitpos().Y)) < 1024)
 	{
 		if (hit.hitWall || hit.actor())
 		{
-			auto knee = EGS(hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, KNEE, -15, 0, 0, sa, 32, 0, actor, 4);
+			auto knee = EGS(hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, KNEE, -15, 0, 0, sa, 32, 0, actor, 4);
 			if (knee)
 			{
 				knee->spr.extra += (krand() & 7);
@@ -278,12 +278,12 @@ static void shootknee(DDukeActor* actor, int p, int sx, int sy, int sz, int sa)
 			{
 				if (hit.hitWall->cstat & CSTAT_WALL_BOTTOM_SWAP)
 					if (hit.hitWall->twoSided())
-						if (hit.hitpos.Z >= (hit.hitWall->nextSector()->int_floorz()))
+						if (hit.hitpos.Z >= hit.hitWall->nextSector()->floorz)
 							hit.hitWall =hit.hitWall->nextWall();
 
 				if (hit.hitWall->picnum != ACCESSSWITCH && hit.hitWall->picnum != ACCESSSWITCH2)
 				{
-					fi.checkhitwall(knee, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, KNEE);
+					fi.checkhitwall(knee, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, KNEE);
 					if (p >= 0) fi.checkhitswitch(p, hit.hitWall, nullptr);
 				}
 			}
@@ -293,7 +293,7 @@ static void shootknee(DDukeActor* actor, int p, int sx, int sy, int sz, int sa)
 			auto splash = spawn(ps[p].GetActor(), WATERSPLASH2);
 			if (splash)
 			{
-				splash->set_int_xy(hit.hitpos.X, hit.hitpos.Y);
+				splash->set_int_xy(hit.int_hitpos().X, hit.int_hitpos().Y);
 				splash->set_int_ang(ps[p].angle.ang.Buildang()); // Total tweek
 				splash->spr.xvel = 32;
 				ssp(actor, CLIPMASK0);
@@ -396,19 +396,19 @@ static void shootweapon(DDukeActor *actor, int p, int sx, int sy, int sz, int sa
 	}
 
 	actor->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-	hitscan({ sx, sy, sz }, sectp, { bcos(sa), bsin(sa), zvel << 6 }, hit, CLIPMASK1);
+	hitscan(vec3_t( sx, sy, sz ), sectp, { bcos(sa), bsin(sa), zvel << 6 }, hit, CLIPMASK1);
 	actor->spr.cstat |= CSTAT_SPRITE_BLOCK_ALL;
 
 
 	if (hit.hitSector == nullptr) return;
 
 	if ((krand() & 15) == 0 && hit.hitSector->lotag == 2)
-		tracers(hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, sx, sy, sz, 8 - (ud.multimode >> 1));
+		tracers(hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, sx, sy, sz, 8 - (ud.multimode >> 1));
 
 	DDukeActor* spark;
 	if (p >= 0)
 	{
-		spark = EGS(hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, SHOTSPARK1, -15, 10, 10, sa, 0, 0, actor, 4);
+		spark = EGS(hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, SHOTSPARK1, -15, 10, 10, sa, 0, 0, actor, 4);
 		if (!spark) return;
 
 		spark->spr.extra = ScriptCode[gs.actorinfo[atwith].scriptaddress];
@@ -522,15 +522,15 @@ static void shootweapon(DDukeActor *actor, int p, int sx, int sy, int sz, int sa
 
 			if (hit.hitWall->cstat & CSTAT_WALL_BOTTOM_SWAP)
 				if (hit.hitWall->twoSided())
-					if (hit.hitpos.Z >= (hit.hitWall->nextSector()->int_floorz()))
+					if (hit.hitpos.Z >= hit.hitWall->nextSector()->floorz)
 						hit.hitWall = hit.hitWall->nextWall();
 
-			fi.checkhitwall(spark, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, SHOTSPARK1);
+			fi.checkhitwall(spark, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, SHOTSPARK1);
 		}
 	}
 	else
 	{
-		spark = EGS(hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, SHOTSPARK1, -15, 24, 24, sa, 0, 0, actor, 4);
+		spark = EGS(hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, SHOTSPARK1, -15, 24, 24, sa, 0, 0, actor, 4);
 		if (spark)
 		{
 			spark->spr.extra = ScriptCode[gs.actorinfo[atwith].scriptaddress];
@@ -543,14 +543,13 @@ static void shootweapon(DDukeActor *actor, int p, int sx, int sy, int sz, int sa
 				else spark->spr.xrepeat = spark->spr.yrepeat = 0;
 			}
 			else if (hit.hitWall)
-				fi.checkhitwall(spark, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, SHOTSPARK1);
+				fi.checkhitwall(spark, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, SHOTSPARK1);
 		}
 	}
 
 	if ((krand() & 255) < 4)
 	{
-		vec3_t v{ hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z };
-		S_PlaySound3D(PISTOL_RICOCHET, spark, v);
+		S_PlaySound3D(PISTOL_RICOCHET, spark, hit.int_hitpos());
 	}
 }
 
@@ -844,14 +843,14 @@ static void shootlaser(DDukeActor* actor, int p, int sx, int sy, int sz, int sa)
 		zvel = -ps[p].horizon.sum().asq16() >> 11;
 	else zvel = 0;
 
-	hitscan({ sx, sy, sz - ps[p].pyoff }, sectp, { bcos(sa), bsin(sa), zvel << 6 }, hit, CLIPMASK1);
+	hitscan(vec3_t( sx, sy, sz - ps[p].pyoff ), sectp, { bcos(sa), bsin(sa), zvel << 6 }, hit, CLIPMASK1);
 
 	j = 0;
 	if (hit.actor()) return;
 
 	if (hit.hitWall && hit.hitSector)
 	{
-		if (((hit.hitpos.X - sx) * (hit.hitpos.X - sx) + (hit.hitpos.Y - sy) * (hit.hitpos.Y - sy)) < (290 * 290))
+		if (((hit.int_hitpos().X - sx) * (hit.int_hitpos().X - sx) + (hit.int_hitpos().Y - sy) * (hit.int_hitpos().Y - sy)) < (290 * 290))
 		{
 			if (hit.hitWall->twoSided())
 			{
@@ -864,7 +863,7 @@ static void shootlaser(DDukeActor* actor, int p, int sx, int sy, int sz, int sa)
 
 		if (j == 1)
 		{
-			auto bomb = EGS(hit.hitSector, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, TRIPBOMB, -16, 4, 5, sa, 0, 0, actor, STAT_STANDABLE);
+			auto bomb = EGS(hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, TRIPBOMB, -16, 4, 5, sa, 0, 0, actor, STAT_STANDABLE);
 			if (!bomb) return;
 			if (isWW2GI())
 			{
@@ -958,11 +957,11 @@ static void shootgrowspark(DDukeActor* actor, int p, int sx, int sy, int sz, int
 	//RESHOOTGROW:
 
 	actor->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-	hitscan({ sx, sy, sz }, sect, { bcos(sa), bsin(sa), zvel << 6 }, hit, CLIPMASK1);
+	hitscan(vec3_t( sx, sy, sz ), sect, { bcos(sa), bsin(sa), zvel << 6 }, hit, CLIPMASK1);
 
 	actor->spr.cstat |= CSTAT_SPRITE_BLOCK_ALL;
 
-	auto spark = EGS(sect, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, GROWSPARK, -16, 28, 28, sa, 0, 0, actor, 1);
+	auto spark = EGS(sect, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, GROWSPARK, -16, 28, 28, sa, 0, 0, actor, 1);
 	if (!spark) return;
 
 	spark->spr.pal = 2;
@@ -979,7 +978,7 @@ static void shootgrowspark(DDukeActor* actor, int p, int sx, int sy, int sz, int
 	{
 		if (hit.hitWall->picnum != ACCESSSWITCH && hit.hitWall->picnum != ACCESSSWITCH2)
 		{
-			fi.checkhitwall(spark, hit.hitWall, hit.hitpos.X, hit.hitpos.Y, hit.hitpos.Z, GROWSPARK);
+			fi.checkhitwall(spark, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, GROWSPARK);
 		}
 	}
 }
@@ -1729,7 +1728,7 @@ static void operateJetpack(int snum, ESyncBits actions, int psectlotag, int fz, 
 
 	if (p->player_int_pos().Z > (fz - (k << 8)))
 		p->pos.Z += (((fz - (k << 8)) - p->player_int_pos().Z) >> 1) * zinttoworld;
-	if (p->player_int_pos().Z < (pact->actor_int_ceilingz() + (18 << 8)))
+	if (p->pos.Z < pact->ceilingz + 18)
 		p->pos.Z = pact->ceilingz + 18;
 
 }
@@ -2027,13 +2026,13 @@ int operateTripbomb(int snum)
 	while ((act = it.Next()))
 	{
 		if (!actorflag(act, SFLAG_BLOCK_TRIPBOMB) &&
-			abs(act->int_pos().Z - hit.hitpos.Z) < (12 << 8) && ((act->int_pos().X - hit.hitpos.X) * (act->int_pos().X - hit.hitpos.X) + (act->int_pos().Y - hit.hitpos.Y) * (act->int_pos().Y - hit.hitpos.Y)) < (290 * 290))
+			abs(act->int_pos().Z - hit.int_hitpos().Z) < (12 << 8) && ((act->int_pos().X - hit.int_hitpos().X) * (act->int_pos().X - hit.int_hitpos().X) + (act->int_pos().Y - hit.int_hitpos().Y) * (act->int_pos().Y - hit.int_hitpos().Y)) < (290 * 290))
 			return 0;
 	}
 
 	if (act == nullptr && hit.hitWall != nullptr && (hit.hitWall->cstat & CSTAT_WALL_MASKED) == 0)
 		if ((hit.hitWall->twoSided() && hit.hitWall->nextSector()->lotag <= 2) || (!hit.hitWall->twoSided() && hit.hitSector->lotag <= 2))
-			if (((hit.hitpos.X - p->player_int_pos().X) * (hit.hitpos.X - p->player_int_pos().X) + (hit.hitpos.Y - p->player_int_pos().Y) * (hit.hitpos.Y - p->player_int_pos().Y)) < (290 * 290))
+			if (((hit.int_hitpos().X - p->player_int_pos().X) * (hit.int_hitpos().X - p->player_int_pos().X) + (hit.int_hitpos().Y - p->player_int_pos().Y) * (hit.int_hitpos().Y - p->player_int_pos().Y)) < (290 * 290))
 			{
 				p->pos.Z = p->opos.Z;
 				p->vel.Z = 0;

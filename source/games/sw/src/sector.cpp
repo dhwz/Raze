@@ -604,6 +604,18 @@ void SectorMidPoint(sectortype* sectp, int *xmid, int *ymid, int *zmid)
     *zmid = (sectp->int_floorz() + sectp->int_ceilingz()) >> 1;
 }
 
+DVector3 SectorMidPoint(sectortype* sectp)
+{
+    DVector3 sum(0,0,0);
+
+    for (auto& wal : wallsofsector(sectp))
+    {
+        sum += wal.pos;
+    }
+    sum /= sectp->wallnum;
+    sum.Z = (sectp->floorz + sectp->ceilingz) * 0.5;
+    return sum;
+}
 
 void DoSpringBoard(PLAYER* pp)
 {
@@ -829,19 +841,17 @@ int AnimateSwitch(DSWActor* actor, int tgt_value)
 }
 
 
-void SectorExp(DSWActor* actor, sectortype* sectp, short orig_ang, int zh)
+void SectorExp(DSWActor* actor, sectortype* sectp, double zh)
 {
-    int x,y,z;
-
     actor->spr.cstat &= ~(CSTAT_SPRITE_ALIGNMENT_WALL|CSTAT_SPRITE_ALIGNMENT_FLOOR);
-    SectorMidPoint(sectp, &x, &y, &z);
+    auto mid = SectorMidPoint(sectp);
     // randomize the explosions
-    actor->set_int_ang(orig_ang + RANDOM_P2(256) - 128);
-    actor->set_int_pos({ x + RANDOM_P2(256) - 128, y + RANDOM_P2(1024) - 512, zh });
+    actor->spr.angle = DAngle::fromBuild(RANDOM_P2(256) - 128);
+    actor->spr.pos = { mid.X + RANDOM_P2F(256) - 16, mid.Y + RANDOM_P2F(1024) - 64, zh };
     
     // setup vars needed by SectorExp
     ChangeActorSect(actor, sectp);
-    getzsofslopeptr(actor->sector(), actor->int_pos().X, actor->int_pos().Y, &actor->user.hiz, &actor->user.loz);
+    getzsofslopeptr(actor->sector(), actor->spr.pos.X, actor->spr.pos.Y, &actor->user.hiz, &actor->user.loz);
 
     // spawn explosion
     auto exp = SpawnSectorExp(actor);
@@ -856,12 +866,7 @@ void SectorExp(DSWActor* actor, sectortype* sectp, short orig_ang, int zh)
 
 void DoExplodeSector(short match)
 {
-    short orig_ang;
-    int zh;
-
     sectortype* sectp;
-
-    orig_ang = 0;
 
     SWStatIterator it(STAT_EXPLODING_CEIL_FLOOR);
     while (auto actor = it.Next())
@@ -874,7 +879,7 @@ void DoExplodeSector(short match)
 
         sectp = actor->sector();
 
-        sectp->add_int_ceilingz(-Z(SP_TAG4(actor)));
+        sectp->addceilingz(-SP_TAG4(actor));
 
         if (SP_TAG5(actor))
         {
@@ -886,9 +891,9 @@ void DoExplodeSector(short match)
             sectp->setceilingslope(SP_TAG6(actor));
         }
 
-        for (zh = sectp->int_ceilingz(); zh < sectp->int_floorz(); zh += Z(60))
+        for (double zh = sectp->ceilingz; zh < sectp->floorz; zh += 60)
         {
-            SectorExp(actor, actor->sector(), orig_ang, zh + Z(RANDOM_P2(64)) - Z(32));
+            SectorExp(actor, actor->sector(), zh + RANDOM_P2(64) - 32);
         }
 
         // don't need it any more
@@ -1066,7 +1071,7 @@ bool TestKillSectorObject(SECTOR_OBJECT* sop)
     {
         KillMatchingCrackSprites(sop->match_event);
         // get new sectnums
-        CollapseSectorObject(sop, sop->pmid.X, sop->pmid.Y);
+        CollapseSectorObject(sop, sop->int_pmid().X, sop->int_pmid().Y);
         DoSpawnSpotsForKill(sop->match_event);
         KillSectorObjectSprites(sop);
         return true;
@@ -1250,7 +1255,7 @@ void DoChangorMatch(short match)
         if (TEST_BOOL1(actor))
         {
             sectp->ceilingpicnum = SP_TAG4(actor);
-            sectp->add_int_ceilingz(Z(SP_TAG5(actor)));
+            sectp->addceilingz(SP_TAG5(actor));
             sectp->ceilingheinum += SP_TAG6(actor);
 
             if (sectp->ceilingheinum)
@@ -1264,7 +1269,7 @@ void DoChangorMatch(short match)
         else
         {
             sectp->floorpicnum = SP_TAG4(actor);
-            sectp->add_int_floorz(Z(SP_TAG5(actor)));
+            sectp->addfloorz(SP_TAG5(actor));
             sectp->floorheinum += SP_TAG6(actor);
 
             if (sectp->floorheinum)
@@ -1380,7 +1385,7 @@ int OperateSprite(DSWActor* actor, short player_is_operating)
     {
         pp = GlobPlayerP;
 
-        if (!FAFcansee(pp->pos.X, pp->pos.Y, pp->pos.Z, pp->cursector, actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - (ActorSizeZ(actor) >> 1), actor->sector()))
+        if (!FAFcansee(pp->int_ppos().X, pp->int_ppos().Y, pp->int_ppos().Z, pp->cursector, actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - (ActorSizeZ(actor) >> 1), actor->sector()))
             return false;
     }
 
@@ -1837,7 +1842,7 @@ void OperateTripTrigger(PLAYER* pp)
         {
             if (actor->user.Flags & (SPR_WAIT_FOR_TRIGGER))
             {
-                if (Distance(actor->int_pos().X, actor->int_pos().Y, pp->pos.X, pp->pos.Y) < dist)
+                if (Distance(actor->int_pos().X, actor->int_pos().Y, pp->int_ppos().X, pp->int_ppos().Y) < dist)
                 {
                     actor->user.targetActor = pp->actor;
                     actor->user.Flags &= ~(SPR_WAIT_FOR_TRIGGER);
@@ -1934,7 +1939,7 @@ bool NearThings(PLAYER* pp)
         return false;
     }
 
-    neartag(pp->pos, pp->cursector, pp->angle.ang.Buildang(), near, 1024, NTAG_SEARCH_LO_HI);
+    neartag(pp->int_ppos(), pp->cursector, pp->angle.ang.Buildang(), near, 1024, NTAG_SEARCH_LO_HI);
 
 
     // hit a sprite? Check to see if it has sound info in it!
@@ -1968,7 +1973,7 @@ bool NearThings(PLAYER* pp)
         HitInfo hit{};
         short dang = pp->angle.ang.Buildang();
 
-        FAFhitscan(pp->pos.X, pp->pos.Y, pp->pos.Z - Z(30), pp->cursector,    // Start position
+        FAFhitscan(pp->int_ppos().X, pp->int_ppos().Y, pp->int_ppos().Z - Z(30), pp->cursector,    // Start position
                    bcos(dang),  // X vector of 3D ang
                    bsin(dang),  // Y vector of 3D ang
                    0,           // Z vector of 3D ang
@@ -1977,7 +1982,7 @@ bool NearThings(PLAYER* pp)
         if (hit.hitSector == nullptr)
             return false;
 
-        if (Distance(hit.hitpos.X, hit.hitpos.Y, pp->pos.X, pp->pos.Y) > 1500)
+        if (Distance(hit.int_hitpos().X, hit.int_hitpos().Y, pp->int_ppos().X, pp->int_ppos().Y) > 1500)
             return false;
 
         // hit a sprite?
@@ -2014,7 +2019,7 @@ void NearTagList(NEAR_TAG_INFO* ntip, PLAYER* pp, int z, int dist, int type, int
     HitInfo near;
 
 
-    neartag({ pp->pos.X, pp->pos.Y, z }, pp->cursector, pp->angle.ang.Buildang(), near, dist, type);
+    neartag({ pp->int_ppos().X, pp->int_ppos().Y, z }, pp->cursector, pp->angle.ang.Buildang(), near, dist, type);
 
     if (near.hitSector != nullptr)
     {
@@ -2023,7 +2028,7 @@ void NearTagList(NEAR_TAG_INFO* ntip, PLAYER* pp, int z, int dist, int type, int
         save_lotag = ntsec->lotag;
         save_hitag = ntsec->hitag;
 
-        ntip->dist = near.hitpos.X;
+        ntip->dist = near.int_hitpos().X;
         ntip->sectp = ntsec;
         ntip->wallp = nullptr;
         ntip->actor = nullptr;
@@ -2050,7 +2055,7 @@ void NearTagList(NEAR_TAG_INFO* ntip, PLAYER* pp, int z, int dist, int type, int
         save_lotag = ntwall->lotag;
         save_hitag = ntwall->hitag;
 
-        ntip->dist = near.hitpos.X;
+        ntip->dist = near.int_hitpos().X;
         ntip->sectp = nullptr;
         ntip->wallp = ntwall;
         ntip->actor = nullptr;
@@ -2077,7 +2082,7 @@ void NearTagList(NEAR_TAG_INFO* ntip, PLAYER* pp, int z, int dist, int type, int
         save_lotag = actor->spr.lotag;
         save_hitag = actor->spr.hitag;
 
-        ntip->dist = near.hitpos.X;
+        ntip->dist = near.int_hitpos().X;
         ntip->sectp = nullptr;
         ntip->wallp = nullptr;
         ntip->actor = actor;
@@ -2128,7 +2133,7 @@ int DoPlayerGrabStar(PLAYER* pp)
         auto actor = StarQueue[i];
         if (actor != nullptr)
         {
-            if (FindDistance3D(actor->int_pos().X - pp->pos.X, actor->int_pos().Y - pp->pos.Y, actor->int_pos().Z - pp->pos.Z + Z(12)) < 500)
+            if (FindDistance3D(actor->int_pos().X - pp->int_ppos().X, actor->int_pos().Y - pp->int_ppos().Y, actor->int_pos().Z - pp->int_ppos().Z + Z(12)) < 500)
             {
                 break;
             }
@@ -2182,7 +2187,7 @@ void PlayerOperateEnv(PLAYER* pp)
                 NearThings(pp); // Check for player sound specified in a level sprite
             }
 
-            BuildNearTagList(nti, sizeof(nti), pp, pp->pos.Z, 2048L, NTAG_SEARCH_LO_HI, 8);
+            BuildNearTagList(nti, sizeof(nti), pp, pp->int_ppos().Z, 2048L, NTAG_SEARCH_LO_HI, 8);
 
             found = false;
 
@@ -2665,7 +2670,7 @@ void DoSector(void)
             }
             else
             {
-                DISTANCE(pp->pos.X, pp->pos.Y, sop->pmid.X, sop->pmid.Y, dist, a, b, c);
+                DISTANCE(pp->int_ppos().X, pp->int_ppos().Y, sop->int_pmid().X, sop->int_pmid().Y, dist, a, b, c);
                 if (dist < min_dist)
                     min_dist = dist;
             }

@@ -706,7 +706,7 @@ void runlist_ProcessSectorTag(sectortype* pSector, int nLotag, int nHitag)
 
             runlist_AddRunRec(sRunChannels[nChannel].a,nSwitch.first, nSwitch.second);
 
-            pSector->set_int_floorz(nextSectorP->int_floorz());
+            pSector->setfloorz(nextSectorP->floorz);
             return;
         }
 
@@ -1657,7 +1657,7 @@ int runlist_CheckRadialDamage(DExhumedActor* pActor)
             }
             else if (edi > 20)
             {
-                int nAngle = GetMyAngle(x, y);
+                int nAngle = getangle(x, y);
 
                 pActor->spr.xvel += (edi * bcos(nAngle)) >> 3;
                 pActor->spr.yvel += (edi * bsin(nAngle)) >> 3;

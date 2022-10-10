@@ -237,7 +237,7 @@ void clipwall()
 
 }
 
-int BelowNear(DExhumedActor* pActor, int x, int y, int walldist)
+int BelowNear(DExhumedActor* pActor, double walldist)
 {
     auto pSector = pActor->sector();
     int z = pActor->int_pos().Z;
@@ -263,8 +263,7 @@ int BelowNear(DExhumedActor* pActor, int x, int y, int walldist)
                 {
                     if (!search.Check(wal.nextSector()))
                     {
-                        vec2_t pos = { x, y };
-                        if (clipinsidebox(&pos, wallnum(&wal), walldist))
+                        if (IsCloseToWall(pActor->spr.pos, &wal, walldist) != EClose::Outside)
                         {
                             search.Add(wal.nextSector());
                         }
@@ -470,7 +469,7 @@ Collision movespritez(DExhumedActor* pActor, int z, int height, int, int clipdis
 
     if (pActor->spr.statnum == 100)
     {
-        nRet.exbits |= BelowNear(pActor, pActor->int_pos().X, pActor->int_pos().Y, clipdist + (clipdist / 2));
+        nRet.exbits |= BelowNear(pActor, clipdist * (inttoworld * 1.5));
     }
 
     return nRet;
@@ -622,9 +621,7 @@ Collision MoveCreature(DExhumedActor* pActor)
 
 Collision MoveCreatureWithCaution(DExhumedActor* pActor)
 {
-    int x = pActor->int_pos().X;
-    int y = pActor->int_pos().Y;
-    int z = pActor->int_pos().Z;
+	auto oldv = pActor->spr.pos;
     auto pSectorPre = pActor->sector();
 
     auto ecx = MoveCreature(pActor);
@@ -640,7 +637,7 @@ Collision MoveCreatureWithCaution(DExhumedActor* pActor)
 
         if (zDiff > 15360 || (pSector->Flag & kSectUnderwater) || (pSector->pBelow != nullptr && pSector->pBelow->Flag) || pSector->Damage)
         {
-            pActor->set_int_pos({ x, y, z });
+			pActor->spr.pos = oldv;
 
             ChangeActorSect(pActor, pSectorPre);
 
@@ -661,31 +658,18 @@ int GetAngleToSprite(DExhumedActor* a1, DExhumedActor* a2)
     if (!a1 || !a2)
         return -1;
 
-    return GetMyAngle(a2->int_pos().X - a1->int_pos().X, a2->int_pos().Y - a1->int_pos().Y);
+    return getangle(a2->spr.pos - a1->spr.pos);
 }
 
 int PlotCourseToSprite(DExhumedActor* pActor1, DExhumedActor* pActor2)
 {
     if (pActor1 == nullptr || pActor2 == nullptr)
         return -1;
+	
+	auto vect = pActor2->spr.pos.XY() - pActor1->spr.pos.XY();
+	pActor1->spr.angle = VecToAngle(vect);
+	return int(vect.Length() * worldtoint);
 
-    int x = pActor2->int_pos().X - pActor1->int_pos().X;
-    int y = pActor2->int_pos().Y - pActor1->int_pos().Y;
-
-    pActor1->set_int_ang(GetMyAngle(x, y));
-
-    uint32_t x2 = abs(x);
-    uint32_t y2 = abs(y);
-
-    uint32_t diff = x2 * x2 + y2 * y2;
-
-    if (diff > INT_MAX)
-    {
-        DPrintf(DMSG_WARNING, "%s %d: overflow\n", __func__, __LINE__);
-        diff = INT_MAX;
-    }
-
-    return ksqrt(diff);
 }
 
 DExhumedActor* FindPlayer(DExhumedActor* pActor, int nDistance, bool dontengage)
@@ -778,7 +762,7 @@ int GetUpAngle(DExhumedActor* pActor1, int nVal, DExhumedActor* pActor2, int ecx
 
     int nSqrt = lsqrt(x * x + y * y);
 
-    return GetMyAngle(nSqrt, ebx);
+    return getangle(nSqrt, ebx);
 }
 
 void InitPushBlocks()
@@ -861,7 +845,7 @@ void MoveSector(sectortype* pSector, int nAngle, int *nXVel, int *nYVel)
     {
         nXVect = *nXVel;
         nYVect = *nYVel;
-        nAngle = GetMyAngle(nXVect, nYVect);
+        nAngle = getangle(nXVect, nYVect);
     }
     else
     {
@@ -897,14 +881,14 @@ void MoveSector(sectortype* pSector, int nAngle, int *nXVel, int *nYVel)
         nZVal = pSector->int_ceilingz();
         pos.Z = pNextSector->int_ceilingz() + 256;
 
-        pSector->set_int_ceilingz(pNextSector->int_ceilingz());
+        pSector->setceilingz(pNextSector->ceilingz);
     }
     else
     {
         nZVal = pSector->int_floorz();
         pos.Z = pNextSector->int_floorz() - 256;
 
-        pSector->set_int_floorz(pNextSector->int_floorz());
+        pSector->setfloorz(pNextSector->floorz);
     }
 
     auto pSectorB = pSector;
@@ -1155,22 +1139,12 @@ Collision AngleChase(DExhumedActor* pActor, DExhumedActor* pActor2, int ebx, int
     {
         int nHeight = tileHeight(pActor2->spr.picnum) * pActor2->spr.yrepeat * 2;
 
-        int nMyAngle = GetMyAngle(pActor2->int_pos().X - pActor->int_pos().X, pActor2->int_pos().Y - pActor->int_pos().Y);
+		auto vect = pActor2->spr.pos.XY() - pActor->spr.pos.XY();
+        int nMyAngle = getangle(vect);
 
-        uint32_t xDiff = abs(pActor2->int_pos().X - pActor->int_pos().X);
-        uint32_t yDiff = abs(pActor2->int_pos().Y - pActor->int_pos().Y);
+        int nSqrt = int(vect.Length() * worldtoint);
 
-        uint32_t sqrtNum = xDiff * xDiff + yDiff * yDiff;
-
-        if (sqrtNum > INT_MAX)
-        {
-            DPrintf(DMSG_WARNING, "%s %d: overflow\n", __func__, __LINE__);
-            sqrtNum = INT_MAX;
-        }
-
-        int nSqrt = ksqrt(sqrtNum);
-
-        int var_18 = GetMyAngle(nSqrt, ((pActor2->int_pos().Z - nHeight) - pActor->int_pos().Z) >> 8);
+        int var_18 = getangle(nSqrt, ((pActor2->int_pos().Z - nHeight) - pActor->int_pos().Z) >> 8);
 
         int nAngDelta = AngleDelta(pActor->int_ang(), nMyAngle, 1024);
         int nAngDelta2 = abs(nAngDelta);
@@ -1229,24 +1203,24 @@ int GetWallNormal(walltype* pWall)
 {
 	auto delta = pWall->delta();
 
-    int nAngle = GetMyAngle(delta.X, delta.Y);
+    int nAngle = getangle(delta.X, delta.Y);
     return (nAngle + 512) & kAngleMask;
 }
 
-void WheresMyMouth(int nPlayer, vec3_t* pos, sectortype **sectnum)
+DVector3 WheresMyMouth(int nPlayer, sectortype **sectnum)
 {
     auto pActor = PlayerList[nPlayer].pActor;
     int height = GetActorHeight(pActor) >> 1;
 
     *sectnum = pActor->sector();
-    *pos = pActor->int_pos();
-    pos->Z -= height;
+	auto pos = pActor->spr.pos.plusZ(-height * zinttoworld);
 
     Collision scratch;
-    clipmove(*pos, sectnum,
+    clipmove(pos, sectnum,
         bcos(pActor->int_ang(), 7),
         bsin(pActor->int_ang(), 7),
         5120, 1280, 1280, CLIPMASK1, scratch);
+	return pos;
 }
 
 void InitChunks()
@@ -1355,7 +1329,7 @@ DExhumedActor* BuildCreatureChunk(DExhumedActor* pSrc, int nPic, bool bSpecial)
     if (pActor == nullptr) {
         return nullptr;
     }
-    pActor->set_int_pos(pSrc->int_pos());
+    pActor->spr.pos = pSrc->spr.pos;
 
     ChangeActorSect(pActor, pSrc->sector());
 
@@ -1403,7 +1377,7 @@ void AICreatureChunk::Tick(RunListEvent* ev)
 
     auto nVal = movesprite(pActor, pActor->spr.xvel << 10, pActor->spr.yvel << 10, pActor->spr.zvel, 2560, -2560, CLIPMASK1);
 
-    if (pActor->int_pos().Z >= pSector->int_floorz())
+    if (pActor->spr.pos.Z >= pSector->floorz)
     {
         // re-grab this variable as it may have changed in movesprite(). Note the check above is against the value *before* movesprite so don't change it.
         pSector = pActor->sector();
@@ -1411,7 +1385,7 @@ void AICreatureChunk::Tick(RunListEvent* ev)
         pActor->spr.xvel = 0;
         pActor->spr.yvel = 0;
         pActor->spr.zvel = 0;
-        pActor->set_int_z(pSector->int_floorz());
+        pActor->spr.pos.Z = pSector->floorz;
     }
     else
     {

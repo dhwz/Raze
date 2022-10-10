@@ -104,7 +104,7 @@ void HWFlat::MakeVertices(HWDrawInfo* di)
 
 		auto ret = screen->mVertexData->AllocVertices(pIndices->Size());
 		auto vp = ret.first;
-		float base = (plane == 0 ? sec->int_floorz() : sec->int_ceilingz()) * (1 / -256.f);
+		float base = -(plane == 0 ? sec->floorz : sec->ceilingz);
 		for (unsigned i = 0; i < pIndices->Size(); i++)
 		{
 			auto ii = (*pIndices)[i];
@@ -120,11 +120,11 @@ void HWFlat::MakeVertices(HWDrawInfo* di)
 	}
 	else
 	{
-		vec2_t pos[4];
-		int ofsz[4];
+		DVector2 pos[4];
+		double ofsz[4];
 		auto cstat = Sprite->cstat;
 		if (tspriteGetSlope(Sprite)) cstat &= ~CSTAT_SPRITE_YFLIP;	// NBlood doesn't y-flip slope sprites.
-		GetFlatSpritePosition(Sprite, Sprite->int_pos().vec2, pos, ofsz, true);
+		GetFlatSpritePosition(Sprite, Sprite->pos.XY(), pos, ofsz, true);
 		Sprite->cstat = cstat;
 
 		auto ret = screen->mVertexData->AllocVertices(6);
@@ -139,13 +139,13 @@ void HWFlat::MakeVertices(HWDrawInfo* di)
 
 			// Make adjustments for poorly aligned slope sprites on floors or ceilings
 			constexpr float ONPLANE_THRESHOLD = 3.f;
-			if (tspriteGetZOfSlope(Sprite, posx, posy) < posz)
+			if (spriteGetZOfSlope(Sprite, posx, posy, tspriteGetSlope(Sprite)) < posz)
 			{
 				float maxofs = -FLT_MAX, minofs = FLT_MAX;
 				for (int i = 0; i < 4; i++)
 				{
-					float vz = getceilzofslopeptr(Sprite->sectp, pos[i].X, pos[i].Y) * (1 / -256.f);
-					float sz = z + ofsz[i] * (1 / -256.f);
+					float vz = -getceilzofslopeptrf(Sprite->sectp, pos[i].X, pos[i].Y);
+					float sz = z - ofsz[i];
 					int diff = vz - sz;
 					if (diff > maxofs) maxofs = diff;
 					if (diff < minofs) minofs = diff;
@@ -157,8 +157,8 @@ void HWFlat::MakeVertices(HWDrawInfo* di)
 				float maxofs = -FLT_MAX, minofs = FLT_MAX;
 				for (int i = 0; i < 4; i++)
 				{
-					float vz = getflorzofslopeptr(Sprite->sectp, pos[i].X, pos[i].Y) * (1 / -256.f);
-					float sz = z + ofsz[i] * (1 / -256.f);
+					float vz = -getflorzofslopeptrf(Sprite->sectp, pos[i].X, pos[i].Y);
+					float sz = z - ofsz[i];
 					int diff = vz - sz;
 					if (diff > maxofs) maxofs = diff;
 					if (diff < minofs) minofs = diff;
@@ -181,7 +181,7 @@ void HWFlat::MakeVertices(HWDrawInfo* di)
 
 		for (unsigned j = 0; j < 4; j++)
 		{
-			svp->SetVertex(pos[j].X * (1 / 16.f), z + ofsz[j] * (1 / -256.f), pos[j].Y * (1 / -16.f));
+			svp->SetVertex(pos[j].X, z - ofsz[j], -pos[j].Y);
 			if (!canvas) svp->SetTexCoord(j == 1 || j == 2 ? 1.f - x : x, j == 2 || j == 3 ? 1.f - y : y);
 			else svp->SetTexCoord(j == 1 || j == 2 ? 1.f - x : x, j == 2 || j == 3 ? y : 1.f - y);
 			svp++;
@@ -436,7 +436,7 @@ void HWFlat::ProcessFlatSprite(HWDrawInfo* di, tspritetype* sprite, sectortype* 
 	if ((sprite->cstat & CSTAT_SPRITE_ONE_SIDE) != 0)
 	{
 		double myz = !(sprite->clipdist & TSPR_SLOPESPRITE) ? z :
-			tspriteGetZOfSlope(sprite, int(di->Viewpoint.Pos.X * 16), int(di->Viewpoint.Pos.Y * -16)) * -(1. / 256.);
+			spriteGetZOfSlope(sprite, int(di->Viewpoint.Pos.X * 16), int(di->Viewpoint.Pos.Y * -16), tspriteGetSlope(sprite)) * -(1. / 256.);
 		if ((di->Viewpoint.Pos.Z < myz) == ((sprite->cstat & CSTAT_SPRITE_YFLIP) == 0))
 			return;
 	}

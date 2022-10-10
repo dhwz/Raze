@@ -56,17 +56,17 @@ void ReverseVator(DSWActor* actor)
     // moving toward to OFF pos
     if (actor->user.z_tgt == actor->user.oz)
     {
-        if (actor->int_pos().Z == actor->user.oz)
-            actor->user.z_tgt = actor->user.pos.Z;
-        else if (actor->user.pos.Z == actor->user.oz)
-            actor->user.z_tgt = actor->int_pos().Z;
+        if (actor->spr.pos.Z == actor->user.oz)
+            actor->user.z_tgt = actor->user.int_upos().Z * zinttoworld;
+        else if (actor->user.int_upos().Z == actor->user.int_oz())
+            actor->user.z_tgt = actor->spr.pos.Z;
     }
-    else if (actor->user.z_tgt == actor->user.pos.Z)
+    else if (actor->user.int_z_tgt() == actor->user.int_upos().Z)
     {
-        if (actor->int_pos().Z == actor->user.oz)
-            actor->user.z_tgt = actor->int_pos().Z;
-        else if (actor->user.pos.Z == actor->user.oz)
-            actor->user.z_tgt = actor->user.pos.Z;
+        if (actor->spr.pos.Z == actor->user.oz)
+            actor->user.z_tgt = actor->spr.pos.Z;
+        else if (actor->user.int_upos().Z == actor->user.int_oz())
+            actor->user.z_tgt = actor->user.int_upos().Z * zinttoworld;
     }
 
     actor->user.vel_rate = -actor->user.vel_rate;
@@ -107,11 +107,11 @@ void SetVatorActive(DSWActor* actor)
     actor->user.Tics = 0;
 
     // moving to the ON position
-    if (actor->user.z_tgt == actor->int_pos().Z)
+    if (actor->user.int_z_tgt() == actor->int_pos().Z)
         VatorSwitch(SP_TAG2(actor), true);
     else
     // moving to the OFF position
-    if (actor->user.z_tgt == actor->user.pos.Z)
+    if (actor->user.int_z_tgt() == actor->user.int_upos().Z)
         VatorSwitch(SP_TAG2(actor), false);
 }
 
@@ -330,7 +330,7 @@ int DoVatorMove(DSWActor* actor, int *lptr)
     zval = *lptr;
 
     // if LESS THAN goal
-    if (zval < actor->user.z_tgt)
+    if (zval < actor->user.int_z_tgt())
     {
         // move it DOWN
         zval += (synctics * actor->user.jump_speed);
@@ -338,20 +338,20 @@ int DoVatorMove(DSWActor* actor, int *lptr)
         actor->user.jump_speed += actor->user.vel_rate * synctics;
 
         // if the other way make it equal
-        if (zval > actor->user.z_tgt)
-            zval = actor->user.z_tgt;
+        if (zval > actor->user.int_z_tgt())
+            zval = actor->user.int_z_tgt();
     }
 
     // if GREATER THAN goal
-    if (zval > actor->user.z_tgt)
+    if (zval > actor->user.int_z_tgt())
     {
         // move it UP
         zval -= (synctics * actor->user.jump_speed);
 
         actor->user.jump_speed += actor->user.vel_rate * synctics;
 
-        if (zval < actor->user.z_tgt)
-            zval = actor->user.z_tgt;
+        if (zval < actor->user.int_z_tgt())
+            zval = actor->user.int_z_tgt();
     }
 
     move_amt = zval - *lptr;
@@ -389,13 +389,13 @@ int DoVator(DSWActor* actor)
     }
 
     // EQUAL this entry has finished
-    if (zval == actor->user.z_tgt)
+    if (zval == actor->user.int_z_tgt())
     {
         // in the ON position
-        if (actor->user.z_tgt == actor->int_pos().Z)
+        if (actor->user.int_z_tgt() == actor->int_pos().Z)
         {
             // change target
-            actor->user.z_tgt = actor->user.pos.Z;
+            actor->user.z_tgt = actor->user.int_upos().Z * zinttoworld;
             actor->user.vel_rate = -actor->user.vel_rate;
 
             SetVatorInactive(actor);
@@ -406,14 +406,14 @@ int DoVator(DSWActor* actor)
         }
         else
         // in the OFF position
-        if (actor->user.z_tgt == actor->user.pos.Z)
+        if (actor->user.int_z_tgt() == actor->user.int_upos().Z)
         {
             short match = SP_TAG2(actor);
 
             // change target
             actor->user.jump_speed = actor->user.vel_tgt;
             actor->user.vel_rate = short(abs(actor->user.vel_rate));
-            actor->user.z_tgt = actor->int_pos().Z;
+            actor->user.z_tgt = actor->spr.pos.Z;
 
             RESET_BOOL8(actor);
             SetVatorInactive(actor);
@@ -438,13 +438,13 @@ int DoVator(DSWActor* actor)
         }
 
         // setup to go back to the original z
-        if (zval != actor->user.oz)
+        if (zval != actor->user.int_oz())
         {
             if (actor->user.WaitTics)
                 actor->user.Tics = actor->user.WaitTics;
         }
     }
-    else // if (*lptr == actor->user.z_tgt)
+    else // if (*lptr == actor->user.int_z_tgt())
     {
         // if heading for the OFF (original) position and should NOT CRUSH
         if (TEST_BOOL3(actor) && actor->user.z_tgt == actor->user.oz)
@@ -457,7 +457,7 @@ int DoVator(DSWActor* actor)
             {
                 if (itActor->spr.statnum == STAT_ENEMY)
                 {
-                    if (labs(sectp->int_ceilingz() - sectp->int_floorz()) < ActorSizeZ(itActor))
+                    if (abs(sectp->int_ceilingz() - sectp->int_floorz()) < ActorSizeZ(itActor))
                     {
                         InitBloodSpray(itActor, true, -1);
                         UpdateSinglePlayKills(itActor);
@@ -542,13 +542,13 @@ int DoVatorAuto(DSWActor* actor)
     }
 
     // EQUAL this entry has finished
-    if (zval == actor->user.z_tgt)
+    if (zval == actor->user.int_z_tgt())
     {
         // in the UP position
-        if (actor->user.z_tgt == actor->int_pos().Z)
+        if (actor->user.z_tgt == actor->spr.pos.Z)
         {
             // change target
-            actor->user.z_tgt = actor->user.pos.Z;
+            actor->user.z_tgt = actor->user.int_upos().Z * zinttoworld;
             actor->user.vel_rate = -actor->user.vel_rate;
             actor->user.Tics = actor->user.WaitTics;
 
@@ -557,12 +557,12 @@ int DoVatorAuto(DSWActor* actor)
         }
         else
         // in the DOWN position
-        if (actor->user.z_tgt == actor->user.pos.Z)
+        if (actor->user.int_z_tgt() == actor->user.int_upos().Z)
         {
             // change target
             actor->user.jump_speed = actor->user.vel_tgt;
             actor->user.vel_rate = short(abs(actor->user.vel_rate));
-            actor->user.z_tgt = actor->int_pos().Z;
+            actor->user.z_tgt = actor->spr.pos.Z;
             actor->user.Tics = actor->user.WaitTics;
 
             if (SP_TAG6(actor) && TEST_BOOL5(actor))

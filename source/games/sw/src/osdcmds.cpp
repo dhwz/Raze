@@ -50,9 +50,9 @@ BEGIN_SW_NS
 
 void GameInterface::WarpToCoords(int x, int y, int z, int ang, int horz)
 {
-    Player->opos.X = Player->pos.X = x;
-    Player->opos.Y = Player->pos.Y = y;
-    Player->opos.Z = Player->pos.Z = z;
+    Player->set_int_ppos({x,y,z});
+
+    Player->opos = Player->pos;
 
     if (ang != INT_MIN)
     {

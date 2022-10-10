@@ -35,22 +35,20 @@ static actionSeq RoachSeq[] = {
 };
 
 // TODO - make nType a bool?
-void BuildRoach(int nType, DExhumedActor* pActor, int x, int y, int z, sectortype* pSector, int angle)
+void BuildRoach(int nType, DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, int angle)
 {
-    if (pActor == nullptr)
-    {
-        pActor = insertActor(pSector, 105);
-    }
-    else
-    {
-        ChangeActorStat(pActor, 105);
-        x = pActor->int_pos().X;
-        y = pActor->int_pos().Y;
-        z = pActor->sector()->int_floorz();
-        angle = pActor->int_ang();
-    }
+	if (pActor == nullptr)
+	{
+		pActor = insertActor(pSector, 105);
+		pActor->spr.pos = pos;
+	}
+	else
+	{
+		ChangeActorStat(pActor, 105);
+		pActor->spr.pos.Z = pActor->sector()->floorz;
+		angle = pActor->int_ang();
+	}
 
-    pActor->set_int_pos({ x, y, z });
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     pActor->spr.shade = -12;
     pActor->spr.xoffset = 0;
@@ -275,7 +273,7 @@ void AIRoach::Tick(RunListEvent* ev)
 
                 pActor->spr.xvel = 0;
                 pActor->spr.yvel = 0;
-                pActor->set_int_ang(GetMyAngle(pTarget->int_pos().X - pActor->int_pos().X, pTarget->int_pos().Y - pActor->int_pos().Y));
+                pActor->spr.angle = VecToAngle(pTarget->spr.pos - pActor->spr.pos);
 
                 pActor->nFrame = 0;
             }
@@ -304,7 +302,7 @@ void AIRoach::Tick(RunListEvent* ev)
 
                 pActor->spr.xvel = 0;
                 pActor->spr.yvel = 0;
-                pActor->set_int_ang(GetMyAngle(pTarget->int_pos().X - pActor->int_pos().X, pTarget->int_pos().Y - pActor->int_pos().Y));
+				pActor->spr.angle = VecToAngle(pTarget->spr.pos - pActor->spr.pos);
 
                 pActor->nFrame = 0;
             }

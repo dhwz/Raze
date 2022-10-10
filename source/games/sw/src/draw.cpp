@@ -199,7 +199,7 @@ int DoShadowFindGroundPoint(tspritetype* tspr)
     // USES TSPRITE !!!!!
     auto ownerActor = static_cast<DSWActor*>(tspr->ownerActor);
     Collision ceilhit, florhit;
-    int hiz, loz = ownerActor->user.loz;
+    int hiz, loz = ownerActor->user.int_loz();
     ESpriteFlags save_cstat, bak_cstat;
 
     // recursive routine to find the ground - either sector or floor sprite
@@ -282,7 +282,7 @@ void DoShadows(tspriteArray& tsprites, tspritetype* tsp, int viewz, int camang)
         xrepeat = tsp->xrepeat;
     }
 
-    loz = ownerActor->user.loz;
+    loz = ownerActor->user.int_loz();
     if (ownerActor->user.lowActor)
     {
         if (!(ownerActor->user.lowActor->spr.cstat & (CSTAT_SPRITE_ALIGNMENT_WALL | CSTAT_SPRITE_ALIGNMENT_FLOOR)))
@@ -427,7 +427,6 @@ void DoMotionBlur(tspriteArray& tsprites, tspritetype const * const tsp)
 void WarpCopySprite(tspriteArray& tsprites)
 {
     int spnum;
-    int xoff,yoff,zoff;
     int match;
 
     // look for the first one
@@ -456,15 +455,7 @@ void WarpCopySprite(tspriteArray& tsprites)
 
                     tspritetype* newTSpr = renderAddTsprite(tsprites, itActor2);
                     newTSpr->statnum = 0;
-
-                    xoff = itActor->int_pos().X - newTSpr->int_pos().X;
-                    yoff = itActor->int_pos().Y - newTSpr->int_pos().Y;
-                    zoff = itActor->int_pos().Z - newTSpr->int_pos().Z;
-
-                    newTSpr->set_int_pos({
-                        itActor1->int_pos().X - xoff,
-                        itActor1->int_pos().Y - yoff,
-                        itActor1->int_pos().Z - zoff });
+					newTSpr->pos += itActor1->spr.pos - itActor->spr.pos;
                     newTSpr->sectp = itActor1->sector();
                 }
 
@@ -481,7 +472,7 @@ void WarpCopySprite(tspriteArray& tsprites)
                     newTSpr->statnum = 0;
 
                     auto off = itActor1->int_pos() - newTSpr->int_pos();
-                    newTSpr->set_int_pos(itActor->int_pos() - off);
+                    newTSpr->pos += itActor->spr.pos - itActor1->spr.pos;
                     newTSpr->sectp = itActor->sector();
                 }
             }
@@ -518,7 +509,7 @@ DSWActor* CopySprite(sprt const* tsp, sectortype* newsector)
 
     auto actorNew = insertActor(newsector, STAT_FAF_COPY);
 
-    actorNew->set_int_pos(tsp->int_pos());
+	actorNew->spr.pos = tsp->pos;
     actorNew->spr.cstat = tsp->cstat;
     actorNew->spr.picnum = tsp->picnum;
     actorNew->spr.pal = tsp->pal;
@@ -788,11 +779,9 @@ void analyzesprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, int
             else // Otherwise just interpolate the player sprite
             {
                 pp = tActor->user.PlayerP;
-                int sr = 65536 - int(smoothratio);
-                tsp->add_int_x(-MulScale(pp->pos.X - pp->opos.X, sr, 16));
-                tsp->add_int_y(-MulScale(pp->pos.Y - pp->opos.Y, sr, 16));
-                tsp->add_int_z(-MulScale(pp->pos.Z - pp->opos.Z, sr, 16));
-                tsp->add_int_ang(-MulScale(pp->angle.ang.Buildang() - pp->angle.oang.Buildang(), sr, 16));
+                double sr = 1. - smoothratio * (1. / 65536.);
+                tsp->pos -= (pp->pos - pp->opos) * sr;
+                tsp->angle = interpolatedangle(pp->angle.oang, pp->angle.ang, sr, 0);
             }
         }
 
@@ -955,12 +944,12 @@ void CircleCamera(int *nx, int *ny, int *nz, sectortype** vsect, DAngle *nang, f
     // Make sure sector passed to hitscan is correct
     //updatesector(*nx, *ny, vsect);
 
-    hitscan({ *nx, *ny, *nz }, *vsect, { vx, vy, vz }, hit, CLIPMASK_MISSILE);
+    hitscan(vec3_t( *nx, *ny, *nz ), *vsect, { vx, vy, vz }, hit, CLIPMASK_MISSILE);
 
     actor->spr.cstat = bakcstat;              // Restore cstat
 
-    hx = hit.hitpos.X - (*nx);
-    hy = hit.hitpos.Y - (*ny);
+    hx = hit.int_hitpos().X - (*nx);
+    hy = hit.int_hitpos().Y - (*ny);
 
     // If something is in the way, make pp->circle_camera_dist lower if necessary
     if (abs(vx) + abs(vy) > abs(hx) + abs(hy))
@@ -1028,18 +1017,11 @@ void CircleCamera(int *nx, int *ny, int *nz, sectortype** vsect, DAngle *nang, f
     *nang = ang;
 }
 
-FString GameInterface::GetCoordString()
+std::pair<DVector3, DAngle> GameInterface::GetCoordinates()
 {
     PLAYER* pp = Player + myconnectindex;
-    FString out;
-    out.AppendFormat("POSX:%d ", pp->pos.X);
-    out.AppendFormat("POSY:%d ", pp->pos.Y);
-    out.AppendFormat("POSZ:%d ", pp->pos.Z);
-    out.AppendFormat("ANG:%d\n", pp->angle.ang.Buildang());
-
-    return out;
+    return std::make_pair(pp->pos, pp->angle.ang);
 }
-
 
 void PrintSpriteInfo(PLAYER* pp)
 {
@@ -1392,9 +1374,9 @@ void drawscreen(PLAYER* pp, double smoothratio, bool sceneonly)
     else
         camerapp = pp;
 
-    tx = interpolatedvalue(camerapp->opos.X, camerapp->pos.X, sr);
-    ty = interpolatedvalue(camerapp->opos.Y, camerapp->pos.Y, sr);
-    tz = interpolatedvalue(camerapp->opos.Z, camerapp->pos.Z, sr);
+    tx = int(interpolatedvaluef(camerapp->opos.X, camerapp->pos.X, smoothratio) * worldtoint);
+    ty = int(interpolatedvaluef(camerapp->opos.Y, camerapp->pos.Y, smoothratio) * worldtoint);
+    tz = int(interpolatedvaluef(camerapp->opos.Z, camerapp->pos.Z, smoothratio) * zworldtoint);
 
     // Interpolate the player's angle while on a sector object, just like VoidSW.
     // This isn't needed for the turret as it was fixable, but moving sector objects are problematic.
@@ -1419,9 +1401,9 @@ void drawscreen(PLAYER* pp, double smoothratio, bool sceneonly)
         if (pp->sop_control &&
             (!cl_sointerpolation || (CommEnabled && !pp->sop_remote)))
         {
-            tx = pp->pos.X;
-            ty = pp->pos.Y;
-            tz = pp->pos.Z;
+            tx = pp->int_ppos().X;
+            ty = pp->int_ppos().Y;
+            tz = pp->int_ppos().Z;
             tang = pp->angle.ang;
         }
         tsect = pp->cursector;
@@ -1430,7 +1412,7 @@ void drawscreen(PLAYER* pp, double smoothratio, bool sceneonly)
 
     pp->si.X = tx;
     pp->si.Y = ty;
-    pp->si.Z = tz - pp->pos.Z;
+    pp->si.Z = tz - pp->int_ppos().Z;
     pp->siang = tang.Buildang();
 
     QuakeViewChange(camerapp, &quake_z, &quake_x, &quake_y, &quake_ang);
@@ -1449,7 +1431,7 @@ void drawscreen(PLAYER* pp, double smoothratio, bool sceneonly)
         if (TEST_BOOL1(ractor))
             tang = ractor->spr.angle;
         else
-            tang = VecToAngle(pp->sop_remote->pmid.X - tx, pp->sop_remote->pmid.Y - ty);
+            tang = VecToAngle(pp->sop_remote->int_pmid().X - tx, pp->sop_remote->int_pmid().Y - ty);
     }
 
     if (pp->Flags & (PF_VIEW_FROM_OUTSIDE))

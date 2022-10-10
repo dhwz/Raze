@@ -47,7 +47,7 @@ void BuildFishLimb(DExhumedActor* pActor, int anim)
     pChunkActor->nCount = anim + 40;
     pChunkActor->nFrame = RandomSize(3) % SeqSize[SeqOffsets[kSeqFish] + anim + 40];
 
-    pChunkActor->set_int_pos(pActor->int_pos());
+	pChunkActor->spr.pos = pActor->spr.pos;
     pChunkActor->spr.cstat = 0;
     pChunkActor->spr.shade = -12;
     pChunkActor->spr.pal = 0;
@@ -72,9 +72,9 @@ void BuildFishLimb(DExhumedActor* pActor, int anim)
     pChunkActor->spr.hitag = runlist_AddRunRec(NewRun, pChunkActor, 0x200000);
 }
 
-void BuildBlood(int x, int y, int z, sectortype* pSector)
+void BuildBlood(const DVector3& pos, sectortype* pSector)
 {
-    BuildAnim(nullptr, kSeqFish, 36, x, y, z, pSector, 75, 128);
+    BuildAnim(nullptr, kSeqFish, 36, pos, pSector, 75, 128);
 }
 
 void AIFishLimb::Tick(RunListEvent* ev)
@@ -94,17 +94,17 @@ void AIFishLimb::Tick(RunListEvent* ev)
     {
         pActor->nFrame = 0;
         if (RandomBit()) {
-            BuildBlood(pActor->int_pos().X, pActor->int_pos().Y, pActor->int_pos().Z, pActor->sector());
+            BuildBlood(pActor->spr.pos, pActor->sector());
         }
     }
 
-    int FloorZ = pActor->sector()->int_floorz();
+    double FloorZ = pActor->sector()->floorz;
 
-    if (FloorZ <= pActor->int_pos().Z)
+    if (FloorZ <= pActor->spr.pos.Z)
     {
-        pActor->add_int_z(256);
+		pActor->spr.pos.Z++;
 
-        if ((pActor->int_pos().Z - FloorZ) > 25600)
+        if ((pActor->spr.pos.Z - FloorZ) > 100)
         {
             pActor->spr.zvel = 0;
             runlist_DoSubRunRec(pActor->spr.intowner);
@@ -112,7 +112,7 @@ void AIFishLimb::Tick(RunListEvent* ev)
             runlist_SubRunRec(pActor->spr.hitag);
             DeleteActor(pActor);
         }
-        else if ((pActor->int_pos().Z - FloorZ) > 0)
+        else if ((pActor->spr.pos.Z - FloorZ) > 0)
         {
             pActor->spr.zvel = 1024;
         }
@@ -138,22 +138,19 @@ void AIFishLimb::Draw(RunListEvent* ev)
 }
 
 
-void BuildFish(DExhumedActor* pActor, int x, int y, int z, sectortype* pSector, int nAngle)
+void BuildFish(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, int nAngle)
 {
     if (pActor == nullptr)
     {
         pActor = insertActor(pSector, 103);
+		pActor->spr.pos = pos;
     }
     else
     {
-        x = pActor->int_pos().X;
-        y = pActor->int_pos().Y;
-        z = pActor->int_pos().Z;
         nAngle = pActor->int_ang();
         ChangeActorStat(pActor, 103);
     }
 
-    pActor->set_int_pos({ x, y, z });
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     pActor->spr.shade = -12;
     pActor->spr.clipdist = 80;
@@ -275,7 +272,7 @@ void AIFish::Damage(RunListEvent* ev)
                 BuildFishLimb(pActor, i);
             }
 
-            PlayFXAtXYZ(StaticSound[kSound40], pActor->int_pos().X, pActor->int_pos().Y, pActor->int_pos().Z);
+            PlayFXAtXYZ(StaticSound[kSound40], pActor->spr.pos);
             DestroyFish(pActor);
         }
         else
@@ -342,7 +339,7 @@ void AIFish::Tick(RunListEvent* ev)
                 pActor->nAction = 2;
                 pActor->nFrame = 0;
 
-                int nAngle = GetMyAngle(pTargetActor->int_pos().X - pActor->int_pos().X, pTargetActor->int_pos().Z - pActor->int_pos().Z);
+                int nAngle = getangle(pTargetActor->spr.pos - pActor->spr.pos);
                 pActor->spr.zvel = bsin(nAngle, -5);
 
                 pActor->nCount = RandomSize(6) + 90;
@@ -371,9 +368,8 @@ void AIFish::Tick(RunListEvent* ev)
         else
         {
             PlotCourseToSprite(pActor, pTargetActor);
-            int nHeight = GetActorHeight(pActor) >> 1;
-
-            int z = abs(pTargetActor->int_pos().Z - pActor->int_pos().Z);
+            double nHeight = GetActorHeightF(pActor) * 0.5;
+            double z = fabs(pTargetActor->spr.pos.Z - pActor->spr.pos.Z);
 
             if (z <= nHeight)
             {
@@ -386,7 +382,7 @@ void AIFish::Tick(RunListEvent* ev)
                 pActor->spr.yvel = 0;
             }
 
-            pActor->spr.zvel = (pTargetActor->int_pos().Z - pActor->int_pos().Z) >> 3;
+            pActor->spr.zvel = int((pTargetActor->spr.pos.Z - pActor->spr.pos.Z) * zworldtoint / 8);
         }
         break;
     }
@@ -415,9 +411,7 @@ void AIFish::Tick(RunListEvent* ev)
     }
     }
 
-    int x = pActor->int_pos().X;
-    int y = pActor->int_pos().Y;
-    int z = pActor->int_pos().Z;
+	auto pos = pActor->spr.pos;
     auto pSector =pActor->sector();
 
     // loc_2EF54
@@ -426,7 +420,7 @@ void AIFish::Tick(RunListEvent* ev)
     if (!(pActor->sector()->Flag & kSectUnderwater))
     {
         ChangeActorSect(pActor, pSector);
-        pActor->set_int_pos({ x, y, z });
+        pActor->spr.pos = pos;
 
         IdleFish(pActor, 0);
         return;
@@ -460,7 +454,7 @@ void AIFish::Tick(RunListEvent* ev)
                 if (pHitAct->spr.statnum == 100)
                 {
                     pActor->pTarget = coll.actor();
-                    pActor->set_int_ang(GetMyAngle(pHitAct->int_pos().X - pActor->int_pos().X, pHitAct->int_pos().Y - pActor->int_pos().Y));
+                    pActor->spr.angle = VecToAngle(pHitAct->spr.pos - pActor->spr.pos);
 
                     if (nAction != 3)
                     {

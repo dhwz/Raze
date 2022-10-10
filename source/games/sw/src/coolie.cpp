@@ -407,11 +407,11 @@ void EnemyDefaults(DSWActor* actor, ACTOR_ACTION_SET* action, PERSONALITY* perso
     actor->user.RotNum = 5;
     actor->spr.clipdist = (256) >> 2;
 
-    actor->user.zclip = Z(48);
+    actor->user.zclip = (48);
     actor->user.lo_step = Z(32);
 
-    actor->user.floor_dist = actor->user.zclip - actor->user.lo_step;
-    actor->user.ceiling_dist = ActorSizeZ(actor) - actor->user.zclip;
+    actor->user.floor_dist = actor->user.zclip - actor->user.lo_step * zinttoworld;
+    actor->user.ceiling_dist = ActorSizeZ(actor) * zinttoworld - actor->user.zclip;
 
     actor->user.Radius = 400;
 
@@ -453,10 +453,10 @@ void EnemyDefaults(DSWActor* actor, ACTOR_ACTION_SET* action, PERSONALITY* perso
         }
     }
 
-    if (depth && labs(actor->int_pos().Z - actor->user.loz) < Z(8))
+    if (depth && abs(actor->spr.pos.Z - actor->user.loz) < 8)
     {
         actor->add_int_z(Z(depth));
-        actor->user.loz = actor->int_pos().Z;
+        actor->user.loz = actor->spr.pos.Z;
         actor->backupz();
     }
 
@@ -569,7 +569,7 @@ int DoCoolieMove(DSWActor* actor)
         return 0;
     }
 
-    if (Distance(actor->int_pos().X, actor->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y) < 1200)
+	if (DistanceI(actor->spr.pos, actor->user.targetActor->spr.pos) < 1200)
     {
         UpdateSinglePlayKills(actor);
         DoActorDie(actor, actor, 0);

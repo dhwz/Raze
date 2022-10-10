@@ -318,7 +318,7 @@ void spawntransporter(DDukeActor *actj, DDukeActor* act, bool beam)
 			act->spr.xrepeat = 48;
 			act->spr.yrepeat = 64;
 			if (actj->spr.statnum == 10 || badguy(actj))
-				act->add_int_z(-(32 << 8));
+				act->spr.pos.Z -= 32;
 		}
 	}
 
@@ -343,16 +343,16 @@ int spawnbloodpoolpart1(DDukeActor* act)
 	auto s1 = act->sector();
 
 	updatesector(act->int_pos().X + 108, act->int_pos().Y + 108, &s1);
-	if (s1 && s1->int_floorz() == act->sector()->int_floorz())
+	if (s1 && s1->floorz == act->sector()->floorz)
 	{
 		updatesector(act->int_pos().X - 108, act->int_pos().Y - 108, &s1);
-		if (s1 && s1->int_floorz() == act->sector()->int_floorz())
+		if (s1 && s1->floorz == act->sector()->floorz)
 		{
 			updatesector(act->int_pos().X + 108, act->int_pos().Y - 108, &s1);
-			if (s1 && s1->int_floorz() == act->sector()->int_floorz())
+			if (s1 && s1->floorz == act->sector()->floorz)
 			{
 				updatesector(act->int_pos().X - 108, act->int_pos().Y + 108, &s1);
-				if (s1 && s1->int_floorz() != act->sector()->int_floorz())
+				if (s1 && s1->floorz != act->sector()->floorz)
 				{
 					act->spr.xrepeat = act->spr.yrepeat = 0; ChangeActorStat(act, STAT_MISC); return true;
 				}
@@ -385,16 +385,16 @@ void initfootprint(DDukeActor* actj, DDukeActor* act)
 		auto s1 = act->sector();
 
 		updatesector(act->int_pos().X + 84, act->int_pos().Y + 84, &s1);
-		if (s1 && s1->int_floorz() == act->sector()->int_floorz())
+		if (s1 && s1->floorz == act->sector()->floorz)
 		{
 			updatesector(act->int_pos().X - 84, act->int_pos().Y - 84, &s1);
-			if (s1 && s1->int_floorz() == act->sector()->int_floorz())
+			if (s1 && s1->floorz == act->sector()->floorz)
 			{
 				updatesector(act->int_pos().X + 84, act->int_pos().Y - 84, &s1);
-				if (s1 && s1->int_floorz() == act->sector()->int_floorz())
+				if (s1 && s1->floorz == act->sector()->floorz)
 				{
 					updatesector(act->int_pos().X - 84, act->int_pos().Y + 84, &s1);
-					if (s1 && s1->int_floorz() != act->sector()->int_floorz())
+					if (s1 && s1->floorz != act->sector()->floorz)
 					{
 						act->spr.xrepeat = act->spr.yrepeat = 0; ChangeActorStat(act, STAT_MISC); return;
 					}
@@ -527,9 +527,9 @@ void initwaterdrip(DDukeActor* actj, DDukeActor* actor)
 		if (actj->spr.pal != 1)
 		{
 			actor->spr.pal = 2;
-			actor->add_int_z(-(18 << 8));
+			actor->spr.pos.Z -= 18;
 		}
-		else actor->add_int_z(-(13 << 8));
+		else actor->spr.pos.Z -= 13;
 		actor->set_int_ang(getangle(ps[connecthead].player_int_pos().X - actor->int_pos().X, ps[connecthead].player_int_pos().Y - actor->int_pos().Y));
 		actor->spr.xvel = 48 - (krand() & 31);
 		ssp(actor, CLIPMASK0);
@@ -628,7 +628,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 			}
 			else actor->SetOwner(actor);
 
-			actor->temp_data[4] = sectp->int_floorz() == actor->int_pos().Z;
+			actor->temp_data[4] = sectp->floorz == actor->spr.pos.Z;
 			actor->spr.cstat = 0;
 			ChangeActorStat(actor, STAT_TRANSPORT);
 			return;

@@ -689,14 +689,14 @@ void movefallers_r(void)
 						x = gs.gravity;
 				}
 
-				if (act->int_pos().Z < (sectp->int_floorz() - FOURSLEIGHT))
+				if (act->spr.pos.Z < sectp->floorz - 1)
 				{
 					act->spr.zvel += x;
 					if (act->spr.zvel > 6144)
 						act->spr.zvel = 6144;
 					act->add_int_z(act->spr.zvel);
 				}
-				if ((sectp->int_floorz() - act->int_pos().Z) < (16 << 8))
+				if ((sectp->floorz - act->spr.pos.Z) < 16)
 				{
 					int j = 1 + (krand() & 7);
 					for (x = 0; x < j; x++) RANDOMSCRAP(act);
@@ -1309,7 +1309,7 @@ static void weaponcommon_r(DDukeActor *proj)
 						if (proj->spr.zvel < 0)
 						{
 							spawned->spr.cstat |= CSTAT_SPRITE_YFLIP;
-							spawned->add_int_z(72 << 8);
+							spawned->spr.pos.Z += 72;
 						}
 					}
 				}
@@ -1399,7 +1399,8 @@ void movetransports_r(void)
 {
 	uint8_t warpdir = 0, warpspriteto;
 	int k, p, sectlotag;
-	int ll2 = 0, ll, onfloorz;
+	int onfloorz;
+	double ll, ll2 = 0;
 	Collision coll;
 
 	 //Transporters
@@ -1579,7 +1580,7 @@ void movetransports_r(void)
 			case STAT_MISC:
 			case STAT_DUMMYPLAYER:
 
-				ll = abs(act2->spr.zvel);
+				ll = abs(act2->spr.zvel) * zinttoworld;
 				if (isRRRA())
 				{
 					if (act2->spr.zvel >= 0)
@@ -1590,38 +1591,38 @@ void movetransports_r(void)
 
 				{
 					warpspriteto = 0;
-					if (ll && sectlotag == ST_2_UNDERWATER && act2->int_pos().Z < (sectp->int_ceilingz() + ll))
+					if (ll && sectlotag == ST_2_UNDERWATER && act2->spr.pos.Z < (sectp->ceilingz + ll))
 						warpspriteto = 1;
 
-					if (ll && sectlotag == ST_1_ABOVE_WATER && act2->int_pos().Z > (sectp->int_floorz() - ll))
+					if (ll && sectlotag == ST_1_ABOVE_WATER && act2->spr.pos.Z > (sectp->floorz - ll))
 						if (!isRRRA() || (act2->spr.picnum != CHEERBOAT && act2->spr.picnum != HULKBOAT && act2->spr.picnum != MINIONBOAT))
 							warpspriteto = 1;
 
 					if (isRRRA())
 					{
-						if (ll && sectlotag == 161 && act2->int_pos().Z < (sectp->int_ceilingz() + ll) && warpdir == 1)
+						if (ll && sectlotag == 161 && act2->spr.pos.Z < (sectp->ceilingz + ll) && warpdir == 1)
 						{
 							warpspriteto = 1;
-							ll2 = ll - abs(act2->int_pos().Z - sectp->int_ceilingz());
+							ll2 = ll - abs(act2->spr.pos.Z - sectp->ceilingz);
 						}
-						else if (sectlotag == 161 && act2->int_pos().Z < (sectp->int_ceilingz() + 1000) && warpdir == 1)
+						else if (sectlotag == 161 && act2->spr.pos.Z < (sectp->ceilingz + 3.90625) && warpdir == 1)
 						{
 							warpspriteto = 1;
-							ll2 = 1;
+							ll2 = zmaptoworld;
 						}
-						if (ll && sectlotag == 160 && act2->int_pos().Z > (sectp->int_floorz() - ll) && warpdir == 2)
+						if (ll && sectlotag == 160 && act2->spr.pos.Z > (sectp->floorz - ll) && warpdir == 2)
 						{
 							warpspriteto = 1;
-							ll2 = ll - abs(sectp->int_floorz() - act2->int_pos().Z);
+							ll2 = ll - abs(sectp->floorz - act2->spr.pos.Z);
 						}
-						else if (sectlotag == 160 && act2->int_pos().Z > (sectp->int_floorz() - 1000) && warpdir == 2)
+						else if (sectlotag == 160 && act2->spr.pos.Z > (sectp->floorz - 3.90625) && warpdir == 2)
 						{
 							warpspriteto = 1;
-							ll2 = 1;
+							ll2 = zmaptoworld;
 						}
 					}
 
-					if (sectlotag == 0 && (onfloorz || abs(act2->int_pos().Z - act->int_pos().Z) < 4096))
+					if (sectlotag == 0 && (onfloorz || abs(act2->spr.pos.Z - act->spr.pos.Z) < 16))
 					{
 						if (Owner->GetOwner() != Owner && onfloorz && act->temp_data[0] > 0 && act2->spr.statnum != 5)
 						{
@@ -1670,7 +1671,7 @@ void movetransports_r(void)
 								{
 									if (checkcursectnums(act->sector()) == -1 && checkcursectnums(Owner->sector()) == -1)
 									{
-										act2->add_int_pos({ (Owner->int_pos().X - act->int_pos().X), (Owner->int_pos().Y - act->int_pos().Y), -(act->int_pos().Z - Owner->sector()->int_floorz()) });
+										act2->spr.pos += (Owner->spr.pos - act->spr.pos.XY()).plusZ(-Owner->sector()->floorz);
 										act2->spr.angle = Owner->spr.angle;
 
 										act2->backupang();
@@ -1692,8 +1693,7 @@ void movetransports_r(void)
 								}
 								else
 								{
-									act2->spr.pos.X += Owner->spr.pos.X - act->spr.pos.X;
-									act2->spr.pos.Y += Owner->spr.pos.Y - act->spr.pos.Y;
+									act2->spr.pos.XY() += Owner->spr.pos.XY() - act->spr.pos.XY();
 									act2->spr.pos.Z = Owner->spr.pos.Z + 16;
 									act2->backupz();
 
@@ -1701,18 +1701,16 @@ void movetransports_r(void)
 								}
 								break;
 							case ST_1_ABOVE_WATER:
-								act2->spr.pos.X += Owner->spr.pos.X - act->spr.pos.X;
-								act2->spr.pos.Y += Owner->spr.pos.Y - act->spr.pos.Y;
-								act2->set_int_z(Owner->sector()->int_ceilingz() + ll);
+								act2->spr.pos.XY() += Owner->spr.pos.XY() - act->spr.pos.XY();
+								act2->spr.pos.Z = Owner->sector()->ceilingz + ll;
 								act2->backupz();
 
 								ChangeActorSect(act2, Owner->sector());
 
 								break;
 							case ST_2_UNDERWATER:
-								act2->spr.pos.X += Owner->spr.pos.X - act->spr.pos.X;
-								act2->spr.pos.Y += Owner->spr.pos.Y - act->spr.pos.Y;
-								act2->set_int_z(Owner->sector()->int_floorz() - ll);
+								act2->spr.pos.XY() += Owner->spr.pos.XY() - act->spr.pos.XY();
+								act2->spr.pos.Z = Owner->sector()->ceilingz - ll;
 								act2->backupz();
 
 								ChangeActorSect(act2, Owner->sector());
@@ -1721,9 +1719,8 @@ void movetransports_r(void)
 
 							case 160:
 								if (!isRRRA()) break;
-								act2->spr.pos.X += Owner->spr.pos.X - act->spr.pos.X;
-								act2->spr.pos.Y += Owner->spr.pos.Y - act->spr.pos.Y;
-								act2->set_int_z(Owner->sector()->int_ceilingz() + ll2);
+								act2->spr.pos.XY() += Owner->spr.pos.XY() - act->spr.pos.XY();
+								act2->spr.pos.Z = Owner->sector()->ceilingz + ll2;
 								act2->backupz();
 
 								ChangeActorSect(act2, Owner->sector());
@@ -1734,8 +1731,8 @@ void movetransports_r(void)
 								break;
 							case 161:
 								if (!isRRRA()) break;
-								act2->add_int_pos({ (Owner->int_pos().X - act->int_pos().X), (Owner->int_pos().Y - act->int_pos().Y), 0 });
-								act2->set_int_z(Owner->sector()->int_floorz() - ll);
+								act2->spr.pos += Owner->spr.pos.XY() - act->spr.pos.XY();
+								act2->spr.pos.Z = Owner->sector()->floorz - ll;
 								act2->backupz();
 
 								ChangeActorSect(act2, Owner->sector());
@@ -2140,8 +2137,8 @@ void rr_specialstats()
 		if (act->spr.hitag == 100)
 		{
 			act->spr.pos.Z += 4;
-			if (act->int_pos().Z >= act->sector()->int_floorz() + 15168)
-				act->set_int_z(act->sector()->int_floorz() + 15168);
+			if (act->spr.pos.Z >= act->sector()->floorz + 59.25)
+				act->spr.pos.Z = act->sector()->floorz + 59.25;
 		}
 
 		if (act->spr.picnum == LUMBERBLADE)
@@ -2150,7 +2147,7 @@ void rr_specialstats()
 			if (act->spr.extra == 192)
 			{
 				act->spr.hitag = 0;
-				act->set_int_z(act->sector()->int_floorz() - 15168);
+				act->spr.pos.Z = act->sector()->floorz - 59.25;
 				act->spr.extra = 0;
 				act->spr.picnum = RRTILE3410;
 				DukeStatIterator it2(STAT_DEFAULT);
@@ -2695,7 +2692,7 @@ void moveactors_r(void)
 						act->spr.picnum = RRTILE3192;
 						break;
 					case 903:
-						if (act->int_pos().Z >= sectp->int_floorz() - (8<<8))
+						if (act->spr.pos.Z >= sectp->floorz - 8)
 						{
 							deletesprite(act);
 							continue;
@@ -2734,7 +2731,7 @@ void moveactors_r(void)
 				}
 				if (sectp->lotag == 903)
 				{
-					if (act->int_pos().Z >= sectp->int_floorz() - (4<<8))
+					if (act->spr.pos.Z >= sectp->floorz - 4)
 					{
 						deletesprite(act);
 						continue;
@@ -2758,12 +2755,12 @@ void moveactors_r(void)
 					MulScale(act->spr.xvel, bcos(act->int_ang()), 14),
 					MulScale(act->spr.xvel, bsin(act->int_ang()), 14),
 					act->spr.zvel,CLIPMASK0, coll);
-				if (act->int_pos().Z >= sectp->int_floorz() - (8<<8))
+				if (act->spr.pos.Z >= sectp->floorz - 8)
 				{
 					if (sectp->lotag == 1)
 					{
 						auto j = spawn(act, WATERSPLASH2);
-						if (j) j->set_int_z(j->sector()->int_floorz());
+						if (j) j->spr.pos.Z = j->sector()->floorz;
 					}
 					deletesprite(act);
 					continue;
@@ -2932,7 +2929,7 @@ void moveexplosions_r(void)  // STATNUM 5
 		{
 		case SHOTGUNSPRITE:
 			if (act->sector()->lotag == 800)
-				if (act->int_pos().Z >= act->sector()->int_floorz() - (8 << 8))
+				if (act->spr.pos.Z >= act->sector()->floorz - 8)
 				{
 					deletesprite(act);
 					continue;
@@ -3087,7 +3084,7 @@ void moveexplosions_r(void)  // STATNUM 5
 				isRRRA() && (act->spr.picnum == RRTILE2465 || act->spr.picnum == RRTILE2560))) continue;
 
 			if (act->sector()->lotag == 800)
-				if (act->int_pos().Z >= act->sector()->int_floorz() - (8 << 8))
+				if (act->spr.pos.Z >= act->sector()->floorz - 8)
 				{
 					deletesprite(act);
 					continue;
@@ -3099,7 +3096,7 @@ void moveexplosions_r(void)  // STATNUM 5
 			if (!bloodpool(act, false)) continue;
 
 			if (act->sector()->lotag == 800)
-				if (act->int_pos().Z >= act->sector()->int_floorz() - (8 << 8))
+				if (act->spr.pos.Z >= act->sector()->floorz - 8)
 				{
 					deletesprite(act);
 				}
@@ -3170,7 +3167,7 @@ void handle_se06_r(DDukeActor *actor)
 				auto ns = spawn(actor, HULK);
 				if (ns)
 				{
-					ns->set_int_z(ns->sector()->int_ceilingz());
+					ns->spr.pos.Z = ns->sector()->ceilingz;
 					ns->spr.pal = 33;
 				}
 				if (!hulkspawn)
@@ -3188,7 +3185,7 @@ void handle_se06_r(DDukeActor *actor)
 					{
 						ns->spr.cstat = 0;
 						ns->spr.cstat |= CSTAT_SPRITE_INVISIBLE;
-						ns->set_int_z(actor->sector()->int_floorz() - 6144);
+						ns->spr.pos.Z = actor->sector()->floorz - 24;
 					}
 					deletesprite(actor);
 					return;
@@ -3228,7 +3225,7 @@ void handle_se06_r(DDukeActor *actor)
 				}
 				else pn = UFO1_RRRA;
 				auto ns = spawn(actor, pn);
-				if (ns) ns->set_int_z(ns->sector()->int_ceilingz());
+				if (ns) ns->spr.pos.Z = ns->sector()->ceilingz;
 			}
 		}
 	}
@@ -3944,8 +3941,8 @@ void destroyit(DDukeActor *actor)
 						destwal->nextWall()->cstat = 0;
 					}
 				}
-				destsect->set_int_floorz(srcsect->int_floorz());
-				destsect->set_int_ceilingz(srcsect->int_ceilingz());
+				destsect->setfloorz(srcsect->floorz);
+				destsect->setceilingz(srcsect->ceilingz);
 				destsect->ceilingstat = srcsect->ceilingstat;
 				destsect->floorstat = srcsect->floorstat;
 				destsect->ceilingpicnum = srcsect->ceilingpicnum;

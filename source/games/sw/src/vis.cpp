@@ -110,7 +110,7 @@ void VisViewChange(PLAYER* pp, int *vis)
         }
 
         // save off the brightest vis that you can see
-        if (FAFcansee(pp->pos.X, pp->pos.Y, pp->pos.Z, pp->cursector, x, y, z, sectp))
+        if (FAFcansee(pp->int_ppos().X, pp->int_ppos().Y, pp->int_ppos().Z, pp->cursector, x, y, z, sectp))
         {
             if (VIS_VisCur(actor) < BrightestVis)
                 BrightestVis = VIS_VisCur(actor);
@@ -120,7 +120,7 @@ void VisViewChange(PLAYER* pp, int *vis)
     *vis = BrightestVis;
 }
 
-void SpawnVis(DSWActor* parentActor, sectortype* sect, int x, int y, int z, int amt)
+void SpawnVis(DSWActor* parentActor, sectortype* sect, const DVector3& pos, int amt)
 {
     DSWActor* actorNew = nullptr;
     if (parentActor != nullptr)
@@ -148,7 +148,7 @@ void SpawnVis(DSWActor* parentActor, sectortype* sect, int x, int y, int z, int 
         ASSERT(parentActor->hasU());
         parentActor->user.Flags2 |= (SPR2_CHILDREN);
 
-        actorNew->set_int_pos(parentActor->int_pos());
+        actorNew->spr.pos = parentActor->spr.pos;
 
         parentActor->user.Flags2 |= (SPR2_VIS_SHADING);
     }
@@ -159,7 +159,7 @@ void SpawnVis(DSWActor* parentActor, sectortype* sect, int x, int y, int z, int 
 
         actorNew = insertActor(sect, STAT_VIS_ON);
 
-        actorNew->set_int_pos({ x, y, z - Z(20) });
+        actorNew->spr.pos = pos.plusZ(-20);
     }
 
     actorNew->spr.cstat = 0;

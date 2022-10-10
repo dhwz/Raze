@@ -38,23 +38,20 @@ static actionSeq ScorpSeq[] = {
     {53, 1}
 };
 
-void BuildScorp(DExhumedActor* pActor, int x, int y, int z, sectortype* pSector, int nAngle, int nChannel)
+void BuildScorp(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, int nAngle, int nChannel)
 {
-    if (pActor == nullptr)
-    {
-        pActor = insertActor(pSector, 122);
-    }
-    else
-    {
-        ChangeActorStat(pActor, 122);
+	if (pActor == nullptr)
+	{
+		pActor = insertActor(pSector, 122);
+		pActor->spr.pos = pos;
+	}
+	else
+	{
+		ChangeActorStat(pActor, 122);
+		pActor->spr.pos.Z = pActor->sector()->floorz;
+		nAngle = pActor->int_ang();
+	}
 
-        x = pActor->int_pos().X;
-        y = pActor->int_pos().Y;
-        z = pActor->sector()->int_floorz();
-        nAngle = pActor->int_ang();
-    }
-
-	pActor->set_int_pos({ x, y, z });
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     pActor->spr.clipdist = 70;
     pActor->spr.shade = -12;
@@ -248,8 +245,8 @@ void AIScorp::Tick(RunListEvent* ev)
             {
                 if (pTarget == nMov.actor())
                 {
-                    int nAngle = getangle(pTarget->int_pos().X - pActor->int_pos().X, pTarget->int_pos().Y - pActor->int_pos().Y);
-                    if (AngleDiff(pActor->int_ang(), nAngle) < 64)
+					auto nAngDiff = AngleDiff(pActor->spr.angle, VecToAngle(pTarget->spr.pos - pActor->spr.pos));
+					if (nAngDiff < 64)
                     {
                         pActor->nAction = 2;
                         pActor->nFrame = 0;
@@ -367,7 +364,7 @@ void AIScorp::Tick(RunListEvent* ev)
             return;
         }
 
-        auto pSpiderActor = BuildSpider(nullptr, pActor->int_pos().X, pActor->int_pos().Y, pActor->int_pos().Z, pActor->sector(), pActor->int_ang());
+        auto pSpiderActor = BuildSpider(nullptr, pActor->spr.pos, pActor->sector(), pActor->int_ang());
         if (pSpiderActor)
         {
             pSpiderActor->set_int_ang(RandomSize(11));
@@ -426,12 +423,12 @@ void AIScorp::Effect(RunListEvent* ev, DExhumedActor* pTarget, int mode)
         {
             pActor->nCount = 45;
 
-            if (cansee(pActor->int_pos().X, pActor->int_pos().Y, pActor->int_pos().Z - GetActorHeight(pActor), pActor->sector(),
-                pTarget->int_pos().X, pTarget->int_pos().Y, pTarget->int_pos().Z - GetActorHeight(pTarget), pTarget->sector()))
+            if (cansee(pActor->spr.pos.plusZ(-GetActorHeightF(pActor)), pActor->sector(),
+                pTarget->spr.pos.plusZ(-GetActorHeightF(pTarget)), pTarget->sector()))
             {
                 pActor->spr.xvel = 0;
                 pActor->spr.yvel = 0;
-                pActor->set_int_ang(GetMyAngle(pTarget->int_pos().X - pActor->int_pos().X, pTarget->int_pos().Y - pActor->int_pos().Y));
+				pActor->spr.angle = VecToAngle(pTarget->spr.pos - pActor->spr.pos);
 
                 pActor->nIndex = RandomSize(2) + RandomSize(3);
 

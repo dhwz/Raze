@@ -147,13 +147,13 @@ static void setvalue(so_interp::interp_data& element, double value)
         sector[index].setfloorz(value);
         break;
     case soi_sox:
-        SectorObject[index].pmid.X = (int)value;
+        SectorObject[index].pmid.X = value;
         break;
     case soi_soy:
-        SectorObject[index].pmid.Y = (int)value;
+        SectorObject[index].pmid.Y = value;
         break;
     case soi_soz:
-        SectorObject[index].pmid.Z = (int)value;
+        SectorObject[index].pmid.Z = value;
         break;
     case soi_sprx:
         if (element.actorofang)
