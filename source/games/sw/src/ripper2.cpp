@@ -938,7 +938,7 @@ int InitRipper2Hang(DSWActor* actor)
     {
         tang = NORM_ANGLE(actor->int_ang() + dang);
 
-        FAFhitscan(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - ActorSizeZ(actor), actor->sector(),  // Start position
+        FAFhitscan(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - int_ActorSizeZ(actor), actor->sector(),  // Start position
                    bcos(tang),   // X vector of 3D ang
                    bsin(tang),   // Y vector of 3D ang
                    0,            // Z vector of 3D ang
@@ -969,7 +969,6 @@ int InitRipper2Hang(DSWActor* actor)
     actor->user.StateFallOverride = sg_Ripper2HangFall;
     DoActorSetSpeed(actor, FAST_SPEED);
 
-    //actor->user.jump_speed = -800;
     PickJumpMaxSpeed(actor, -(RandomRange(400)+100));
 
     actor->user.Flags |= (SPR_JUMPING);
@@ -1079,7 +1078,6 @@ int DoRipper2BeginJumpAttack(DSWActor* actor)
 
     DoActorSetSpeed(actor, FAST_SPEED);
 
-    //actor->user.jump_speed = -800;
     PickJumpMaxSpeed(actor, -(RandomRange(400)+100));
 
     actor->user.Flags |= (SPR_JUMPING);

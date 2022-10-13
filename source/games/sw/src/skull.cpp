@@ -232,7 +232,7 @@ int SetupSkull(DSWActor* actor)
 
     actor->user.Radius = 400;
 
-    if (ActorZOfBottom(actor) > actor->user.int_loz() - Z(16))
+    if (ActorZOfBottom(actor) > actor->user.loz - 16)
     {
         actor->spr.pos.Z = actor->user.loz + tileTopOffset(actor->spr.picnum);
 
@@ -363,7 +363,7 @@ int DoSkullJump(DSWActor* actor)
 
             int dist,a,b,c;
 
-            DISTANCE(actor->int_pos().X, actor->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y, dist, a, b, c);
+            DISTANCE(actor->spr.pos, actor->user.targetActor->spr.pos, dist, a, b, c);
 
             if (dist < 1000 &&
                 SpriteOverlapZ(actor, actor->user.targetActor, Z(32)))
@@ -404,11 +404,10 @@ int DoSkullJump(DSWActor* actor)
 int DoSkullBob(DSWActor* actor)
 {
     // actor does a sine wave about actor->user.sz - this is the z mid point
-    const int SKULL_BOB_AMT = (Z(16));
+    const int SKULL_BOB_AMT = 16;
 
     actor->user.Counter = (actor->user.Counter + (ACTORMOVETICS << 3) + (ACTORMOVETICS << 1)) & 2047;
-    actor->set_int_z(actor->user.int_upos().Z + MulScale(SKULL_BOB_AMT, bsin(actor->user.Counter), 14) +
-            MulScale((SKULL_BOB_AMT / 2), bsin(actor->user.Counter), 14));
+    actor->spr.pos.Z = actor->user.pos.Z + SKULL_BOB_AMT * 1.5 * DAngle::fromBuild(actor->user.Counter).Sin();
 
     return 0;
 }
@@ -425,7 +424,7 @@ int DoSkullWait(DSWActor* actor)
 {
     int a,b,c,dist;
 
-    DISTANCE(actor->int_pos().X, actor->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y, dist, a, b, c);
+    DISTANCE(actor->spr.pos, actor->user.targetActor->spr.pos, dist, a, b, c);
 
     DoActorPickClosePlayer(actor);
 
@@ -617,7 +616,7 @@ int SetupBetty(DSWActor* actor)
 
     actor->user.Radius = 400;
 
-    if (ActorZOfBottom(actor) > actor->user.int_loz() - Z(16))
+    if (ActorZOfBottom(actor) > actor->user.loz - 16)
     {
         actor->spr.pos.Z = actor->user.loz + tileTopOffset(actor->spr.picnum);
 
@@ -741,7 +740,7 @@ int DoBettyJump(DSWActor* actor)
         {
             int dist,a,b,c;
 
-            DISTANCE(actor->int_pos().X, actor->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y, dist, a, b, c);
+            DISTANCE(actor->spr.pos, actor->user.targetActor->spr.pos, dist, a, b, c);
 
             if (dist < 1000 &&
                 SpriteOverlapZ(actor, actor->user.targetActor, Z(32)))
@@ -781,11 +780,10 @@ int DoBettyJump(DSWActor* actor)
 int DoBettyBob(DSWActor* actor)
 {
     // actor does a sine wave about actor->user.sz - this is the z mid point
-    const int  BETTY_BOB_AMT = (Z(16));
+    const int  BETTY_BOB_AMT = 16;
 
     actor->user.Counter = (actor->user.Counter + (ACTORMOVETICS << 3) + (ACTORMOVETICS << 1)) & 2047;
-    actor->set_int_z(actor->user.int_upos().Z + MulScale(BETTY_BOB_AMT, bsin(actor->user.Counter), 14) +
-            MulScale((BETTY_BOB_AMT / 2), bsin(actor->user.Counter), 14));
+    actor->spr.pos.Z = actor->user.pos.Z + BETTY_BOB_AMT * 1.5 * DAngle::fromBuild(actor->user.Counter).Sin();
 
     return 0;
 }
@@ -800,7 +798,7 @@ int DoBettyWait(DSWActor* actor)
 {
     int a,b,c,dist;
 
-    DISTANCE(actor->int_pos().X, actor->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y, dist, a, b, c);
+    DISTANCE(actor->spr.pos, actor->user.targetActor->spr.pos, dist, a, b, c);
 
     DoActorPickClosePlayer(actor);
 

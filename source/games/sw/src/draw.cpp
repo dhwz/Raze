@@ -194,12 +194,12 @@ int SetActorRotation(tspriteArray& tsprites, int tSpriteNum, int viewx, int view
     return 0;
 }
 
-int DoShadowFindGroundPoint(tspritetype* tspr)
+double DoShadowFindGroundPoint(tspritetype* tspr)
 {
     // USES TSPRITE !!!!!
     auto ownerActor = static_cast<DSWActor*>(tspr->ownerActor);
     Collision ceilhit, florhit;
-    int hiz, loz = ownerActor->user.int_loz();
+    double hiz, loz = ownerActor->user.loz;
     ESpriteFlags save_cstat, bak_cstat;
 
     // recursive routine to find the ground - either sector or floor sprite
@@ -211,7 +211,7 @@ int DoShadowFindGroundPoint(tspritetype* tspr)
 
     save_cstat = tspr->cstat;
     tspr->cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
-    FAFgetzrangepoint(tspr->int_pos().X, tspr->int_pos().Y, tspr->int_pos().Z, tspr->sectp, &hiz, &ceilhit, &loz, &florhit);
+    FAFgetzrangepoint(tspr->pos, tspr->sectp, &hiz, &ceilhit, &loz, &florhit);
     tspr->cstat = save_cstat;
 
     switch (florhit.type)
@@ -253,7 +253,7 @@ void DoShadows(tspriteArray& tsprites, tspritetype* tsp, int viewz, int camang)
     auto ownerActor = static_cast<DSWActor*>(tsp->ownerActor);
     int ground_dist = 0;
     int view_dist = 0;
-    int loz;
+    double loz;
     int xrepeat;
     int yrepeat;
 
@@ -282,7 +282,7 @@ void DoShadows(tspriteArray& tsprites, tspritetype* tsp, int viewz, int camang)
         xrepeat = tsp->xrepeat;
     }
 
-    loz = ownerActor->user.int_loz();
+    loz = ownerActor->user.loz;
     if (ownerActor->user.lowActor)
     {
         if (!(ownerActor->user.lowActor->spr.cstat & (CSTAT_SPRITE_ALIGNMENT_WALL | CSTAT_SPRITE_ALIGNMENT_FLOOR)))
@@ -293,8 +293,10 @@ void DoShadows(tspriteArray& tsprites, tspritetype* tsp, int viewz, int camang)
 
     // need to find the ground here
 
+    int iloz = loz * zworldtoint;
+
     // if below or close to sprites z don't bother to draw it
-    if ((viewz - loz) > -Z(8))
+    if ((viewz - iloz) > -Z(8))
     {
         return;
     }
@@ -305,17 +307,17 @@ void DoShadows(tspriteArray& tsprites, tspritetype* tsp, int viewz, int camang)
     tSpr->statnum = MAXSTATUS;
     tSpr->shade = 127;
     tSpr->cstat |= CSTAT_SPRITE_TRANSLUCENT;
-    tSpr->set_int_z(loz);
+    tSpr->pos.Z = loz;
 
     // if close to shadows z shrink it
-    view_dist = labs(loz - viewz) >> 8;
+    view_dist = abs(iloz - viewz) >> 8;
     if (view_dist < 32)
         view_dist = 256/view_dist;
     else
         view_dist = 0;
 
     // make shadow smaller depending on height from ground
-    ground_dist = labs(loz - GetSpriteZOfBottom(tsp)) >> 12;
+    ground_dist = abs(iloz - GetSpriteZOfBottom(tsp)) >> 12;
 
     xrepeat = max(xrepeat - ground_dist - view_dist, 4);
     yrepeat = max(yrepeat - ground_dist - view_dist, 4);
@@ -568,7 +570,7 @@ DSWActor* ConnectCopySprite(spritetypebase const* tsp)
 void analyzesprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, int camang)
 {
     int tSpriteNum;
-    int smr4, smr2;
+    double smr4, smr2;
     static int ang = 0;
     PLAYER* pp = Player + screenpeek;
     int newshade=0;
@@ -578,8 +580,8 @@ void analyzesprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, int
 
     ang = NORM_ANGLE(ang + 12);
 
-    smr4 = int(smoothratio) + IntToFixed(MoveSkip4);
-    smr2 = int(smoothratio) + IntToFixed(MoveSkip2);
+    smr4 = smoothratio + IntToFixed(MoveSkip4);
+    smr2 = smoothratio + IntToFixed(MoveSkip2);
 
     for (tSpriteNum = (int)tsprites.Size() - 1; tSpriteNum >= 0; tSpriteNum--)
     {
@@ -616,7 +618,7 @@ void analyzesprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, int
                 {
                     if (tsp->statnum <= STAT_SKIP4_INTERP_END)
                     {
-                        tsp->pos = tActor->interpolatedvec3(smr4, 18);
+                        tsp->pos = tActor->interpolatedvec3(smr4 / 262144.);
                     }
                 }
 
@@ -624,7 +626,7 @@ void analyzesprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, int
                 {
                     if (tsp->statnum <= STAT_SKIP2_INTERP_END)
                     {
-                        tsp->pos = tActor->interpolatedvec3(smr2, 17);
+                        tsp->pos = tActor->interpolatedvec3(smr2 / 131072.);
                     }
                 }
             }
@@ -781,7 +783,7 @@ void analyzesprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, int
                 pp = tActor->user.PlayerP;
                 double sr = 1. - smoothratio * (1. / 65536.);
                 tsp->pos -= (pp->pos - pp->opos) * sr;
-                tsp->angle = interpolatedangle(pp->angle.oang, pp->angle.ang, sr, 0);
+                tsp->angle = pp->angle.interpolatedang(sr);
             }
         }
 
@@ -1086,8 +1088,8 @@ void CameraView(PLAYER* pp, int *tx, int *ty, int *tz, sectortype** tsect, DAngl
             ang_test = deltaangle(ang, actor->spr.angle) < DAngle::fromBuild(actor->spr.lotag);
 
             FAFcansee_test =
-                (FAFcansee(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->sector(), *tx, *ty, *tz, pp->cursector) ||
-                 FAFcansee(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->sector(), *tx, *ty, *tz + ActorSizeZ(pp->actor), pp->cursector));
+                (FAFcansee_(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->sector(), *tx, *ty, *tz, pp->cursector) ||
+                 FAFcansee_(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->sector(), *tx, *ty, *tz + int_ActorSizeZ(pp->actor), pp->cursector));
 
             player_in_camera = ang_test && FAFcansee_test;
 
@@ -1446,7 +1448,7 @@ void drawscreen(PLAYER* pp, double smoothratio, bool sceneonly)
     }
     else
     {
-        bob_amt = camerapp->bob_amt;
+        bob_amt = camerapp->int_bob_amt();
 
         if (CameraTestMode)
         {
@@ -1503,7 +1505,7 @@ void drawscreen(PLAYER* pp, double smoothratio, bool sceneonly)
                 }
             }
         }
-        DrawOverheadMap(tx, ty, tang.Buildang(), smoothratio);
+        DrawOverheadMap(tx, ty, tang, smoothratio);
     }
 
     SWSpriteIterator it;
@@ -1565,11 +1567,11 @@ bool GameInterface::GenerateSavePic()
 
 
 
-bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, int czoom, int cang, double const smoothratio)
+bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, const double czoom, const DAngle cang, double const smoothratio)
 {
     int k, l, x1, y1, x2, y2, x3, y3, x4, y4, ox, oy, xoff, yoff;
     int dax, day, cosang, sinang, xspan, yspan, sprx, spry;
-    int xrepeat, yrepeat, z1, z2, startwall, endwall, tilenum, daang;
+    int xrepeat, yrepeat, z1, z2, startwall, endwall, tilenum;
     int xvect, yvect;
     walltype* wal, * wal2;
     short p;
@@ -1577,8 +1579,8 @@ bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, int 
     bool sprisplayer = false;
     short txt_x, txt_y;
 
-    xvect = -bsin(cang) * czoom;
-    yvect = -bcos(cang) * czoom;
+    xvect = -cang.Sin() * 16384. * czoom;
+    yvect = -cang.Cos() * 16384. * czoom;
 
     int xdim = twod->GetWidth() << 11;
     int ydim = twod->GetHeight() << 11;
@@ -1635,7 +1637,7 @@ bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, int 
 
                         if (czoom > 192)
                         {
-                            daang = ((!SyncInput() ? actor->spr.angle : actor->interpolatedang(smoothratio)).Buildang() - cang) & 2047;
+                            const auto daang = -((!SyncInput() ? actor->spr.angle : actor->interpolatedangle(smoothratio / 65536.)) - cang).Normalized360().Degrees();
 
                             // Special case tiles
                             if (actor->spr.picnum == 3123) break;
@@ -1651,7 +1653,7 @@ bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, int 
                             double sc = czoom * (actor->spr.yrepeat) / 32768.;
                             if (spnum >= 0)
                             {
-                                DrawTexture(twod, tileGetTexture(1196 + pspr_ndx[myconnectindex], true), xx, yy, DTA_ScaleX, sc, DTA_ScaleY, sc, DTA_Rotate, daang * -BAngToDegree,
+                                DrawTexture(twod, tileGetTexture(1196 + pspr_ndx[myconnectindex], true), xx, yy, DTA_ScaleX, sc, DTA_ScaleY, sc, DTA_Rotate, daang,
                                     DTA_CenterOffsetRel, 2, DTA_TranslationIndex, TRANSLATION(Translation_Remap, actor->spr.pal), DTA_Color, shadeToLight(actor->spr.shade),
                                     DTA_Alpha, (actor->spr.cstat & CSTAT_SPRITE_TRANSLUCENT) ? 0.33 : 1., TAG_DONE);
                             }

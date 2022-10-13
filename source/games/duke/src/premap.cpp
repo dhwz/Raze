@@ -663,7 +663,7 @@ void resetpspritevars(int g)
 			act->backuppos();
 			ps[j].angle.oang = ps[j].angle.ang = act->spr.angle;
 
-			updatesector(act->int_pos().X, act->int_pos().Y, &ps[j].cursector);
+			updatesector(act->spr.pos, &ps[j].cursector);
 
 			j = connectpoint2[j];
 
@@ -1003,9 +1003,9 @@ static int LoadTheMap(MapRecord *mi, player_struct*p, int gamemode)
 	currentLevel = mi;
 	int sect;
 	SpawnSpriteDef sprites;
-	vec3_t pos;
+	DVector3 pos;
 	loadMap(mi->fileName, isShareware(), &pos, &lbang, &sect, sprites);
-	p->pos = { pos.X * inttoworld, pos.Y * inttoworld, pos.Z * zinttoworld };
+	p->pos = pos;
 	p->cursector = &sector[sect];
 
 	SECRET_SetMapName(mi->DisplayName(), mi->name);

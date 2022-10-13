@@ -41,106 +41,21 @@ HitInfo gHitInfo;
 //
 //---------------------------------------------------------------------------
 
-bool FindSector(int nX, int nY, int nZ, sectortype** pSector)
-{
-	int32_t nZFloor, nZCeil;
-	assert(pSector);
-	if (inside(nX, nY, *pSector))
-	{
-		getzsofslopeptr(*pSector, nX, nY, &nZCeil, &nZFloor);
-		if (nZ >= nZCeil && nZ <= nZFloor)
-		{
-			return 1;
-		}
-	}
-	for (auto& wal : wallsofsector(*pSector))
-	{
-		auto pOSector = wal.nextSector();
-		if (pOSector != nullptr && inside(nX, nY, pOSector))
-		{
-			getzsofslopeptr(pOSector, nX, nY, &nZCeil, &nZFloor);
-			if (nZ >= nZCeil && nZ <= nZFloor)
-			{
-				*pSector = pOSector;
-				return 1;
-			}
-		}
-	}
-	for (auto& sec : sector)
-	{
-		if (inside(nX, nY, &sec))
-		{
-			getzsofslopeptr(&sec, nX, nY, &nZCeil, &nZFloor);
-			if (nZ >= nZCeil && nZ <= nZFloor)
-			{
-				*pSector = &sec;
-				return 1;
-			}
-		}
-	}
-	return 0;
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-bool FindSector(int nX, int nY, sectortype** pSector)
-{
-	assert(*pSector);
-	if (inside(nX, nY, *pSector))
-	{
-		return 1;
-	}
-	for (auto& wal : wallsofsector(*pSector))
-	{
-		auto pOSector = wal.nextSector();
-		if (pOSector != nullptr && inside(nX, nY, pOSector))
-		{
-			*pSector = pOSector;
-			return 1;
-		}
-	}
-	for (auto& sec : sector)
-	{
-		if (inside(nX, nY, &sec))
-		{
-			*pSector = &sec;
-			return 1;
-		}
-	}
-	return 0;
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-bool CheckProximity(DBloodActor* actor, int nX, int nY, int nZ, sectortype* pSector, int nDist)
+bool CheckProximity(DBloodActor* actor, const DVector3& pos, sectortype* pSector, int nDist)
 {
 	assert(actor != nullptr);
-	int oX = abs(nX - actor->int_pos().X) >> 4;
-	if (oX >= nDist) return 0;
+	auto vec = pos - actor->spr.pos;
+	if (abs(vec.Z) >= nDist) return false;
 
-	int oY = abs(nY - actor->int_pos().Y) >> 4;
-	if (oY >= nDist) return 0;
+	if (vec.LengthSquared() >= nDist * nDist) return false;
 
-	int oZ = abs(nZ - actor->int_pos().Z) >> 8;
-	if (oZ >= nDist) return 0;
-
-	if (approxDist(oX, oY) >= nDist) return 0;
-
-	int bottom, top;
+	double bottom, top;
 	GetActorExtents(actor, &top, &bottom);
-	if (cansee(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->sector(), nX, nY, nZ, pSector))
+	if (cansee(actor->spr.pos, actor->sector(), pos, pSector))
 		return 1;
-	if (cansee(actor->int_pos().X, actor->int_pos().Y, bottom, actor->sector(), nX, nY, nZ, pSector))
+	if (cansee(DVector3(actor->spr.pos.XY(), bottom), actor->sector(), pos, pSector))
 		return 1;
-	if (cansee(actor->int_pos().X, actor->int_pos().Y, top, actor->sector(), nX, nY, nZ, pSector))
+	if (cansee(DVector3(actor->spr.pos.XY(), top), actor->sector(), pos, pSector))
 		return 1;
 	return 0;
 }
@@ -171,7 +86,9 @@ bool CheckProximityPoint(int nX1, int nY1, int nZ1, int nX2, int nY2, int nZ2, i
 
 //---------------------------------------------------------------------------
 //
-//
+// Note: This function features some very bad math.
+// It cannot be redone because some game functionality
+// depends on the math being broken.
 //
 //---------------------------------------------------------------------------
 
@@ -456,7 +373,7 @@ int VectorScan(DBloodActor* actor, int nOffset, int nZOffset, int dx, int dy, in
 	actor->spr.cstat = bakCstat;
 	while (nNum--)
 	{
-		if (nRange && approxDist(gHitInfo.int_hitpos().X - actor->int_pos().X, gHitInfo.int_hitpos().Y - actor->int_pos().Y) > nRange)
+		if (nRange && approxDist(gHitInfo.hitpos.XY() - actor->spr.pos.XY()) > nRange)
 			return -1;
 		auto other = gHitInfo.actor();
 		if (other != nullptr)
@@ -539,12 +456,12 @@ int VectorScan(DBloodActor* actor, int nOffset, int nZOffset, int dx, int dy, in
 
 			nOfs = (nOfs * pWall->yrepeat) / 8;
 			nOfs += int((nSizY * pWall->ypan_) / 256);
-			int nLength = approxDist(pWall->wall_int_pos().X - pWall->point2Wall()->wall_int_pos().X, pWall->wall_int_pos().Y - pWall->point2Wall()->wall_int_pos().Y);
+			int nLength = approxDist(pWall->pos - pWall->point2Wall()->pos);
 			int nHOffset;
 			if (pWall->cstat & CSTAT_WALL_XFLIP)
-				nHOffset = approxDist(gHitInfo.int_hitpos().X - pWall->point2Wall()->wall_int_pos().X, gHitInfo.int_hitpos().Y - pWall->point2Wall()->wall_int_pos().Y);
+				nHOffset = approxDist(gHitInfo.hitpos.XY() - pWall->point2Wall()->pos);
 			else
-				nHOffset = approxDist(gHitInfo.int_hitpos().X - pWall->wall_int_pos().X, gHitInfo.int_hitpos().Y - pWall->wall_int_pos().Y);
+				nHOffset = approxDist(gHitInfo.hitpos.XY() - pWall->pos);
 
 			nHOffset = pWall->xpan() + ((nHOffset * pWall->xrepeat) << 3) / nLength;
 			nHOffset %= nSizX;
@@ -762,8 +679,10 @@ void ClipMove(vec3_t& pos, sectortype** pSector, int xv, int yv, int wd, int cd,
 //
 //---------------------------------------------------------------------------
 
-BitArray GetClosestSpriteSectors(sectortype* pSector, int x, int y, int nDist, TArray<walltype*>* pWalls, bool newSectCheckMethod)
+BitArray GetClosestSpriteSectors(sectortype* pSector, const DVector2& pos, int nDist, TArray<walltype*>* pWalls, bool newSectCheckMethod)
 {
+	int x = pos.X * worldtoint;
+	int y = pos.Y * worldtoint;
 	// by default this function fails with sectors that linked with wide spans, or there was more than one link to the same sector. for example...
 	// E6M1: throwing TNT on the stone footpath while standing on the brown road will fail due to the start/end points of the span being too far away. it'll only do damage at one end of the road
 	// E1M2: throwing TNT at the double doors while standing on the train platform
@@ -792,7 +711,7 @@ BitArray GetClosestSpriteSectors(sectortype* pSector, int x, int y, int nDist, T
 			}
 			else // new method using proper math and no bad shortcut.
 			{
-				double dist1 = SquareDistToWall(x * inttoworld, y * inttoworld, &wal);
+				double dist1 = SquareDistToWall(pos.X, pos.Y, &wal);
 				withinRange = dist1 <= nDist4sq;
 			}
 			if (withinRange) // if new sector is within range, add it to the processing queue

@@ -101,7 +101,7 @@ tspritetype* viewInsertTSprite(tspriteArray& tsprites, sectortype* pSector, int 
 	{
 		pos = parentTSprite->pos;
 		pTSprite->ownerActor = parentTSprite->ownerActor;
-		pTSprite->copy_ang(parentTSprite);
+		pTSprite->angle = parentTSprite->angle;
 	}
 	pos.X += gCameraAng.Cos() * 2;
 	pos.Y += gCameraAng.Sin() * 2;
@@ -293,7 +293,9 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 			int y = MulScale(nLen, Sin(nAng), 30);
 			pNSprite->set_int_pos({ pTSprite->int_pos().X + x, pTSprite->int_pos().Y + y, pTSprite->int_pos().Z });
 			assert(pSector);
-			FindSector(pNSprite->int_pos().X, pNSprite->int_pos().Y, pNSprite->int_pos().Z, &pSector);
+			auto pSector2 = pSector;
+			updatesectorz(pNSprite->pos, &pSector2);
+			if (pSector2) pSector = pSector2;
 			pNSprite->sectp = pSector;
 			pNSprite->ownerActor = pTSprite->ownerActor;
 			pNSprite->picnum = pTSprite->picnum;
@@ -451,7 +453,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		pNSprite->pal = 2;
 		pNSprite->xrepeat = pNSprite->yrepeat = 64;
 		pNSprite->cstat |= CSTAT_SPRITE_ONE_SIDE | CSTAT_SPRITE_ALIGNMENT_FLOOR | CSTAT_SPRITE_YFLIP | CSTAT_SPRITE_TRANSLUCENT;
-		pNSprite->copy_ang(pTSprite);
+		pNSprite->angle = pTSprite->angle;
 		pNSprite->ownerActor = pTSprite->ownerActor;
 		break;
 	}
@@ -469,7 +471,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		pNSprite->pal = 2;
 		pNSprite->xrepeat = pNSprite->yrepeat = nShade;
 		pNSprite->cstat |= CSTAT_SPRITE_ONE_SIDE | CSTAT_SPRITE_ALIGNMENT_FLOOR | CSTAT_SPRITE_TRANSLUCENT;
-		pNSprite->copy_ang(pTSprite);
+		pNSprite->angle = pTSprite->angle;
 		pNSprite->ownerActor = pTSprite->ownerActor;
 		break;
 	}
@@ -578,8 +580,8 @@ void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t 
 
 		if (cl_interpolate && owneractor->interpolated && !(pTSprite->flags & 512))
 		{
-			pTSprite->pos = owneractor->interpolatedvec3(gInterpolate);
-			pTSprite->angle = owneractor->interpolatedang(gInterpolate);
+			pTSprite->pos = owneractor->interpolatedvec3(gInterpolate / 65536.);
+			pTSprite->angle = owneractor->interpolatedangle(gInterpolate / 65536.);
 		}
 		int nAnim = 0;
 		switch (picanm[nTile].extra & 7) {

@@ -100,8 +100,11 @@ struct XSPRITE {
 
 	TObjPtr<DBloodActor*> target;           // target sprite
 	TObjPtr<DBloodActor*> burnSource;
+	
+	const vec3_t int_TargetPos() const { return { int(TargetPos.X * worldtoint), int(TargetPos.Y * worldtoint), int(TargetPos.Z * worldtoint)}; }
 
-	vec3_t TargetPos;
+	DVector3 TargetPos;
+
 	int32_t sysData1;            // used to keep here various system data, so user can't change it in map editor
 	int32_t sysData2;            //
 	int32_t scale;                   // used for scaling SEQ size on sprites

@@ -57,16 +57,16 @@ void ReverseVator(DSWActor* actor)
     if (actor->user.z_tgt == actor->user.oz)
     {
         if (actor->spr.pos.Z == actor->user.oz)
-            actor->user.z_tgt = actor->user.int_upos().Z * zinttoworld;
-        else if (actor->user.int_upos().Z == actor->user.int_oz())
+            actor->user.z_tgt = actor->user.pos.Z;
+        else if (actor->user.pos.Z == actor->user.oz)
             actor->user.z_tgt = actor->spr.pos.Z;
     }
-    else if (actor->user.int_z_tgt() == actor->user.int_upos().Z)
+    else if (actor->user.z_tgt == actor->user.pos.Z)
     {
         if (actor->spr.pos.Z == actor->user.oz)
             actor->user.z_tgt = actor->spr.pos.Z;
-        else if (actor->user.int_upos().Z == actor->user.int_oz())
-            actor->user.z_tgt = actor->user.int_upos().Z * zinttoworld;
+        else if (actor->user.pos.Z == actor->user.oz)
+            actor->user.z_tgt = actor->user.pos.Z;
     }
 
     actor->user.vel_rate = -actor->user.vel_rate;
@@ -107,11 +107,11 @@ void SetVatorActive(DSWActor* actor)
     actor->user.Tics = 0;
 
     // moving to the ON position
-    if (actor->user.int_z_tgt() == actor->int_pos().Z)
+    if (actor->user.z_tgt == actor->spr.pos.Z)
         VatorSwitch(SP_TAG2(actor), true);
     else
     // moving to the OFF position
-    if (actor->user.int_z_tgt() == actor->user.int_upos().Z)
+    if (actor->user.z_tgt == actor->user.pos.Z)
         VatorSwitch(SP_TAG2(actor), false);
 }
 
@@ -322,39 +322,38 @@ void MoveSpritesWithSector(sectortype* sect, int z_amt, bool type)
     }
 }
 
-int DoVatorMove(DSWActor* actor, int *lptr)
+int DoVatorMove(DSWActor* actor, double *lptr)
 {
-    int zval;
     int move_amt;
 
-    zval = *lptr;
+    double zval = *lptr;
 
     // if LESS THAN goal
-    if (zval < actor->user.int_z_tgt())
+    if (zval < actor->user.z_tgt)
     {
         // move it DOWN
-        zval += (synctics * actor->user.jump_speed);
+        zval += (synctics * actor->user.jump_speed) * JUMP_FACTOR;
 
         actor->user.jump_speed += actor->user.vel_rate * synctics;
 
         // if the other way make it equal
-        if (zval > actor->user.int_z_tgt())
-            zval = actor->user.int_z_tgt();
+        if (zval > actor->user.z_tgt)
+            zval = actor->user.z_tgt;
     }
 
     // if GREATER THAN goal
-    if (zval > actor->user.int_z_tgt())
+    if (zval > actor->user.z_tgt)
     {
         // move it UP
-        zval -= (synctics * actor->user.jump_speed);
+        zval -= (synctics * actor->user.jump_speed) * JUMP_FACTOR;
 
         actor->user.jump_speed += actor->user.vel_rate * synctics;
 
-        if (zval < actor->user.int_z_tgt())
-            zval = actor->user.int_z_tgt();
+        if (zval < actor->user.z_tgt)
+            zval = actor->user.z_tgt;
     }
 
-    move_amt = zval - *lptr;
+    move_amt = int((zval - *lptr) * zworldtoint);
     *lptr = zval;
 
     return move_amt;
@@ -364,7 +363,7 @@ int DoVatorMove(DSWActor* actor, int *lptr)
 int DoVator(DSWActor* actor)
 {
     sectortype* sectp = actor->sector();
-    int zval;
+    double zval;
     int amt;
 
     // actor->user.sz        - where the sector z started
@@ -375,27 +374,27 @@ int DoVator(DSWActor* actor)
 
     if (actor->spr.cstat & (CSTAT_SPRITE_YFLIP))
     {
-        zval = sectp->int_ceilingz();
+        zval = sectp->ceilingz;
         amt = DoVatorMove(actor, &zval);
-        sectp->set_int_ceilingz(zval);
+        sectp->setceilingz(zval);
         MoveSpritesWithSector(actor->sector(), amt, true); // ceiling
     }
     else
     {
-        zval = sectp->int_floorz();
+        zval = sectp->floorz;
         amt = DoVatorMove(actor, &zval);
-        sectp->set_int_floorz(zval);
+        sectp->setfloorz(zval);
         MoveSpritesWithSector(actor->sector(), amt, false); // floor
     }
 
     // EQUAL this entry has finished
-    if (zval == actor->user.int_z_tgt())
+    if (zval == actor->user.z_tgt)
     {
         // in the ON position
-        if (actor->user.int_z_tgt() == actor->int_pos().Z)
+        if (actor->user.z_tgt == actor->spr.pos.Z)
         {
             // change target
-            actor->user.z_tgt = actor->user.int_upos().Z * zinttoworld;
+            actor->user.z_tgt = actor->user.pos.Z;
             actor->user.vel_rate = -actor->user.vel_rate;
 
             SetVatorInactive(actor);
@@ -406,7 +405,7 @@ int DoVator(DSWActor* actor)
         }
         else
         // in the OFF position
-        if (actor->user.int_z_tgt() == actor->user.int_upos().Z)
+        if (actor->user.z_tgt == actor->user.pos.Z)
         {
             short match = SP_TAG2(actor);
 
@@ -438,13 +437,13 @@ int DoVator(DSWActor* actor)
         }
 
         // setup to go back to the original z
-        if (zval != actor->user.int_oz())
+        if (zval != actor->user.oz)
         {
             if (actor->user.WaitTics)
                 actor->user.Tics = actor->user.WaitTics;
         }
     }
-    else // if (*lptr == actor->user.int_z_tgt())
+    else // if (*lptr == actor->user.z_tgt)
     {
         // if heading for the OFF (original) position and should NOT CRUSH
         if (TEST_BOOL3(actor) && actor->user.z_tgt == actor->user.oz)
@@ -457,7 +456,7 @@ int DoVator(DSWActor* actor)
             {
                 if (itActor->spr.statnum == STAT_ENEMY)
                 {
-                    if (abs(sectp->int_ceilingz() - sectp->int_floorz()) < ActorSizeZ(itActor))
+                    if (abs(sectp->int_ceilingz() - sectp->int_floorz()) < int_ActorSizeZ(itActor))
                     {
                         InitBloodSpray(itActor, true, -1);
                         UpdateSinglePlayKills(itActor);
@@ -503,7 +502,7 @@ int DoVator(DSWActor* actor)
             {
                 if (itActor->spr.statnum == STAT_ENEMY)
                 {
-                    if (labs(sectp->int_ceilingz() - sectp->int_floorz()) < ActorSizeZ(itActor))
+                    if (abs(sectp->int_ceilingz() - sectp->int_floorz()) < int_ActorSizeZ(itActor))
                     {
                         InitBloodSpray(itActor, true, -1);
                         UpdateSinglePlayKills(itActor);
@@ -523,32 +522,32 @@ int DoVator(DSWActor* actor)
 int DoVatorAuto(DSWActor* actor)
 {
     sectortype* sectp = actor->sector();
-    int zval;
+    double zval;
     int amt;
 
     if (actor->spr.cstat & (CSTAT_SPRITE_YFLIP))
     {
-        zval = sectp->int_ceilingz();
+        zval = sectp->ceilingz;
         amt = DoVatorMove(actor, &zval);
-        sectp->set_int_ceilingz(zval);
+        sectp->setceilingz(zval);
         MoveSpritesWithSector(actor->sector(), amt, true); // ceiling
     }
     else
     {
-        zval = sectp->int_floorz();
+        zval = sectp->floorz;
         amt = DoVatorMove(actor, &zval);
-        sectp->set_int_floorz(zval);
+        sectp->setfloorz(zval);
         MoveSpritesWithSector(actor->sector(), amt, false); // floor
     }
 
     // EQUAL this entry has finished
-    if (zval == actor->user.int_z_tgt())
+    if (zval == actor->user.z_tgt)
     {
         // in the UP position
         if (actor->user.z_tgt == actor->spr.pos.Z)
         {
             // change target
-            actor->user.z_tgt = actor->user.int_upos().Z * zinttoworld;
+            actor->user.z_tgt = actor->user.pos.Z;
             actor->user.vel_rate = -actor->user.vel_rate;
             actor->user.Tics = actor->user.WaitTics;
 
@@ -557,7 +556,7 @@ int DoVatorAuto(DSWActor* actor)
         }
         else
         // in the DOWN position
-        if (actor->user.int_z_tgt() == actor->user.int_upos().Z)
+        if (actor->user.z_tgt == actor->user.pos.Z)
         {
             // change target
             actor->user.jump_speed = actor->user.vel_tgt;

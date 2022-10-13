@@ -679,13 +679,8 @@ DExhumedActor* FindPlayer(DExhumedActor* pActor, int nDistance, bool dontengage)
     if (nDistance < 0)
         nDistance = 100;
 
-    int x = pActor->int_pos().X;
-    int y = pActor->int_pos().Y;
-    auto pSector =pActor->sector();
-
-    int z = pActor->int_pos().Z - GetActorHeight(pActor);
-
-    nDistance <<= 8;
+	auto pSector =pActor->sector();
+    nDistance <<= 4;
 
     DExhumedActor* pPlayerActor = nullptr;
     int i = 0;
@@ -699,13 +694,13 @@ DExhumedActor* FindPlayer(DExhumedActor* pActor, int nDistance, bool dontengage)
 
         if ((pPlayerActor->spr.cstat & CSTAT_SPRITE_BLOCK_ALL) && (!(pPlayerActor->spr.cstat & CSTAT_SPRITE_INVISIBLE)))
         {
-            int v9 = abs(pPlayerActor->int_pos().X - x);
+            int v9 = abs(pPlayerActor->spr.pos.X - pActor->spr.pos.X);
 
             if (v9 < nDistance)
             {
-                int v10 = abs(pPlayerActor->int_pos().Y - y);
+                int v10 = abs(pPlayerActor->spr.pos.Y - pActor->spr.pos.Y);
 
-                if (v10 < nDistance && cansee(pPlayerActor->int_pos().X, pPlayerActor->int_pos().Y, pPlayerActor->int_pos().Z - 7680, pPlayerActor->sector(), x, y, z, pSector))
+                if (v10 < nDistance && cansee(pPlayerActor->spr.pos.plusZ(-30), pPlayerActor->sector(), pActor->spr.pos.plusZ(-GetActorHeightF(pActor)), pSector))
                 {
                     break;
                 }
@@ -1060,9 +1055,7 @@ void MoveSector(sectortype* pSector, int nAngle, int *nXVel, int *nYVel)
         TODO: Might need to be done elsewhere too?
     */
     auto pActor = PlayerList[nLocalPlayer].pActor;
-    initx = pActor->int_pos().X;
-    inity = pActor->int_pos().Y;
-    initz = pActor->int_pos().Z;
+    initpos = pActor->spr.pos;
     inita = pActor->int_ang();
     initsectp = pActor->sector();
 }
@@ -1210,7 +1203,7 @@ int GetWallNormal(walltype* pWall)
 DVector3 WheresMyMouth(int nPlayer, sectortype **sectnum)
 {
     auto pActor = PlayerList[nPlayer].pActor;
-    int height = GetActorHeight(pActor) >> 1;
+    double height = GetActorHeight(pActor) * 0.5;
 
     *sectnum = pActor->sector();
 	auto pos = pActor->spr.pos.plusZ(-height * zinttoworld);

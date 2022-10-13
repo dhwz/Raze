@@ -140,13 +140,13 @@ static void shootmelee(DDukeActor *actor, int p, int sx, int sy, int sz, int sa,
 			DDukeActor* wpn;
 			if (isRRRA() && atwith == SLINGBLADE)
 			{
-				wpn = EGS(hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, SLINGBLADE, -15, 0, 0, sa, 32, 0, actor, 4);
+				wpn = CreateActor(hit.hitSector, hit.hitpos, SLINGBLADE, -15, 0, 0, sa, 32, 0, actor, 4);
 				if (!wpn) return;
 				wpn->spr.extra += 50;
 			}
 			else
 			{
-				wpn = EGS(hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, KNEE, -15, 0, 0, sa, 32, 0, actor, 4);
+				wpn = CreateActor(hit.hitSector, hit.hitpos, KNEE, -15, 0, 0, sa, 32, 0, actor, 4);
 				if (!wpn) return;
 				wpn->spr.extra += (krand() & 7);
 			}
@@ -175,7 +175,7 @@ static void shootmelee(DDukeActor *actor, int p, int sx, int sy, int sz, int sa,
 
 				if (hit.hitWall->picnum != ACCESSSWITCH && hit.hitWall->picnum != ACCESSSWITCH2)
 				{
-					fi.checkhitwall(wpn, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, atwith);
+					fi.checkhitwall(wpn, hit.hitWall, hit.hitpos, atwith);
 					if (p >= 0) fi.checkhitswitch(p, hit.hitWall, nullptr);
 				}
 			}
@@ -424,7 +424,7 @@ static void shootweapon(DDukeActor* actor, int p, int sx, int sy, int sz, int sa
 					if (hit.hitpos.Z >= hit.hitWall->nextSector()->floorz)
 						hit.hitWall = hit.hitWall->nextWall();
 
-			fi.checkhitwall(spark, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, SHOTSPARK1);
+			fi.checkhitwall(spark, hit.hitWall, hit.hitpos, SHOTSPARK1);
 		}
 	}
 	else
@@ -441,7 +441,7 @@ static void shootweapon(DDukeActor* actor, int p, int sx, int sy, int sz, int sa
 			else spark->spr.xrepeat = spark->spr.yrepeat = 0;
 		}
 		else if (hit.hitWall != nullptr)
-			fi.checkhitwall(spark, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, SHOTSPARK1);
+			fi.checkhitwall(spark, hit.hitWall, hit.hitpos, SHOTSPARK1);
 	}
 
 	if ((krand() & 255) < 10)
@@ -1505,7 +1505,7 @@ void checkweapons_r(player_struct* p)
 			auto j = spawn(p->GetActor(), 7220);
 			if (j)
 			{
-				j->set_int_ang(p->angle.ang.Buildang());
+				j->spr.angle = p->angle.ang;
 				j->saved_ammo = p->ammo_amount[MOTORCYCLE_WEAPON];
 			}
 			p->OnMotorcycle = 0;
@@ -1524,7 +1524,7 @@ void checkweapons_r(player_struct* p)
 			auto j = spawn(p->GetActor(), 7233);
 			if (j)
 			{
-				j->set_int_ang(p->angle.ang.Buildang());
+				j->spr.angle = p->angle.ang;
 				j->saved_ammo = p->ammo_amount[BOAT_WEAPON];
 			}
 			p->OnBoat = 0;
@@ -3827,10 +3827,10 @@ HORIZONLY:
 				if (wal->lotag < 44)
 				{
 					dofurniture(clip.hitWall, p->cursector, snum);
-					pushmove(p->pos, &p->cursector, 172L, (4L << 8), (4L << 8), CLIPMASK0);
+					pushmove(p->pos, &p->cursector, 172, (4 << 8), (4 << 8), CLIPMASK0);
 				}
 				else
-					pushmove(p->pos, &p->cursector, 172L, (4L << 8), (4L << 8), CLIPMASK0);
+					pushmove(p->pos, &p->cursector, 172, (4 << 8), (4 << 8), CLIPMASK0);
 			}
 		}
 	}
@@ -4096,15 +4096,13 @@ void OffMotorcycle(player_struct *p)
 		p->VBumpTarget = 0;
 		p->VBumpNow = 0;
 		p->TurbCount = 0;
-		p->vel.X = 0;
-		p->vel.Y = 0;
-		p->vel.X -= p->angle.ang.Cos() * (1 << 7);
-		p->vel.Y -= p->angle.ang.Sin() * (1 << 7);
+		p->vel.X = 0 - p->angle.ang.Cos() * (1 << 7);
+		p->vel.Y = 0 - p->angle.ang.Sin() * (1 << 7);
 		p->moto_underwater = 0;
 		auto spawned = spawn(p->GetActor(), EMPTYBIKE);
 		if (spawned)
 		{
-			spawned->set_int_ang(p->angle.ang.Buildang());
+			spawned->spr.angle = p->angle.ang;
 			spawned->spr.xvel += p->angle.ang.Cos() * (1 << 7);
 			spawned->spr.yvel += p->angle.ang.Sin() * (1 << 7);
 			spawned->saved_ammo = p->ammo_amount[MOTORCYCLE_WEAPON];
@@ -4163,15 +4161,13 @@ void OffBoat(player_struct *p)
 		p->VBumpTarget = 0;
 		p->VBumpNow = 0;
 		p->TurbCount = 0;
-		p->vel.X = 0;
-		p->vel.Y = 0;
-		p->vel.X -= p->angle.ang.Cos() * (1 << 7);
-		p->vel.Y -= p->angle.ang.Sin() * (1 << 7);
+		p->vel.X = 0 - p->angle.ang.Cos() * (1 << 7);
+		p->vel.Y = 0 - p->angle.ang.Sin() * (1 << 7);
 		p->moto_underwater = 0;
 		auto spawned = spawn(p->GetActor(), EMPTYBOAT);
 		if (spawned)
 		{
-			spawned->set_int_ang(p->angle.ang.Buildang());
+			spawned->spr.angle = p->angle.ang;
 			spawned->spr.xvel += p->angle.ang.Cos() * (1 << 7);
 			spawned->spr.yvel += p->angle.ang.Sin() * (1 << 7);
 			spawned->saved_ammo = p->ammo_amount[BOAT_WEAPON];

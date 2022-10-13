@@ -118,6 +118,11 @@ public:
 	{
 		return spr.type >= kItemAmmoBase && spr.type < kItemAmmoMax;
 	}
+	
+	void ZeroVelocity()
+	{
+		vel = { 0,0,0 };
+	}
 
 	bool isActive()
 	{
@@ -152,6 +157,14 @@ using BloodSpriteIterator = TSpriteIterator<DBloodActor>;
 inline void GetActorExtents(DBloodActor* actor, int* top, int* bottom)
 {
 	GetSpriteExtents(&actor->spr, top, bottom);
+}
+
+inline void GetActorExtents(DBloodActor* actor, double* top, double* bottom)
+{
+	int t, b;
+	GetSpriteExtents(&actor->spr, &t, &b);
+	*top = t * zinttoworld;
+	*bottom = b * zinttoworld;
 }
 
 inline bool CheckSector(const BitArray& bits, DBloodActor* act)

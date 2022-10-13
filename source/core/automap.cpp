@@ -57,13 +57,14 @@ CVAR(Bool, am_nameontop, false, CVAR_ARCHIVE)
 
 int automapMode;
 static float am_zoomdir;
-int follow_x = INT_MAX, follow_y = INT_MAX, follow_a = INT_MAX;
-static int gZoom = 768;
+double follow_x = INT_MAX, follow_y = INT_MAX;
+DAngle follow_a = DAngle::fromDeg(INT_MAX);
+static double gZoom = 768;
 bool automapping;
 bool gFullMap;
 BitArray show2dsector;
 BitArray show2dwall;
-static int x_min_bound = INT_MAX, y_min_bound, x_max_bound, y_max_bound;
+static double x_min_bound = INT_MAX, y_min_bound, x_max_bound, y_max_bound;
 
 CVAR(Color, am_twosidedcolor, 0xaaaaaa, CVAR_ARCHIVE)
 CVAR(Color, am_onesidedcolor, 0xaaaaaa, CVAR_ARCHIVE)
@@ -170,10 +171,10 @@ static void CalcMapBounds()
 	for(auto& wal : wall)
 	{
 		// get map min and max coordinates
-		if (wal.wall_int_pos().X < x_min_bound) x_min_bound = wal.wall_int_pos().X;
-		if (wal.wall_int_pos().Y < y_min_bound) y_min_bound = wal.wall_int_pos().Y;
-		if (wal.wall_int_pos().X > x_max_bound) x_max_bound = wal.wall_int_pos().X;
-		if (wal.wall_int_pos().Y > y_max_bound) y_max_bound = wal.wall_int_pos().Y;
+		if (wal.pos.X < x_min_bound) x_min_bound = wal.pos.X;
+		if (wal.pos.Y < y_min_bound) y_min_bound = wal.pos.Y;
+		if (wal.pos.X > x_max_bound) x_max_bound = wal.pos.X;
+		if (wal.pos.Y > y_max_bound) y_max_bound = wal.pos.Y;
 	}
 }
 
@@ -185,9 +186,9 @@ static void CalcMapBounds()
 
 void AutomapControl()
 {
-	static int nonsharedtimer;
-	int ms = (int)screen->FrameTime;
-	int interval;
+	static double nonsharedtimer;
+	double ms = screen->FrameTime;
+	double interval;
 	int panvert = 0, panhorz = 0;
 
 	if (nonsharedtimer > 0 || ms < nonsharedtimer)
@@ -208,22 +209,22 @@ void AutomapControl()
 		const int keymove = 4;
 		if (am_zoomdir > 0)
 		{
-			gZoom = xs_CRoundToInt(gZoom * am_zoomdir);
+			gZoom = gZoom * am_zoomdir;
 		}
 		else if (am_zoomdir < 0)
 		{
-			gZoom = xs_CRoundToInt(gZoom / -am_zoomdir);
+			gZoom = gZoom / -am_zoomdir;
 		}
 		am_zoomdir = 0;
 
 		double j = interval * 35. / gZoom;
 
 		if (buttonMap.ButtonDown(gamefunc_Enlarge_Screen))
-			gZoom += (int)MulScaleF(j, max(gZoom, 256), 6);
+			gZoom += MulScaleF(j, max(gZoom, 256.), 6);
 		if (buttonMap.ButtonDown(gamefunc_Shrink_Screen))
-			gZoom -= (int)MulScaleF(j, max(gZoom, 256), 6);
+			gZoom -= MulScaleF(j, max(gZoom, 256.), 6);
 
-		gZoom = clamp(gZoom, 48, 2048);
+		gZoom = clamp(gZoom, 48., 2048.);
 
 		if (!am_followplayer)
 		{
@@ -239,14 +240,13 @@ void AutomapControl()
 			if (buttonMap.ButtonDown(gamefunc_AM_PanDown))
 				panvert -= keymove;
 
-			int momx = MulScale(panvert, bcos(follow_a), 9);
-			int momy = MulScale(panvert, bsin(follow_a), 9);
+			auto fcos = follow_a.Cos();
+			auto fsin = follow_a.Sin();
+			auto momx = (panvert * fcos * 8) + (panhorz * fsin * 8);
+			auto momy = (panvert * fsin * 8) - (panhorz * fcos * 8);
 
-			momx += MulScale(panhorz, bsin(follow_a), 9);
-			momy += MulScale(panhorz, -bcos(follow_a), 9);
-
-			follow_x += int(momx * j);
-			follow_y += int(momy * j);
+			follow_x += momx * j;
+			follow_y += momy * j;
 
 			if (x_min_bound == INT_MAX) CalcMapBounds();
 			follow_x = clamp(follow_x, x_min_bound, x_max_bound);
@@ -318,13 +318,13 @@ void MarkSectorSeen(sectortype* sec)
 //
 //---------------------------------------------------------------------------
 
-void drawlinergb(int32_t x1, int32_t y1, int32_t x2, int32_t y2, PalEntry p)
+void drawlinergb(const double x1, const double y1, const double x2, const double y2, PalEntry p)
 {
 	if (am_linethickness >= 2) {
-		twod->AddThickLine(x1 / 4096, y1 / 4096, x2 / 4096, y2 / 4096, am_linethickness, p, uint8_t(am_linealpha * 255));
+		twod->AddThickLine(x1, y1, x2, y2, am_linethickness, p, uint8_t(am_linealpha * 255));
 	} else {
 		// Use more efficient thin line drawing routine.
-		twod->AddLine(x1 / 4096.f, y1 / 4096.f, x2 / 4096.f, y2 / 4096.f, &viewport3d, p, uint8_t(am_linealpha * 255));
+		twod->AddLine(x1, y1, x2, y2, &viewport3d, p, uint8_t(am_linealpha * 255));
 	}
 }
 
@@ -409,10 +409,10 @@ bool ShowRedLine(int j, int i)
 //
 //---------------------------------------------------------------------------
 
-void drawredlines(int cposx, int cposy, int czoom, int cang)
+static void drawredlines(const DVector2& cpos, const double czoom, const DAngle cang)
 {
-	int xvect = -bsin(cang) * czoom;
-	int yvect = -bcos(cang) * czoom;
+	double xvect = -cang.Sin() * czoom * (1. / 1024.);
+	double yvect = -cang.Cos() * czoom * (1. / 1024.);
 	int width = screen->GetWidth();
 	int height = screen->GetHeight();
 
@@ -434,16 +434,14 @@ void drawredlines(int cposx, int cposy, int czoom, int cang)
 
 			if (ShowRedLine(wallnum(&wal), i))
 			{
-				int ox = wal.wall_int_pos().X - cposx;
-				int oy = wal.wall_int_pos().Y - cposy;
-				int x1 = DMulScale(ox, xvect, -oy, yvect, 16) + (width << 11);
-				int y1 = DMulScale(oy, xvect, ox, yvect, 16) + (height << 11);
+				auto oxy1 = wal.pos - cpos;
+				double x1 = (oxy1.X * xvect) - (oxy1.Y * yvect) + (width * 0.5);
+				double y1 = (oxy1.Y * xvect) + (oxy1.X * yvect) + (height * 0.5);
 
 				auto wal2 = wal.point2Wall();
-				ox = wal2->wall_int_pos().X - cposx;
-				oy = wal2->wall_int_pos().Y - cposy;
-				int x2 = DMulScale(ox, xvect, -oy, yvect, 16) + (width << 11);
-				int y2 = DMulScale(oy, xvect, ox, yvect, 16) + (height << 11);
+				auto oxy2 = wal2->pos - cpos;
+				double x2 = (oxy2.X * xvect) - (oxy2.Y * yvect) + (width * 0.5);
+				double y2 = (oxy2.Y * xvect) + (oxy2.X * yvect) + (height * 0.5);
 
 				drawlinergb(x1, y1, x2, y2, RedLineColor());
 			}
@@ -457,10 +455,10 @@ void drawredlines(int cposx, int cposy, int czoom, int cang)
 //
 //---------------------------------------------------------------------------
 
-static void drawwhitelines(int cposx, int cposy, int czoom, int cang)
+static void drawwhitelines(const DVector2& cpos, const double czoom, const DAngle cang)
 {
-	int xvect = -bsin(cang) * czoom;
-	int yvect = -bcos(cang) * czoom;
+	double xvect = -cang.Sin() * czoom * (1. / 1024);
+	double yvect = -cang.Cos() * czoom * (1. / 1024);
 	int width = screen->GetWidth();
 	int height = screen->GetHeight();
 
@@ -476,17 +474,14 @@ static void drawwhitelines(int cposx, int cposy, int czoom, int cang)
 			if (isSWALL() && !gFullMap && !show2dwall[wallnum(&wal)])
 				continue;
 
-			int ox = wal.wall_int_pos().X - cposx;
-			int oy = wal.wall_int_pos().Y - cposy;
-			int x1 = DMulScale(ox, xvect, -oy, yvect, 16) + (width << 11);
-			int y1 = DMulScale(oy, xvect, ox, yvect, 16) + (height << 11);
+			auto oxy1 = wal.pos - cpos;
+			double x1 = (oxy1.X * xvect) - (oxy1.Y * yvect) + (width * 0.5);
+			double y1 = (oxy1.Y * xvect) + (oxy1.X * yvect) + (height * 0.5);
 
-			int k = wal.point2;
-			auto wal2 = &wall[k];
-			ox = wal2->wall_int_pos().X - cposx;
-			oy = wal2->wall_int_pos().Y - cposy;
-			int x2 = DMulScale(ox, xvect, -oy, yvect, 16) + (width << 11);
-			int y2 = DMulScale(oy, xvect, ox, yvect, 16) + (height << 11);
+			auto wal2 = wal.point2Wall();
+			auto oxy2 = wal2->pos - cpos;
+			double x2 = (oxy2.X * xvect) - (oxy2.Y * yvect) + (width * 0.5);
+			double y2 = (oxy2.Y * xvect) + (oxy2.X * yvect) + (height * 0.5);
 
 			drawlinergb(x1, y1, x2, y2, WhiteLineColor());
 		}
@@ -499,41 +494,38 @@ static void drawwhitelines(int cposx, int cposy, int czoom, int cang)
 //
 //---------------------------------------------------------------------------
 
-void DrawPlayerArrow(int cposx, int cposy, int cang, int pl_x, int pl_y, int zoom, int pl_angle)
+static void DrawPlayerArrow(const DVector2& cpos, const DAngle cang, const double czoom, const DAngle pl_angle)
 {
-	int arrow[] =
+	static constexpr int arrow[] =
 	{
 		0, 65536, 0, -65536,
 		0, 65536, -32768, 32878,
 		0, 65536, 32768, 32878,
 	};
 
-	int xvect = -bsin(cang) * zoom;
-	int yvect = -bcos(cang) * zoom;
+	double xvect = -cang.Sin() * czoom * (1. / 1024);
+	double yvect = -cang.Cos() * czoom * (1. / 1024);
 
-	int pxvect = -bsin(pl_angle);
-	int pyvect = -bcos(pl_angle);
+	double pxvect = -pl_angle.Sin();
+	double pyvect = -pl_angle.Cos();
 
 	int width = screen->GetWidth();
 	int height = screen->GetHeight();
 
 	for (int i = 0; i < 12; i += 4)
 	{
+		double px1 = (arrow[i] * pxvect) - (arrow[i+1] * pyvect);
+		double py1 = (arrow[i+1] * pxvect) + (arrow[i] * pyvect) + (height * 0.5);
+		double px2 = (arrow[i+2] * pxvect) - (arrow[i+3] * pyvect);
+		double py2 = (arrow[i+3] * pxvect) + (arrow[i+2] * pyvect) + (height * 0.5);
 
-		int px1 = DMulScale(arrow[i], pxvect, -arrow[i+1], pyvect, 16);
-		int py1 = DMulScale(arrow[i+1], pxvect, arrow[i], pyvect, 16) + (height << 11);
-		int px2 = DMulScale(arrow[i+2], pxvect, -arrow[i + 3], pyvect, 16);
-		int py2 = DMulScale(arrow[i + 3], pxvect, arrow[i+2], pyvect, 16) + (height << 11);
+		auto oxy1 = DVector2(px1, py1) - cpos;
+		auto oxy2 = DVector2(px2, py2) - cpos;
 
-		int ox1 = px1 - cposx;
-		int oy1 = py1 - cposy;
-		int ox2 = px2 - cposx;
-		int oy2 = py2 - cposy;
-
-		int sx1 = DMulScale(ox1, xvect, -oy1, yvect, 16) + (width << 11);
-		int sy1 = DMulScale(oy1, xvect, ox1, yvect, 16) + (height << 11);
-		int sx2 = DMulScale(ox2, xvect, -oy2, yvect, 16) + (width << 11);
-		int sy2 = DMulScale(oy2, xvect, ox2, yvect, 16) + (height << 11);
+		double sx1 = (oxy1.X * xvect) - (oxy1.Y * yvect) + (width * 0.5);
+		double sy1 = (oxy1.Y * xvect) + (oxy1.X * yvect) + (height * 0.5);
+		double sx2 = (oxy2.X * xvect) - (oxy2.Y * yvect) + (width * 0.5);
+		double sy2 = (oxy2.Y * xvect) + (oxy2.X * yvect) + (height * 0.5);
 
 		drawlinergb(sx1, sy1, sx2, sy2, WhiteLineColor());
 	}
@@ -546,15 +538,14 @@ void DrawPlayerArrow(int cposx, int cposy, int cang, int pl_x, int pl_y, int zoo
 //
 //---------------------------------------------------------------------------
 
-void renderDrawMapView(int cposx, int cposy, int czoom, int cang)
+static void renderDrawMapView(const DVector2& cpos, const double czoom, const DAngle cang)
 {
-	int xvect = -bsin(cang) * czoom;
-	int yvect = -bcos(cang) * czoom;
+	double xvect = -cang.Sin() * czoom * (1. / 1024.);
+	double yvect = -cang.Cos() * czoom * (1. / 1024.);
 	int width = screen->GetWidth();
 	int height = screen->GetHeight();
 	TArray<FVector4> vertices;
 	TArray<DCoreActor*> floorsprites;
-
 
 	for (int i = (int)sector.Size() - 1; i >= 0; i--)
 	{
@@ -592,11 +583,10 @@ void renderDrawMapView(int cposx, int cposy, int czoom, int cang)
 			vertices.Resize(mesh->vertices.Size());
 			for (unsigned j = 0; j < mesh->vertices.Size(); j++)
 			{
-				int ox = int(mesh->vertices[j].X * 16.f) - cposx;
-				int oy = int(mesh->vertices[j].Y * -16.f) - cposy;
-				int x1 = DMulScale(ox, xvect, -oy, yvect, 16) + (width << 11);
-				int y1 = DMulScale(oy, xvect, ox, yvect, 16) + (height << 11);
-				vertices[j] = { x1 / 4096.f, y1 / 4096.f, mesh->texcoords[j].X, mesh->texcoords[j].Y };
+				auto oxy = DVector2(mesh->vertices[j].X - cpos.X, -mesh->vertices[j].Y - cpos.Y);
+				float x1 = (oxy.X * xvect) - (oxy.Y * yvect) + (width * 0.5);
+				float y1 = (oxy.Y * xvect) + (oxy.X * yvect) + (height * 0.5);
+				vertices[j] = { x1, y1, mesh->texcoords[j].X, mesh->texcoords[j].Y };
 			}
 
 			twod->AddPoly(tileGetTexture(picnum, true), vertices.Data(), vertices.Size(), (unsigned*)indices->Data(), indices->Size(), translation, light,
@@ -621,11 +611,10 @@ void renderDrawMapView(int cposx, int cposy, int czoom, int cang)
 
 		for (unsigned j = 0; j < 4; j++)
 		{
-			int ox = int(pp[j].X * worldtoint) - cposx;
-			int oy = int(pp[j].Y * worldtoint) - cposy;
-			int x1 = DMulScale(ox, xvect, -oy, yvect, 16) + (width << 11);
-			int y1 = DMulScale(oy, xvect, ox, yvect, 16) + (height << 11);
-			vertices[j] = { x1 / 4096.f, y1 / 4096.f, j == 1 || j == 2 ? 1.f : 0.f, j == 2 || j == 3 ? 1.f : 0.f };
+			auto oxy = pp[j] - cpos;
+			float x1 = (oxy.X * xvect) - (oxy.Y * yvect) + (width * 0.5);
+			float y1 = (oxy.Y * xvect) + (oxy.X * yvect) + (height * 0.5);
+			vertices[j] = { x1, y1, j == 1 || j == 2 ? 1.f : 0.f, j == 2 || j == 3 ? 1.f : 0.f };
 		}
 		int shade;
 		if ((actor->sector()->ceilingstat & CSTAT_SECTOR_SKY)) shade = actor->sector()->ceilingshade;
@@ -655,27 +644,28 @@ void renderDrawMapView(int cposx, int cposy, int czoom, int cang)
 //
 //---------------------------------------------------------------------------
 
-void DrawOverheadMap(int pl_x, int pl_y, int pl_angle, double const smoothratio)
+void DrawOverheadMap(int pl_x, int pl_y, const DAngle pl_angle, double const smoothratio)
 {
 	if (am_followplayer || follow_x == INT_MAX)
 	{
-		follow_x = pl_x;
-		follow_y = pl_y;
+		follow_x = pl_x * inttoworld;
+		follow_y = pl_y * inttoworld;
 	}
-	int x = follow_x;
-	int y = follow_y;
-	follow_a = am_rotate ? pl_angle : 1536;
+	int x = follow_x * worldtoint;
+	int y = follow_y * worldtoint;
+	const DVector2 follow(follow_x, follow_y);
+	follow_a = am_rotate ? pl_angle : DAngle::fromBuild(1536);
 	AutomapControl();
 
 	if (automapMode == am_full)
 	{
 		twod->ClearScreen();
-		renderDrawMapView(x, y, gZoom, follow_a);
+		renderDrawMapView(follow, gZoom, follow_a);
 	}
-	drawredlines(x, y, gZoom, follow_a);
-	drawwhitelines(x, y, gZoom, follow_a);
+	drawredlines(follow, gZoom, follow_a);
+	drawwhitelines(follow, gZoom, follow_a);
 	if (!gi->DrawAutomapPlayer(pl_x, pl_y, x, y, gZoom, follow_a, smoothratio))
-		DrawPlayerArrow(x, y, follow_a, pl_x, pl_y, gZoom, -pl_angle);
+		DrawPlayerArrow(follow, follow_a, gZoom, -pl_angle);
 
 }
 

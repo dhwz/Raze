@@ -455,8 +455,8 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, PLAYER& w, PLAYER*
 			("climb_ndx", w.climb_ndx)
 			("hiz", w.hiz)
 			("loz", w.loz)
-			("ceiling_dist", w.ceiling_dist)
-			("floor_dist", w.floor_dist)
+			("ceiling_dist", w.p_ceiling_dist)
+			("floor_dist", w.p_floor_dist)
 			("hi_sectp", w.hi_sectp)
 			("lo_sectp", w.lo_sectp)
 			("hi_sp", w.highActor)
@@ -581,7 +581,6 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, PLAYER& w, PLAYER*
 	if (arc.isReading())
 	{
 		w.opos = w.pos;
-		w.oz_speed = w.z_speed;
 		w.ovect.X = w.vect.X;
 		w.ovect.Y = w.vect.Y;
 		w.obob_z = w.bob_z;
@@ -1057,13 +1056,10 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, TRACK_POINT& w, TR
 	}
 	if (arc.BeginObject(keyname))
 	{
-		arc("x", w.x, def->x)
-			("y", w.y, def->y)
-			("z", w.z, def->z)
-			("ang", w.ang, def->ang)
+		arc("pos", w.pos, def->pos)
+			("angle", w.angle, def->angle)
 			("tag_low", w.tag_low, def->tag_low)
 			("tag_high", w.tag_high, def->tag_high)
-			("filler", w.filler, def->filler)
 			.EndObject();
 	}
 	return arc;

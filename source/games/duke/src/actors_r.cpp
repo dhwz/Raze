@@ -248,18 +248,18 @@ void hitradius_r(DDukeActor* actor, int  r, int  hp1, int  hp2, int  hp3, int  h
 					{
 						search.Add(wal.nextSector());
 					}
-					int x1 = (((wal.wall_int_pos().X + wal.point2Wall()->wall_int_pos().X) >> 1) + actor->int_pos().X) >> 1;
-					int y1 = (((wal.wall_int_pos().Y + wal.point2Wall()->wall_int_pos().Y) >> 1) + actor->int_pos().Y) >> 1;
-					auto sect = wal.sectorp();
-					updatesector(x1, y1, &sect);
-					if (sect != nullptr && cansee(x1, y1, actor->int_pos().Z, sect, actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->sector()))
-						fi.checkhitwall(actor, &wal, wal.wall_int_pos().X, wal.wall_int_pos().Y, actor->int_pos().Z, actor->spr.picnum);
+					DVector3 w1(((wal.pos + wal.point2Wall()->pos) * 0.5 + actor->spr.pos) * 0.5, actor->spr.pos.Z); // half way between the actor and the wall's center.
+					sectortype* sect = wal.sectorp();
+					updatesector(w1, &sect);
+
+					if (sect && cansee(w1, sect, actor->spr.pos, actor->sector()))
+						fi.checkhitwall(actor, &wal, DVector3(wal.pos, actor->spr.pos.Z), actor->spr.picnum);
 				}
 			}
 		}
 	}
 
-	int q = -(24 << 8) + (krand() & ((32 << 8) - 1));
+	double q = zrand(32) - 24;
 
 	auto Owner = actor->GetOwner();
 	for (int x = 0; x < 7; x++)
@@ -272,10 +272,9 @@ void hitradius_r(DDukeActor* actor, int  r, int  hp1, int  hp2, int  hp3, int  h
 				if (act2->spr.cstat & CSTAT_SPRITE_BLOCK_ALL)
 					if (dist(actor, act2) < r)
 					{
-						if (badguy(act2) && !cansee(act2->int_pos().X, act2->int_pos().Y, act2->int_pos().Z + q, act2->sector(), actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z + q, actor->sector()))
-						{
+						if (badguy(act2) && !cansee(act2->spr.pos.plusZ(q), act2->sector(), actor->spr.pos.plusZ(q), actor->sector()))
 							continue;
-						}
+
 						fi.checkhitsprite(act2, actor);
 					}
 			}
@@ -294,7 +293,7 @@ void hitradius_r(DDukeActor* actor, int  r, int  hp1, int  hp2, int  hp3, int  h
 				int d = dist(actor, act2);
 				if (act2->spr.picnum == APLAYER) act2->spr.pos.Z += gs.playerheight;
 
-				if (d < r && cansee(act2->int_pos().X, act2->int_pos().Y, act2->int_pos().Z - (8 << 8), act2->sector(), actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - (12 << 8), actor->sector()))
+				if (d < r && cansee(act2->spr.pos.plusZ(-8), act2->sector(), actor->spr.pos.plusZ(-12), actor->sector()))
 				{
 					if ((isRRRA()) && act2->spr.picnum == MINION && act2->spr.pal == 19)
 					{
@@ -454,12 +453,12 @@ void guts_r(DDukeActor* actor, int gtype, int n, int p)
 	else sx = sy = 32;
 
 	gutz = actor->int_pos().Z - (8 << 8);
-	floorz = getflorzofslopeptr(actor->sector(), actor->int_pos().X, actor->int_pos().Y);
+	floorz = getflorzofslopeptr(actor->sector(), actor->spr.pos);
 
 	if (gutz > (floorz - (8 << 8)))
 		gutz = floorz - (8 << 8);
 
-	gutz += gs.actorinfo[actor->spr.picnum].gutsoffset;
+	gutz += gs.actorinfo[actor->spr.picnum].gutsoffset * 256;
 
 	if (badguy(actor) && actor->spr.pal == 6)
 		pal = 6;
@@ -967,7 +966,7 @@ static void chickenarrow(DDukeActor* actor)
 //
 //---------------------------------------------------------------------------
 
-static bool weaponhitsprite(DDukeActor *proj, DDukeActor *targ, const vec3_t &oldpos)
+static bool weaponhitsprite(DDukeActor *proj, DDukeActor *targ, const DVector3 &oldpos)
 {
 	if (isRRRA())
 	{
@@ -978,7 +977,7 @@ static bool weaponhitsprite(DDukeActor *proj, DDukeActor *targ, const vec3_t &ol
 			S_PlayActorSound(RPG_EXPLODE, proj);
 			auto spawned = spawn(proj, EXPLOSION2);
 			if (spawned)
-				spawned->set_int_pos( oldpos);
+				spawned->spr.pos = oldpos;
 			return true;
 		}
 	}
@@ -1041,7 +1040,7 @@ static bool weaponhitsprite(DDukeActor *proj, DDukeActor *targ, const vec3_t &ol
 //
 //---------------------------------------------------------------------------
 
-static bool weaponhitwall(DDukeActor *proj, walltype* wal, const vec3_t& oldpos)
+static bool weaponhitwall(DDukeActor *proj, walltype* wal, const DVector3& oldpos)
 {
 	if (isRRRA() && proj->GetOwner() && proj->GetOwner()->spr.picnum == MAMA)
 	{
@@ -1061,7 +1060,7 @@ static bool weaponhitwall(DDukeActor *proj, walltype* wal, const vec3_t& oldpos)
 	else
 	{
 		SetActor(proj, oldpos);
-		fi.checkhitwall(proj, wal, proj->int_pos().X, proj->int_pos().Y, proj->int_pos().Z, proj->spr.picnum);
+		fi.checkhitwall(proj, wal, proj->spr.pos, proj->spr.picnum);
 
 		if (!isRRRA() && proj->spr.picnum == FREEZEBLAST)
 		{
@@ -1125,7 +1124,7 @@ static bool weaponhitwall(DDukeActor *proj, walltype* wal, const vec3_t& oldpos)
 //
 //---------------------------------------------------------------------------
 
-bool weaponhitsector(DDukeActor *proj, const vec3_t& oldpos)
+bool weaponhitsector(DDukeActor *proj, const DVector3& oldpos)
 {
 	SetActor(proj, oldpos);
 
@@ -1192,7 +1191,7 @@ static void weaponcommon_r(DDukeActor *proj)
 		ll = proj->spr.zvel;
 	}
 
-	auto oldpos = proj->int_pos();
+	auto oldpos = proj->spr.pos;
 
 	getglobalz(proj);
 
@@ -2429,7 +2428,7 @@ static void heavyhbomb(DDukeActor *actor)
 	if (coll.type == kHitWall)
 	{
 		auto wal = coll.hitWall;
-		fi.checkhitwall(actor, wal, actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->spr.picnum);
+		fi.checkhitwall(actor, wal, actor->spr.pos, actor->spr.picnum);
 
 		int k = getangle(wal->delta());
 

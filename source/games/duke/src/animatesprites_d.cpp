@@ -46,6 +46,7 @@ BEGIN_DUKE_NS
 
 void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothratio)
 {
+	DVector2 viewVec(x * inttoworld, y * inttoworld);
 	int k, p;
 	int l, t1, t3, t4;
 	tspritetype* t;
@@ -168,11 +169,11 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 		{
 			t->pos.X -= MulScaleF(MaxSmoothRatio - smoothratio, pp->pos.X - pp->opos.X, 16);
 			t->pos.Y -= MulScaleF(MaxSmoothRatio - smoothratio, pp->pos.Y - pp->opos.Y, 16);
-			t->pos.Z = interpolatedvalue(pp->opos.Z, pp->pos.Z, smoothratio) + gs.playerheight;
+			t->pos.Z = interpolatedvaluef(pp->opos.Z, pp->pos.Z, smoothratio) + gs.playerheight;
 		}
 		else if (!actorflag(h, SFLAG_NOINTERPOLATE))
 		{
-			t->pos = h->interpolatedvec3(smoothratio);
+			t->pos = h->interpolatedvec3(smoothratio / 65536.);
 		}
 
 		auto sectp = h->sector();
@@ -219,7 +220,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 					t->xrepeat = 0;
 				else
 				{
-					t->set_int_ang(getangle(x - t->int_pos().X, y - t->int_pos().Y));
+					t->angle = VecToAngle(viewVec - t->pos.XY());
 					t->pos.X = OwnerAc->spr.pos.X + t->angle.Cos();
 					t->pos.Y = OwnerAc->spr.pos.Y + t->angle.Sin();
 				}
@@ -260,7 +261,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 				break;
 			}
 
-			k = getangle(h->int_pos().X - x, h->int_pos().Y - y);
+			k = getangle(h->spr.pos - viewVec);
 			k = (((h->int_ang() + 3072 + 128 - k) & 2047) / 170);
 			if (k > 6)
 			{
@@ -278,7 +279,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 				break;
 			}
 
-			k = getangle(h->int_pos().X - x, h->int_pos().Y - y);
+			k = getangle(h->spr.pos - viewVec);
 			if (h->temp_data[0] < 4)
 				k = (((h->int_ang() + 3072 + 128 - k) & 2047) / 170);
 			else k = (((h->int_ang() + 3072 + 128 - k) & 2047) / 170);
@@ -510,7 +511,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 					break;
 
 				case 5:
-					k = getangle(h->int_pos().X - x, h->int_pos().Y - y);
+					k = getangle(h->spr.pos - viewVec);
 					k = (((h->int_ang() + 3072 + 128 - k) & 2047) >> 8) & 7;
 					if (k > 4)
 					{
@@ -520,7 +521,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 					else t->cstat &= ~CSTAT_SPRITE_XFLIP;
 					break;
 				case 7:
-					k = getangle(h->int_pos().X - x, h->int_pos().Y - y);
+					k = getangle(h->spr.pos - viewVec);
 					k = (((h->int_ang() + 3072 + 128 - k) & 2047) / 170);
 					if (k > 6)
 					{

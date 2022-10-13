@@ -895,7 +895,7 @@ int PickJumpMaxSpeed(DSWActor* actor, short max_speed)
     actor->user.jump_speed = max_speed;
     actor->user.jump_grav = 8;
 
-    zh = ActorZOfTop(actor);
+    zh = int_ActorZOfTop(actor);
 
     while (true)
     {
@@ -929,7 +929,7 @@ int InitRipperHang(DSWActor* actor)
     {
         tang = NORM_ANGLE(actor->int_ang() + dang);
 
-        FAFhitscan(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - ActorSizeZ(actor), actor->sector(),  // Start position
+        FAFhitscan(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - int_ActorSizeZ(actor), actor->sector(),  // Start position
                    bcos(tang),   // X vector of 3D ang
                    bsin(tang),   // Y vector of 3D ang
                    0,            // Z vector of 3D ang
@@ -960,7 +960,6 @@ int InitRipperHang(DSWActor* actor)
     actor->user.StateFallOverride = sg_RipperHangFall;
     DoActorSetSpeed(actor, FAST_SPEED);
 
-    //actor->user.jump_speed = -800;
     PickJumpMaxSpeed(actor, -800);
 
     actor->user.Flags |= (SPR_JUMPING);
@@ -1057,7 +1056,6 @@ int DoRipperBeginJumpAttack(DSWActor* actor)
 
     DoActorSetSpeed(actor, FAST_SPEED);
 
-    //actor->user.jump_speed = -800;
     PickJumpMaxSpeed(actor, -400); // was -800
 
     actor->user.Flags |= (SPR_JUMPING);

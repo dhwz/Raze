@@ -135,7 +135,7 @@ bool CanMove(DBloodActor* actor, DBloodActor* target, int nAngle, int nRange)
 	int y = actor->int_pos().Y;
 	int z = actor->int_pos().Z;
 	HitScan(actor, z, bcos(nAngle), bsin(nAngle), 0, CLIPMASK0, nRange);
-	int nDist = approxDist(x - gHitInfo.int_hitpos().X, y - gHitInfo.int_hitpos().Y);
+	int nDist = approxDist(actor->spr.pos.XY() - gHitInfo.hitpos.XY());
 	if (nDist - (actor->spr.clipdist << 2) < nRange)
 	{
 		if (gHitInfo.actor() == nullptr || target == nullptr || target != gHitInfo.actor())
@@ -146,8 +146,8 @@ bool CanMove(DBloodActor* actor, DBloodActor* target, int nAngle, int nRange)
 	y += MulScale(nRange, Sin(nAngle), 30);
 	auto pSector = actor->sector();
 	assert(pSector);
-	if (!FindSector(x, y, z, &pSector))
-		return false;
+	updatesectorz(x, y, z, &pSector);
+	if (!pSector) return false;
 	int floorZ = getflorzofslopeptr(pSector, x, y);
 	auto pXSector = pSector->hasX()? &pSector->xs() : nullptr;
 	bool Underwater = 0; 
@@ -250,7 +250,7 @@ bool CanMove(DBloodActor* actor, DBloodActor* target, int nAngle, int nRange)
 void aiChooseDirection(DBloodActor* actor, int a3)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
-	int vc = ((a3 + 1024 - actor->int_ang()) & 2047) - 1024;
+	int vc = getincangle(actor->int_ang(), a3);
 	int nCos = Cos(actor->int_ang());
 	int nSin = Sin(actor->int_ang());
 	int dx = actor->vel.X;
@@ -298,10 +298,10 @@ void aiMoveForward(DBloodActor* actor)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	int nAng = ((actor->xspr.goalAng + 1024 - actor->int_ang()) & 2047) - 1024;
-	int nTurnRange = (pDudeInfo->angSpeed << 2) >> 4;
-	actor->set_int_ang((actor->int_ang() + ClipRange(nAng, -nTurnRange, nTurnRange)) & 2047);
-	if (abs(nAng) > 341)
+	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
+	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
+	if (abs(nAng) > DAngle60)
 		return;
 	actor->vel.X += MulScale(pDudeInfo->frontSpeed, Cos(actor->int_ang()), 30);
 	actor->vel.Y += MulScale(pDudeInfo->frontSpeed, Sin(actor->int_ang()), 30);
@@ -317,9 +317,9 @@ void aiMoveTurn(DBloodActor* actor)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	int nAng = ((actor->xspr.goalAng + 1024 - actor->int_ang()) & 2047) - 1024;
-	int nTurnRange = (pDudeInfo->angSpeed << 2) >> 4;
-	actor->set_int_ang((actor->int_ang() + ClipRange(nAng, -nTurnRange, nTurnRange)) & 2047);
+	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
+	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 }
 
 //---------------------------------------------------------------------------
@@ -332,9 +332,9 @@ void aiMoveDodge(DBloodActor* actor)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	int nAng = ((actor->xspr.goalAng + 1024 - actor->int_ang()) & 2047) - 1024;
-	int nTurnRange = (pDudeInfo->angSpeed << 2) >> 4;
-	actor->set_int_ang((actor->int_ang() + ClipRange(nAng, -nTurnRange, nTurnRange)) & 2047);
+	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
+	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 	if (actor->xspr.dodgeDir)
 	{
 		int nCos = Cos(actor->int_ang());
@@ -364,7 +364,7 @@ void aiActivateDude(DBloodActor* actor)
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	if (!actor->xspr.state)
 	{
-		aiChooseDirection(actor, getangle(actor->xspr.TargetPos.X - actor->int_pos().X, actor->xspr.TargetPos.Y - actor->int_pos().Y));
+		aiChooseDirection(actor, getangle(actor->xspr.int_TargetPos().X - actor->int_pos().X, actor->xspr.int_TargetPos().Y - actor->int_pos().Y));
 		actor->xspr.state = 1;
 	}
 	switch (actor->spr.type)
@@ -916,9 +916,7 @@ void aiActivateDude(DBloodActor* actor)
 void aiSetTarget(DBloodActor* actor, int x, int y, int z)
 {
 	actor->SetTarget(nullptr);
-	actor->xspr.TargetPos.X = x;
-	actor->xspr.TargetPos.Y = y;
-	actor->xspr.TargetPos.Z = z;
+	actor->xspr.TargetPos = {x * maptoworld, y * maptoworld, z * zmaptoworld };
 }
 
 void aiSetTarget(DBloodActor* actor, DBloodActor* target)
@@ -934,9 +932,8 @@ void aiSetTarget(DBloodActor* actor, DBloodActor* target)
 		{
 			actor->SetTarget(target);
 			DUDEINFO* pDudeInfo = getDudeInfo(target->spr.type);
-			actor->xspr.TargetPos.X = target->int_pos().X;
-			actor->xspr.TargetPos.Y = target->int_pos().Y;
-			actor->xspr.TargetPos.Z = target->int_pos().Z - ((pDudeInfo->eyeHeight * target->spr.yrepeat) << 2);
+			double eyeHeight = ((pDudeInfo->eyeHeight * target->spr.yrepeat) << 2) * inttoworld;
+			actor->xspr.TargetPos = target->spr.pos.plusZ(-eyeHeight);
 		}
 	}
 }
@@ -1508,19 +1505,18 @@ void aiThinkTarget(DBloodActor* actor)
 			PLAYER* pPlayer = &gPlayer[p];
 			if (actor->GetOwner() == pPlayer->actor || pPlayer->actor->xspr.health == 0 || powerupCheck(pPlayer, kPwUpShadowCloak) > 0)
 				continue;
-			int x = pPlayer->actor->int_pos().X;
-			int y = pPlayer->actor->int_pos().Y;
-			int z = pPlayer->actor->int_pos().Z;
+			auto ppos = pPlayer->actor->spr.pos;
+			auto dvec = ppos - actor->spr.pos.XY();
 			auto pSector = pPlayer->actor->sector();
-			int dx = x - actor->int_pos().X;
-			int dy = y - actor->int_pos().Y;
-			int nDist = approxDist(dx, dy);
+
+			int nDist = approxDist(dvec);
 			if (nDist > pDudeInfo->seeDist && nDist > pDudeInfo->hearDist)
 				continue;
-			if (!cansee(x, y, z, pSector, actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - ((pDudeInfo->eyeHeight * actor->spr.yrepeat) << 2), actor->sector()))
+			double height = (pDudeInfo->eyeHeight * actor->spr.yrepeat) * REPEAT_SCALE;
+			if (!cansee(ppos, pSector, actor->spr.pos.plusZ(-height), actor->sector()))
 				continue;
 
-			int nDeltaAngle = ((getangle(dx, dy) + 1024 - actor->int_ang()) & 2047) - 1024;
+			int nDeltaAngle = getincangle(actor->int_ang(), getangle(dvec));
 			if (nDist < pDudeInfo->seeDist && abs(nDeltaAngle) <= pDudeInfo->periphery)
 			{
 				aiSetTarget(actor, pPlayer->actor);
@@ -1529,7 +1525,7 @@ void aiThinkTarget(DBloodActor* actor)
 			}
 			else if (nDist < pDudeInfo->hearDist)
 			{
-				aiSetTarget(actor, x, y, z);
+				aiSetTarget(actor, ppos);
 				aiActivateDude(actor);
 				return;
 			}
@@ -1554,18 +1550,17 @@ void aiLookForTarget(DBloodActor* actor)
 			PLAYER* pPlayer = &gPlayer[p];
 			if (actor->GetOwner() == pPlayer->actor || pPlayer->actor->xspr.health == 0 || powerupCheck(pPlayer, kPwUpShadowCloak) > 0)
 				continue;
-			int x = pPlayer->actor->int_pos().X;
-			int y = pPlayer->actor->int_pos().Y;
-			int z = pPlayer->actor->int_pos().Z;
+			auto ppos = pPlayer->actor->spr.pos;
+			auto dvec = ppos - actor->spr.pos.XY();
 			auto pSector = pPlayer->actor->sector();
-			int dx = x - actor->int_pos().X;
-			int dy = y - actor->int_pos().Y;
-			int nDist = approxDist(dx, dy);
+
+			int nDist = approxDist(dvec);
 			if (nDist > pDudeInfo->seeDist && nDist > pDudeInfo->hearDist)
 				continue;
-			if (!cansee(x, y, z, pSector, actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - ((pDudeInfo->eyeHeight * actor->spr.yrepeat) << 2), actor->sector()))
+			double height = (pDudeInfo->eyeHeight * actor->spr.yrepeat) * REPEAT_SCALE;
+			if (!cansee(ppos, pSector, actor->spr.pos.plusZ(-height), actor->sector()))
 				continue;
-			int nDeltaAngle = ((getangle(dx, dy) + 1024 - actor->int_ang()) & 2047) - 1024;
+			int nDeltaAngle = getincangle(actor->int_ang(), getangle(dvec));
 			if (nDist < pDudeInfo->seeDist && abs(nDeltaAngle) <= pDudeInfo->periphery)
 			{
 				aiSetTarget(actor, pPlayer->actor);
@@ -1574,7 +1569,7 @@ void aiLookForTarget(DBloodActor* actor)
 			}
 			else if (nDist < pDudeInfo->hearDist)
 			{
-				aiSetTarget(actor, x, y, z);
+				aiSetTarget(actor, ppos);
 				aiActivateDude(actor);
 				return;
 			}
@@ -1582,14 +1577,12 @@ void aiLookForTarget(DBloodActor* actor)
 		if (actor->xspr.state)
 		{
 			const bool newSectCheckMethod = !cl_bloodvanillaenemies && !VanillaMode(); // use new sector checking logic
-			GetClosestSpriteSectors(actor->sector(), actor->int_pos().X, actor->int_pos().Y, 400, nullptr, newSectCheckMethod);
+			GetClosestSpriteSectors(actor->sector(), actor->spr.pos.XY(), 400, nullptr, newSectCheckMethod);
 
 			BloodStatIterator it(kStatDude);
 			while (DBloodActor* actor2 = it.Next())
 			{
-				int dx = actor2->int_pos().X - actor->int_pos().X;
-				int dy = actor2->int_pos().Y - actor->int_pos().Y;
-				int nDist = approxDist(dx, dy);
+				int nDist = approxDist(actor2->spr.pos.XY() - actor->spr.pos.XY());
 				if (actor2->spr.type == kDudeInnocent)
 				{
 					pDudeInfo = getDudeInfo(actor2->spr.type);
@@ -1695,7 +1688,7 @@ void aiInitSprite(DBloodActor* actor)
 
 #ifdef NOONE_EXTENSIONS
 	unsigned int stateTimer = 0;
-	int targetX = 0, targetY = 0, targetZ = 0;
+	DVector3 targetV(0,0,0);
 	DBloodActor* pTargetMarker = nullptr;
 
 	// dude patrol init
@@ -1706,9 +1699,7 @@ void aiInitSprite(DBloodActor* actor)
 		{
 			stateTimer = actor->xspr.stateTimer;
 			pTargetMarker = actor->GetTarget();
-			targetX = actor->xspr.TargetPos.X;
-			targetY = actor->xspr.TargetPos.Y;
-			targetZ = actor->xspr.TargetPos.Z;
+			targetV = actor->xspr.TargetPos;
 		}
 	}
 #endif
@@ -1927,9 +1918,7 @@ void aiInitSprite(DBloodActor* actor)
 			if (pTargetMarker)
 			{
 				actor->SetTarget(pTargetMarker);
-				actor->xspr.TargetPos.X = targetX;
-				actor->xspr.TargetPos.Y = targetY;
-				actor->xspr.TargetPos.Z = targetZ;
+				actor->xspr.TargetPos = targetV;
 			}
 
 			// reset target spot progress

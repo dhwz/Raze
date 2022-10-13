@@ -254,7 +254,7 @@ static void shootknee(DDukeActor* actor, int p, int sx, int sy, int sz, int sa)
 	{
 		if (hit.hitWall || hit.actor())
 		{
-			auto knee = EGS(hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, KNEE, -15, 0, 0, sa, 32, 0, actor, 4);
+			auto knee = CreateActor(hit.hitSector, hit.hitpos, KNEE, -15, 0, 0, sa, 32, 0, actor, 4);
 			if (knee)
 			{
 				knee->spr.extra += (krand() & 7);
@@ -283,7 +283,7 @@ static void shootknee(DDukeActor* actor, int p, int sx, int sy, int sz, int sa)
 
 				if (hit.hitWall->picnum != ACCESSSWITCH && hit.hitWall->picnum != ACCESSSWITCH2)
 				{
-					fi.checkhitwall(knee, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, KNEE);
+					fi.checkhitwall(knee, hit.hitWall, hit.hitpos, KNEE);
 					if (p >= 0) fi.checkhitswitch(p, hit.hitWall, nullptr);
 				}
 			}
@@ -408,7 +408,7 @@ static void shootweapon(DDukeActor *actor, int p, int sx, int sy, int sz, int sa
 	DDukeActor* spark;
 	if (p >= 0)
 	{
-		spark = EGS(hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, SHOTSPARK1, -15, 10, 10, sa, 0, 0, actor, 4);
+		spark = CreateActor(hit.hitSector, hit.hitpos, SHOTSPARK1, -15, 10, 10, sa, 0, 0, actor, 4);
 		if (!spark) return;
 
 		spark->spr.extra = ScriptCode[gs.actorinfo[atwith].scriptaddress];
@@ -525,12 +525,12 @@ static void shootweapon(DDukeActor *actor, int p, int sx, int sy, int sz, int sa
 					if (hit.hitpos.Z >= hit.hitWall->nextSector()->floorz)
 						hit.hitWall = hit.hitWall->nextWall();
 
-			fi.checkhitwall(spark, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, SHOTSPARK1);
+			fi.checkhitwall(spark, hit.hitWall, hit.hitpos, SHOTSPARK1);
 		}
 	}
 	else
 	{
-		spark = EGS(hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, SHOTSPARK1, -15, 24, 24, sa, 0, 0, actor, 4);
+		spark = CreateActor(hit.hitSector, hit.hitpos, SHOTSPARK1, -15, 24, 24, sa, 0, 0, actor, 4);
 		if (spark)
 		{
 			spark->spr.extra = ScriptCode[gs.actorinfo[atwith].scriptaddress];
@@ -543,7 +543,7 @@ static void shootweapon(DDukeActor *actor, int p, int sx, int sy, int sz, int sa
 				else spark->spr.xrepeat = spark->spr.yrepeat = 0;
 			}
 			else if (hit.hitWall)
-				fi.checkhitwall(spark, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, SHOTSPARK1);
+				fi.checkhitwall(spark, hit.hitWall, hit.hitpos, SHOTSPARK1);
 		}
 	}
 
@@ -863,7 +863,7 @@ static void shootlaser(DDukeActor* actor, int p, int sx, int sy, int sz, int sa)
 
 		if (j == 1)
 		{
-			auto bomb = EGS(hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, TRIPBOMB, -16, 4, 5, sa, 0, 0, actor, STAT_STANDABLE);
+			auto bomb = CreateActor(hit.hitSector, hit.hitpos, TRIPBOMB, -16, 4, 5, sa, 0, 0, actor, STAT_STANDABLE);
 			if (!bomb) return;
 			if (isWW2GI())
 			{
@@ -978,7 +978,7 @@ static void shootgrowspark(DDukeActor* actor, int p, int sx, int sy, int sz, int
 	{
 		if (hit.hitWall->picnum != ACCESSSWITCH && hit.hitWall->picnum != ACCESSSWITCH2)
 		{
-			fi.checkhitwall(spark, hit.hitWall, hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, GROWSPARK);
+			fi.checkhitwall(spark, hit.hitWall, hit.hitpos, GROWSPARK);
 		}
 	}
 }
@@ -3054,7 +3054,7 @@ HORIZONLY:
 	}
 
 	// RBG***
-	SetActor(pact, vec3_t( p->player_int_pos().X, p->player_int_pos().Y, p->player_int_pos().Z + gs.int_playerheight ));
+	SetActor(pact, p->pos.plusZ(gs.playerheight));
 
 	if (psectlotag < 3)
 	{

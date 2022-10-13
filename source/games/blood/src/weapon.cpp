@@ -1738,7 +1738,7 @@ void AltFireVoodoo(int nTrigger, PLAYER* pPlayer)
 					if (!targetactor) continue;
 					if (!gGameOptions.bFriendlyFire && IsTargetTeammate(pPlayer, targetactor))
 						continue;
-					int nDist = approxDist(targetactor->int_pos().X - pPlayer->actor->int_pos().X, targetactor->int_pos().Y - pPlayer->actor->int_pos().Y);
+					int nDist = approxDist(targetactor->spr.pos.XY() - pPlayer->actor->spr.pos.XY());
 					if (nDist > 0 && nDist < 51200)
 					{
 						int vc = pPlayer->ammoCount[9] >> 3;
@@ -1776,7 +1776,7 @@ void AltFireVoodoo(int nTrigger, PLAYER* pPlayer)
 					continue;
 				if (v4 > 0)
 					v4--;
-				int nDist = approxDist(targetactor->int_pos().X - pPlayer->actor->int_pos().X, targetactor->int_pos().Y - pPlayer->actor->int_pos().Y);
+				int nDist = approxDist(targetactor->spr.pos.XY() - pPlayer->actor->spr.pos.XY());
 				if (nDist > 0 && nDist < 51200)
 				{
 					int vc = pPlayer->ammoCount[9] >> 3;
@@ -2992,14 +2992,12 @@ void WeaponProcess(PLAYER* pPlayer) {
 
 void teslaHit(DBloodActor* missileactor, int a2)
 {
-	int x = missileactor->int_pos().X;
-	int y = missileactor->int_pos().Y;
-	int z = missileactor->int_pos().Z;
+	auto mpos = missileactor->spr.pos;
 	int nDist = 300;
 	auto pSector = missileactor->sector();
 	auto owneractor = missileactor->GetOwner();
 	const bool newSectCheckMethod = !cl_bloodvanillaexplosions && !VanillaMode(); // use new sector checking logic
-	auto sectorMap = GetClosestSpriteSectors(pSector, x, y, nDist, nullptr, newSectCheckMethod);
+	auto sectorMap = GetClosestSpriteSectors(pSector, mpos.XY(), nDist, nullptr, newSectCheckMethod);
 	bool v4 = true;
 	DBloodActor* actor = nullptr;
 	actHitcodeToData(a2, &gHitInfo, &actor);
@@ -3012,7 +3010,7 @@ void teslaHit(DBloodActor* missileactor, int a2)
 		{
 			if (hitactor->spr.flags & 32)
 				continue;
-			if (CheckSector(sectorMap, hitactor) && CheckProximity(hitactor, x, y, z, pSector, nDist))
+			if (CheckSector(sectorMap, hitactor) && CheckProximity(hitactor, mpos, pSector, nDist))
 			{
 				int dx = missileactor->int_pos().X - hitactor->int_pos().X;
 				int dy = missileactor->int_pos().Y - hitactor->int_pos().Y;
@@ -3028,7 +3026,7 @@ void teslaHit(DBloodActor* missileactor, int a2)
 	{
 		if (hitactor->spr.flags & 32)
 			continue;
-		if (CheckSector(sectorMap, hitactor) && CheckProximity(hitactor, x, y, z, pSector, nDist))
+		if (CheckSector(sectorMap, hitactor) && CheckProximity(hitactor, mpos, pSector, nDist))
 		{
 			if (!hitactor->xspr.locked)
 			{

@@ -50,7 +50,7 @@ struct GameInterface : public ::GameInterface
 	void NextLevel(MapRecord* map, int skill) override;
 	void NewGame(MapRecord* map, int skill, bool) override;
 	void LevelCompleted(MapRecord* map, int skill) override;
-	bool DrawAutomapPlayer(int mx, int my, int x, int y, int z, int a, double const smoothratio) override;
+	bool DrawAutomapPlayer(int mx, int my, int x, int y, const double z, const DAngle a, double const smoothratio) override;
 	int playerKeyMove() override { return 40; }
 	void WarpToCoords(int x, int y, int z, int a, int h) override;
 	void ToggleThirdPerson() override;
@@ -78,7 +78,7 @@ struct Dispatcher
 	void (*operateforcefields)(DDukeActor* act, int low);
 	bool (*checkhitswitch)(int snum, walltype* w, DDukeActor* act);
 	void (*activatebysector)(sectortype* sect, DDukeActor* j);
-	void (*checkhitwall)(DDukeActor* spr, walltype* dawall, int x, int y, int z, int atwith);
+	void (*checkhitwall)(DDukeActor* spr, walltype* dawall, const DVector3& pos, int atwith);
 	bool (*checkhitceiling)(sectortype* sn);
 	void (*checkhitsprite)(DDukeActor* i, DDukeActor* sn);
 	void (*checksectors)(int low);

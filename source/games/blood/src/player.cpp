@@ -778,7 +778,7 @@ void playerStart(int nPlayer, int bNewLevel)
 				BloodSectIterator it(pStartZone->sector);
 				while (auto act = it.Next())
 				{
-					if (pStartZone->x == act->int_pos().X && pStartZone->y == act->int_pos().Y && act->IsPlayerActor()) {
+					if (pStartZone->pos.XY() == act->spr.pos.XY() && act->IsPlayerActor()) {
 						pStartZone = NULL;
 						break;
 					}
@@ -795,7 +795,7 @@ void playerStart(int nPlayer, int bNewLevel)
 		pStartZone = &gStartZone[Random(8)];
 	}
 
-	auto actor = actSpawnSprite(pStartZone->sector, pStartZone->x, pStartZone->y, pStartZone->z, 6, 1);
+	auto actor = actSpawnSprite(pStartZone->sector, pStartZone->pos, 6, 1);
 	assert(actor->hasX());
 	pPlayer->actor = actor;
 	DUDEINFO* pDudeInfo = &dudeInfo[kDudePlayer1 + nPlayer - kDudeBase];
@@ -855,7 +855,7 @@ void playerStart(int nPlayer, int bNewLevel)
 	pPlayer->throwPower = 0;
 	pPlayer->deathTime = 0;
 	pPlayer->nextWeapon = kWeapNone;
-	actor->vel.X = actor->vel.Y = actor->vel.Z = 0;
+	actor->ZeroVelocity();
 	pInput->avel = 0;
 	pInput->actions = 0;
 	pInput->fvel = 0;
@@ -1377,36 +1377,34 @@ void PickUp(PLAYER* pPlayer, DBloodActor* actor)
 void CheckPickUp(PLAYER* pPlayer)
 {
 	auto plActor = pPlayer->actor;
-	int x = plActor->int_pos().X;
-	int y = plActor->int_pos().Y;
-	int z = plActor->int_pos().Z;
+	auto ppos = plActor->spr.pos;
 	auto pSector = plActor->sector();
 	BloodStatIterator it(kStatItem);
 	while (auto itemactor = it.Next())
 	{
 		if (itemactor->spr.flags & 32)
 			continue;
-		int dx = abs(x - itemactor->int_pos().X) >> 4;
+		double dx = abs(ppos.X - itemactor->spr.pos.X);
 		if (dx > 48)
 			continue;
-		int dy = abs(y - itemactor->int_pos().Y) >> 4;
+		double dy = abs(ppos.Y - itemactor->spr.pos.Y);
 		if (dy > 48)
 			continue;
-		int top, bottom;
+		double top, bottom;
 		GetActorExtents(plActor, &top, &bottom);
-		int vb = 0;
-		if (itemactor->int_pos().Z < top)
-			vb = (top - itemactor->int_pos().Z) >> 8;
-		else if (itemactor->int_pos().Z > bottom)
-			vb = (itemactor->int_pos().Z - bottom) >> 8;
+		double vb = 0;
+		if (itemactor->spr.pos.Z < top)
+			vb = (top - itemactor->spr.pos.Z);
+		else if (itemactor->spr.pos.Z > bottom)
+			vb = (itemactor->spr.pos.Z - bottom);
 		if (vb > 32)
 			continue;
-		if (approxDist(dx, dy) > 48)
+		if (DVector2(dx, dy).LengthSquared() > 48*48)
 			continue;
 		GetActorExtents(itemactor, &top, &bottom);
-		if (cansee(x, y, z, pSector, itemactor->int_pos().X, itemactor->int_pos().Y, itemactor->int_pos().Z, itemactor->sector())
-			|| cansee(x, y, z, pSector, itemactor->int_pos().X, itemactor->int_pos().Y, top, itemactor->sector())
-			|| cansee(x, y, z, pSector, itemactor->int_pos().X, itemactor->int_pos().Y, bottom, itemactor->sector()))
+		if (cansee(ppos, pSector, itemactor->spr.pos, itemactor->sector())
+			|| cansee(ppos, pSector, DVector3(itemactor->spr.pos.XY(), top), itemactor->sector())
+			|| cansee(ppos, pSector, DVector3(itemactor->spr.pos.XY(), bottom), itemactor->sector()))
 			PickUp(pPlayer, itemactor);
 	}
 }
@@ -1425,7 +1423,7 @@ int ActionScan(PLAYER* pPlayer, HitInfo* out)
 	int y = bsin(plActor->int_ang());
 	int z = pPlayer->slope;
 	int hit = HitScan(pPlayer->actor, pPlayer->zView, x, y, z, 0x10000040, 128);
-	int hitDist = approxDist(plActor->int_pos().X - gHitInfo.int_hitpos().X, plActor->int_pos().Y - gHitInfo.int_hitpos().Y) >> 4;
+	int hitDist = (int)(plActor->spr.pos.XY() - gHitInfo.hitpos.XY()).Length();
 	if (hitDist < 64)
 	{
 		switch (hit)
@@ -1931,7 +1929,7 @@ void playerProcess(PLAYER* pPlayer)
 		auto link = actor->sector()->lowerLink;
 		if (link && (link->spr.type == kMarkerLowGoo || link->spr.type == kMarkerLowWater))
 		{
-			if (getceilzofslopeptr(actor->sector(), actor->int_pos().X, actor->int_pos().Y) > pPlayer->zView)
+			if (getceilzofslopeptr(actor->sector(), actor->spr.pos) > pPlayer->zView)
 				pPlayer->isUnderwater = 0;
 		}
 	}
@@ -2172,9 +2170,9 @@ int playerDamageSprite(DBloodActor* source, PLAYER* pPlayer, DAMAGE_TYPE nDamage
 				break;
 			default:
 			{
-				int top, bottom;
+				double top, bottom;
 				GetActorExtents(pActor, &top, &bottom);
-				CGibPosition gibPos(pActor->int_pos().X, pActor->int_pos().Y, top);
+				DVector3 gibPos(pActor->spr.pos.XY(), top);
 				CGibVelocity gibVel(pActor->vel.X >> 1, pActor->vel.Y >> 1, -0xccccc);
 				GibSprite(pActor, GIBTYPE_27, &gibPos, &gibVel);
 				GibSprite(pActor, GIBTYPE_7, NULL, NULL);

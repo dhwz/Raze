@@ -329,7 +329,7 @@ void spawntransporter(DDukeActor *actj, DDukeActor* act, bool beam)
 	act->spr.xvel = 128;
 	ChangeActorStat(act, STAT_MISC);
 	ssp(act, CLIPMASK0);
-	SetActor(act, act->int_pos());
+	SetActor(act, act->spr.pos);
 }
 
 //---------------------------------------------------------------------------
@@ -530,7 +530,7 @@ void initwaterdrip(DDukeActor* actj, DDukeActor* actor)
 			actor->spr.pos.Z -= 18;
 		}
 		else actor->spr.pos.Z -= 13;
-		actor->set_int_ang(getangle(ps[connecthead].player_int_pos().X - actor->int_pos().X, ps[connecthead].player_int_pos().Y - actor->int_pos().Y));
+		actor->spr.angle = VecToAngle(ps[connecthead].pos.XY() - actor->spr.pos.XY());
 		actor->spr.xvel = 48 - (krand() & 31);
 		ssp(actor, CLIPMASK0);
 	}
@@ -638,15 +638,15 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 			break;
 		case SE_18_INCREMENTAL_SECTOR_RISE_FALL:
 
-			if (actor->int_ang() == 512)
+			if (actor->spr.intangle == 512)
 			{
-				actor->temp_data[1] = sectp->int_ceilingz();
+				actor->temp_data[1] = FloatToFixed<8>(sectp->ceilingz);
 				if (actor->spr.pal)
 					sectp->setceilingz(actor->spr.pos.Z);
 			}
 			else
 			{
-				actor->temp_data[1] = sectp->int_floorz();
+				actor->temp_data[1] = FloatToFixed<8>(sectp->floorz);
 				if (actor->spr.pal)
 					sectp->setfloorz(actor->spr.pos.Z);
 			}
@@ -933,7 +933,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 						{
 							if (actor->int_ang() == 512)
 							{
-								actor->copyXY(act2);
+								actor->spr.pos.XY() = act2->spr.pos.XY();
 							}
 							found = true;
 							actor->SetOwner(act2);
@@ -959,7 +959,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 				tempwallptr++;
 				if (tempwallptr > 2047)
 				{
-					I_Error("Too many moving sectors at (%d,%d).\n", wal.wall_int_pos().X, wal.wall_int_pos().Y);
+					I_Error("Too many moving sectors at (%d,%d).\n", int(wal.pos.X), int(wal.pos.Y));
 				}
 			}
 			if (actor->spr.lotag == SE_30_TWO_WAY_TRAIN || actor->spr.lotag == SE_6_SUBWAY || actor->spr.lotag == SE_14_SUBWAY_CAR || actor->spr.lotag == SE_5_BOSS)
@@ -985,7 +985,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 
 				if (s == nullptr)
 				{
-					I_Error("Subway found no zero'd sectors with locators\nat (%d,%d).\n", actor->int_pos().X, actor->int_pos().Y);
+					I_Error("Subway found no zero'd sectors with locators\nat (%d,%d).\n", int(actor->spr.pos.X), int(actor->spr.pos.Y));
 				}
 
 				actor->SetOwner(nullptr);
@@ -1089,7 +1089,7 @@ void lotsofglass(DDukeActor *actor, walltype* wal, int n)
 		for (j = n - 1; j >= 0; j--)
 		{
 			a = actor->int_ang() - 256 + (krand() & 511) + 1024;
-			EGS(actor->sector(), actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, TILE_GLASSPIECES + (j % 3), -32, 36, 36, a, 32 + (krand() & 63), 1024 - (krand() & 1023), actor, 5);
+			CreateActor(actor->sector(), actor->spr.pos, TILE_GLASSPIECES + (j % 3), -32, 36, 36, a, 32 + (krand() & 63), 1024 - (krand() & 1023), actor, 5);
 		}
 		return;
 	}

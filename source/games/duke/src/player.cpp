@@ -352,7 +352,7 @@ DDukeActor* aim(DDukeActor* actor, int aang)
 									a = (abs(Scale(act->int_pos().Z - actor->int_pos().Z, 10, sdist) - ps[actor->spr.yvel].horizon.sum().asbuild()) < 100);
 								else a = 1;
 
-								cans = cansee(act->int_pos().X, act->int_pos().Y, act->int_pos().Z - (32 << 8) + gs.actorinfo[act->spr.picnum].aimoffset, act->sector(), actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - (32 << 8), actor->sector());
+								cans = cansee(act->spr.pos.plusZ(-32 + gs.actorinfo[act->spr.picnum].aimoffset), act->sector(), actor->spr.pos.plusZ(-32), actor->sector());
 
 								if (a && cans)
 								{
@@ -1059,10 +1059,10 @@ void shootbloodsplat(DDukeActor* actor, int p, int sx, int sy, int sz, int sa, i
 					spawned->spr.xvel = -12;
 					auto delta = hit.hitWall->delta();
 					spawned->set_int_ang(getangle(-delta.X, -delta.Y) + 512); // note the '-' sign here!
-					spawned->set_int_pos(hit.int_hitpos());
+					spawned->spr.pos = hit.hitpos;
 					spawned->spr.cstat |= randomXFlip();
 					ssp(spawned, CLIPMASK0);
-					SetActor(spawned, spawned->int_pos());
+					SetActor(spawned, spawned->spr.pos);
 					if (actor->spr.picnum == OOZFILTER || actor->spr.picnum == NEWBEAST)
 						spawned->spr.pal = 6;
 				}

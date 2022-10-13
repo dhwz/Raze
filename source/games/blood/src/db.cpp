@@ -130,7 +130,7 @@ unsigned int dbReadMapCRC(const char* pPath)
 //
 //---------------------------------------------------------------------------
 
-void dbLoadMap(const char* pPath, int* pX, int* pY, int* pZ, short* pAngle, int* cursectnum, unsigned int* pCRC, BloodSpawnSpriteDef& sprites)
+void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum, unsigned int* pCRC, BloodSpawnSpriteDef& sprites)
 {
 	const int nXSectorSize = 60;
 	const int nXSpriteSize = 56;
@@ -199,9 +199,7 @@ void dbLoadMap(const char* pPath, int* pX, int* pY, int* pZ, short* pAngle, int*
 	mapHeader.numwalls = LittleShort(mapHeader.numwalls);
 	mapHeader.numsprites = LittleShort(mapHeader.numsprites);
 
-	*pX = mapHeader.x;
-	*pY = mapHeader.y;
-	*pZ = mapHeader.z;
+	pos = { mapHeader.x * maptoworld, mapHeader.y * maptoworld, mapHeader.z * zmaptoworld };
 	*pAngle = mapHeader.ang;
 	gVisibility = g_visibility = mapHeader.visibility;
 	gMattId = mapHeader.mattid;
@@ -565,9 +563,10 @@ void dbLoadMap(const char* pPath, int* pX, int* pY, int* pZ, short* pAngle, int*
 			pXSprite->dudeGuard = bitReader.readUnsigned(1);
 			pXSprite->dudeFlag4 = bitReader.readUnsigned(1);
 			/*pXSprite->target_i = */ bitReader.readSigned(16);
-			pXSprite->TargetPos.X = bitReader.readSigned(32);
-			pXSprite->TargetPos.Y = bitReader.readSigned(32);
-			pXSprite->TargetPos.Z = bitReader.readSigned(32);
+			int tx = bitReader.readSigned(32);
+			int ty = bitReader.readSigned(32);
+			int tz = bitReader.readSigned(32);
+			pXSprite->TargetPos = {tx * maptoworld, ty * maptoworld, tz * zmaptoworld };
 			pXSprite->burnTime = bitReader.readUnsigned(16);
 			/*pXSprite->burnSource =*/ bitReader.readSigned(16);
 			pXSprite->height = bitReader.readUnsigned(16);
@@ -665,7 +664,7 @@ void dbLoadMap(const char* pPath, int* pX, int* pY, int* pZ, short* pAngle, int*
 	sectionGeometry.SetSize(sections.Size());
 	wallbackup = wall;
 	sectorbackup = sector;
-	validateStartSector(mapname.GetChars(), { *pX, *pY, *pZ }, cursectnum, mapHeader.numsectors, true);
+	validateStartSector(mapname.GetChars(), pos, cursectnum, mapHeader.numsectors, true);
 }
 
 
@@ -677,9 +676,9 @@ END_BLD_NS
 //
 //---------------------------------------------------------------------------
 
-void qloadboard(const char* filename, uint8_t flags, vec3_t* dapos, int16_t* daang)
+void qloadboard(const char* filename, uint8_t flags, DVector3* dapos, int16_t* daang)
 {
 	Blood::BloodSpawnSpriteDef sprites;
 	int sp;
-	Blood::dbLoadMap(filename, &dapos->X, &dapos->Y, &dapos->Z, daang, &sp, nullptr, sprites);
+	Blood::dbLoadMap(filename, *dapos, daang, &sp, nullptr, sprites);
 }

@@ -127,7 +127,7 @@ int DoActorDie(DSWActor* actor, DSWActor* weapActor, int meansofdeath)
         actor->user.RotNum = 0;
         actor->spr.xvel <<= 1;
         actor->user.ActorActionFunc = nullptr;
-        actor->set_int_ang(NORM_ANGLE(actor->int_ang() + 1024));
+        actor->spr.angle += DAngle180;
         break;
 
     case NINJA_RUN_R0:
@@ -211,7 +211,7 @@ int DoActorDie(DSWActor* actor, DSWActor* weapActor, int meansofdeath)
         }
         actor->user.ActorActionFunc = nullptr;
         // Get angle to player
-        actor->set_int_ang(NORM_ANGLE(getangle(actor->user.targetActor->int_pos().X - actor->int_pos().X, actor->user.targetActor->int_pos().Y - actor->int_pos().Y) + 1024));
+        actor->spr.angle = VecToAngle(actor->user.targetActor->spr.pos - actor->spr.pos.Y) + DAngle180;
         break;
 
     case UZI_SMOKE+1: // Shotgun
@@ -234,7 +234,7 @@ int DoActorDie(DSWActor* actor, DSWActor* weapActor, int meansofdeath)
         DoActorBeginJump(actor);
         actor->user.ActorActionFunc = nullptr;
         // Get angle to player
-        actor->set_int_ang(NORM_ANGLE(getangle(actor->user.targetActor->int_pos().X - actor->int_pos().X, actor->user.targetActor->int_pos().Y - actor->int_pos().Y) + 1024));
+        actor->spr.angle = VecToAngle(actor->user.targetActor->spr.pos - actor->spr.pos) + DAngle180;
         break;
 
     default:
@@ -331,7 +331,7 @@ int DoActorSectorDamage(DSWActor* actor)
                 }
             }
         }
-        else if (ActorZOfBottom(actor) >= sectp->int_floorz())
+        else if (int_ActorZOfBottom(actor) >= sectp->int_floorz())
         {
             if ((actor->user.DamageTics -= synctics) < 0)
             {
@@ -349,7 +349,7 @@ int DoActorSectorDamage(DSWActor* actor)
     }
 
     // note that most squishing is done in vator.c
-    if (actor->user.lo_sectp && actor->user.hi_sectp && abs(actor->user.int_loz() - actor->user.int_hiz()) < (ActorSizeZ(actor) >> 1))
+    if (actor->user.lo_sectp && actor->user.hi_sectp && abs(actor->user.loz - actor->user.hiz) < (ActorSizeZ(actor) * 0.5))
     {
         actor->user.Health = 0;
         if (SpawnShrap(actor, nullptr, WPN_NM_SECTOR_SQUISH))
@@ -370,9 +370,9 @@ int DoActorSectorDamage(DSWActor* actor)
 }
 
 
-bool move_debris(DSWActor* actor, int xchange, int ychange, int zchange)
+bool move_debris(DSWActor* actor, const DVector2& change)
 {
-    actor->user.coll = move_sprite(actor, xchange, ychange, zchange,
+    actor->user.coll = move_sprite(actor, change.X * worldtoint, change.Y * worldtoint, 0,
                          actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), 0, ACTORMOVETICS);
 
     return actor->user.coll.type == kHitNone;
@@ -384,7 +384,6 @@ bool move_debris(DSWActor* actor, int xchange, int ychange, int zchange)
 int DoActorDebris(DSWActor* actor)
 {
     sectortype* sectp = actor->sector();
-    int nx, ny;
 
     // This was move from DoActorDie so actor's can't be walked through until they are on the floor
     actor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
@@ -413,23 +412,19 @@ int DoActorDebris(DSWActor* actor)
         }
         else
         {
-            //nx = actor->spr.xvel * ACTORMOVETICS * bcos(actor->spr.angle) >> 14;
-            //ny = actor->spr.xvel * ACTORMOVETICS * bsin(actor->spr.angle) >> 14;
-            nx = MulScale(ACTORMOVETICS, bcos(actor->int_ang()), 14);
-            ny = MulScale(ACTORMOVETICS, bsin(actor->int_ang()), 14);
+            // todo: check correctness
+            DVector2 nvec(ACTORMOVETICS * maptoworld * actor->spr.angle.Cos(), ACTORMOVETICS * maptoworld * actor->spr.angle.Sin());
 
-            //actor->spr.clipdist = (256+128)>>2;
-
-            if (!move_debris(actor, nx, ny, 0L))
+            if (!move_debris(actor, nvec))
             {
-                actor->set_int_ang(RANDOM_P2(2048));
+                actor->spr.angle = RANDOM_ANGLE();
             }
         }
 
         if (actor->sector()->hasU() && FixedToInt(actor->sector()->depth_fixed) > 10) // JBF: added null check
         {
             actor->user.WaitTics = (actor->user.WaitTics + (ACTORMOVETICS << 3)) & 1023;
-            actor->set_int_z(actor->user.int_loz() - MulScale(Z(2), bsin(actor->user.WaitTics), 14));
+            actor->spr.pos.Z = actor->user.loz - 2 * DAngle::fromBuild(actor->user.WaitTics).Sin();
         }
     }
     else
@@ -451,12 +446,12 @@ int DoFireFly(DSWActor* actor)
     actor->spr.clipdist = 256>>2;
     if (!move_actor(actor, nx, ny, 0L))
     {
-        actor->set_int_ang(NORM_ANGLE(actor->int_ang() + 1024));
+        actor->spr.angle += DAngle180;
     }
 
     actor->user.WaitTics = (actor->user.WaitTics + (ACTORMOVETICS << 1)) & 2047;
 
-    actor->set_int_z(actor->user.int_upos().Z + MulScale(Z(32), bsin(actor->user.WaitTics), 14));
+    actor->spr.pos.Z = actor->user.pos.Z + 32 * DAngle::fromBuild(actor->user.WaitTics).Sin();
     return 0;
 }
 
@@ -476,7 +471,7 @@ int DoGenerateSewerDebris(DSWActor* actor)
     {
         actor->user.Tics = actor->user.WaitTics;
 
-        auto spawned = SpawnActor(STAT_DEAD_ACTOR, 0, Debris[RANDOM_P2(4<<8)>>8], actor->sector(), actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->int_ang(), 200);
+        auto spawned = SpawnActor(STAT_DEAD_ACTOR, 0, Debris[RANDOM_P2(4<<8)>>8], actor->sector(), actor->spr.pos, actor->spr.angle, 200);
 
         SetOwner(actor, spawned);
     }
@@ -565,8 +560,7 @@ void KeepActorOnFloor(DSWActor* actor)
     {
         double ceilz, florz;
         Collision ctrash, ftrash;
-        FAFgetzrangepoint(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z, actor->sector(),
-                          &ceilz, &ctrash, &florz, &ftrash);
+        FAFgetzrangepoint(actor->spr.pos, actor->sector(),&ceilz, &ctrash, &florz, &ftrash);
 
         actor->spr.pos.Z = actor->user.oz = florz;
         actor->backupz();
@@ -660,14 +654,14 @@ int DoActorJump(DSWActor* actor)
     }
 
     // adjust height by jump speed
-    actor->add_int_z(actor->user.jump_speed * ACTORMOVETICS);
+    actor->spr.pos.Z += actor->user.jump_speed * ACTORMOVETICS * JUMP_FACTOR;
 
     // if player gets to close the ceiling while jumping
-    int minh = actor->user.int_hiz() + (tileHeight(actor->spr.picnum) << 8);
-    if (actor->int_pos().Z < minh)
+    double minh = actor->user.hiz + tileHeight(actor->spr.picnum);
+    if (actor->spr.pos.Z < minh)
     {
         // put player at the ceiling
-        actor->set_int_z(minh);
+        actor->spr.pos.Z = minh;
 
         // reverse your speed to falling
         actor->user.jump_speed = -actor->user.jump_speed;
@@ -715,7 +709,7 @@ int DoActorFall(DSWActor* actor)
     actor->user.jump_speed += actor->user.jump_grav * ACTORMOVETICS;
 
     // adjust player height by jump speed
-    actor->add_int_z(actor->user.jump_speed * ACTORMOVETICS);
+    actor->spr.pos.Z += actor->user.jump_speed * ACTORMOVETICS * JUMP_FACTOR;
 
     // Stick like glue when you hit the ground
     if (actor->spr.pos.Z > actor->user.loz)
@@ -826,14 +820,14 @@ int DoJump(DSWActor* actor)
     }
 
     // adjust height by jump speed
-    actor->add_int_z(actor->user.jump_speed * ACTORMOVETICS);
+    actor->spr.pos.Z += actor->user.jump_speed * ACTORMOVETICS * JUMP_FACTOR;
 
     // if player gets to close the ceiling while jumping
-    int minh = actor->user.int_hiz() + (tileHeight(actor->spr.picnum) << 8);
-    if (actor->int_pos().Z < minh)
+    double minh = actor->user.hiz + tileHeight(actor->spr.picnum);
+    if (actor->spr.pos.Z < minh)
     {
         // put player at the ceiling
-        actor->set_int_z(minh);
+        actor->spr.pos.Z = minh;
 
         // reverse your speed to falling
         actor->user.jump_speed = -actor->user.jump_speed;
@@ -864,12 +858,12 @@ int DoFall(DSWActor* actor)
     actor->user.jump_speed += actor->user.jump_grav * ACTORMOVETICS;
 
     // adjust player height by jump speed
-    actor->add_int_z(actor->user.jump_speed * ACTORMOVETICS);
+    actor->spr.pos.Z += actor->user.jump_speed * ACTORMOVETICS * JUMP_FACTOR;
 
     // Stick like glue when you hit the ground
-    if (actor->int_pos().Z > actor->user.int_loz() - actor->user.int_floor_dist())
+    if (actor->spr.pos.Z > actor->user.loz - actor->user.floor_dist)
     {
-        actor->set_int_z(actor->user.int_loz() - actor->user.int_floor_dist());
+        actor->spr.pos.Z = actor->user.loz - actor->user.floor_dist;
         actor->user.Flags &= ~(SPR_FALLING);
     }
 

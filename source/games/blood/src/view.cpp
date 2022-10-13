@@ -474,7 +474,7 @@ static void DrawMap(DBloodActor* view)
 	VIEW* pView = &gPrevView[gViewIndex];
 	int x = interpolatedvalue(pView->x, view->int_pos().X, gInterpolate);
 	int y = interpolatedvalue(pView->y, view->int_pos().Y, gInterpolate);
-	int ang = (!SyncInput() ? gView->angle.sum() : gView->angle.interpolatedsum(gInterpolate)).Buildang();
+	auto ang = !SyncInput() ? gView->angle.sum() : gView->angle.interpolatedsum(gInterpolate);
 	DrawOverheadMap(x, y, ang, gInterpolate);
 	if (tm)
 		setViewport(hud_size);
@@ -767,7 +767,7 @@ void viewDrawScreen(bool sceneonly)
 		}
 
 		if (!sceneonly) hudDraw(gView, pSector, shakeX, shakeY, zDelta, basepal, gInterpolate);
-		fixedhoriz deliriumPitchI = q16horiz(interpolatedvalue(IntToFixed(deliriumPitchO), IntToFixed(deliriumPitch), gInterpolate));
+		fixedhoriz deliriumPitchI = interpolatedhorizon(q16horiz(deliriumPitchO), q16horiz(deliriumPitch), gInterpolate);
 		auto bakCstat = gView->actor->spr.cstat;
 		gView->actor->spr.cstat |= (gViewPos == 0) ? CSTAT_SPRITE_INVISIBLE : CSTAT_SPRITE_TRANSLUCENT | CSTAT_SPRITE_TRANS_FLIP;
 		render_drawrooms(gView->actor, { cX, cY, cZ }, sectnum(pSector), cA, cH + deliriumPitchI, rotscrnang, gInterpolate);
@@ -860,15 +860,15 @@ std::pair<DVector3, DAngle> GameInterface::GetCoordinates()
 //
 //---------------------------------------------------------------------------
 
-bool GameInterface::DrawAutomapPlayer(int mx, int my, int x, int y, int z, int a, double const smoothratio)
+bool GameInterface::DrawAutomapPlayer(int mx, int my, int x, int y, const double z, const DAngle a, double const smoothratio)
 {
 	for (int i = connecthead; i >= 0; i = connectpoint2[i])
 	{
 		PLAYER* pPlayer = &gPlayer[i];
 		auto actor = pPlayer->actor;
 
-		int xvect = -bsin(a) * z;
-		int yvect = -bcos(a) * z;
+		int xvect = -a.Sin() * 16384. * z;
+		int yvect = -a.Cos() * 16384. * z;
 		int ox = mx - x;
 		int oy = my - y;
 		int x1 = DMulScale(ox, xvect, -oy, yvect, 16);

@@ -246,9 +246,9 @@ inline int getangle(const vec2_t& vec)
 //
 //---------------------------------------------------------------------------
 
-inline constexpr int getincangle(int a, int na)
+inline constexpr int getincangle(unsigned a, unsigned na)
 {
-	return int(unsigned(na << 21) - unsigned(a << 21)) >> 21;
+	return int((na - a) << 21) >> 21;
 }
 
 
@@ -290,6 +290,27 @@ int getflorzofslopeptr(const sectortype* sec, int dax, int day);
 void getzsofslopeptr(const sectortype* sec, int dax, int day, int* ceilz, int* florz);
 void getzsofslopeptr(const sectortype* sec, double dax, double day, double* ceilz, double* florz);
 
+template<class Vector>
+inline int getceilzofslopeptr(const sectortype* sec, const Vector& pos)
+{
+	return getceilzofslopeptr(sec, pos.X * worldtoint, pos.Y * worldtoint);
+}
+template<class Vector>
+inline int getflorzofslopeptr(const sectortype* sec, const Vector& pos)
+{
+	return getflorzofslopeptr(sec, pos.X * worldtoint, pos.Y * worldtoint);
+}
+template<class Vector>
+inline void getzsofslopeptr(const sectortype* sec, const Vector& pos, int* ceilz, int* florz)
+{
+	getzsofslopeptr(sec, int(pos.X * worldtoint), int(pos.Y * worldtoint), ceilz, florz);
+}
+template<class Vector>
+inline void getzsofslopeptr(const sectortype* sec, const Vector& pos, double* ceilz, double* florz)
+{
+	getzsofslopeptr(sec, pos.X, pos.Y, ceilz, florz);
+}
+
 inline double getceilzofslopeptrf(const sectortype* sec, double dax, double day)
 {
 	return getceilzofslopeptr(sec, dax * worldtoint, day * worldtoint) * zinttoworld;
@@ -297,6 +318,14 @@ inline double getceilzofslopeptrf(const sectortype* sec, double dax, double day)
 inline double getflorzofslopeptrf(const sectortype* sec, double dax, double day)
 {
 	return getflorzofslopeptr(sec, dax * worldtoint, day * worldtoint) * zinttoworld;
+}
+inline double getceilzofslopeptrf(const sectortype* sec, const DVector2& pos)
+{
+	return getceilzofslopeptr(sec, pos.X * worldtoint, pos.Y * worldtoint) * zinttoworld;
+}
+inline double getflorzofslopeptrf(const sectortype* sec, const DVector2& pos)
+{
+	return getflorzofslopeptr(sec, pos.X * worldtoint, pos.Y * worldtoint) * zinttoworld;
 }
 
 
@@ -548,6 +577,16 @@ inline void alignceilslope(sectortype* sect, int x, int y, int z)
 inline void alignflorslope(sectortype* sect, int x, int y, int z)
 {
 	sect->setfloorslope(getslopeval(sect, x, y, z, sect->int_floorz()));
+}
+
+inline void alignceilslope(sectortype* sect, const DVector3& pos)
+{
+	sect->setceilingslope(getslopeval(sect, pos.X * worldtoint, pos.Y * worldtoint, pos.Z * zworldtoint, sect->int_ceilingz()));
+}
+
+inline void alignflorslope(sectortype* sect, const DVector3& pos)
+{
+	sect->setfloorslope(getslopeval(sect, pos.X * worldtoint, pos.Y * worldtoint, pos.Z * zworldtoint, sect->int_floorz()));
 }
 
 #include "updatesector.h"

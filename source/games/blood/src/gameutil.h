@@ -32,16 +32,16 @@ enum {
 };
 
 
-bool FindSector(int nX, int nY, int nZ, sectortype** ppSector);
-bool FindSector(int nX, int nY, sectortype** ppSector);
-
-bool CheckProximity(DBloodActor* pSprite, int nX, int nY, int nZ, sectortype* pSector, int nDist);
+bool CheckProximity(DBloodActor* pSprite, const DVector3& pos, sectortype* pSector, int nDist);
 bool CheckProximityPoint(int nX1, int nY1, int nZ1, int nX2, int nY2, int nZ2, int nDist);
-bool CheckProximityWall(walltype* pWall, int x, int y, int nDist);
 int GetWallAngle(walltype* pWall);
 void GetWallNormal(walltype* pWall, int* pX, int* pY);
 bool IntersectRay(int wx, int wy, int wdx, int wdy, int x1, int y1, int z1, int x2, int y2, int z2, int* ix, int* iy, int* iz);
 int HitScan(DBloodActor* pSprite, int z, int dx, int dy, int dz, unsigned int nMask, int a8);
+inline int HitScan(DBloodActor* pSprite, double z, int dx, int dy, int dz, unsigned int nMask, int a8)
+{
+	return HitScan(pSprite, int(z * zworldtoint), dx, dy, dz, nMask, a8);
+}
 int VectorScan(DBloodActor* pSprite, int nOffset, int nZOffset, int dx, int dy, int dz, int nRange, int ac);
 void GetZRange(DBloodActor* pSprite, int* ceilZ, Collision* ceilHit, int* floorZ, Collision* floorHit, int nDist, unsigned int nMask, unsigned int nClipParallax = 0);
 void GetZRangeAtXYZ(int x, int y, int z, sectortype* pSector, int* ceilZ, Collision* ceilHit, int* floorZ, Collision* floorHit, int nDist, unsigned int nMask, unsigned int nClipParallax = 0);
@@ -54,7 +54,7 @@ inline void ClipMove(DVector3& pos, sectortype** pSector, int xv, int yv, int wd
 	ClipMove(ipos, pSector, xv, yv, wd, cd, fd, nMask, hit, tracecount);
 	pos = { ipos.X * inttoworld, ipos.Y * inttoworld, ipos.Z * zinttoworld };
 }
-BitArray GetClosestSpriteSectors(sectortype* pSector, int x, int y, int nDist, TArray<walltype*>* pWalls, bool newSectCheckMethod = false);
+BitArray GetClosestSpriteSectors(sectortype* pSector, const DVector2& pos, int nDist, TArray<walltype*>* pWalls, bool newSectCheckMethod = false);
 int picWidth(int nPic, int repeat);
 int picHeight(int nPic, int repeat);
 

@@ -83,9 +83,7 @@ void warpInit(TArray<DBloodActor*>& actors)
 			case kMarkerSPStart:
 				if (gGameOptions.nGameType < 2 && actor->xspr.data1 >= 0 && actor->xspr.data1 < kMaxPlayers) {
 					ZONE* pZone = &gStartZone[actor->xspr.data1];
-					pZone->x = actor->int_pos().X;
-					pZone->y = actor->int_pos().Y;
-					pZone->z = actor->int_pos().Z;
+					pZone->pos = actor->spr.pos;
 					pZone->sector = actor->sector();
 					pZone->ang = actor->int_ang();
 				}
@@ -96,9 +94,7 @@ void warpInit(TArray<DBloodActor*>& actors)
 					if (gGameOptions.nGameType >= 2) {
 						// default if BB or teams without data2 specified
 						ZONE* pZone = &gStartZone[actor->xspr.data1];
-						pZone->x = actor->int_pos().X;
-						pZone->y = actor->int_pos().Y;
-						pZone->z = actor->int_pos().Z;
+						pZone->pos = actor->spr.pos;
 						pZone->sector = actor->sector();
 						pZone->ang = actor->int_ang();
 
@@ -107,9 +103,7 @@ void warpInit(TArray<DBloodActor*>& actors)
 						if (gModernMap && gGameOptions.nGameType == 3) {
 							if (actor->xspr.data2 == 1) {
 								pZone = &gStartZoneTeam1[team1];
-								pZone->x = actor->int_pos().X;
-								pZone->y = actor->int_pos().Y;
-								pZone->z = actor->int_pos().Z;
+								pZone->pos = actor->spr.pos;
 								pZone->sector = actor->sector();
 								pZone->ang = actor->int_ang();
 								team1++;
@@ -117,9 +111,7 @@ void warpInit(TArray<DBloodActor*>& actors)
 							}
 							else if (actor->xspr.data2 == 2) {
 								pZone = &gStartZoneTeam2[team2];
-								pZone->x = actor->int_pos().X;
-								pZone->y = actor->int_pos().Y;
-								pZone->z = actor->int_pos().Z;
+								pZone->pos = actor->spr.pos;
 								pZone->sector = actor->sector();
 								pZone->ang = actor->int_ang();
 								team2++;
@@ -147,7 +139,7 @@ void warpInit(TArray<DBloodActor*>& actors)
 				actor->sector()->upperLink = actor;
 				actor->spr.cstat |= CSTAT_SPRITE_INVISIBLE;
 				actor->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-				actor->set_int_z(getflorzofslopeptr(actor->sector(), actor->int_pos().X, actor->int_pos().Y));
+				actor->set_int_z(getflorzofslopeptr(actor->sector(), actor->spr.pos));
 				break;
 			case kMarkerLowWater:
 			case kMarkerLowStack:
@@ -155,7 +147,7 @@ void warpInit(TArray<DBloodActor*>& actors)
 				actor->sector()->lowerLink = actor;
 				actor->spr.cstat |= CSTAT_SPRITE_INVISIBLE;
 				actor->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-				actor->set_int_z(getceilzofslopeptr(actor->sector(), actor->int_pos().X, actor->int_pos().Y));
+				actor->set_int_z(getceilzofslopeptr(actor->sector(), actor->spr.pos));
 				break;
 			}
 		}
@@ -212,7 +204,7 @@ int CheckLink(DBloodActor* actor)
 		if (aUpper->spr.type == kMarkerUpLink)
 			z = aUpper->int_pos().Z;
 		else
-			z = getflorzofslopeptr(actor->sector(), actor->int_pos().X, actor->int_pos().Y);
+			z = getflorzofslopeptr(actor->sector(), actor->spr.pos);
 		if (z <= actor->int_pos().Z)
 		{
 			aLower = aUpper->GetOwner();
@@ -226,7 +218,7 @@ int CheckLink(DBloodActor* actor)
 			if (aLower->spr.type == kMarkerLowLink)
 				z2 = aLower->int_pos().Z;
 			else
-				z2 = getceilzofslopeptr(actor->sector(), actor->int_pos().X, actor->int_pos().Y);
+				z2 = getceilzofslopeptr(actor->sector(), actor->spr.pos);
 			add.Z = z2 - z;
 			actor->add_int_pos(add);
 			actor->interpolated = false;
@@ -239,7 +231,7 @@ int CheckLink(DBloodActor* actor)
 		if (aLower->spr.type == kMarkerLowLink)
 			z = aLower->int_pos().Z;
 		else
-			z = getceilzofslopeptr(actor->sector(), actor->int_pos().X, actor->int_pos().Y);
+			z = getceilzofslopeptr(actor->sector(), actor->spr.pos);
 		if (z >= actor->int_pos().Z)
 		{
 			aUpper = aLower->GetOwner();
@@ -253,7 +245,7 @@ int CheckLink(DBloodActor* actor)
 			if (aUpper->spr.type == kMarkerUpLink)
 				z2 = aUpper->int_pos().Z;
 			else
-				z2 = getflorzofslopeptr(actor->sector(), actor->int_pos().X, actor->int_pos().Y);
+				z2 = getflorzofslopeptr(actor->sector(), actor->spr.pos);
 			add.Z = z2 - z;
 			actor->add_int_pos(add);
 			actor->interpolated = false;
@@ -333,9 +325,7 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, ZONE& w, ZONE* def
 {
 	if (arc.BeginObject(keyname))
 	{
-		arc("x", w.x)
-			("y", w.y)
-			("z", w.z)
+		arc("pos", w.pos)
 			("sector", w.sector)
 			("angle", w.ang)
 			.EndObject();

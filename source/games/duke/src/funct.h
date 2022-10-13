@@ -44,7 +44,7 @@ void movetouchplate(DDukeActor* i, int plate);
 void movecanwithsomething(DDukeActor* i);
 void bounce(DDukeActor* i);
 void movetongue(DDukeActor* i, int tongue, int jaw);
-void rpgexplode(DDukeActor* i, int j, const vec3_t& pos, int EXPLOSION2, int EXPLOSIONBOT2, int newextra, int playsound);
+void rpgexplode(DDukeActor* i, int j, const DVector3& pos, int EXPLOSION2, int EXPLOSIONBOT2, int newextra, int playsound);
 void moveooz(DDukeActor* i, int seenine, int seeninedead, int ooz, int explosion);
 void lotsofstuff(DDukeActor* s, int n, int spawntype);
 bool respawnmarker(DDukeActor* i, int yellow, int green);
@@ -245,10 +245,17 @@ void loadcons();
 void recordoldspritepos();
 void DrawStatusBar();
 
-inline double zrand(int spread)
+[[deprecated]]
+inline double zrand(int spread, int ofs)
 {
 	int r = krand() % (spread << 8);
 	return r * zmaptoworld;
+}
+
+inline double zrand(double spread)
+{
+	int r = krand() % FloatToFixed<8>(spread);
+	return FixedToFloat<8>(r);
 }
 
 END_DUKE_NS

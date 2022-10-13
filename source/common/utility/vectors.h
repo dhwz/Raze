@@ -47,6 +47,7 @@
 #include "xs_Float.h"
 #include "math/cmath.h"
 #include "basics.h"
+#include "cmdlib.h"
 
 
 #define EQUAL_EPSILON (1/65536.)
@@ -1385,8 +1386,7 @@ public:
 
 	int Sgn() const
 	{
-		const auto normalized = (signed int)BAMs();
-		return (normalized > 0) - (normalized < 0);
+		return ::Sgn(int(BAMs()));
 	}
 };
 
@@ -1412,6 +1412,12 @@ template<class T>
 inline TAngle<T> absangle(const TAngle<T> &a1, const TAngle<T> &a2)
 {
 	return fabs((a1 - a2).Normalized180());
+}
+
+template<class T>
+inline TAngle<T> clamp(const TAngle<T> &angle, const TAngle<T> &min, const TAngle<T> &max)
+{
+	return TAngle<T>::fromDeg(clamp(angle.Degrees(), min.Degrees(), max.Degrees()));
 }
 
 inline TAngle<double> VecToAngle(double x, double y)
@@ -1447,6 +1453,30 @@ template<class T>
 TAngle<T> TVector3<T>::Pitch() const
 {
 	return -VecToAngle(TVector2<T>(X, Y).Length(), Z);
+}
+
+template<class T>
+inline TVector2<T> interpolatedvec2(const TVector2<T> &ovec, const TVector2<T> &vec, const double scale)
+{
+	return ovec + ((vec - ovec) * scale);
+}
+
+template<class T>
+inline TVector3<T> interpolatedvec3(const TVector3<T> &ovec, const TVector3<T> &vec, const double scale)
+{
+	return ovec + ((vec - ovec) * scale);
+}
+
+template<class T>
+inline TVector4<T> interpolatedvec4(const TVector4<T> &ovec, const TVector4<T> &vec, const double scale)
+{
+	return ovec + ((vec - ovec) * scale);
+}
+
+template<class T>
+inline TAngle<T> interpolatedangle(const TAngle<T> &oang, const TAngle<T> &ang, const double scale)
+{
+	return oang + (deltaangle(oang, ang) * scale);
 }
 
 // Much of this is copied from TVector3. Is all that functionality really appropriate?
@@ -1635,10 +1665,12 @@ typedef TAngle<double>			DAngle;
 constexpr DAngle nullAngle = DAngle::fromDeg(0.);
 constexpr FAngle nullFAngle = FAngle::fromDeg(0.);
 
-constexpr DAngle DAngle90 = DAngle::fromBam(ANGLE_90);
-constexpr DAngle DAngle180 = DAngle::fromBam(ANGLE_180);
-constexpr DAngle DAngle270 = DAngle::fromBam(ANGLE_270);
-constexpr DAngle DAngle360 = DAngle::fromBam(ANGLE_MAX);
+constexpr DAngle DAngle45 = DAngle::fromDeg(45);
+constexpr DAngle DAngle60 = DAngle::fromDeg(60);
+constexpr DAngle DAngle90 = DAngle::fromDeg(90);
+constexpr DAngle DAngle180 = DAngle::fromDeg(180);
+constexpr DAngle DAngle270 = DAngle::fromDeg(270);
+constexpr DAngle DAngle360 = DAngle::fromDeg(360);
 
 class Plane
 {

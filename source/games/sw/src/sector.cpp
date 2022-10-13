@@ -640,10 +640,7 @@ void DoSpringBoardDown(void)
         {
             if ((sbp->TimeOut -= synctics) <= 0)
             {
-                int destz;
-
-				destz = nextsectorneighborzptr(sbp->sectp, sbp->sectp->int_floorz(), Find_FloorDown | Find_Safe)->int_floorz();
-
+				auto destz = nextsectorneighborzptr(sbp->sectp, sbp->sectp->int_floorz(), Find_FloorDown | Find_Safe)->floorz;
                 AnimSet(ANIM_Floorz, sbp->sectp, destz, 256);
 
                 sbp->sectp->lotag = TAG_SPRING_BOARD;
@@ -847,7 +844,7 @@ void SectorExp(DSWActor* actor, sectortype* sectp, double zh)
     auto mid = SectorMidPoint(sectp);
     // randomize the explosions
     actor->spr.angle = DAngle::fromBuild(RANDOM_P2(256) - 128);
-    actor->spr.pos = { mid.X + RANDOM_P2F(256) - 16, mid.Y + RANDOM_P2F(1024) - 64, zh };
+    actor->spr.pos = { mid.X + RANDOM_P2F(16, 4) - 16, mid.Y + RANDOM_P2F(64, 4) - 64, zh };
     
     // setup vars needed by SectorExp
     ChangeActorSect(actor, sectp);
@@ -934,7 +931,7 @@ void DoSpawnSpotsForKill(short match)
             change_actor_stat(actor, STAT_NO_STATE);
             actor->user.ActorActionFunc = DoSpawnSpot;
             actor->user.WaitTics = SP_TAG5(actor) * 15;
-            SetActorZ(actor, actor->int_pos());
+            SetActorZ(actor, actor->spr.pos);
             // setting for Killed
             actor->user.LastDamage = 1;
         }
@@ -1148,7 +1145,7 @@ void WeaponExplodeSectorInRange(DSWActor* wActor)
         if ((unsigned int)dist > (wActor->user.Radius/2) + radius)
             continue;
 
-        if (!FAFcansee(wActor->int_pos().X,wActor->int_pos().Y,wActor->int_pos().Z,wActor->sector(),actor->int_pos().X,actor->int_pos().Y,actor->int_pos().Z,actor->sector()))
+        if (!FAFcansee(wActor->spr.pos, wActor->sector(), actor->spr.pos, actor->sector()))
             continue;
 
 
@@ -1385,7 +1382,7 @@ int OperateSprite(DSWActor* actor, short player_is_operating)
     {
         pp = GlobPlayerP;
 
-        if (!FAFcansee(pp->int_ppos().X, pp->int_ppos().Y, pp->int_ppos().Z, pp->cursector, actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - (ActorSizeZ(actor) >> 1), actor->sector()))
+        if (!FAFcansee(pp->pos, pp->cursector, actor->spr.pos.plusZ(ActorSizeZ(actor) * -0.5), actor->sector()))
             return false;
     }
 
@@ -2210,7 +2207,7 @@ void PlayerOperateEnv(PLAYER* pp)
                 int z[3];
                 DSWActor* plActor = pp->actor;
 
-                z[0] = plActor->int_pos().Z - ActorSizeZ(plActor) - Z(10);
+                z[0] = plActor->int_pos().Z - int_ActorSizeZ(plActor) - Z(10);
                 z[1] = plActor->int_pos().Z;
                 z[2] = (z[0] + z[1]) >> 1;
 
@@ -2298,7 +2295,7 @@ void PlayerOperateEnv(PLAYER* pp)
         {
             PlayerTakeSectorDamage(pp);
         }
-        else if ((ActorZOfBottom(pp->actor) >= sectp->int_floorz()) && !(pp->Flags & PF_DIVING))
+        else if ((int_ActorZOfBottom(pp->actor) >= sectp->int_floorz()) && !(pp->Flags & PF_DIVING))
         {
             PlayerTakeSectorDamage(pp);
         }
@@ -2440,7 +2437,7 @@ void DoAnim(int numtics)
         if (animval < Anim[i].goal)
         {
             // move it
-            animval += (numtics * PIXZ(Anim[i].vel));
+            animval += numtics * (Anim[i].vel);
 
             Anim[i].vel += Anim[i].vel_adj * numtics;
 
@@ -2452,7 +2449,7 @@ void DoAnim(int numtics)
         // if GREATER THAN goal
         if (animval > Anim[i].goal)
         {
-            animval -= (numtics * PIXZ(Anim[i].vel));
+            animval -= numtics * (Anim[i].vel);
 
             Anim[i].vel += Anim[i].vel_adj * numtics;
 
@@ -2534,7 +2531,7 @@ void AnimDelete(int animtype, int animindex, DSWActor* animactor)
 }
 
 
-int AnimSet(int animtype, int animindex, DSWActor* animactor, fixed_t thegoal, int thevel)
+int AnimSet(int animtype, int animindex, DSWActor* animactor, double thegoal, int thevel)
 {
     int i, j;
 
@@ -2556,7 +2553,7 @@ int AnimSet(int animtype, int animindex, DSWActor* animactor, fixed_t thegoal, i
     Anim[j].animindex = animindex;
 	Anim[j].animactor = animactor;
     Anim[j].goal = thegoal;
-    Anim[j].vel = Z(thevel);
+    Anim[j].vel = thevel;
     Anim[j].vel_adj = 0;
     Anim[j].callback = nullptr;
     Anim[j].callbackdata = nullptr;
@@ -2580,7 +2577,7 @@ short AnimSetCallback(short anim_ndx, ANIM_CALLBACKp call, SECTOR_OBJECT* data)
     return anim_ndx;
 }
 
-short AnimSetVelAdj(short anim_ndx, short vel_adj)
+short AnimSetVelAdj(short anim_ndx, double vel_adj)
 {
     ASSERT(anim_ndx < AnimCnt);
 
@@ -2670,7 +2667,7 @@ void DoSector(void)
             }
             else
             {
-                DISTANCE(pp->int_ppos().X, pp->int_ppos().Y, sop->int_pmid().X, sop->int_pmid().Y, dist, a, b, c);
+                DISTANCE(pp->pos, sop->pmid, dist, a, b, c);
                 if (dist < min_dist)
                     min_dist = dist;
             }

@@ -100,9 +100,9 @@ bool ActorFlaming(DSWActor* actor)
     {
         int size;
 
-        size = ActorSizeZ(actor) - (ActorSizeZ(actor) >> 2);
+        size = int_ActorSizeZ(actor) - (int_ActorSizeZ(actor) >> 2);
 
-        if (ActorSizeZ(flame) > size)
+        if (int_ActorSizeZ(flame) > size)
             return true;
     }
 
@@ -207,7 +207,7 @@ int DoActorNoise(ANIMATOR* Action, DSWActor* actor)
         PlaySpriteSound(actor, attr_extra5, v3df_follow);
     }
     else if (Action == InitActorExtra6Noise)
-    {
+     {
         PlaySpriteSound(actor, attr_extra6, v3df_follow);
     }
 
@@ -216,49 +216,21 @@ int DoActorNoise(ANIMATOR* Action, DSWActor* actor)
 
 bool CanSeePlayer(DSWActor* actor)
 {
-    // if actor can still see the player
-    int look_height = ActorZOfTop(actor);
-
-    if (actor->user.targetActor && FAFcansee(actor->int_pos().X, actor->int_pos().Y, look_height, actor->sector(), actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y, ActorUpperZ(actor->user.targetActor), actor->user.targetActor->sector()))
-        return true;
-    else
-        return false;
+    return actor->user.targetActor && FAFcansee(ActorVectOfTop(actor), actor->sector(), ActorUpperVect(actor->user.targetActor), actor->user.targetActor->sector());
 }
 
 int CanHitPlayer(DSWActor* actor)
 {
     HitInfo hit{};
-    int xvect,yvect,zvect;
-    int ang;
+    DVector3 vect;
     // if actor can still see the player
-    int zhs, zhh;
 
-    zhs = actor->int_pos().Z - (ActorSizeZ(actor) >> 1);
+    DSWActor* targ = actor->user.targetActor;
+    DVector3 apos = actor->spr.pos.plusZ(-ActorSizeZ(actor) * 0.5);
+    DVector3 tpos = targ->spr.pos.plusZ(-ActorSizeZ(targ) * 0.5);
+    auto vec = (tpos - apos).Unit() * 1024;
 
-
-    auto targ = actor->user.targetActor;
-
-    // get angle to target
-    ang = getangle(targ->int_pos().X - actor->int_pos().X, targ->int_pos().Y - actor->int_pos().Y);
-
-    // get x,yvect
-    xvect = bcos(ang);
-    yvect = bsin(ang);
-
-    // get zvect
-    zhh = targ->int_pos().Z - (ActorSizeZ(targ) >> 1);
-    if (targ->int_pos().X - actor->int_pos().X != 0)
-        zvect = xvect * ((zhh - zhs) / (targ->int_pos().X - actor->int_pos().X));
-    else if (targ->int_pos().Y - actor->int_pos().Y != 0)
-        zvect = yvect * ((zhh - zhs) / (targ->int_pos().Y - actor->int_pos().Y));
-    else
-        return false;
-
-    FAFhitscan(actor->int_pos().X, actor->int_pos().Y, zhs, actor->sector(),
-               xvect,
-               yvect,
-               zvect,
-               hit, CLIPMASK_MISSILE);
+    FAFhitscan(apos, actor->sector(), vec, hit, CLIPMASK_MISSILE);
 
     if (hit.hitSector == nullptr)
         return false;
@@ -279,7 +251,6 @@ int DoActorPickClosePlayer(DSWActor* actor)
     int pnum;
     PLAYER* pp;
     // if actor can still see the player
-    int look_height = ActorZOfTop(actor);
     bool found = false;
     int i;
 
@@ -324,7 +295,7 @@ int DoActorPickClosePlayer(DSWActor* actor)
             //    continue;
         }
 
-        DISTANCE(actor->int_pos().X, actor->int_pos().Y, pp->int_ppos().X, pp->int_ppos().Y, dist, a, b, c);
+        DISTANCE(actor->spr.pos, pp->pos, dist, a, b, c);
 
         if (dist < near_dist)
         {
@@ -350,10 +321,11 @@ int DoActorPickClosePlayer(DSWActor* actor)
                 continue;
         }
 
-        DISTANCE(actor->int_pos().X, actor->int_pos().Y, pp->int_ppos().X, pp->int_ppos().Y, dist, a, b, c);
+        DISTANCE(actor->spr.pos, pp->pos, dist, a, b, c);
 
         DSWActor* plActor = pp->actor;
-        if (dist < near_dist && FAFcansee(actor->int_pos().X, actor->int_pos().Y, look_height, actor->sector(), plActor->int_pos().X, plActor->int_pos().Y, ActorUpperZ(plActor), plActor->sector()))
+
+        if (dist < near_dist && FAFcansee(ActorVectOfTop(actor), actor->sector(), ActorUpperVect(plActor), plActor->sector()))
         {
             near_dist = dist;
             actor->user.targetActor = pp->actor;
@@ -377,9 +349,9 @@ TARGETACTOR:
             if ((itActor->user.Flags & (SPR_SUICIDE | SPR_DEAD)))
                 continue;
 
-            DISTANCE(actor->int_pos().X, actor->int_pos().Y, itActor->int_pos().X, itActor->int_pos().Y, dist, a, b, c);
+            DISTANCE(actor->spr.pos, itActor->spr.pos, dist, a, b, c);
 
-            if (dist < near_dist && FAFcansee(actor->int_pos().X, actor->int_pos().Y, look_height, actor->sector(), itActor->int_pos().X, itActor->int_pos().Y, ActorUpperZ(itActor), itActor->sector()))
+            if (dist < near_dist && FAFcansee(ActorVectOfTop(actor), actor->sector(), ActorUpperVect(itActor), itActor->sector()))
             {
                 near_dist = dist;
                 actor->user.targetActor = itActor;
@@ -421,7 +393,7 @@ int CloseRangeDist(DSWActor* actor1, DSWActor* actor2)
 int DoActorOperate(DSWActor* actor)
 {
     HitInfo near{};
-    int z[2];
+    double z[2];
     unsigned int i;
 
     if (actor->user.ID == HORNET_RUN_R0 || actor->user.ID == EEL_RUN_R0 || actor->user.ID == BUNNY_RUN_R0)
@@ -433,15 +405,15 @@ int DoActorOperate(DSWActor* actor)
     if ((actor->user.WaitTics -= ACTORMOVETICS) > 0)
         return false;
 
-    z[0] = actor->int_pos().Z - ActorSizeZ(actor) + Z(5);
-    z[1] = actor->int_pos().Z - (ActorSizeZ(actor) >> 1);
+    z[0] = -ActorSizeZ(actor) + 5;
+    z[1] = -(ActorSizeZ(actor) * 0.5);
 
     for (i = 0; i < SIZ(z); i++)
     {
-        neartag({ actor->int_pos().X, actor->int_pos().Y, z[i] }, actor->sector(), actor->int_ang(), near, 1024, NTAG_SEARCH_LO_HI);
+        neartag(actor->spr.pos.plusZ(z[i]), actor->sector(), actor->spr.angle, near, 1024, NTAG_SEARCH_LO_HI);
     }
 
-    if (near.hitSector != nullptr && near.int_hitpos().X < 1024)
+    if (near.hitSector != nullptr && near.hitpos.X < 64)
     {
         if (OperateSector(near.hitSector, false))
         {
@@ -816,7 +788,8 @@ int DoActorCantMoveCloser(DSWActor* actor)
 
     if (actor->user.track >= 0)
     {
-        actor->set_int_ang(getangle((Track[actor->user.track].TrackPoint + actor->user.point)->x - actor->int_pos().X, (Track[actor->user.track].TrackPoint + actor->user.point)->y - actor->int_pos().Y));
+        auto tp = Track[actor->user.track].TrackPoint + actor->user.point;
+        actor->spr.angle = VecToAngle(tp->pos - actor->spr.pos);
 
         DoActorSetSpeed(actor, MID_SPEED);
         actor->user.Flags |= (SPR_FIND_PLAYER);
@@ -867,7 +840,7 @@ int DoActorMoveCloser(DSWActor* actor)
         else
         {
             // turn to face player
-            actor->set_int_ang(getangle(actor->user.targetActor->int_pos().X - actor->int_pos().X, actor->user.targetActor->int_pos().Y - actor->int_pos().Y));
+            actor->spr.angle = VecToAngle(actor->user.targetActor->spr.pos - actor->spr.pos);
         }
     }
 
@@ -891,7 +864,7 @@ int FindTrackToPlayer(DSWActor* actor)
     int point, track_dir, track;
     int i, size;
     const uint16_t* type;
-    int zdiff;
+    double zdiff;
 
     static const uint16_t PlayerAbove[] =
     {
@@ -922,9 +895,9 @@ int FindTrackToPlayer(DSWActor* actor)
         BIT(TT_SCAN)
     };
 
-    zdiff = ActorUpperZ(actor->user.targetActor) - (actor->int_pos().Z - ActorSizeZ(actor) + Z(8));
+    zdiff = ActorUpperZ(actor->user.targetActor) - (actor->spr.pos.Z - ActorSizeZ(actor) + 8);
 
-    if (abs(zdiff) <= Z(20))
+    if (abs(zdiff) <= 20)
     {
         type = PlayerOnLevel;
         size = SIZ(PlayerOnLevel);
@@ -1048,7 +1021,8 @@ int InitActorRunAway(DSWActor* actor)
 
     if (actor->user.track >= 0)
     {
-        actor->set_int_ang(NORM_ANGLE(getangle((Track[actor->user.track].TrackPoint + actor->user.point)->x - actor->int_pos().X, (Track[actor->user.track].TrackPoint + actor->user.point)->y - actor->int_pos().Y)));
+        auto tp = Track[actor->user.track].TrackPoint + actor->user.point;
+        actor->spr.angle = VecToAngle(tp->pos - actor->spr.pos);
         DoActorSetSpeed(actor, FAST_SPEED);
         actor->user.Flags |= (SPR_RUN_AWAY);
     }
@@ -1128,7 +1102,7 @@ int InitActorAttack(DSWActor* actor)
     //NewStateGroup(actor, actor->user.ActorActionSet->Stand);
 
     // face player when attacking
-    actor->set_int_ang(NORM_ANGLE(getangle(actor->user.targetActor->int_pos().X - actor->int_pos().X, actor->user.targetActor->int_pos().Y - actor->int_pos().Y)));
+    actor->spr.angle = VecToAngle(actor->user.targetActor->spr.pos - actor->spr.pos);
 
     // If it's your own kind, lay off!
     if (actor->user.ID == actor->user.targetActor->user.ID && !actor->user.targetActor->user.PlayerP)
@@ -1169,7 +1143,7 @@ int DoActorAttack(DSWActor* actor)
 
     DoActorNoise(ChooseAction(actor->user.Personality->Broadcast),actor);
 
-    DISTANCE(actor->int_pos().X, actor->int_pos().Y, actor->user.targetActor->int_pos().X, actor->user.targetActor->int_pos().Y, dist, a, b, c);
+    DISTANCE(actor->spr.pos, actor->user.targetActor->spr.pos, dist, a, b, c);
 
     auto pActor = GetPlayerSpriteNum(actor);
     if ((actor->user.ActorActionSet->CloseAttack[0] && dist < CloseRangeDist(actor, actor->user.targetActor)) ||
@@ -1208,7 +1182,8 @@ int InitActorEvade(DSWActor* actor)
 
     if (actor->user.track >= 0)
     {
-        actor->set_int_ang(NORM_ANGLE(getangle((Track[actor->user.track].TrackPoint + actor->user.point)->x - actor->int_pos().X, (Track[actor->user.track].TrackPoint + actor->user.point)->y - actor->int_pos().Y)));
+        auto tp = Track[actor->user.track].TrackPoint + actor->user.point;
+        actor->spr.angle = VecToAngle(tp->pos - actor->spr.pos);
         DoActorSetSpeed(actor, FAST_SPEED);
         // NOT doing a RUN_AWAY
         actor->user.Flags &= ~(SPR_RUN_AWAY);
@@ -1228,7 +1203,8 @@ int InitActorWanderAround(DSWActor* actor)
 
     if (actor->user.track >= 0)
     {
-        actor->set_int_ang(getangle((Track[actor->user.track].TrackPoint + actor->user.point)->x - actor->int_pos().X, (Track[actor->user.track].TrackPoint + actor->user.point)->y - actor->int_pos().Y));
+        auto tp = Track[actor->user.track].TrackPoint + actor->user.point;
+        actor->spr.angle = VecToAngle(tp->pos - actor->spr.pos);
         DoActorSetSpeed(actor, NORM_SPEED);
     }
 
@@ -1244,7 +1220,8 @@ int InitActorFindPlayer(DSWActor* actor)
 
     if (actor->user.track >= 0)
     {
-        actor->set_int_ang(getangle((Track[actor->user.track].TrackPoint + actor->user.point)->x - actor->int_pos().X, (Track[actor->user.track].TrackPoint + actor->user.point)->y - actor->int_pos().Y));
+        auto tp = Track[actor->user.track].TrackPoint + actor->user.point;
+        actor->spr.angle = VecToAngle(tp->pos - actor->spr.pos);
         DoActorSetSpeed(actor, MID_SPEED);
         actor->user.Flags |= (SPR_FIND_PLAYER);
 
@@ -1415,7 +1392,7 @@ int FindNewAngle(DSWActor* actor, int dir, int DistToMove)
         DistToMove = (DistToMove >> 2) + (DistToMove >> 3);
 
     // Find angle to from the player
-    oang = NORM_ANGLE(getangle(actor->user.targetActor->int_pos().X - actor->int_pos().X, actor->user.targetActor->int_pos().Y - actor->int_pos().Y));
+    oang = NORM_ANGLE(getangle(actor->user.targetActor->spr.pos - actor->spr.pos));
 
     // choose a random angle array
     switch (dir)

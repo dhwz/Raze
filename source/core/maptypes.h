@@ -260,8 +260,6 @@ struct sectortype
 
 	int int_ceilingz() const { return ceilingz * zworldtoint; }
 	int int_floorz() const { return floorz * zworldtoint; }
-	float render_ceilingz() const { return (float)-ceilingz; }
-	float render_floorz() const { return (float)-floorz; }
 
 
 	// panning byte fields were promoted to full floats to enable panning interpolation.
@@ -509,12 +507,6 @@ struct spritetypebase
 	{
 		angle += DAngle::fromBuild(a);
 	}
-
-	void copy_ang(const spritetypebase* other)
-	{
-		angle = other->angle;
-	}
-
 };
 
 
@@ -731,7 +723,8 @@ struct spriteext_t
 	uint32_t mdanimtims;
 	int16_t mdanimcur;
 	int16_t angoff, pitch, roll;
-	vec3_t pivot_offset, position_offset;
+	vec3_t pivot_offset;
+	DVector3 position_offset;
 	uint8_t renderflags;
 	float alpha;
 };
@@ -760,8 +753,8 @@ struct SpawnSpriteDef;
 void allocateMapArrays(int numwall, int numsector, int numsprites);
 void validateSprite(spritetype& spr, int secno, int index);
 void fixSectors();
-void loadMap(const char *filename, int flags, vec3_t *pos, int16_t *ang, int *cursectnum, SpawnSpriteDef& sprites);
+void loadMap(const char *filename, int flags, DVector3 *pos, int16_t *ang, int *cursectnum, SpawnSpriteDef& sprites);
 TArray<walltype> loadMapWalls(const char* filename);
 void loadMapBackup(const char* filename);
 void loadMapHack(const char* filename, const uint8_t*, SpawnSpriteDef& sprites);
-void validateStartSector(const char* filename, const vec3_t& pos, int* cursectnum, unsigned numsectors, bool noabort = false);
+void validateStartSector(const char* filename, const DVector3& pos, int* cursectnum, unsigned numsectors, bool noabort = false);

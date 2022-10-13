@@ -96,12 +96,6 @@ public:
 		spr.pos = { add.X* inttoworld, add.Y* inttoworld, add.Z* zinttoworld };
 	}
 
-	void copyXY(DCoreActor* other)
-	{
-		spr.pos.X = other->spr.pos.X;
-		spr.pos.Y = other->spr.pos.Y;
-	}
-
 	void set_int_xy(int x, int y)
 	{
 		spr.pos.X = x * inttoworld;
@@ -128,11 +122,7 @@ public:
 		spr.angle = spr.angle.Normalized360();
 	}
 
-	// Same as above but with invertex y and z axes to match the renderer's coordinate system.
-	DVector3 render_pos() const
-	{
-		return { spr.pos.X, -spr.pos.Y, -spr.pos.Z };
-	}
+	// Same as above but with inverted y and z axes to match the renderer's coordinate system.
 
 	double interpolatedx(double const smoothratio, int const scale = 16)
 	{
@@ -146,26 +136,12 @@ public:
 
 	double interpolatedz(double const smoothratio, int const scale = 16)
 	{
-		return interpolatedvalue(opos.Z, spr.pos.Z, smoothratio, scale);
+		return interpolatedvaluef(opos.Z, spr.pos.Z, smoothratio, scale);
 	}
 
-	DVector2 interpolatedvec2(double const smoothratio, int const scale = 16)
+	DVector3 interpolatedvec3(double const smoothratio)
 	{
-		return
-		{
-			interpolatedx(smoothratio, scale),
-			interpolatedy(smoothratio, scale)
-		};
-	}
-
-	DVector3 interpolatedvec3(double const smoothratio, int const scale = 16)
-	{
-		return
-		{
-			interpolatedx(smoothratio, scale),
-			interpolatedy(smoothratio, scale),
-			interpolatedz(smoothratio, scale)
-		};
+		return ::interpolatedvec3(opos, spr.pos, smoothratio);
 	}
 
 
@@ -184,28 +160,9 @@ public:
 		return interpolatedz(smoothratio, scale) * zworldtoint;
 	}
 
-	vec2_t __interpolatedvec2(double const smoothratio, int const scale = 16)
+	DAngle interpolatedangle(double const smoothratio)
 	{
-		return
-		{
-			(int)(interpolatedx(smoothratio, scale) * worldtoint),
-			(int)(interpolatedy(smoothratio, scale) * worldtoint)
-		};
-	}
-
-	DAngle interpolatedang(double const smoothratio)
-	{
-		return interpolatedangle(oang, spr.angle, smoothratio, 16);
-	}
-
-	void backupx()
-	{
-		opos.X = spr.pos.X;
-	}
-
-	void backupy()
-	{
-		opos.Y = spr.pos.Y;
+		return ::interpolatedangle(oang, spr.angle, smoothratio);
 	}
 
 	void backupz()
@@ -215,8 +172,7 @@ public:
 
 	void backupvec2()
 	{
-		backupx();
-		backupy();
+		opos.XY() = spr.pos.XY();
 	}
 
 	void backuppos()
@@ -534,32 +490,8 @@ int ChangeActorStat(DCoreActor* actor, int nStatus, bool forcetail = false);
 void InitSpriteLists();
 
 
-void SetActorZ(DCoreActor* actor, const vec3_t* newpos);
-void SetActor(DCoreActor* actor, const vec3_t* newpos);
-
-inline void SetActor(DCoreActor* actor, const vec3_t& newpos)
-{
-	SetActor(actor, &newpos);
-}
-
-inline void SetActorZ(DCoreActor* actor, const vec3_t& newpos)
-{
-	SetActorZ(actor, &newpos);
-}
-
-inline void SetActor(DCoreActor* actor, const DVector3& newpos)
-{
-	vec3_t ipos = { int(newpos.X * worldtoint), int(newpos.Y * worldtoint), int(newpos.Z * zworldtoint) };
-	SetActor(actor, &ipos);
-}
-
-inline void SetActorZ(DCoreActor* actor, const DVector3& newpos)
-{
-	vec3_t ipos = { int(newpos.X * worldtoint), int(newpos.Y * worldtoint), int(newpos.Z * zworldtoint) };
-	SetActorZ(actor, &ipos);
-}
-
-
+void SetActorZ(DCoreActor* actor, const DVector3& newpos);
+void SetActor(DCoreActor* actor, const DVector3& newpos);
 
 inline int clipmove(vec3_t& pos, sectortype** const sect, int xvect, int yvect,
 	int const walldist, int const ceildist, int const flordist, unsigned const cliptype, CollisionBase& result, int clipmoveboxtracenum = 3)
@@ -599,6 +531,19 @@ inline int pushmove(DVector3& pos, sectortype** const sect, int32_t const walldi
 	*sect = sectno == -1 ? nullptr : &sector[sectno];
 	return res;
 }
+
+#if 0
+inline int pushmove(DVector3& pos, sectortype** const sect, double const walldist, double const ceildist, double const flordist,
+	uint32_t const cliptype, bool clear = true)
+{
+	auto vect = vec3_t(pos.X * worldtoint, pos.Y * worldtoint, pos.Z * zworldtoint);
+	int sectno = *sect ? sector.IndexOf(*sect) : -1;
+	int res = pushmove_(&vect, &sectno, walldist * worldtoint, ceildist * worldtoint, flordist * worldtoint, cliptype, clear);
+	pos = { vect.X * inttoworld, vect.Y * inttoworld, vect.Z * zinttoworld };
+	*sect = sectno == -1 ? nullptr : &sector[sectno];
+	return res;
+}
+#endif
 
 inline int pushmove(DCoreActor* actor, sectortype** const sect, int32_t const walldist, int32_t const ceildist, int32_t const flordist,
 	uint32_t const cliptype, bool clear = true)
