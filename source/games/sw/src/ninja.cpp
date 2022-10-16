@@ -1815,6 +1815,12 @@ ACTOR_ACTION_SET PlayerNinjaActionSet =
 
 */
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int SetupNinja(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -1929,6 +1935,12 @@ int SetupNinja(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int DoNinjaHariKari(DSWActor* actor)
 {
     UpdateSinglePlayKills(actor);
@@ -1945,7 +1957,7 @@ int DoNinjaHariKari(DSWActor* actor)
 
     PlaySound(DIGI_NINJAUZIATTACK, actor, v3df_follow);
 
-    SpawnBlood(actor, actor, -1, -1, -1, -1);
+    SpawnBlood(actor, actor);
 
     int cnt = RandomRange(4)+1;
     for (int i=0; i<=cnt; i++)
@@ -1953,6 +1965,12 @@ int DoNinjaHariKari(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoNinjaGrabThroat(DSWActor* actor)
 {
@@ -1974,7 +1992,7 @@ int DoNinjaGrabThroat(DSWActor* actor)
 
 
         ChangeState(actor, actor->user.StateEnd);
-        actor->spr.xvel = 0;
+        actor->vel.X = 0;
         PlaySound(DIGI_NINJASCREAM, actor, v3df_follow);
     }
 
@@ -1986,6 +2004,12 @@ int DoNinjaGrabThroat(DSWActor* actor)
  !AIC - Most actors have one of these and the all look similar
 
 */
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoNinjaMove(DSWActor* actor)
 {
@@ -2031,16 +2055,16 @@ int DoNinjaMove(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int NinjaJumpActionFunc(DSWActor* actor)
 {
-    int nx, ny;
-
-    // Move while jumping
-    nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14);
-    ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14);
-
     // if cannot move the sprite
-    if (!move_actor(actor, nx, ny, 0L))
+    if (!move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0)))
     {
         return 0;
     }
@@ -2075,6 +2099,11 @@ int NullNinja(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoNinjaPain(DSWActor* actor)
 {
@@ -2095,6 +2124,12 @@ int DoNinjaPain(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int DoNinjaSpecial(DSWActor* actor)
 {
     if (actor->user.spal == PALETTE_PLAYER5)
@@ -2106,6 +2141,12 @@ int DoNinjaSpecial(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int CheckFire(DSWActor* actor)
 {
@@ -2136,6 +2177,12 @@ void InitAllPlayerSprites(void)
     }
 }
 
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void PlayerLevelReset(PLAYER* pp)
 {
@@ -2175,6 +2222,12 @@ void PlayerLevelReset(PLAYER* pp)
     DoPlayerResetMovement(pp);
     DamageData[actor->user.WeaponNum].Init(pp);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void PlayerDeathReset(PLAYER* pp)
 {
@@ -2240,6 +2293,12 @@ void PlayerDeathReset(PLAYER* pp)
     DamageData[actor->user.WeaponNum].Init(pp);
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void PlayerPanelSetup(void)
 {
     short pnum;
@@ -2255,6 +2314,12 @@ void PlayerPanelSetup(void)
         PlayerUpdateWeapon(pp, pp->actor->user.WeaponNum);
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void PlayerGameReset(PLAYER* pp)
 {
@@ -2315,6 +2380,12 @@ void PlayerGameReset(PLAYER* pp)
 
 extern ACTOR_ACTION_SET PlayerNinjaActionSet;
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void InitPlayerSprite(PLAYER* pp)
 {
     int pnum = int(pp - Player);
@@ -2322,7 +2393,7 @@ void InitPlayerSprite(PLAYER* pp)
 
     COVER_SetReverb(0); // Turn off any echoing that may have been going before
     pp->Reverb = 0;
-    auto actor = SpawnActor(STAT_PLAYER0 + pnum, NINJA_RUN_R0, nullptr, pp->cursector, pp->pos, pp->angle.ang, 0);
+    auto actor = SpawnActor(STAT_PLAYER0 + pnum, NINJA_RUN_R0, nullptr, pp->cursector, pp->pos, pp->angle.ang);
 
     pp->actor = actor;
     pp->pnum = pnum;
@@ -2383,6 +2454,12 @@ void InitPlayerSprite(PLAYER* pp)
     pp->DeathType = 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void SpawnPlayerUnderSprite(PLAYER* pp)
 {
     DSWActor* plActor = pp->actor;
@@ -2390,7 +2467,7 @@ void SpawnPlayerUnderSprite(PLAYER* pp)
     int pnum = int(pp - Player);
 
     pp->PlayerUnderActor = SpawnActor(STAT_PLAYER_UNDER0 + pnum,
-                                                 NINJA_RUN_R0, nullptr, pp->cursector, pp->pos, pp->angle.ang, 0);
+                                                 NINJA_RUN_R0, nullptr, pp->cursector, pp->pos, pp->angle.ang);
 
     DSWActor* actor = pp->PlayerUnderActor;
 
@@ -2413,6 +2490,13 @@ void SpawnPlayerUnderSprite(PLAYER* pp)
     actor->spr.xrepeat = plActor->spr.xrepeat;
     actor->spr.yrepeat = plActor->spr.yrepeat;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 
 #include "saveable.h"
 

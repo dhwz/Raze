@@ -37,7 +37,7 @@ Prepared for public release: 03/21/2003 - Charlie Wiederhold, 3D Realms
 BEGIN_DUKE_NS
 
 
-void animatesprites_r(tspriteArray& tsprites, int x, int y, int a, int smoothratio)
+void animatesprites_r(tspriteArray& tsprites, int x, int y, int a, double interpfrac)
 {
 	DVector2 viewVec(x * inttoworld, y * inttoworld);
 	int k, p;
@@ -131,7 +131,7 @@ void animatesprites_r(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 		switch (h->spr.picnum)
 		{
 		case SECTOREFFECTOR:
-			if (t->lotag == 27 && ud.recstat == 1)
+			if (t->lotag == SE_27_DEMO_CAM && ud.recstat == 1)
 			{
 				t->picnum = 11 + ((PlayClock >> 3) & 1);
 				t->cstat |= CSTAT_SPRITE_YCENTER;
@@ -147,15 +147,13 @@ void animatesprites_r(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 		auto pp = &ps[h->PlayerIndex()];
 		if (h->spr.statnum != STAT_ACTOR && h->spr.picnum == APLAYER && pp->newOwner == nullptr && h->GetOwner())
 		{
-			t->pos.X -= MulScaleF(MaxSmoothRatio - smoothratio, pp->pos.X - pp->opos.X, 16);
-			t->pos.Y -= MulScaleF(MaxSmoothRatio - smoothratio, pp->pos.Y - pp->opos.Y, 16);
-			t->pos.Z = interpolatedvaluef(pp->opos.Z, pp->pos.Z, smoothratio) + gs.playerheight;
+			t->pos = interpolatedvalue(pp->opos, pp->pos, interpfrac).plusZ(gs.playerheight);
 			h->spr.xrepeat = 24;
 			h->spr.yrepeat = 17;
 		}
 		else if (!actorflag(h, SFLAG_NOINTERPOLATE))
 		{
-			t->pos = h->interpolatedvec3(smoothratio / 65536.);
+			t->pos = h->interpolatedpos(interpfrac);
 		}
 
 		auto sectp = h->sector();
@@ -210,13 +208,12 @@ void animatesprites_r(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 		case BURNING:
 			if (OwnerAc && OwnerAc->spr.statnum == STAT_PLAYER)
 			{
-				if (display_mirror == 0 && OwnerAc->spr.yvel == screenpeek && ps[OwnerAc->spr.yvel].over_shoulder_on == 0)
+				if (display_mirror == 0 && OwnerAc->PlayerIndex() == screenpeek && ps[OwnerAc->PlayerIndex()].over_shoulder_on == 0)
 					t->xrepeat = 0;
 				else
 				{
 					t->angle = VecToAngle(viewVec - t->pos.XY());
-					t->pos.X = OwnerAc->spr.pos.X + t->angle.Cos();
-					t->pos.Y = OwnerAc->spr.pos.Y + t->angle.Sin();
+					t->pos.XY() = OwnerAc->spr.pos.XY() + t->angle.ToVector();
 				}
 			}
 			break;
@@ -340,7 +337,7 @@ void animatesprites_r(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 
 		case APLAYER:
 
-			p = h->spr.yvel;
+			p = h->PlayerIndex();
 
 			if (t->pal == 1) t->pos.Z -= 18;
 
@@ -350,10 +347,8 @@ void animatesprites_r(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 #if 0 // multiplayer only
 				if (screenpeek == myconnectindex && numplayers >= 2)
 				{
-					t->x = interpolatedvalue(omyx, myx, smoothratio);
-					t->y = interpolatedvalue(omyy, myy, smoothratio);
-					t->z = interpolatedvalue(omyz, myz, smoothratio) + gs.playerheight;
-					t->ang = interpolatedangle(omyang, myang, smoothratio).asbuild();
+					t->pos = interpolatedvalue(omypos, mypos, interpfrac).plusZ(gs_playerheight);
+					t->ang = interpolatedvalue(omyang, myang, interpfrac).asbuild();
 					t->sector = mycursectnum;
 				}
 #endif
@@ -591,8 +586,8 @@ void animatesprites_r(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 		case SCRAP6 + 6:
 		case SCRAP6 + 7:
 
-			if (t->picnum == SCRAP1 && h->spr.yvel >= 0)
-				t->picnum = h->spr.yvel;
+			if (t->picnum == SCRAP1 && h->spr.yint >= 0)
+				t->picnum = h->spr.yint;
 			else t->picnum += h->temp_data[0];
 
 			if (sectp->floorpal)
@@ -752,8 +747,7 @@ void animatesprites_r(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 								{
 									// Alter the shadow's position so that it appears behind the sprite itself.
 									auto look = VecToAngle(shadowspr->pos.XY() - ps[screenpeek].pos.XY());
-									shadowspr->pos.X += look.Cos() * 2;
-									shadowspr->pos.Y += look.Sin() * 2;
+									shadowspr->pos.XY() += look.ToVector() * 2;
 								}
 						}
 					}
@@ -926,7 +920,7 @@ void animatesprites_r(tspriteArray& tsprites, int x, int y, int a, int smoothrat
 			{
 				if (OwnerAc->spr.picnum == APLAYER)
 					if (ud.cameraactor == nullptr)
-						if (screenpeek == OwnerAc->spr.yvel && display_mirror == 0)
+						if (screenpeek == OwnerAc->PlayerIndex() && display_mirror == 0)
 						{
 							t->ownerActor = nullptr;
 							break;

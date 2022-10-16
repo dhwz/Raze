@@ -39,6 +39,12 @@ BEGIN_SW_NS
 
 void ScaleSectorObject(SECTOR_OBJECT*);
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 short DoSectorObjectSetScale(short match)
 {
     SECTOR_OBJECT* sop;
@@ -111,6 +117,12 @@ short DoSectorObjectSetScale(short match)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 short DoSOevent(short match, short state)
 {
     SECTOR_OBJECT* sop;
@@ -125,7 +137,7 @@ short DoSOevent(short match, short state)
         {
             if ((sop->flags & SOBJ_WAIT_FOR_EVENT))
             {
-                if (sop->save_vel > 0 || sop->save_spin_speed > 0)
+                if (sop->save_vel > 0 || sop->save_spin_speed > nullAngle)
                 {
                     sop->flags &= ~(SOBJ_WAIT_FOR_EVENT);
                     sop->vel = sop->save_vel;
@@ -163,7 +175,7 @@ short DoSOevent(short match, short state)
                 vel_adj = -SP_TAG7(me_act);
             }
 
-            sop->spin_speed += spin_adj;
+            sop->spin_speed += DAngle::fromBuild(spin_adj);
 
             if (TEST_BOOL1(me_act))
                 sop->vel_tgt += vel_adj;
@@ -180,9 +192,11 @@ short DoSOevent(short match, short state)
 }
 
 
+//---------------------------------------------------------------------------
 //
 // SCALING - PreAnimator
 //
+//---------------------------------------------------------------------------
 
 void ScaleSectorObject(SECTOR_OBJECT* sop)
 {
@@ -251,10 +265,14 @@ void ScaleSectorObject(SECTOR_OBJECT* sop)
     }
 }
 
-void ScaleRandomPoint(SECTOR_OBJECT* sop, short k, short ang, int x, int y, int *dx, int *dy)
-{
-    int xmul,ymul;
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
+DVector2 ScaleRandomPoint(SECTOR_OBJECT* sop, int k, DAngle ang, const DVector2& pos)
+{
     sop->scale_point_dist[k] += sop->scale_point_speed[k];
     if (sop->scale_point_dist[k] > sop->scale_point_dist_max)
     {
@@ -273,93 +291,81 @@ void ScaleRandomPoint(SECTOR_OBJECT* sop, short k, short ang, int x, int y, int 
     }
 
     // change up speed at random
-    if (RANDOM_P2(1024) < (sop->scale_point_rand_freq/2))
+    if (RANDOM_P2(1024) < (sop->scale_point_rand_freq / 2))
     {
-        //sop->scale_point_speed[k] = SCALE_POINT_SPEED;
-        short half = sop->scale_point_base_speed/2;
-        short quart = sop->scale_point_base_speed/4;
-        sop->scale_point_speed[k] = sop->scale_point_base_speed + (RandomRange(half) - quart);
+        double half = sop->scale_point_base_speed / 2;
+        double quart = sop->scale_point_base_speed / 4;
+        sop->scale_point_speed[k] = sop->scale_point_base_speed + (RandomRangeF(half) - quart);
     }
 
-    xmul = (sop->scale_point_dist[k] * sop->scale_x_mult)>>8;
-    ymul = (sop->scale_point_dist[k] * sop->scale_y_mult)>>8;
+    double xmul = (sop->scale_point_dist[k] * sop->scale_x_mult) * (1 / 256.);
+    double ymul = (sop->scale_point_dist[k] * sop->scale_y_mult) * (1 / 256.);
 
-    *dx = x + MulScale(xmul, bcos(ang), 14);
-    *dy = y + MulScale(ymul, bsin(ang), 14);
+    DVector2 ret;
+
+    ret.X = pos.X + xmul * ang.Cos();
+    ret.Y = pos.Y + ymul * ang.Sin();
+    return ret;
 }
 
+//---------------------------------------------------------------------------
 //
 // Morph point - move point around
 //
+//---------------------------------------------------------------------------
 
 void MorphTornado(SECTOR_OBJECT* sop)
 {
-    int mx, my;
-    int ceilz;
-    int florz;
     sectortype* *sectp;
     int j;
-    int x,y,sx,sy;
 
     // z direction
     ASSERT(sop->op_main_sector != nullptr);
-    sop->morph_z += Z(sop->morph_z_speed);
+    sop->morph_z += sop->morph_z_speed;
 
     // move vector
     if (sop->morph_wall_point == nullptr)
         return;
 
     // place at correct x,y offset from center
-    x = sop->int_pmid().X - sop->morph_xoff;
-    y = sop->int_pmid().Y - sop->morph_yoff;
-
-    sx = x;
-    sy = y;
+    DVector2 pos = sop->pmid - sop->morph_off;
+    DVector2 spos = pos;
 
     // move it from last x,y
-    mx = x + MulScale(sop->morph_speed, bcos(sop->morph_ang), 14);
-    my = y + MulScale(sop->morph_speed, bsin(sop->morph_ang), 14);
+    DVector2 mpos = pos + sop->morph_ang.ToVector() * sop->morph_speed;
 
     // bound check radius
-    if (ksqrt(SQ(sop->int_pmid().X - mx) + SQ(sop->int_pmid().Y - my)) > sop->morph_dist_max + sop->scale_dist)
+    if ((sop->pmid - mpos).Length() > sop->morph_dist_max + sop->scale_dist)
     {
-        // find angle
-        sop->morph_ang = NORM_ANGLE(getangle(mx - sop->int_pmid().X, my - sop->int_pmid().Y));
-        // reverse angle
-        sop->morph_ang = NORM_ANGLE(sop->morph_ang + 1024);
+        // find and reverse angle
+        sop->morph_ang = VecToAngle(mpos - sop->pmid) + DAngle180;
 
         // move back some from last point
-        mx = sx + MulScale(sop->morph_speed << 1, bcos(sop->morph_ang), 14);
-        my = sy + MulScale(sop->morph_speed << 1, bsin(sop->morph_ang), 14);
-
-        sop->morph_xoff = sop->int_pmid().X - mx;
-        sop->morph_yoff = sop->int_pmid().Y - my;
+        mpos = spos + sop->morph_ang.ToVector() * sop->morph_speed * 2;
     }
 
     // save x,y back as offset info
-    sop->morph_xoff = sop->int_pmid().X - mx;
-    sop->morph_yoff = sop->int_pmid().Y - my;
+    sop->morph_off = sop->pmid - mpos;
 
     if ((RANDOM_P2(1024<<4)>>4) < sop->morph_rand_freq)
-        sop->morph_ang = RANDOM_P2(2048);
+        sop->morph_ang = RandomAngle();
 
     // move it x,y
-    dragpoint(sop->morph_wall_point, mx, my);
+    dragpoint(sop->morph_wall_point, mpos);
 
     // bound the Z
-    ceilz = sop->op_main_sector->int_ceilingz();
-    florz = sop->op_main_sector->int_floorz();
+    double ceilz = sop->op_main_sector->ceilingz;
+    double florz = sop->op_main_sector->floorz;
 
     for (sectp = sop->sectp, j = 0; *sectp; sectp++, j++)
     {
         if ((*sectp)->hasU() &&
             ((*sectp)->flags & SECTFU_SO_SLOPE_CEILING_TO_POINT))
         {
-#define TOR_LOW (florz)
-            if (sop->morph_z > TOR_LOW)
+            if (sop->morph_z > florz)
             {
                 sop->morph_z_speed *= -1;
-                sop->morph_z = TOR_LOW;
+                sop->morph_z = florz;
             }
             else if (sop->morph_z < ceilz)
             {
@@ -367,78 +373,72 @@ void MorphTornado(SECTOR_OBJECT* sop)
                 sop->morph_z = ceilz;
             }
 
-            alignceilslope(*sectp, mx, my, sop->morph_z);
+            alignceilslope(*sectp, DVector3(mpos, sop->morph_z));
         }
     }
 }
 
+//---------------------------------------------------------------------------
+//
 // moves center point around and aligns slope
+//
+//---------------------------------------------------------------------------
+
 void MorphFloor(SECTOR_OBJECT* sop)
 {
-    int mx, my;
-    int florz;
     sectortype* *sectp;
     int j;
-    int x,y;
 
     // z direction
     ASSERT(sop->op_main_sector != nullptr);
-    sop->morph_z -= Z(sop->morph_z_speed);
+    sop->morph_z -= sop->morph_z_speed;
 
     // move vector
     if (sop->morph_wall_point == nullptr)
         return;
 
     // place at correct x,y offset from center
-    x = sop->int_pmid().X - sop->morph_xoff;
-    y = sop->int_pmid().Y - sop->morph_yoff;
+    auto pos = sop->pmid - sop->morph_off;
 
     // move it from last x,y
-    mx = x + MulScale(sop->morph_speed, bcos(sop->morph_ang), 14);
-    my = y + MulScale(sop->morph_speed, bsin(sop->morph_ang), 14);
+    DVector2 mpos = pos + sop->morph_ang.ToVector() * sop->morph_speed;
 
     // save x,y back as offset info
-    sop->morph_xoff = sop->int_pmid().X - mx;
-    sop->morph_yoff = sop->int_pmid().Y - my;
+    sop->morph_off = sop->pmid - mpos;
 
     // bound check radius
-    if (Distance(sop->int_pmid().X, sop->int_pmid().Y, mx, my) > sop->morph_dist_max)
+    if ((sop->pmid - mpos).Length() > sop->morph_dist_max)
     {
         // go in the other direction
-        //sop->morph_speed *= -1;
-        sop->morph_ang = NORM_ANGLE(sop->morph_ang + 1024);
+        sop->morph_ang = sop->morph_ang + DAngle180;
 
         // back it up and save it off
-        mx = x + MulScale(sop->morph_speed, bcos(sop->morph_ang), 14);
-        my = y + MulScale(sop->morph_speed, bsin(sop->morph_ang), 14);
-        sop->morph_xoff = sop->int_pmid().X - mx;
-        sop->morph_yoff = sop->int_pmid().Y - my;
+        mpos = pos + sop->morph_ang.ToVector() * sop->morph_speed;
+        sop->morph_off = sop->pmid - mpos;
 
         // turn it all the way around and then do a random -512 to 512 from there
         //sop->morph_ang = NORM_ANGLE(sop->morph_ang + 1024 + (RANDOM_P2(1024) - 512));
     }
 
     if ((RANDOM_P2(1024<<4)>>4) < sop->morph_rand_freq)
-        sop->morph_ang = RANDOM_P2(2048);
+        sop->morph_ang = RandomAngle();
 
     // move x,y point "just like in build"
-    dragpoint(sop->morph_wall_point, mx, my);
+    dragpoint(sop->morph_wall_point, mpos);
 
     // bound the Z
-    florz = sop->op_main_sector->int_floorz();
+    double florz = sop->op_main_sector->floorz;
 
-#define MORPH_FLOOR_ZRANGE Z(300)
+    const double MORPH_FLOOR_ZRANGE = 300;
 
     if (sop->morph_z > MORPH_FLOOR_ZRANGE)
     {
         sop->morph_z = MORPH_FLOOR_ZRANGE;
-        //sop->morph_ang = NORM_ANGLE(sop->morph_ang + 1024);
         sop->morph_z_speed *= -1;
     }
     else if (sop->morph_z < -MORPH_FLOOR_ZRANGE)
     {
         sop->morph_z = -MORPH_FLOOR_ZRANGE;
-        //sop->morph_ang = NORM_ANGLE(sop->morph_ang + 1024);
         sop->morph_z_speed *= -1;
     }
 
@@ -447,10 +447,16 @@ void MorphFloor(SECTOR_OBJECT* sop)
         if ((*sectp)->hasU() &&
             ((*sectp)->flags & SECTFU_SO_SLOPE_CEILING_TO_POINT))
         {
-            alignflorslope(*sectp, mx, my, florz + sop->morph_z);
+            alignflorslope(*sectp, DVector3(mpos, florz + sop->morph_z));
         }
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void SOBJ_AlignFloorToPoint(SECTOR_OBJECT* sop, const DVector3& pos)
 {
@@ -467,6 +473,12 @@ void SOBJ_AlignFloorToPoint(SECTOR_OBJECT* sop, const DVector3& pos)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void SOBJ_AlignCeilingToPoint(SECTOR_OBJECT* sop, const DVector3& pos)
 {
     sectortype* *sectp;
@@ -482,26 +494,28 @@ void SOBJ_AlignCeilingToPoint(SECTOR_OBJECT* sop, const DVector3& pos)
     }
 }
 
+//---------------------------------------------------------------------------
+//
 // moves center point around and aligns slope
+//
+//---------------------------------------------------------------------------
+
 void SpikeFloor(SECTOR_OBJECT* sop)
 {
     // z direction
     ASSERT(sop->op_main_sector != nullptr);
-    sop->morph_z -= Z(sop->morph_z_speed);
+    sop->morph_z -= sop->morph_z_speed;
 
     // move vector
     if (sop->morph_wall_point == nullptr)
         return;
 
-    DVector3 pos;
-
     // place at correct x,y offset from center
-    pos.X = sop->pmid.X - sop->morph_xoff * inttoworld;
-    pos.Y = sop->pmid.Y - sop->morph_yoff * inttoworld;
+    auto pos = sop->pmid - sop->morph_off;
 
     // bound the Z
 
-#define MORPH_FLOOR_ZRANGE Z(300)
+    const double MORPH_FLOOR_ZRANGE = 300;
 
     if (sop->morph_z > MORPH_FLOOR_ZRANGE)
     {
@@ -513,11 +527,16 @@ void SpikeFloor(SECTOR_OBJECT* sop)
         sop->morph_z = -MORPH_FLOOR_ZRANGE;
         sop->morph_z_speed *= -1;
     }
-    pos.Z = sop->op_main_sector->floorz + sop->morph_z * inttoworld;
+    pos.Z = sop->op_main_sector->floorz + sop->morph_z;
 
     SOBJ_AlignFloorToPoint(sop, pos);
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 #include "saveable.h"
 

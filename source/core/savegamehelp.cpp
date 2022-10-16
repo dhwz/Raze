@@ -464,9 +464,9 @@ FSerializer &Serialize(FSerializer &arc, const char *key, spritetype &c, spritet
 			("angle", c.angle, def->angle)
 			("ang", c.intangle, def->intangle)
 			("owner", c.intowner, def->intowner)
-			("xvel", c.xvel, def->xvel)
-			("yvel", c.yvel, def->yvel)
-			("zvel", c.zvel, def->zvel)
+			("xvel", c.xint, def->xint)
+			("yvel", c.yint, def->yint)
+			("zvel", c.inittype, def->inittype)
 			("lotag", c.lotag, def->lotag)
 			("hitag", c.hitag, def->hitag)
 			("extra", c.extra, def->extra)
@@ -590,7 +590,7 @@ FSerializer &Serialize(FSerializer &arc, const char *key, sectortype &c, sectort
 			arc("flags", c.flags, def->flags)
 				("depth_fixed", c.depth_fixed, def->depth_fixed)
 				("stag", c.stag, def->stag)
-				("ang", c.ang, def->ang)
+				("ang", c.angle, def->angle)
 				("height", c.height, def->height)
 				("speed", c.speed, def->speed)
 				("damage", c.damage, def->damage)
@@ -677,7 +677,10 @@ void DCoreActor::Serialize(FSerializer& arc)
 		("sprite", spr)
 		("time", time)
 		("spritesetindex", spritesetindex)
-		("spriteext", sprext);
+		("spriteext", sprext)
+		("xvel", vel.X)
+		("yvel", vel.Y)
+		("zvel", vel.Z);
 
 	if (arc.isReading()) spsmooth = {};
 }

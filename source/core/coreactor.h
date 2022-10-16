@@ -4,7 +4,6 @@
 #include "maptypes.h"
 #include "build.h"
 #include "actorinfo.h"
-#include "interphelpers.h"
 
 enum
 {
@@ -45,6 +44,8 @@ public:
 	DVector3 opos;
 	int time;
 	DAngle oang;
+	DVector3 vel;
+
 	int16_t spritesetindex;
 
 
@@ -91,17 +92,6 @@ public:
 		spr.pos += { add.X* inttoworld, add.Y* inttoworld, add.Z* zinttoworld };
 	}
 
-	void set_int_pos(const vec3_t& add)
-	{
-		spr.pos = { add.X* inttoworld, add.Y* inttoworld, add.Z* zinttoworld };
-	}
-
-	void set_int_xy(int x, int y)
-	{
-		spr.pos.X = x * inttoworld;
-		spr.pos.Y = y * inttoworld;
-	}
-
 	constexpr int int_ang() const
 	{
 		return spr.angle.Buildang();
@@ -122,47 +112,106 @@ public:
 		spr.angle = spr.angle.Normalized360();
 	}
 
-	// Same as above but with inverted y and z axes to match the renderer's coordinate system.
-
-	double interpolatedx(double const smoothratio, int const scale = 16)
+	int int_zvel() const
 	{
-		return interpolatedvaluef(opos.X, spr.pos.X, smoothratio, scale);
+		return vel.Z * zworldtoint;
 	}
 
-	double interpolatedy(double const smoothratio, int const scale = 16)
+	void set_int_zvel(int v)
 	{
-		return interpolatedvaluef(opos.Y, spr.pos.Y, smoothratio, scale);
+		vel.Z = v * zinttoworld;
 	}
 
-	double interpolatedz(double const smoothratio, int const scale = 16)
+	void add_int_zvel(int v)
 	{
-		return interpolatedvaluef(opos.Z, spr.pos.Z, smoothratio, scale);
+		vel.Z += v * zinttoworld;
 	}
 
-	DVector3 interpolatedvec3(double const smoothratio)
+	// Note: Both Duke and SW use Q12.4 for this, Exhumed doesn't seem to treat horizontal velocity with a fixed factor.
+	int int_xvel() const
 	{
-		return ::interpolatedvec3(opos, spr.pos, smoothratio);
+		return vel.X * worldtoint;
 	}
 
-
-	int32_t __interpolatedx(double const smoothratio, int const scale = 16)
+	void set_int_xvel(int v)
 	{
-		return interpolatedx(smoothratio, scale) * worldtoint;
+		vel.X = v * inttoworld;
 	}
 
-	int32_t __interpolatedy(double const smoothratio, int const scale = 16)
+	void add_int_xvel(int v)
 	{
-		return interpolatedy(smoothratio, scale) * worldtoint;
+		vel.X += v * inttoworld;
 	}
 
-	int32_t __interpolatedz(double const smoothratio, int const scale = 16)
+	// Only used this way by Exhumed.
+	int int_yvel() const
 	{
-		return interpolatedz(smoothratio, scale) * zworldtoint;
+		return vel.Y * worldtoint;
 	}
 
-	DAngle interpolatedangle(double const smoothratio)
+	void set_int_yvel(int v)
 	{
-		return ::interpolatedangle(oang, spr.angle, smoothratio);
+		vel.Y = v * inttoworld;
+	}
+
+	void add_int_yvel(int v)
+	{
+		vel.Y += v * inttoworld;
+	}
+
+	vec3_t int_vel() const
+	{
+		return vec3_t(FloatToFixed(vel.X), FloatToFixed(vel.Y), FloatToFixed(vel.Z));
+	}
+
+	void set_int_bvel_x(int x)
+	{
+		vel .X = FixedToFloat(x);
+	}
+
+	void set_int_bvel_y(int x)
+	{
+		vel .Y = FixedToFloat(x);
+	}
+
+	void set_int_bvel_z(int x)
+	{
+		vel .Z = FixedToFloat(x);
+	}
+
+	void add_int_bvel_x(int x)
+	{
+		vel .X += FixedToFloat(x);
+	}
+
+	void add_int_bvel_y(int x)
+	{
+		vel .Y += FixedToFloat(x);
+	}
+
+	void add_int_bvel_z(int x)
+	{
+		vel .Z += FixedToFloat(x);
+	}
+
+	void ZeroVelocityXY()
+	{
+		vel .X = vel .Y = 0;
+	}
+
+	void ZeroVelocity()
+	{
+		vel = { 0,0,0 };
+	}
+
+	DVector3 interpolatedpos(double const interpfrac)
+	{
+		return ::interpolatedvalue(opos, spr.pos, interpfrac);
+	}
+
+	DAngle interpolatedangle(double const interpfrac)
+	{
+		return ::interpolatedvalue(oang, spr.angle, interpfrac);
 	}
 
 	void backupz()
@@ -260,19 +309,6 @@ struct HitInfoBase
 	const vec3_t int_hitpos() const
 	{
 		return { int(hitpos.X * worldtoint), int(hitpos.Y * worldtoint), int(hitpos.Z * zworldtoint), };
-	}
-	
-	void set_int_hitpos(int x, int y, int z)
-	{
-		hitpos.X = x * inttoworld;
-		hitpos.Y = y * inttoworld;
-		hitpos.Z = z * zinttoworld;
-	}
-
-	void set_int_hitpos_xy(int x, int y)
-	{
-		hitpos.X = x * inttoworld;
-		hitpos.Y = y * inttoworld;
 	}
 };
 
@@ -511,6 +547,25 @@ inline int clipmove(DVector3& pos, sectortype** const sect, int xvect, int yvect
 	return res;
 }
 
+inline int clipmove(DVector3& pos, sectortype** const sect, int xvect, int yvect,
+	int const walldist, double const ceildist, double const flordist, unsigned const cliptype, CollisionBase& result, int clipmoveboxtracenum = 3)
+{
+	auto vect = vec3_t(pos.X * worldtoint, pos.Y * worldtoint, pos.Z * zworldtoint);
+	int res = clipmove(vect, sect, xvect, yvect, walldist, int(ceildist * zworldtoint), int(flordist * zworldtoint), cliptype, result, clipmoveboxtracenum);
+	pos = { vect.X * inttoworld, vect.Y * inttoworld, vect.Z * zinttoworld };
+	return res;
+}
+
+// this one should be the final version everything needs to migrate to
+inline int clipmove(DVector3& pos, sectortype** const sect, const DVector2& mvec,
+	double const walldist, double const ceildist, double const flordist, unsigned const cliptype, CollisionBase& result, int clipmoveboxtracenum = 3)
+{
+	auto vect = vec3_t(pos.X * worldtoint, pos.Y * worldtoint, pos.Z * zworldtoint);
+	int res = clipmove(vect, sect, int(mvec.X * worldtoint), int(mvec.Y * worldtoint), int(walldist * worldtoint), int(ceildist * zworldtoint), int(flordist * zworldtoint), cliptype, result, clipmoveboxtracenum);
+	pos = { vect.X * inttoworld, vect.Y * inttoworld, vect.Z * zinttoworld };
+	return res;
+}
+
 
 inline int pushmove(vec3_t* const vect, sectortype** const sect, int32_t const walldist, int32_t const ceildist, int32_t const flordist,
 	uint32_t const cliptype, bool clear = true)
@@ -527,6 +582,17 @@ inline int pushmove(DVector3& pos, sectortype** const sect, int32_t const walldi
 	auto vect = vec3_t(pos.X * worldtoint, pos.Y * worldtoint, pos.Z * zworldtoint);
 	int sectno = *sect ? sector.IndexOf(*sect) : -1;
 	int res = pushmove_(&vect, &sectno, walldist, ceildist, flordist, cliptype, clear);
+	pos = { vect.X * inttoworld, vect.Y * inttoworld, vect.Z * zinttoworld };
+	*sect = sectno == -1 ? nullptr : &sector[sectno];
+	return res;
+}
+
+inline int pushmove(DVector3& pos, sectortype** const sect, int32_t const walldist, double const ceildist, double const flordist,
+	uint32_t const cliptype, bool clear = true)
+{
+	auto vect = vec3_t(pos.X * worldtoint, pos.Y * worldtoint, pos.Z * zworldtoint);
+	int sectno = *sect ? sector.IndexOf(*sect) : -1;
+	int res = pushmove_(&vect, &sectno, walldist, int(ceildist * zworldtoint), int(flordist * zworldtoint), cliptype, clear);
 	pos = { vect.X * inttoworld, vect.Y * inttoworld, vect.Z * zinttoworld };
 	*sect = sectno == -1 ? nullptr : &sector[sectno];
 	return res;

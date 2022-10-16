@@ -19,7 +19,6 @@ class DBloodActor : public DCoreActor
 
 public:
 	int dudeSlope;
-	vec3_t vel;
 	bool hasx;
 	XSPRITE xspr;
 	SPRITEHIT hit;
@@ -42,7 +41,7 @@ public:
 
 	bool hasX() { return hasx; }
 	void addX() { hasx = true; }
-
+	
 	void SetOwner(DBloodActor* own)
 	{
 		ownerActor = own;
@@ -119,11 +118,6 @@ public:
 		return spr.type >= kItemAmmoBase && spr.type < kItemAmmoMax;
 	}
 	
-	void ZeroVelocity()
-	{
-		vel = { 0,0,0 };
-	}
-
 	bool isActive()
 	{
 		if (!hasX())
@@ -180,5 +174,19 @@ inline bool IsTargetTeammate(DBloodActor* pSource, DBloodActor* pTarget)
 	return IsTargetTeammate(pSourcePlayer, pTarget);
 }
 
+template<typename T>
+void AdjustVelocity(DBloodActor *actor, T adjuster)
+{
+	double nCos = actor->spr.angle.Cos();
+	double nSin = actor->spr.angle.Sin();
+	double t1 = actor->vel.X * nCos + actor->vel.Y * nSin;
+	double t2 = actor->vel.X * nSin - actor->vel.Y * nCos;
+	adjuster(actor, t1, t2);
+	actor->vel.X = t1 * nCos + t2 * nSin;
+	actor->vel.Y = t1 * nSin - t2 * nCos;
+}
+
+// just so we don't have to type this out several dozen times
+#define ADJUSTER [=](DBloodActor* actor, double& t1, double& t2)
 
 END_BLD_NS

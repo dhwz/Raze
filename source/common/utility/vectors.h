@@ -272,11 +272,16 @@ struct TVector2
 		return X*other.X + Y*other.Y;
 	}
 
+	vec_t dot(const TVector2 &other) const
+	{
+		return X*other.X + Y*other.Y;
+	}
+
 	// Returns the angle that the ray (0,0)-(X,Y) faces
 	TAngle<vec_t> Angle() const;
 
 	// Returns a rotated vector. angle is in degrees.
-	TVector2 Rotated (double angle)
+	TVector2 Rotated (double angle) const
 	{
 		double cosval = g_cosdeg (angle);
 		double sinval = g_sindeg (angle);
@@ -285,10 +290,16 @@ struct TVector2
 
 	// Returns a rotated vector. angle is in degrees.
 	template<class T>
-	TVector2 Rotated(TAngle<T> angle)
+	TVector2 Rotated(TAngle<T> angle) const
 	{
 		double cosval = angle.Cos();
 		double sinval = angle.Sin();
+		return TVector2(X*cosval - Y*sinval, Y*cosval + X*sinval);
+	}
+
+	// Returns a rotated vector. angle is in degrees.
+	TVector2 Rotated(const double cosval, const double sinval) const
+	{
 		return TVector2(X*cosval - Y*sinval, Y*cosval + X*sinval);
 	}
 
@@ -571,7 +582,7 @@ struct TVector3
 		}
 
 		up = n ^right;
-		right.MakeUnit();;
+		right.MakeUnit();
 		up.MakeUnit();
 	}
 
@@ -659,6 +670,7 @@ struct TVector3
 template<class vec_t>
 struct TVector4
 {
+	typedef TVector2<vec_t> Vector2;
 	typedef TVector3<vec_t> Vector3;
 
 	vec_t X, Y, Z, W;
@@ -716,6 +728,29 @@ struct TVector4
 	{
 		return X != other.X || Y != other.Y || Z != other.Z || W != other.W;
 	}
+
+	// returns the XY fields as a 2D-vector.
+	const Vector2& XY() const
+	{
+		return *reinterpret_cast<const Vector2*>(this);
+	}
+
+	Vector2& XY()
+	{
+		return *reinterpret_cast<Vector2*>(this);
+	}
+
+	// returns the XY fields as a 2D-vector.
+	const Vector3& XYZ() const
+	{
+		return *reinterpret_cast<const Vector3*>(this);
+	}
+
+	Vector3& XYZ()
+	{
+		return *reinterpret_cast<Vector3*>(this);
+	}
+
 
 	// Test for approximate equality
 	bool ApproximatelyEquals(const TVector4 &other) const
@@ -830,12 +865,6 @@ struct TVector4
 	{
 		X -= other.X, Y -= other.Y, Z -= other.Z;
 		return *this;
-	}
-
-	// returns the XYZ fields as a 3D-vector.
-	Vector3 XYZ() const
-	{
-		return{ X, Y, Z };
 	}
 
 	// Add a 4D vector and a 3D vector.
@@ -1456,27 +1485,21 @@ TAngle<T> TVector3<T>::Pitch() const
 }
 
 template<class T>
-inline TVector2<T> interpolatedvec2(const TVector2<T> &ovec, const TVector2<T> &vec, const double scale)
+inline TVector2<T> clamp(const TVector2<T> &vec, const TVector2<T> &min, const TVector2<T> &max)
 {
-	return ovec + ((vec - ovec) * scale);
+	return TVector2<T>(clamp(vec.X, min.X, max.X), clamp(vec.Y, min.Y, max.Y));
 }
 
 template<class T>
-inline TVector3<T> interpolatedvec3(const TVector3<T> &ovec, const TVector3<T> &vec, const double scale)
+inline TAngle<T> interpolatedvalue(const TAngle<T> &oang, const TAngle<T> &ang, const double interpfrac)
 {
-	return ovec + ((vec - ovec) * scale);
+	return oang + (deltaangle(oang, ang) * interpfrac);
 }
 
-template<class T>
-inline TVector4<T> interpolatedvec4(const TVector4<T> &ovec, const TVector4<T> &vec, const double scale)
+template <class T>
+inline T interpolatedvalue(const T& oval, const T& val, const double interpfrac)
 {
-	return ovec + ((vec - ovec) * scale);
-}
-
-template<class T>
-inline TAngle<T> interpolatedangle(const TAngle<T> &oang, const TAngle<T> &ang, const double scale)
-{
-	return oang + (deltaangle(oang, ang) * scale);
+	return T(oval + (val - oval) * interpfrac);
 }
 
 // Much of this is copied from TVector3. Is all that functionality really appropriate?
@@ -1488,7 +1511,6 @@ struct TRotator
 	Angle Pitch;	// up/down
 	Angle Yaw;		// left/right
 	Angle Roll;		// rotation about the forward axis.
-	Angle CamRoll;	// Roll specific to actor cameras. Used by quakes.
 
 	TRotator() = default;
 
@@ -1663,8 +1685,10 @@ typedef TMatrix3x3<double>		DMatrix3x3;
 typedef TAngle<double>			DAngle;
 
 constexpr DAngle nullAngle = DAngle::fromDeg(0.);
+constexpr DAngle minAngle = DAngle::fromDeg(1. / 65536.);
 constexpr FAngle nullFAngle = FAngle::fromDeg(0.);
 
+constexpr DAngle DAngle22_5 = DAngle::fromDeg(22.5);
 constexpr DAngle DAngle45 = DAngle::fromDeg(45);
 constexpr DAngle DAngle60 = DAngle::fromDeg(60);
 constexpr DAngle DAngle90 = DAngle::fromDeg(90);

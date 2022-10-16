@@ -357,6 +357,12 @@ ACTOR_ACTION_SET EelActionSet =
 int DoEelMatchPlayerZ(DSWActor* actor);
 
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 void EelCommon(DSWActor* actor)
 {
     actor->spr.clipdist = (100) >> 2;
@@ -370,6 +376,12 @@ void EelCommon(DSWActor* actor)
     actor->spr.yrepeat = 27;
     actor->user.Radius = 400;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int SetupEel(DSWActor* actor)
 {
@@ -400,6 +412,12 @@ int SetupEel(DSWActor* actor)
 }
 
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int NullEel(DSWActor* actor)
 {
     if (actor->user.Flags & (SPR_SLIDING))
@@ -412,10 +430,14 @@ int NullEel(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int DoEelMatchPlayerZ(DSWActor* actor)
 {
-    int dist,a,b,c;
-
     if (FAF_ConnectArea(actor->sector()))
     {
         if (actor->user.hi_sectp)
@@ -459,8 +481,8 @@ int DoEelMatchPlayerZ(DSWActor* actor)
     double bound;
     if (actor->user.lowActor && actor->user.targetActor == actor->user.highActor) // this doesn't look right...
     {
-        DISTANCE(actor->spr.pos, actor->user.lowActor->spr.pos, dist, a, b, c);
-        if (dist <= 300)
+        double dist = (actor->spr.pos.XY() - actor->user.lowActor->spr.pos.XY()).Length();
+        if (dist <= 18.75)
             bound = actor->user.pos.Z;
         else
             bound = loz - actor->user.floor_dist;
@@ -476,8 +498,8 @@ int DoEelMatchPlayerZ(DSWActor* actor)
     // upper bound
     if (actor->user.highActor && actor->user.targetActor == actor->user.highActor)
     {
-        DISTANCE(actor->spr.pos, actor->user.highActor->spr.pos, dist, a, b, c);
-        if (dist <= 300)
+        double dist = (actor->spr.pos.XY() - actor->user.highActor->spr.pos.XY()).Length();
+        if (dist <= 18.75)
             bound = actor->user.pos.Z;
         else
             bound = hiz + actor->user.ceiling_dist;
@@ -494,7 +516,7 @@ int DoEelMatchPlayerZ(DSWActor* actor)
     actor->user.pos.Z = max(actor->user.pos.Z, hiz + actor->user.ceiling_dist);
 
     actor->user.Counter = (actor->user.Counter + (ACTORMOVETICS << 3) + (ACTORMOVETICS << 1)) & 2047;
-    actor->spr.pos.Z = actor->user.pos.Z + EEL_BOB_AMT * DAngle::fromBuild(actor->user.Counter).Sin();
+    actor->spr.pos.Z = actor->user.pos.Z + EEL_BOB_AMT * BobVal(actor->user.Counter);
 
     bound = actor->user.hiz + actor->user.ceiling_dist + EEL_BOB_AMT;
     if (actor->spr.pos.Z < bound)
@@ -507,9 +529,14 @@ int DoEelMatchPlayerZ(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int DoEelDeath(DSWActor* actor)
 {
-    int nx, ny;
     if (actor->user.Flags & (SPR_FALLING))
     {
         DoFall(actor);
@@ -525,10 +552,9 @@ int DoEelDeath(DSWActor* actor)
         DoActorSlide(actor);
 
     // slide while falling
-    nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14);
-    ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14);
+	auto vec = actor->spr.angle.ToVector() * actor->vel.X;
 
-    actor->user.coll = move_sprite(actor, nx, ny, 0L, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, ACTORMOVETICS);
+    actor->user.coll = move_sprite(actor, DVector3(vec, 0), actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, ACTORMOVETICS);
     DoFindGroundPoint(actor);
 
     // on the ground
@@ -545,6 +571,12 @@ int DoEelDeath(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoEelMove(DSWActor* actor)
 {
@@ -568,6 +600,12 @@ int DoEelMove(DSWActor* actor)
     return 0;
 
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 
 #include "saveable.h"

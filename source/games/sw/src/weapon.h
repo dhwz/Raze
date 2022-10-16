@@ -30,7 +30,8 @@ Prepared for public release: 03/28/2005 - Charlie Wiederhold, 3D Realms
 BEGIN_SW_NS
 
 #define NEW_ELECTRO 1
-#define HORIZ_MULT 128L
+#define HORIZ_MULT 128
+constexpr double HORIZ_MULTF = 0.5;
 
 inline int AngToSprite(DSWActor* actor, DSWActor* other)
 {
@@ -85,9 +86,9 @@ SECTOR_OBJECT* DetectSectorObject(sectortype*);
 SECTOR_OBJECT* DetectSectorObjectByWall(walltype*);
 void ScaleSpriteVector(DSWActor* actor, int scale);
 void QueueHole(sectortype* hit_sect, walltype* hit_wall, const DVector3& pos);
-DSWActor* QueueWallBlood(DSWActor* hit, short ang);
+DSWActor* QueueWallBlood(DSWActor* hit, DAngle ang);
 bool SlopeBounce(DSWActor*, bool *hit_wall);
-int SpawnSwordSparks(PLAYER* pp, sectortype* hit_sect, walltype* hit_wall, int hit_x, int hit_y, int hit_z, short hit_ang);
+int SpawnSwordSparks(PLAYER* pp, sectortype* hit_sect, walltype* hit_wall, const DVector3& hitpos, DAngle hit_ang);
 DSWActor* SpawnBubble(DSWActor*);
 void SpawnFireballExp(DSWActor*);
 void SpawnFireballFlames(DSWActor* actor, DSWActor* enemyActor);
@@ -110,37 +111,31 @@ const char *DeathString(DSWActor*);
 #define DAMAGE_BLADE_TIME       (10)
 
 // Player Missile Speeds
-#define STAR_VELOCITY           (1800)
-#define BOLT_VELOCITY           (900)
-#define ROCKET_VELOCITY         (1350)
-#define BOLT_SEEKER_VELOCITY    (820)
-#define FIREBALL_VELOCITY       (2000)
-#define ELECTRO_VELOCITY        (800)
-#define PLASMA_VELOCITY         (1000)
-#define UZI_BULLET_VELOCITY     (2500)
-#define TRACER_VELOCITY         (1200)
-#define TANK_SHELL_VELOCITY     (1200)
-#define GRENADE_VELOCITY        (900)
-#define MINE_VELOCITY           (520)   // Was 420
-#define CHEMBOMB_VELOCITY       (420)
+constexpr double STAR_VELOCITY     = (1800) / 16.;
+constexpr double ROCKET_VELOCITY   = (1350) / 16.;
+constexpr double FIREBALL_VELOCITY = 125;
+
+constexpr double TRACER_VELOCITY     = (1200)/ 16.;
+constexpr double TANK_SHELL_VELOCITY = (1200)/ 16.;
+constexpr double GRENADE_VELOCITY    = (900) / 16.;
+constexpr double MINE_VELOCITY       = (520) / 16.;  // Was 420
+constexpr double CHEMBOMB_VELOCITY = (420 /16.);
 
 // Player Spell Missile Speeds
-#define BLOOD_WORM_VELOCITY   (800)
-#define NAPALM_VELOCITY         (800)
-#define MIRV_VELOCITY          (600)
-#define SPIRAL_VELOCITY         (600)
+constexpr double BLOOD_WORM_VELOCITY =  (800 / 16.);
+constexpr double NAPALM_VELOCITY     =  (800 / 16.);
+constexpr double MIRV_VELOCITY       =  (600 / 16.);
 
 // Trap Speeds
-#define BOLT_TRAP_VELOCITY      (950)
-#define SPEAR_TRAP_VELOCITY     (650)
-#define FIREBALL_TRAP_VELOCITY  (750)
+constexpr double BOLT_TRAP_VELOCITY      = (950 / 16.);
+constexpr double FIREBALL_TRAP_VELOCITY  = (750 / 16.);
 
 // NPC Missile Speeds
-#define NINJA_STAR_VELOCITY     (1800)
-#define NINJA_BOLT_VELOCITY     (500)
-#define GORO_FIREBALL_VELOCITY  (800)
-#define SKEL_ELECTRO_VELOCITY   (850)
-#define COOLG_FIRE_VELOCITY     (400)
+constexpr double NINJA_STAR_VELOCITY     = (1800 / 16.);
+constexpr double NINJA_BOLT_VELOCITY     = (500 / 16.);
+constexpr double SKEL_ELECTRO_VELOCITY   = (850 / 16.);
+constexpr double COOLG_FIRE_VELOCITY     = (400 / 16.);
+constexpr int GORO_FIREBALL_VELOCITY = 50;
 
 #define GRENADE_RECOIL_AMT      (12)
 #define ROCKET_RECOIL_AMT       (7)
@@ -168,9 +163,9 @@ inline int CloseRangeDist(DSWActor* a1, DSWActor* a2, int fudge)
 
 extern short target_ang;
 
-DSWActor* SpawnShotgunSparks(PLAYER* pp, sectortype* hit_sect, walltype* hit_wall, int hit_x, int hit_y, int hit_z, short hit_ang);
-int DoActorBeginSlide(DSWActor* actor, int ang, int vel, int dec);
-int GetOverlapSector(int x, int y, sectortype** over, sectortype** under);
+DSWActor* SpawnShotgunSparks(PLAYER* pp, sectortype* hit_sect, walltype* hit_wall, const DVector3& hitpos, DAngle hit_ang);
+int DoActorBeginSlide(DSWActor* actor, DAngle ang, double vel);
+int GetOverlapSector(const DVector2& pos, sectortype** over, sectortype** under);
 
 bool MissileHitDiveArea(DSWActor*);
 
@@ -182,7 +177,7 @@ extern short StatDamageList[STAT_DAMAGE_LIST_SIZE];
 #define MUSHROOM_CLOUD 3280
 extern STATE s_NukeMushroom[];
 
-void WallBounce(DSWActor*, short ang);
+void WallBounce(DSWActor*, DAngle ang);
 
 #define PUFF 1748
 #define CALTROPS 2218

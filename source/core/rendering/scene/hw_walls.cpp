@@ -62,14 +62,13 @@ static walltype* IsOnWall(tspritetype* tspr, int height, DVector2& outpos)
 	{
 		// Intentionally include two sided walls. Even on them the sprite should be projected onto the wall for better results.
 		auto d = wal.delta();
-		int walang = getangle(d.X, d.Y);
-		int deltaang = abs((((walang - tspr->int_ang()) & 2047) << 21) >> 21);
-		const int maxangdelta = 1;
+		auto deltaang = absangle(VecToAngle(d), tspr->angle);
+		const DAngle maxangdelta = DAngle360 / 1024;
 
 		// angle of the sprite must either be the wall's normal or the negative wall's normal to be aligned.
-		if (deltaang >= 512 - maxangdelta && deltaang <= 512 + maxangdelta)
+		if (deltaang >= DAngle90 - maxangdelta && deltaang <= DAngle90 + maxangdelta)
 		{
-			if (!((tspr->int_ang()) & 510))
+			if (!((tspr->angle.Buildang()) & 510))
 			{
 				// orthogonal lines do not check the actual position so that certain off-sector sprites get handled properly. 
 				// In Wanton Destruction's airplane level there's such a sprite assigned to the wrong sector.

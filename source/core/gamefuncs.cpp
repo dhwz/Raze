@@ -34,57 +34,52 @@ IntRect viewport3d;
 //
 //---------------------------------------------------------------------------
 
-int cameradist, cameraclock;
+double cameradist, cameraclock;
 
-bool calcChaseCamPos(int* px, int* py, int* pz, DCoreActor* act, sectortype** psect, DAngle ang, fixedhoriz horiz, double const smoothratio)
+bool calcChaseCamPos(DVector3& ppos, DCoreActor* act, sectortype** psect, DAngle ang, fixedhoriz horiz, double const interpfrac)
 {
 	HitInfoBase hitinfo;
 	DAngle daang;
-	int newdist;
+	double newdist;
 
 	if (!*psect) return false;
-	// Calculate new pos to shoot backwards, using averaged values from the big three.
-	vec3_t np = gi->chaseCamPos(ang, horiz);
+
+	// Calculate new pos to shoot backwards
+	DVector3 npos = gi->chaseCamPos(ang, horiz);
 
 	auto bakcstat = act->spr.cstat;
 	act->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-	updatesectorz(*px, *py, *pz, psect);
-	hitscan(vec3_t( *px, *py, *pz ), *psect, np, hitinfo, CLIPMASK1);
+	updatesectorz(ppos, psect);
+	hitscan(ppos, *psect, npos, hitinfo, CLIPMASK1);
 	act->spr.cstat = bakcstat;
+	auto hpos = hitinfo.hitpos.XY() - ppos.XY();
 
-	int hx = hitinfo.int_hitpos().X - *px;
-	int hy = hitinfo.int_hitpos().Y - *py;
+	if (!*psect) return false;
 
-	if (*psect == nullptr)
-	{
-		return false;
-	}
-
-	// If something is in the way, make pp->camera_dist lower if necessary
-	if (abs(np.X) + abs(np.Y) > abs(hx) + abs(hy))
+	// If something is in the way, make cameradist lower if necessary
+	if (fabs(npos.X) + fabs(npos.Y) > fabs(hpos.X) + fabs(hpos.Y))
 	{
 		if (hitinfo.hitWall != nullptr)
 		{
 			// Push you a little bit off the wall
 			*psect = hitinfo.hitSector;
-			daang = VecToAngle(hitinfo.hitWall->point2Wall()->pos.X - hitinfo.hitWall->pos.X,
-								hitinfo.hitWall->point2Wall()->pos.Y - hitinfo.hitWall->pos.Y);
-			newdist = int(np.X * daang.Sin() * (1 << BUILDSINBITS) + np.Y * -daang.Cos() * (1 << BUILDSINBITS));
+			daang = hitinfo.hitWall->delta().Angle();
+			newdist = (npos.X * daang.Sin() + npos.Y * -daang.Cos()) * (1. / 1024.);
 
-			if (abs(np.X) > abs(np.Y))
-				hx -= MulScale(np.X, newdist, 28);
+			if (fabs(npos.X) > fabs(npos.Y))
+				hpos.X -= npos.X * newdist;
 			else
-				hy -= MulScale(np.Y, newdist, 28);
+				hpos.Y -= npos.Y * newdist;
 		}
 		else if (hitinfo.hitActor == nullptr)		
 		{
 			// Push you off the ceiling/floor
 			*psect = hitinfo.hitSector;
 
-			if (abs(np.X) > abs(np.Y))
-				hx -= (np.X >> 5);
+			if (fabs(npos.X) > fabs(npos.Y))
+				hpos.X -= npos.X * (1. / 32.);
 			else
-				hy -= (np.Y >> 5);
+				hpos.Y -= npos.Y * (1. / 32.);
 		}
 		else
 		{
@@ -95,7 +90,7 @@ bool calcChaseCamPos(int* px, int* py, int* pz, DCoreActor* act, sectortype** ps
 			{
 				bakcstat = hit->spr.cstat;
 				hit->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
-				calcChaseCamPos(px, py, pz, act, psect, ang, horiz, smoothratio);
+				calcChaseCamPos(ppos, act, psect, ang, horiz, interpfrac);
 				hit->spr.cstat = bakcstat;
 				return false;
 			}
@@ -103,43 +98,36 @@ bool calcChaseCamPos(int* px, int* py, int* pz, DCoreActor* act, sectortype** ps
 			{
 				// same as wall calculation.
 				daang = act->spr.angle - DAngle90;
-				newdist = int(np.X * daang.Sin() * (1 << BUILDSINBITS) + np.Y * -daang.Cos() * (1 << BUILDSINBITS));
+				newdist = (npos.X * daang.Sin() + npos.Y * -daang.Cos()) * (1. / 1024.);
 
-				if (abs(np.X) > abs(np.Y))
-					hx -= MulScale(np.X, newdist, 28);
+				if (fabs(npos.X) > fabs(npos.Y))
+					hpos.X -= npos.X * newdist;
 				else
-					hy -= MulScale(np.Y, newdist, 28);
+					hpos.Y -= npos.Y * newdist;
 			}
 		}
 
-		if (abs(np.X) > abs(np.Y))
-			newdist = DivScale(hx, np.X, 16);
-		else
-			newdist = DivScale(hy, np.Y, 16);
-
-		if (newdist < cameradist)
-			cameradist = newdist;
+		newdist = fabs(npos.X) > fabs(npos.Y) ? hpos.X / npos.X : hpos.Y / npos.Y;
+		if (newdist < cameradist) cameradist = newdist;
 	}
 
-	// Actually move you! (Camerdist is 65536 if nothing is in the way)
-	*px += MulScale(np.X, cameradist, 16);
-	*py += MulScale(np.Y, cameradist, 16);
-	*pz += MulScale(np.Z, cameradist, 16);
+	// Actually move you! (camerdist is 1 if nothing is in the way)
+	ppos += npos * cameradist;
 
-	// Caculate clock using GameTicRate so it increases the same rate on all speed computers.
-	int myclock = PlayClock + MulScale(120 / GameTicRate, int(smoothratio), 16);
+	// Calculate clock using GameTicRate so it increases the same rate on all speed computers.
+	double myclock = PlayClock + 120 / GameTicRate * interpfrac;
 	if (cameraclock == INT_MIN)
 	{
 		// Third person view was just started.
 		cameraclock = myclock;
 	}
 
-	// Slowly increase cameradist until it reaches 65536.
-	cameradist = min(cameradist + ((myclock - cameraclock) << 10), 65536);
+	// Slowly increase cameradist until it reaches 1.
+	cameradist = min(cameradist + ((myclock - cameraclock) * (1. / 64.)), 1.);
 	cameraclock = myclock;
 
 	// Make sure psectnum is correct.
-	updatesectorz(*px, *py, *pz, psect);
+	updatesectorz(ppos, psect);
 
 	return true;
 }
@@ -170,7 +158,7 @@ void calcSlope(const sectortype* sec, float xpos, float ypos, float* pceilz, flo
 		int len = wal->Length();
 		if (len != 0)
 		{
-			float fac = (wal->deltax() * (float(ypos - wal->wall_int_pos().Y)) - wal->deltay() * (float(xpos - wal->wall_int_pos().X))) * (1.f / 256.f) / len;
+			float fac = (wal->int_delta().X * (float(ypos - wal->wall_int_pos().Y)) - wal->int_delta().Y * (float(xpos - wal->wall_int_pos().X))) * (1.f / 256.f) / len;
 			if (pceilz && sec->ceilingstat & CSTAT_SECTOR_SLOPE) *pceilz += (sec->ceilingheinum * fac);
 			if (pflorz && sec->floorstat & CSTAT_SECTOR_SLOPE) *pflorz += (sec->floorheinum * fac);
 		}
@@ -245,7 +233,7 @@ void getcorrectzsofslope(int sectnum, int dax, int day, int* ceilz, int* florz)
 int getslopeval(sectortype* sect, int x, int y, int z, int basez)
 {
 	auto wal = sect->firstWall();
-	auto delta = wal->delta();
+	auto delta = wal->int_delta();
 	int i = (y - wal->wall_int_pos().Y) * delta.X - (x - wal->wall_int_pos().X) * delta.Y;
 	return i == 0? 0 : Scale((z - basez) << 8, wal->Length(), i);
 }
@@ -510,22 +498,6 @@ void dragpoint(walltype* startwall, const DVector2& pos)
 //
 //==========================================================================
 
-DVector2 rotatepoint(const DVector2& pivot, const DVector2& point, DAngle angle)
-{
-	auto cosang = angle.Cos();
-	auto sinang = angle.Sin();
-	auto p = point - pivot;
-	return {
-		p.X * cosang - p.Y * sinang + pivot.X,
-		p.Y * cosang + p.X * sinang + pivot.Y };
-}
-
-//==========================================================================
-//
-// 
-//
-//==========================================================================
-
 int inside(double x, double y, const sectortype* sect)
 {
 	if (sect)
@@ -563,9 +535,8 @@ int inside(double x, double y, const sectortype* sect)
 //
 //==========================================================================
 
-sectortype* nextsectorneighborzptr(sectortype* sectp, int startz_, int flags)
+sectortype* nextsectorneighborzptr(sectortype* sectp, double startz, int flags)
 {
-	double startz = startz_ * zinttoworld;
 	double factor = (flags & Find_Up)? -1 : 1;
 	double bestz = INT_MAX;
 	sectortype* bestsec = (flags & Find_Safe)? sectp : nullptr;
@@ -613,9 +584,9 @@ tspritetype* renderAddTsprite(tspriteArray& tsprites, DCoreActor* actor)
 	tspr->sectp = actor->spr.sectp;
 	tspr->statnum = actor->spr.statnum;
 	tspr->angle = actor->spr.angle;
-	tspr->xvel = actor->spr.xvel;
-	tspr->yvel = actor->spr.yvel;
-	tspr->zvel = actor->spr.zvel;
+	tspr->xint = actor->spr.xint;
+	tspr->yint = actor->spr.yint;
+	tspr->inittype = actor->spr.inittype; // not used by tsprites.
 	tspr->lotag = actor->spr.lotag;
 	tspr->hitag = actor->spr.hitag;
 	tspr->extra = actor->spr.extra;

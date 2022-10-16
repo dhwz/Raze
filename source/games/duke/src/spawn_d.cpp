@@ -203,8 +203,8 @@ DDukeActor* spawninit_d(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* 
 		if (actj)
 			act->spr.angle = actj->spr.angle;
 		act->spr.pos.Z -= gs.playerheight;
-		act->spr.zvel = 256 - (krand() & 511);
-		act->spr.xvel = 64 - (krand() & 127);
+		act->set_int_zvel(256 - (krand() & 511));
+		act->set_int_xvel(64 - (krand() & 127));
 		ChangeActorStat(act, 4);
 		break;
 	case NATURALLIGHTNING:
@@ -243,7 +243,7 @@ DDukeActor* spawninit_d(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* 
 			act->spr.yrepeat = 0;
 		}
 
-		if (actj) act->set_int_ang(actj->temp_data[5] + 512);
+		if (actj) act->spr.angle = actj->temp_angle + DAngle90;
 		ChangeActorStat(act, STAT_MISC);
 		break;
 
@@ -336,11 +336,11 @@ DDukeActor* spawninit_d(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* 
 		ud.bomb_tag = (ud.bomb_tag + 1) & 32767;
 		act->spr.hitag = ud.bomb_tag;
 
-		act->spr.xvel = 16;
+		act->vel.X = 1;
 		ssp(act, CLIPMASK0);
 		act->temp_data[0] = 17;
 		act->temp_data[2] = 0;
-		act->temp_data[5] = act->int_ang();
+		act->temp_angle = act->spr.angle;
 		[[fallthrough]];
 
 	case SPACEMARINE:
@@ -480,7 +480,7 @@ DDukeActor* spawninit_d(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* 
 	case NAKED1:
 	case STATUE:
 	case TOUGHGAL:
-		act->spr.yvel = act->spr.hitag;
+		act->spr.yint = act->spr.hitag;
 		act->spr.hitag = -1;
 		if (act->spr.picnum == PODFEM1) act->spr.extra <<= 1;
 		[[fallthrough]];
@@ -510,16 +510,15 @@ DDukeActor* spawninit_d(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* 
 			act->spr.xrepeat = actj->spr.xrepeat;
 			act->spr.yrepeat = actj->spr.yrepeat;
 			act->spr.shade = actj->spr.shade;
-			act->spr.pal = ps[actj->spr.yvel].palookup;
+			act->spr.pal = ps[actj->PlayerIndex()].palookup;
 		}
 		[[fallthrough]];
 	case DUKECAR:
 	case HELECOPT:
-		//                if(act->spr.picnum == HELECOPT || act->spr.picnum == DUKECAR) act->spr.xvel = 1024;
 		act->spr.cstat = 0;
 		act->spr.extra = 1;
-		act->spr.xvel = 292;
-		act->spr.zvel = 360;
+		act->set_int_xvel(292);
+		act->set_int_zvel(360);
 		[[fallthrough]];
 	case RESPAWNMARKERRED:
 	case BLIMP:
@@ -537,7 +536,7 @@ DDukeActor* spawninit_d(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* 
 		[[fallthrough]];
 	case MIKE:
 		if (act->spr.picnum == MIKE)
-			act->spr.yvel = act->spr.hitag;
+			act->spr.yint = act->spr.hitag;
 		[[fallthrough]];
 	case WEATHERWARN:
 		ChangeActorStat(act, 1);
@@ -658,7 +657,7 @@ DDukeActor* spawninit_d(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* 
 		{
 			act->spr.xrepeat = actj->spr.xrepeat;
 			act->spr.yrepeat = actj->spr.yrepeat;
-			act->spr.zvel = 128;
+			act->vel.Z = 0.5;
 			if (act->sector()->lotag != 2)
 				act->spr.cstat |= CSTAT_SPRITE_INVISIBLE;
 		}
@@ -764,7 +763,7 @@ DDukeActor* spawninit_d(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* 
 	case MASTERSWITCH:
 		if (act->spr.picnum == MASTERSWITCH)
 			act->spr.cstat |= CSTAT_SPRITE_INVISIBLE;
-		act->spr.yvel = 0;
+		act->spr.yint = 0;
 		ChangeActorStat(act, 6);
 		break;
 	case TARGET:
@@ -900,7 +899,7 @@ DDukeActor* spawninit_d(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* 
 		}
 
 		if (act->spr.picnum == ROTATEGUN)
-			act->spr.zvel = 0;
+			act->vel.Z = 0;
 
 		break;
 
@@ -952,7 +951,7 @@ DDukeActor* spawninit_d(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* 
 		else act->SetOwner(act);
 
 		act->spr.xrepeat = act->spr.yrepeat = 9;
-		act->spr.yvel = 4;
+		act->spr.yint = 4;
 		[[fallthrough]];
 	case REACTOR2:
 	case REACTOR:
@@ -1001,7 +1000,7 @@ DDukeActor* spawninit_d(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* 
 		{
 			act->spr.lotag = 0;
 			act->spr.pos.Z -= 32;
-			act->spr.zvel = -1024;
+			act->set_int_zvel(-1024);
 			ssp(act, CLIPMASK0);
 			if (krand() & 4) act->spr.cstat |= CSTAT_SPRITE_XFLIP;
 		}
@@ -1108,7 +1107,7 @@ DDukeActor* spawninit_d(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* 
 			act->spr.angle = actj->spr.angle;
 			act->spr.cstat = CSTAT_SPRITE_ALIGNMENT_WALL | CSTAT_SPRITE_YCENTER | CSTAT_SPRITE_TRANSLUCENT;
 			act->spr.xrepeat = act->spr.yrepeat = 1;
-			act->spr.xvel = -8;
+			act->set_int_xvel(-8);
 			ssp(act, CLIPMASK0);
 		}
 		[[fallthrough]];
@@ -1163,7 +1162,7 @@ DDukeActor* spawninit_d(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* 
 		act->spr.pal = 0;
 		act->SetOwner(act);
 		ChangeActorStat(act, STAT_STANDABLE);
-		act->spr.xvel = 8;
+		act->set_int_xvel(8);
 		ssp(act, CLIPMASK0);
 		break;
 

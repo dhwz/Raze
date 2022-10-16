@@ -100,9 +100,9 @@ void cerberusBurnSeqCallback(int, DBloodActor* actor)
 		if (tt1.at10)
 		{
 			int t = DivScale(nDist, tt1.at10, 12);
-			x2 += (actor2->vel.X * t) >> 12;
-			y2 += (actor2->vel.Y * t) >> 12;
-			z2 += (actor2->vel.Z * t) >> 8;
+			x2 += (actor2->int_vel().X * t) >> 12;
+			y2 += (actor2->int_vel().Y * t) >> 12;
+			z2 += (actor2->int_vel().Z * t) >> 8;
 		}
 		int tx = x + MulScale(Cos(actor->int_ang()), nDist, 30);
 		int ty = y + MulScale(Sin(actor->int_ang()), nDist, 30);
@@ -177,9 +177,9 @@ void cerberusBurnSeqCallback2(int, DBloodActor* actor)
 		if (tt1.at10)
 		{
 			int t = DivScale(nDist, tt1.at10, 12);
-			x2 += (actor->vel.X * t) >> 12;
-			y2 += (actor->vel.Y * t) >> 12;
-			z2 += (actor->vel.Z * t) >> 8;
+			x2 += (actor->int_vel().X * t) >> 12;
+			y2 += (actor->int_vel().Y * t) >> 12;
+			z2 += (actor->int_vel().Z * t) >> 8;
 		}
 		int tx = x + MulScale(Cos(actor->int_ang()), nDist, 30);
 		int ty = y + MulScale(Sin(actor->int_ang()), nDist, 30);
@@ -243,7 +243,7 @@ static void cerberusThinkTarget(DBloodActor* actor)
 		pDudeExtraE->thinkTime++;
 	else if (pDudeExtraE->thinkTime >= 10 && pDudeExtraE->active)
 	{
-		actor->xspr.goalAng += 256;
+		actor->xspr.goalAng += DAngle45;
 		aiSetTarget(actor, actor->basePoint);
 		if (actor->spr.type == kDudeCerberusTwoHead)
 			aiNewState(actor, &cerberus139890);
@@ -297,7 +297,7 @@ static void cerberusThinkGoto(DBloodActor* actor)
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
 	int nAngle = getangle(dvec);
 	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, nAngle);
+	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
 	if (nDist < 512 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
 	{
 		switch (actor->spr.type) {
@@ -340,7 +340,7 @@ static void cerberusThinkChase(DBloodActor* actor)
 	auto dvec = target->spr.pos.XY() - actor->spr.pos.XY();
 	int nAngle = getangle(dvec);
 	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, nAngle);
+	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
 
 	if (target->xspr.health == 0) {
 		switch (actor->spr.type) {

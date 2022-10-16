@@ -330,8 +330,8 @@ void hitradius_r(DDukeActor* actor, int  r, int  hp1, int  hp2, int  hp3, int  h
 						(pic != HULK && pic != MAMA && pic != BILLYPLAY && pic != COOTPLAY && pic != MAMACLOUD) :
 						(pic != HULK && pic != SBMOVE))
 					{
-						if (act2->spr.xvel < 0) act2->spr.xvel = 0;
-						act2->spr.xvel += (act2->spr.extra << 2);
+						if (act2->int_xvel() < 0) act2->vel.X = 0;
+						act2->add_int_xvel( (act2->spr.extra << 2));
 					}
 
 					if (actorflag(act2, SFLAG_HITRADIUSCHECK))
@@ -377,17 +377,17 @@ int movesprite_ex_r(DDukeActor* actor, int xchange, int ychange, int zchange, un
 
 	auto dasectp = actor->sector();
 
-	vec3_t pos = actor->int_pos();
-	pos.Z -= ((tileHeight(actor->spr.picnum) * actor->spr.yrepeat) << 1);
+	auto ppos = actor->spr.pos;
+	ppos.Z -= (tileHeight(actor->spr.picnum) * actor->spr.yrepeat) * REPEAT_SCALE * 0.5;
 
 	if (bg)
 	{
 		if (actor->spr.xrepeat > 60)
-			clipmove(pos, &dasectp, ((xchange * TICSPERFRAME) << 11), ((ychange * TICSPERFRAME) << 11), 1024, (4 << 8), (4 << 8), cliptype, result);
+			clipmove(ppos, &dasectp, ((xchange * TICSPERFRAME) << 11), ((ychange * TICSPERFRAME) << 11), 1024, (4 << 8), (4 << 8), cliptype, result);
 		else
 		{
 			clipdist = 192;
-			clipmove(pos, &dasectp, ((xchange * TICSPERFRAME) << 11), ((ychange * TICSPERFRAME) << 11), clipdist, (4 << 8), (4 << 8), cliptype, result);
+			clipmove(ppos, &dasectp, ((xchange * TICSPERFRAME) << 11), ((ychange * TICSPERFRAME) << 11), clipdist, (4 << 8), (4 << 8), cliptype, result);
 		}
 
 		if (dasectp == nullptr || (dasectp != nullptr && actor->actorstayput != nullptr && actor->actorstayput != dasectp))
@@ -405,11 +405,11 @@ int movesprite_ex_r(DDukeActor* actor, int xchange, int ychange, int zchange, un
 	else
 	{
 		if (actor->spr.statnum == STAT_PROJECTILE)
-			clipmove(pos, &dasectp, ((xchange * TICSPERFRAME) << 11), ((ychange * TICSPERFRAME) << 11), 8, (4 << 8), (4 << 8), cliptype, result);
+			clipmove(ppos, &dasectp, ((xchange * TICSPERFRAME) << 11), ((ychange * TICSPERFRAME) << 11), 8, (4 << 8), (4 << 8), cliptype, result);
 		else
-			clipmove(pos, &dasectp, ((xchange * TICSPERFRAME) << 11), ((ychange * TICSPERFRAME) << 11), 128, (4 << 8), (4 << 8), cliptype, result);
+			clipmove(ppos, &dasectp, ((xchange * TICSPERFRAME) << 11), ((ychange * TICSPERFRAME) << 11), 128, (4 << 8), (4 << 8), cliptype, result);
 	}
-	actor->set_int_xy(pos.X, pos.Y);
+	actor->spr.pos.XY() = ppos.XY();
 
 	if (dasectp)
 		if ((dasectp != actor->sector()))
@@ -667,14 +667,14 @@ void movefallers_r(void)
 			if (act->spr.lotag > 0)
 			{
 				act->spr.lotag -= 3;
-				act->spr.xvel = ((64 + krand()) & 127);
-				act->spr.zvel = -(1024 + (krand() & 1023));
+				act->set_int_xvel(((64 + krand()) & 127));
+				act->set_int_zvel(-(1024 + (krand() & 1023)));
 			}
 			else
 			{
-				if (act->spr.xvel > 0)
+				if (act->int_xvel() > 0)
 				{
-					act->spr.xvel -= 2;
+					act->add_int_xvel(-2);
 					ssp(act, CLIPMASK0);
 				}
 
@@ -690,10 +690,10 @@ void movefallers_r(void)
 
 				if (act->spr.pos.Z < sectp->floorz - 1)
 				{
-					act->spr.zvel += x;
-					if (act->spr.zvel > 6144)
-						act->spr.zvel = 6144;
-					act->add_int_z(act->spr.zvel);
+					act->add_int_zvel( x);
+					if (act->vel.Z > 24)
+						act->set_int_zvel(6144);
+					act->spr.pos.Z += act->vel.Z;
 				}
 				if ((sectp->floorz - act->spr.pos.Z) < 16)
 				{
@@ -955,8 +955,8 @@ static void chickenarrow(DDukeActor* actor)
 			actor->set_int_ang(ang);
 
 		if (actor->spr.hitag > 180)
-			if (actor->spr.zvel <= 0)
-				actor->spr.zvel += 200;
+			if (actor->vel.Z <= 0)
+				actor->add_int_zvel( 200);
 	}
 }
 
@@ -1000,7 +1000,7 @@ static bool weaponhitsprite(DDukeActor *proj, DDukeActor *targ, const DVector3 &
 
 	if (targ->spr.picnum == APLAYER)
 	{
-		int p = targ->spr.yvel;
+		int p = targ->PlayerIndex();
 		S_PlayActorSound(PISTOL_BODYHIT, targ);
 
 		if (proj->spr.picnum == SPIT)
@@ -1071,7 +1071,7 @@ static bool weaponhitwall(DDukeActor *proj, walltype* wal, const DVector3& oldpo
 					proj->spr.xrepeat -= 2;
 				if (proj->spr.yrepeat > 8)
 					proj->spr.yrepeat -= 2;
-				proj->spr.yvel--;
+				proj->spr.yint--;
 			}
 
 			int k = getangle(wal->delta());
@@ -1106,7 +1106,7 @@ static bool weaponhitwall(DDukeActor *proj, walltype* wal, const DVector3& oldpo
 			if (wal->overpicnum != MIRROR && wal->picnum != MIRROR)
 			{
 				proj->spr.extra -= 20;
-				proj->spr.yvel--;
+				proj->spr.yint--;
 			}
 
 			int k = getangle(wal->delta());
@@ -1135,7 +1135,7 @@ bool weaponhitsector(DDukeActor *proj, const DVector3& oldpos)
 		guts_r(proj, RABBITJIBC, 2, myconnectindex);
 	}
 
-	if (proj->spr.zvel < 0)
+	if (proj->vel.Z < 0)
 	{
 		if (proj->sector()->ceilingstat & CSTAT_SECTOR_SKY)
 			if (proj->sector()->ceilingpal == 0)
@@ -1156,7 +1156,7 @@ bool weaponhitsector(DDukeActor *proj, const DVector3& oldpos)
 			proj->spr.xrepeat -= 2;
 		if (proj->spr.yrepeat > 8)
 			proj->spr.yrepeat -= 2;
-		proj->spr.yvel--;
+		proj->spr.yint--;
 		return true;
 	}
 	return false;
@@ -1177,18 +1177,18 @@ static void weaponcommon_r(DDukeActor *proj)
 
 	if (proj->spr.picnum == RPG && proj->sector()->lotag == 2)
 	{
-		k = proj->spr.xvel >> 1;
-		ll = proj->spr.zvel >> 1;
+		k = proj->int_xvel() >> 1;
+		ll = proj->int_zvel() >> 1;
 	}
 	else if (isRRRA() && proj->spr.picnum == RPG2 && proj->sector()->lotag == 2)
 	{
-		k = proj->spr.xvel >> 1;
-		ll = proj->spr.zvel >> 1;
+		k = proj->int_xvel() >> 1;
+		ll = proj->int_zvel() >> 1;
 	}
 	else
 	{
-		k = proj->spr.xvel;
-		ll = proj->spr.zvel;
+		k = proj->int_xvel();
+		ll = proj->int_zvel();
 	}
 
 	auto oldpos = proj->spr.pos;
@@ -1213,7 +1213,7 @@ static void weaponcommon_r(DDukeActor *proj)
 		if (!isRRRA()) break;
 		if (proj->spr.extra)
 		{
-			proj->spr.zvel = -(proj->spr.extra * 250);
+			proj->set_int_zvel(-(proj->spr.extra * 250));
 			proj->spr.extra--;
 		}
 		else
@@ -1246,14 +1246,14 @@ static void weaponcommon_r(DDukeActor *proj)
 		if (proj->spr.pos.Z < proj->ceilingz)
 		{
 			coll.setSector(proj->sector());
-			proj->spr.zvel = -1;
+			proj->set_int_zvel(-1);
 		}
 		else
 			if (proj->spr.pos.Z > proj->floorz)
 			{
 				coll.setSector(proj->sector());
 				if (proj->sector()->lotag != 1)
-					proj->spr.zvel = 1;
+					proj->set_int_zvel(1);
 			}
 	}
 
@@ -1264,7 +1264,7 @@ static void weaponcommon_r(DDukeActor *proj)
 			auto x = EGS(proj->sector(),
 				proj->int_pos().X + MulScale(k, bcos(proj->int_ang()), 9),
 				proj->int_pos().Y + MulScale(k, bsin(proj->int_ang()), 9),
-				proj->int_pos().Z + ((k * Sgn(proj->spr.zvel)) * abs(proj->spr.zvel / 24)), FIRELASER, -40 + (k << 2),
+				proj->int_pos().Z + ((k * Sgn(proj->int_zvel())) * abs(proj->int_zvel() / 24)), FIRELASER, -40 + (k << 2),
 				proj->spr.xrepeat, proj->spr.yrepeat, 0, 0, 0, proj->GetOwner(), 5);
 
 			if (x)
@@ -1274,8 +1274,8 @@ static void weaponcommon_r(DDukeActor *proj)
 			}
 		}
 	}
-	else if (proj->spr.picnum == SPIT) if (proj->spr.zvel < 6144)
-		proj->spr.zvel += gs.gravity - 112;
+	else if (proj->spr.picnum == SPIT) if (proj->vel.Z < 24)
+		proj->add_int_zvel( gs.gravity - 112);
 
 	if (coll.type != 0)
 	{
@@ -1305,7 +1305,7 @@ static void weaponcommon_r(DDukeActor *proj)
 					spawned->spr.xrepeat = spawned->spr.yrepeat = proj->spr.xrepeat >> 1;
 					if (coll.type == kHitSector)
 					{
-						if (proj->spr.zvel < 0)
+						if (proj->vel.Z < 0)
 						{
 							spawned->spr.cstat |= CSTAT_SPRITE_YFLIP;
 							spawned->spr.pos.Z += 72;
@@ -1349,7 +1349,7 @@ void moveweapons_r(void)
 			continue;
 
 		case FREEZEBLAST:
-			if (proj->spr.yvel < 1 || proj->spr.extra < 2 || (proj->spr.xvel | proj->spr.zvel) == 0)
+			if (proj->spr.yint < 1 || proj->spr.extra < 2 || (proj->int_xvel() == 0 && proj->int_zvel() == 0))
 			{
 				auto star = spawn(proj, TRANSPORTERSTAR);
 				if (star)
@@ -1429,7 +1429,7 @@ void movetransports_r(void)
 
 				if (act2->GetOwner())
 				{
-					p = act2->spr.yvel;
+					p = act2->PlayerIndex();
 
 					ps[p].on_warping_sector = 1;
 
@@ -1579,10 +1579,10 @@ void movetransports_r(void)
 			case STAT_MISC:
 			case STAT_DUMMYPLAYER:
 
-				ll = abs(act2->spr.zvel) * zinttoworld;
+				ll = abs(act2->vel.Z);
 				if (isRRRA())
 				{
-					if (act2->spr.zvel >= 0)
+					if (act2->vel.Z >= 0)
 						warpdir = 2;
 					else
 						warpdir = 1;
@@ -1657,7 +1657,7 @@ void movetransports_r(void)
 								auto spawned = spawn(act2, WATERSPLASH2);
 								if (spawned && sectlotag == 1 && act2->spr.statnum == 4)
 								{
-									spawned->spr.xvel = act2->spr.xvel >> 1;
+									spawned->set_int_xvel(act2->int_xvel() >> 1);
 									spawned->spr.angle = act2->spr.angle;
 									ssp(spawned, CLIPMASK0);
 								}
@@ -1724,8 +1724,7 @@ void movetransports_r(void)
 
 								ChangeActorSect(act2, Owner->sector());
 
-								movesprite_ex(act2, MulScale(act2->spr.xvel, bcos(act2->int_ang()), 14),
-									MulScale(act2->spr.xvel, bsin(act2->int_ang()), 14), 0, CLIPMASK1, coll);
+								movesprite_ex(act2, DVector3(act2->spr.angle.ToVector() * act2->vel.X, 0), CLIPMASK1, coll);
 
 								break;
 							case 161:
@@ -1736,8 +1735,7 @@ void movetransports_r(void)
 
 								ChangeActorSect(act2, Owner->sector());
 
-								movesprite_ex(act2, MulScale(act2->spr.xvel, bcos(act2->int_ang()), 14),
-									MulScale(act2->spr.xvel, bsin(act2->int_ang()), 14), 0, CLIPMASK1, coll);
+								movesprite_ex(act2, DVector3(act2->spr.angle.ToVector() * act2->vel.X, 0), CLIPMASK1, coll);
 
 								break;
 							}
@@ -2341,16 +2339,16 @@ static void heavyhbomb(DDukeActor *actor)
 			actor->temp_data[3] = 1;
 			actor->temp_data[4] = 0;
 			l = 0;
-			actor->spr.xvel = 0;
+			actor->vel.X = 0;
 			goto DETONATEB;
 		}
 	}
 
 	makeitfall(actor);
 
-	if (sectp->lotag != 1 && (!isRRRA() || sectp->lotag != 160) && actor->spr.pos.Z >= actor->floorz - FOURSLEIGHT_F && actor->spr.yvel < 3)
+	if (sectp->lotag != 1 && (!isRRRA() || sectp->lotag != 160) && actor->spr.pos.Z >= actor->floorz - FOURSLEIGHT_F && actor->spr.yint < 3)
 	{
-		if (actor->spr.yvel > 0 || (actor->spr.yvel == 0 && actor->floorz == sectp->floorz))
+		if (actor->spr.yint > 0 || (actor->spr.yint == 0 && actor->floorz == sectp->floorz))
 		{
 			if (actor->spr.picnum != CHEERBOMB)
 				S_PlayActorSound(PIPEBOMB_BOUNCE, actor);
@@ -2362,24 +2360,24 @@ static void heavyhbomb(DDukeActor *actor)
 				goto DETONATEB;
 			}
 		}
-		actor->spr.zvel = -((4 - actor->spr.yvel) << 8);
+		actor->set_int_zvel(-((4 - actor->spr.yint) << 8));
 		if (actor->sector()->lotag == 2)
-			actor->spr.zvel >>= 2;
-		actor->spr.yvel++;
+			actor->vel.Z *= 0.25;
+		actor->spr.yint++;
 	}
 	if (actor->spr.picnum != CHEERBOMB && actor->spr.pos.Z < actor->ceilingz + 16 && sectp->lotag != 2)
 	{
 		actor->spr.pos.Z = actor->ceilingz + 16;
-		actor->spr.zvel = 0;
+		actor->vel.Z = 0;
 	}
 
 	Collision coll;
 	movesprite_ex(actor,
-		MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14),
-		MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14),
-		actor->spr.zvel, CLIPMASK0, coll);
+		MulScale(actor->int_xvel(), bcos(actor->int_ang()), 14),
+		MulScale(actor->int_xvel(), bsin(actor->int_ang()), 14),
+		actor->int_zvel(), CLIPMASK0, coll);
 
-	if (actor->sector()->lotag == 1 && actor->spr.zvel == 0)
+	if (actor->sector()->lotag == 1 && actor->vel.Z == 0)
 	{
 		actor->spr.pos.Z += 32;
 		if (actor->temp_data[5] == 0)
@@ -2387,7 +2385,7 @@ static void heavyhbomb(DDukeActor *actor)
 			actor->temp_data[5] = 1;
 			spawn(actor, WATERSPLASH2);
 			if (isRRRA() && actor->spr.picnum == MORTER)
-				actor->spr.xvel = 0;
+				actor->vel.X = 0;
 		}
 	}
 	else actor->temp_data[5] = 0;
@@ -2397,7 +2395,7 @@ static void heavyhbomb(DDukeActor *actor)
 		actor->temp_data[3] = 1;
 		actor->temp_data[4] = 0;
 		l = 0;
-		actor->spr.xvel = 0;
+		actor->vel.X = 0;
 		goto DETONATEB;
 	}
 
@@ -2406,7 +2404,7 @@ static void heavyhbomb(DDukeActor *actor)
 		actor->temp_data[3] = 1;
 		actor->temp_data[4] = 0;
 		l = 0;
-		actor->spr.xvel = 0;
+		actor->vel.X = 0;
 		goto DETONATEB;
 	}
 
@@ -2414,15 +2412,15 @@ static void heavyhbomb(DDukeActor *actor)
 		l = Owner->PlayerIndex();
 	else l = -1;
 
-	if (actor->spr.xvel > 0)
+	if(actor->vel.X > 0)
 	{
-		actor->spr.xvel -= 5;
+		actor->add_int_xvel(-5);
 		if (sectp->lotag == 2)
-			actor->spr.xvel -= 10;
+			actor->add_int_xvel(-10);
 
-		if (actor->spr.xvel < 0)
-			actor->spr.xvel = 0;
-		if (actor->spr.xvel & 8) actor->spr.cstat ^= CSTAT_SPRITE_XFLIP;
+		if(actor->vel.X < 0)
+			actor->vel.X = 0;
+		if (int(actor->vel.X * 16) & 8) actor->spr.cstat ^= CSTAT_SPRITE_XFLIP;
 	}
 
 	if (coll.type == kHitWall)
@@ -2437,11 +2435,11 @@ static void heavyhbomb(DDukeActor *actor)
 			actor->temp_data[3] = 1;
 			actor->temp_data[4] = 0;
 			l = 0;
-			actor->spr.xvel = 0;
+			actor->vel.X = 0;
 			goto DETONATEB;
 		}
 		actor->set_int_ang(((k << 1) - actor->int_ang()) & 2047);
-		actor->spr.xvel >>= 1;
+		actor->vel.X *= 0.5;
 	}
 
 DETONATEB:
@@ -2493,7 +2491,7 @@ DETONATEB:
 			return;
 		}
 	}
-	else if (actor->spr.picnum == HEAVYHBOMB && x < 788 && actor->temp_data[0] > 7 && actor->spr.xvel == 0)
+	else if (actor->spr.picnum == HEAVYHBOMB && x < 788 && actor->temp_data[0] > 7 && actor->int_xvel() == 0)
 		if (cansee(actor->spr.pos.plusZ(-8), actor->sector(), ps[p].pos, ps[p].cursector))
 			if (ps[p].ammo_amount[DYNAMITE_WEAPON] < gs.max_ammo_amount[DYNAMITE_WEAPON])
 				if (actor->spr.pal == 0)
@@ -2557,15 +2555,15 @@ static int henstand(DDukeActor *actor)
 		}
 	}
 	if (actor->sector()->lotag == 900)
-		actor->spr.xvel = 0;
-	if (actor->spr.xvel)
+		actor->vel.X = 0;
+	if(actor->vel.X != 0)
 	{
 		makeitfall(actor);
 		Collision coll;
 		movesprite_ex(actor,
-			MulScale(bcos(actor->int_ang()), actor->spr.xvel, 14),
-			MulScale(bsin(actor->int_ang()), actor->spr.xvel, 14),
-			actor->spr.zvel, CLIPMASK0, coll);
+			MulScale(bcos(actor->int_ang()), actor->int_xvel(), 14),
+			MulScale(bsin(actor->int_ang()), actor->int_xvel(), 14),
+			actor->int_zvel(), CLIPMASK0, coll);
 		if (coll.type)
 		{
 			if (coll.type == kHitWall)
@@ -2583,33 +2581,33 @@ static int henstand(DDukeActor *actor)
 					deletesprite(hitact);
 					if (ns)
 					{
-						ns->spr.xvel = 32;
+						ns->vel.X = 2;
 						ns->spr.lotag = 40;
 						ns->spr.angle = actor->spr.angle;
 					}
 				}
 			}
 		}
-		actor->spr.xvel--;
-		if (actor->spr.xvel < 0) actor->spr.xvel = 0;
+		actor->add_int_xvel(-1);
+		if(actor->vel.X < 0) actor->vel.X = 0;
 		actor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
 		if (actor->spr.picnum == BOWLINGPIN)
 		{
-			actor->spr.cstat |= CSTAT_SPRITE_XFLIP & ESpriteFlags::FromInt(actor->spr.xvel);
-			actor->spr.cstat |= CSTAT_SPRITE_YFLIP & ESpriteFlags::FromInt(actor->spr.xvel);
+			actor->spr.cstat |= CSTAT_SPRITE_XFLIP & ESpriteFlags::FromInt(int(actor->vel.X * 16));
+			actor->spr.cstat |= CSTAT_SPRITE_YFLIP & ESpriteFlags::FromInt(int(actor->vel.X * 16));
 			if (krand() & 1)
 				actor->spr.picnum = BOWLINGPIN + 1;
 		}
 		else if (actor->spr.picnum == HENSTAND)
 		{
-			actor->spr.cstat |= CSTAT_SPRITE_XFLIP & ESpriteFlags::FromInt(actor->spr.xvel);
-			actor->spr.cstat |= CSTAT_SPRITE_YFLIP & ESpriteFlags::FromInt(actor->spr.xvel);
+			actor->spr.cstat |= CSTAT_SPRITE_XFLIP & ESpriteFlags::FromInt(int(actor->vel.X * 16));
+			actor->spr.cstat |= CSTAT_SPRITE_YFLIP & ESpriteFlags::FromInt(int(actor->vel.X * 16));
 			if (krand() & 1)
 				actor->spr.picnum = HENSTAND + 1;
-			if (!actor->spr.xvel)
+			if (!actor->int_xvel())
 				return 2;//deletesprite(actor); still needs to run a script but should not do on a deleted object
 		}
-		if (actor->spr.picnum == BOWLINGPIN || (actor->spr.picnum == BOWLINGPIN + 1 && !actor->spr.xvel))
+		if (actor->spr.picnum == BOWLINGPIN || (actor->spr.picnum == BOWLINGPIN + 1 && !actor->int_xvel()))
 		{
 			return 2;//deletesprite(actor); still needs to run a script but should not do on a deleted object
 		}
@@ -2678,10 +2676,7 @@ void moveactors_r(void)
 				}
 				if (sectp->lotag == 903)
 					makeitfall(act);
-				movesprite_ex(act,
-					MulScale(act->spr.xvel, bcos(act->int_ang()), 14),
-					MulScale(act->spr.xvel, bsin(act->int_ang()), 14),
-					act->spr.zvel,CLIPMASK0, coll);
+				movesprite_ex(act, DVector3(act->spr.angle.ToVector() * act->vel.X, act->vel.Z), CLIPMASK0, coll);
 				switch (sectp->lotag)
 				{
 					case 901:
@@ -2719,10 +2714,7 @@ void moveactors_r(void)
 					continue;
 				}
 				makeitfall(act);
-				movesprite_ex(act,
-					MulScale(act->spr.xvel, bcos(act->int_ang()), 14),
-					MulScale(act->spr.xvel, bsin(act->int_ang()), 14),
-					act->spr.zvel,CLIPMASK0, coll);
+				movesprite_ex(act, DVector3(act->spr.angle.ToVector() * act->vel.X, act->vel.Z), CLIPMASK0, coll);
 				if (coll.type > kHitSector)
 				{
 					deletesprite(act);
@@ -2750,10 +2742,7 @@ void moveactors_r(void)
 					continue;
 				}
 				makeitfall(act);
-				movesprite_ex(act,
-					MulScale(act->spr.xvel, bcos(act->int_ang()), 14),
-					MulScale(act->spr.xvel, bsin(act->int_ang()), 14),
-					act->spr.zvel,CLIPMASK0, coll);
+				movesprite_ex(act, DVector3(act->spr.angle.ToVector() * act->vel.X, act->vel.Z), CLIPMASK0, coll);
 				if (act->spr.pos.Z >= sectp->floorz - 8)
 				{
 					if (sectp->lotag == 1)
@@ -2766,7 +2755,7 @@ void moveactors_r(void)
 				}
 				break;
 			case BOWLINGBALL:
-				if (act->spr.xvel)
+				if (act->vel.X != 0)
 				{
 					if(!S_CheckSoundPlaying(356))
 						S_PlayActorSound(356,act);
@@ -2847,13 +2836,10 @@ void moveactors_r(void)
 
 			case POWDERKEG:
 				if (!isRRRA() || (sectp->lotag != 1 && sectp->lotag != 160))
-					if (act->spr.xvel)
+					if (act->vel.X != 0)
 					{
-						movesprite_ex(act,
-							MulScale(act->spr.xvel, bcos(act->int_ang()), 14),
-							MulScale(act->spr.xvel, bsin(act->int_ang()), 14),
-							act->spr.zvel,CLIPMASK0, coll);
-						act->spr.xvel--;
+						movesprite_ex(act, DVector3(act->spr.angle.ToVector()* act->vel.X, act->vel.Z), CLIPMASK0, coll);
+						act->vel.X -= 1. / 16.;
 					}
 				break;
 
@@ -3151,15 +3137,15 @@ void handle_se06_r(DDukeActor *actor)
 	{
 		actor->temp_data[4]--;
 		if (actor->temp_data[4] >= (k - (k >> 3)))
-			actor->spr.xvel -= (k >> 5);
+			actor->add_int_xvel(-(k >> 5));
 		if (actor->temp_data[4] > ((k >> 1) - 1) && actor->temp_data[4] < (k - (k >> 3)))
-			actor->spr.xvel = 0;
+			actor->vel.X = 0;
 		if (actor->temp_data[4] < (k >> 1))
-			actor->spr.xvel += (k >> 5);
+			actor->add_int_xvel( (k >> 5));
 		if (actor->temp_data[4] < ((k >> 1) - (k >> 3)))
 		{
 			actor->temp_data[4] = 0;
-			actor->spr.xvel = k;
+			actor->set_int_xvel(k);
 			if ((!isRRRA() || lastlevel) && hulkspawn)
 			{
 				hulkspawn--;
@@ -3194,7 +3180,7 @@ void handle_se06_r(DDukeActor *actor)
 	}
 	else
 	{
-		actor->spr.xvel = k;
+		actor->set_int_xvel(k);
 		DukeSectIterator it(actor->sector());
 		while (auto a2 = it.Next())
 		{
@@ -3234,14 +3220,14 @@ void handle_se06_r(DDukeActor *actor)
 	{
 		if ((act2->spr.lotag == 14) && (sh == act2->spr.hitag) && (act2->temp_data[0] == actor->temp_data[0]))
 		{
-			act2->spr.xvel = actor->spr.xvel;
+			act2->set_int_xvel(actor->int_xvel());
 			//						if( actor->temp_data[4] == 1 )
 			{
 				if (act2->temp_data[5] == 0)
 					act2->temp_data[5] = dist(act2, actor);
 				int x = Sgn(dist(act2, actor) - act2->temp_data[5]);
 				if (act2->spr.extra) x = -x;
-				actor->spr.xvel += x;
+				actor->add_int_xvel( x);
 			}
 			act2->temp_data[4] = actor->temp_data[4];
 		}
@@ -3399,7 +3385,7 @@ void moveeffectors_r(void)   //STATNUM 3
 
 		case SE_29_WAVES:
 			act->spr.hitag += 64;
-			l = MulScale(act->spr.yvel, bsin(act->spr.hitag), 12);
+			l = MulScale(act->spr.yint, bsin(act->spr.hitag), 12);
 			sc->set_int_floorz(act->int_pos().Z + l);
 			break;
 
@@ -3533,12 +3519,12 @@ void move_r(DDukeActor *actor, int pnum, int xvel)
 			if (actor->spr.picnum == CHEER)
 			{
 				if (actor->temp_data[0] < 16)
-					actor->spr.zvel -= bcos(actor->temp_data[0] << 4) / 40;
+					actor->add_int_zvel(- bcos(actor->temp_data[0] << 4) / 40);
 			}
 			else
 			{
 				if (actor->temp_data[0] < 16)
-					actor->spr.zvel -= bcos(actor->temp_data[0] << 4, -5);
+					actor->add_int_zvel(- bcos(actor->temp_data[0] << 4, -5));
 			}
 		}
 		if (a & justjump1)
@@ -3546,12 +3532,12 @@ void move_r(DDukeActor *actor, int pnum, int xvel)
 			if (actor->spr.picnum == RABBIT)
 			{
 				if (actor->temp_data[0] < 8)
-					actor->spr.zvel -= bcos(actor->temp_data[0] << 4) / 30;
+					actor->add_int_zvel(- bcos(actor->temp_data[0] << 4) / 30);
 			}
 			else if (actor->spr.picnum == MAMA)
 			{
 				if (actor->temp_data[0] < 8)
-					actor->spr.zvel -= bcos(actor->temp_data[0] << 4) / 35;
+					actor->add_int_zvel(- bcos(actor->temp_data[0] << 4) / 35);
 			}
 		}
 		if (a & justjump2)
@@ -3559,24 +3545,24 @@ void move_r(DDukeActor *actor, int pnum, int xvel)
 			if (actor->spr.picnum == RABBIT)
 			{
 				if (actor->temp_data[0] < 8)
-					actor->spr.zvel -= bcos(actor->temp_data[0] << 4) / 24;
+					actor->add_int_zvel(- bcos(actor->temp_data[0] << 4) / 24);
 			}
 			else if (actor->spr.picnum == MAMA)
 			{
 				if (actor->temp_data[0] < 8)
-					actor->spr.zvel -= bcos(actor->temp_data[0] << 4) / 28;
+					actor->add_int_zvel(- bcos(actor->temp_data[0] << 4) / 28);
 			}
 		}
 		if (a & windang)
 		{
 			if (actor->temp_data[0] < 8)
-				actor->spr.zvel -= bcos(actor->temp_data[0] << 4) / 24;
+				actor->add_int_zvel(- bcos(actor->temp_data[0] << 4) / 24);
 		}
 	}
 	else if ((a & jumptoplayer) == jumptoplayer)
 	{
 		if (actor->temp_data[0] < 16)
-			actor->spr.zvel -= bcos(actor->temp_data[0] << 4, -5);
+			actor->add_int_zvel(- bcos(actor->temp_data[0] << 4, -5));
 	}
 
 
@@ -3620,8 +3606,8 @@ void move_r(DDukeActor *actor, int pnum, int xvel)
 
 	auto moveptr = &ScriptCode[actor->temp_data[1]];
 
-	if (a & geth) actor->spr.xvel += (*moveptr - actor->spr.xvel) >> 1;
-	if (a & getv) actor->spr.zvel += ((*(moveptr + 1) << 4) - actor->spr.zvel) >> 1;
+	if (a & geth) actor->add_int_xvel( (*moveptr - actor->int_xvel()) >> 1);
+	if (a & getv) actor->add_int_zvel( ((*(moveptr + 1) << 4) - actor->int_zvel()) >> 1);
 
 	if (a & dodgebullet)
 		dodge(actor);
@@ -3629,17 +3615,17 @@ void move_r(DDukeActor *actor, int pnum, int xvel)
 	if (actor->spr.picnum != APLAYER)
 		alterang(a, actor, pnum);
 
-	if (actor->spr.xvel > -6 && actor->spr.xvel < 6) actor->spr.xvel = 0;
+	if (actor->int_xvel() > -6 && actor->int_xvel() < 6) actor->vel.X = 0;
 
 	a = badguy(actor);
 
-	if (actor->spr.xvel || actor->spr.zvel)
+	if (actor->vel.X != 0 || actor->vel.Z != 0)
 	{
 		if (a)
 		{
 			if (actor->spr.picnum == DRONE && actor->spr.extra > 0)
 			{
-				if (actor->spr.zvel > 0)
+				if (actor->vel.Z > 0)
 				{
 					double dist = isRRRA() ? 28 : 30;
 					double f = getflorzofslopeptrf(actor->sector(), actor->spr.pos.X, actor->spr.pos.Y);
@@ -3654,19 +3640,19 @@ void move_r(DDukeActor *actor, int pnum, int xvel)
 					if (actor->spr.pos.Z < c + 50)
 					{
 						actor->spr.pos.Z = c + 50;
-						actor->spr.zvel = 0;
+						actor->vel.Z = 0;
 					}
 				}
 			}
-			if (actor->spr.zvel > 0 && actor->floorz < actor->spr.pos.Z)
+			if (actor->vel.Z > 0 && actor->floorz < actor->spr.pos.Z)
 				actor->spr.pos.Z = actor->floorz;
-			if (actor->spr.zvel < 0)
+			if (actor->vel.Z < 0)
 			{
 				double c = getceilzofslopeptrf(actor->sector(), actor->spr.pos.X, actor->spr.pos.Y);
 				if (actor->spr.pos.Z < c + 66)
 				{
 					actor->spr.pos.Z = c + 66;
-					actor->spr.zvel >>= 1;
+					actor->vel.Z *= 0.5;
 				}
 			}
 		}
@@ -3674,7 +3660,7 @@ void move_r(DDukeActor *actor, int pnum, int xvel)
 			if ((actor->spr.pos.Z - actor->ceilingz) < 32)
 				actor->spr.pos.Z = actor->ceilingz + 32;
 
-		daxvel = actor->spr.xvel;
+		daxvel = actor->int_xvel();
 		angdif = actor->int_ang();
 
 		if (a)
@@ -3744,7 +3730,7 @@ void move_r(DDukeActor *actor, int pnum, int xvel)
 		Collision coll;
 		actor->movflag = movesprite_ex(actor,
 			MulScale(daxvel, bcos(angdif), 14),
-			MulScale(daxvel, bsin(angdif), 14), actor->spr.zvel, CLIPMASK0, coll);
+			MulScale(daxvel, bsin(angdif), 14), actor->int_zvel(), CLIPMASK0, coll);
 	}
 
 	if (a)
@@ -3838,7 +3824,7 @@ static int fallspecial(DDukeActor *actor, int playernum)
 		if (actor->spr.picnum != APLAYER && (badguy(actor) || actor->spr.picnum == HEN || actor->spr.picnum == COW || actor->spr.picnum == PIG || actor->spr.picnum == DOGRUN || actor->spr.picnum == RABBIT) && (!isRRRA() || actor->spriteextra < 128))
 		{
 			actor->spr.pos.Z = actor->floorz - FOURSLEIGHT_F;
-			actor->spr.zvel = 8000;
+			actor->set_int_zvel(8000);
 			actor->spr.extra = 0;
 			actor->spriteextra++;
 			sphit = 1;
@@ -4008,7 +3994,7 @@ void respawnhitag_r(DDukeActor *actor)
 	case FEM10:
 	case NAKED1:
 	case STATUE:
-		if (actor->spr.yvel) fi.operaterespawns(actor->spr.yvel);
+		if (actor->spr.yint) fi.operaterespawns(actor->spr.yint);
 		break;
 	default:
 		if (actor->spr.hitag >= 0) fi.operaterespawns(actor->spr.hitag);

@@ -126,7 +126,7 @@ void DoSpawn(player_struct *p, int snum)
 	{
 		// like chaingun shells
 		j->set_int_ang((j->int_ang() + 1024) & 2047);
-		j->spr.xvel += 32;
+		j->add_int_xvel( 32);
 		j->spr.pos.Z += 3;
 		ssp(j,CLIPMASK0);
 	}
@@ -359,16 +359,15 @@ void operateweapon_ww(int snum, ESyncBits actions)
 
 				if (k == 15)
 				{
-					j->spr.yvel = 3;
+					j->spr.yint = 3;
 					j->spr.pos.Z += 8;
 				}
 
 				k = hits(p->GetActor());
 				if (k < 512)
 				{
-					j->add_int_ang(1024);
-					j->spr.zvel /= 3;
-					j->spr.xvel /= 3;
+					j->spr.angle += DAngle180;
+					j->vel *= 1./3.;
 				}
 
 				p->hbomb_on = 1;

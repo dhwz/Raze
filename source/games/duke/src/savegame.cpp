@@ -51,9 +51,7 @@ static FSerializer& Serialize(FSerializer& arc, const char* key, FireProj& p, Fi
 {
 	if (arc.BeginObject(key))
 	{
-		arc("x", p.pos.X)
-			("y", p.pos.Y)
-			("z", p.pos.Z)
+		arc
 			("xv", p.vel.X)
 			("yv", p.vel.Y)
 			("zv", p.vel.Z)
@@ -314,6 +312,8 @@ void DDukeActor::Serialize(FSerializer& arc)
 		("seek_actor", seek_actor)
 		.Array("temp_data", temp_data, 6)
 		.Array("temo_wall", temp_walls, 2)
+		("temp_angle", temp_angle)
+		("temp_pos", temp_pos)
 		("temp_sect", temp_sect)
 		("uservars", uservars)
 		("flags1", flags1)

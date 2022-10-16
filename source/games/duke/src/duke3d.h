@@ -50,14 +50,14 @@ struct GameInterface : public ::GameInterface
 	void NextLevel(MapRecord* map, int skill) override;
 	void NewGame(MapRecord* map, int skill, bool) override;
 	void LevelCompleted(MapRecord* map, int skill) override;
-	bool DrawAutomapPlayer(int mx, int my, int x, int y, const double z, const DAngle a, double const smoothratio) override;
+	bool DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac) override;
 	int playerKeyMove() override { return 40; }
-	void WarpToCoords(int x, int y, int z, int a, int h) override;
+	void WarpToCoords(double x, double y, double z, DAngle ang, int horz) override;
 	void ToggleThirdPerson() override;
 	void SwitchCoopView() override;
 	void ToggleShowWeapon() override;
-	vec3_t chaseCamPos(DAngle ang, fixedhoriz horiz) { return vec3_t(int(-ang.Cos() * 1024.), int(-ang.Sin() * 1024.), horiz.asq16() >> 9); }
-	void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double smoothRatio) override;
+	DVector3 chaseCamPos(DAngle ang, fixedhoriz horiz) { return DVector3(-ang.ToVector() * 64., horiz.asbuildf() * 0.5); }
+	void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double interpfrac) override;
 	void UpdateCameras(double smoothratio) override;
 	void EnterPortal(DCoreActor* viewer, int type) override;
 	void LeavePortal(DCoreActor* viewer, int type) override;
@@ -105,10 +105,10 @@ struct Dispatcher
 	int (*doincrements)(player_struct* p);
 	void (*checkweapons)(player_struct* p);
 	void (*processinput)(int snum);
-	void (*displayweapon)(int snum, double smoothratio);
-	void (*displaymasks)(int snum, int p, double smoothratio);
+	void (*displayweapon)(int snum, double interpfrac);
+	void (*displaymasks)(int snum, int p, double interpfrac);
 
-	void (*animatesprites)(tspriteArray& tsprites, int x, int y, int a, int smoothratio);
+	void (*animatesprites)(tspriteArray& tsprites, int x, int y, int a, double interpfrac);
 
 
 };

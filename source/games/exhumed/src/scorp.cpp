@@ -38,7 +38,7 @@ static actionSeq ScorpSeq[] = {
     {53, 1}
 };
 
-void BuildScorp(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, int nAngle, int nChannel)
+void BuildScorp(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, DAngle nAngle, int nChannel)
 {
 	if (pActor == nullptr)
 	{
@@ -49,7 +49,7 @@ void BuildScorp(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector,
 	{
 		ChangeActorStat(pActor, 122);
 		pActor->spr.pos.Z = pActor->sector()->floorz;
-		nAngle = pActor->int_ang();
+		nAngle = pActor->spr.angle;
 	}
 
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
@@ -61,10 +61,10 @@ void BuildScorp(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector,
     pActor->spr.pal = pActor->sector()->ceilingpal;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->set_int_ang(nAngle);
-    pActor->spr.xvel = 0;
-    pActor->spr.yvel = 0;
-    pActor->spr.zvel = 0;
+    pActor->spr.angle = nAngle;
+    pActor->vel.X = 0;
+    pActor->vel.Y = 0;
+    pActor->vel.Z = 0;
     pActor->spr.lotag = runlist_HeadRun() + 1;
     pActor->spr.extra = -1;
     pActor->spr.hitag = 0;
@@ -127,9 +127,9 @@ void AIScorp::Damage(RunListEvent* ev)
         pActor->nFrame = 0;
         pActor->nCount = 10;
 
-        pActor->spr.xvel = 0;
-        pActor->spr.yvel = 0;
-        pActor->spr.zvel = 0;
+        pActor->vel.X = 0;
+        pActor->vel.Y = 0;
+        pActor->vel.Z = 0;
         pActor->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
 
         nCreaturesKilled++;
@@ -217,8 +217,7 @@ void AIScorp::Tick(RunListEvent* ev)
                     D3PlayFX(StaticSound[kSound41], pActor);
 
                     pActor->nFrame = 0;
-                    pActor->spr.xvel = bcos(pActor->int_ang());
-                    pActor->spr.yvel = bsin(pActor->int_ang());
+                    pActor->VelFromAngle();
 
                     pActor->nAction = 1;
                     pActor->pTarget = pTarget;
@@ -302,8 +301,7 @@ void AIScorp::Tick(RunListEvent* ev)
             {
                 pActor->nAction = 1;
 
-                pActor->spr.xvel = bcos(pActor->int_ang());
-                pActor->spr.yvel = bsin(pActor->int_ang());
+                pActor->VelFromAngle();
 
                 pActor->nFrame = 0;
                 return;
@@ -314,7 +312,7 @@ void AIScorp::Tick(RunListEvent* ev)
             return;
         }
 
-        auto nBulletSprite = BuildBullet(pActor, 16, -1, pActor->int_ang(), pTarget, 1);
+        auto nBulletSprite = BuildBullet(pActor, 16, -1, pActor->spr.angle, pTarget, 1);
         if (nBulletSprite)
         {
             PlotCourseToSprite(nBulletSprite, pTarget);
@@ -364,16 +362,16 @@ void AIScorp::Tick(RunListEvent* ev)
             return;
         }
 
-        auto pSpiderActor = BuildSpider(nullptr, pActor->spr.pos, pActor->sector(), pActor->int_ang());
+        auto pSpiderActor = BuildSpider(nullptr, pActor->spr.pos, pActor->sector(), pActor->spr.angle);
         if (pSpiderActor)
         {
             pSpiderActor->set_int_ang(RandomSize(11));
 
             int nVel = RandomSize(5) + 1;
 
-            pSpiderActor->spr.xvel = bcos(pSpiderActor->int_ang(), -8) * nVel;
-            pSpiderActor->spr.yvel = bsin(pSpiderActor->int_ang(), -8) * nVel;
-            pSpiderActor->spr.zvel = (-(RandomSize(5) + 3)) << 8;
+            pSpiderActor->set_int_xvel(bcos(pSpiderActor->int_ang(), -8) * nVel);
+            pSpiderActor->set_int_yvel(bsin(pSpiderActor->int_ang(), -8) * nVel);
+            pSpiderActor->set_int_zvel((-(RandomSize(5) + 3)) << 8);
         }
 
         return;
@@ -410,8 +408,7 @@ void AIScorp::Effect(RunListEvent* ev, DExhumedActor* pTarget, int mode)
         pActor->add_int_ang(RandomSize(7) - 63);
         pActor->norm_ang();
 
-        pActor->spr.xvel = bcos(pActor->int_ang());
-        pActor->spr.yvel = bsin(pActor->int_ang());
+        pActor->VelFromAngle();
     }
     if (mode <= 1)
     {
@@ -426,8 +423,8 @@ void AIScorp::Effect(RunListEvent* ev, DExhumedActor* pTarget, int mode)
             if (cansee(pActor->spr.pos.plusZ(-GetActorHeightF(pActor)), pActor->sector(),
                 pTarget->spr.pos.plusZ(-GetActorHeightF(pTarget)), pTarget->sector()))
             {
-                pActor->spr.xvel = 0;
-                pActor->spr.yvel = 0;
+                pActor->vel.X = 0;
+                pActor->vel.Y = 0;
 				pActor->spr.angle = VecToAngle(pTarget->spr.pos - pActor->spr.pos);
 
                 pActor->nIndex = RandomSize(2) + RandomSize(3);
@@ -455,8 +452,8 @@ void AIScorp::Effect(RunListEvent* ev, DExhumedActor* pTarget, int mode)
         pActor->nCount = 30;
         pActor->pTarget = nullptr;
 
-        pActor->spr.xvel = 0;
-        pActor->spr.yvel = 0;
+        pActor->vel.X = 0;
+        pActor->vel.Y = 0;
     }
 }
 

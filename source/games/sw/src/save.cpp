@@ -406,8 +406,7 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, REMOTE_CONTROL& w,
 	}
 	if (arc.isReading())
 	{
-		w.ovect.Y = w.vect.X;
-		w.ovect.Y = w.vect.Y;
+		w.ovect = w.vect;
 	}
 	return arc;
 }
@@ -449,8 +448,6 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, PLAYER& w, PLAYER*
 			("sop", w.sop)
 			("jump_count", w.jump_count)
 			("jump_speed", w.jump_speed)
-			("down_speed", w.down_speed)
-			("up_speed", w.up_speed)
 			("z_speed", w.z_speed)
 			("climb_ndx", w.climb_ndx)
 			("hiz", w.hiz)
@@ -479,9 +476,6 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, PLAYER& w, PLAYER*
 			("camera_check_time_delay", w.camera_check_time_delay)
 			("cursectnum", w.cursector)
 			("lastcursectnum", w.lastcursector)
-			("hvel", w.hvel)
-			("tilt", w.tilt)
-			("tilt_dest", w.tilt_dest)
 			("horizon", w.horizon)
 			("angle", w.angle)
 			("recoil_amt", w.recoil_amt)
@@ -504,7 +498,7 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, PLAYER& w, PLAYER*
 			("ly", w.LadderPosition.Y)
 			("JumpDuration", w.JumpDuration)
 			("WadeDepth", w.WadeDepth)
-			("bob_amt", w.bob_amt)
+			("bob_amt", w.pbob_amt)
 			("bob_ndx", w.bob_ndx)
 			("bcnt", w.bcnt)
 			("bob_z", w.bob_z)
@@ -581,8 +575,7 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, PLAYER& w, PLAYER*
 	if (arc.isReading())
 	{
 		w.opos = w.pos;
-		w.ovect.X = w.vect.X;
-		w.ovect.Y = w.vect.Y;
+		w.ovect = w.vect;
 		w.obob_z = w.bob_z;
 		w.input = {};
 		w.lastinput = {};
@@ -628,10 +621,8 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, SECTOR_OBJECT& w, 
 			("clipbox_num", w.clipbox_num, def->clipbox_num)
 			.Array("sectp", w.sectp, def->sectp, w.num_sectors)
 			.Array("zorig_floor", w.zorig_floor, def->zorig_floor, w.num_sectors)
-			.Array("zorig_ceiling", w.zorig_ceiling, def->zorig_ceiling, w.num_sectors)
 			.Array("sp_num", w.so_actors, def->so_actors, countof(w.so_actors))
-			.Array("xorig", w.xorig, def->xorig, w.num_walls)
-			.Array("yorig", w.yorig, def->yorig, w.num_walls)
+			.Array("orig", w.orig, def->orig, w.num_walls)
 			("controller", w.controller, def->controller)
 			("child", w.sp_child, def->sp_child)
 			("xmid", w.pmid.X, def->pmid.X)
@@ -639,8 +630,6 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, SECTOR_OBJECT& w, 
 			("zmid", w.pmid.Z, def->pmid.Z)
 			("vel", w.vel, def->vel)
 			("vel_tgt", w.vel_tgt, def->vel_tgt)
-			("player_xoff", w.player_xoff, def->player_xoff)
-			("player_yoff", w.player_yoff, def->player_yoff)
 			("zdelta", w.zdelta, def->zdelta)
 
 			("z_tgt", w.z_tgt, def->z_tgt)
@@ -674,7 +663,6 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, SECTOR_OBJECT& w, 
 			("ang_tgt", w.ang_tgt, def->ang_tgt)
 			("ang_orig", w.ang_orig, def->ang_orig)
 			("last_ang", w.last_ang, def->last_ang)
-			("old_ang", w.old_ang, def->old_ang)
 			("spin_speed", w.spin_speed, def->spin_speed)
 			("spin_ang", w.spin_ang, def->spin_ang)
 			("turn_speed", w.turn_speed, def->turn_speed)
@@ -693,8 +681,6 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, SECTOR_OBJECT& w, 
 			("scale_dist_max", w.scale_dist_max, def->scale_dist_max)
 			("scale_rand_freq", w.scale_rand_freq, def->scale_rand_freq)
 			.Array("clipbox_dist", w.clipbox_dist, def->clipbox_dist, w.clipbox_num)
-			.Array("clipbox_xoff", w.clipbox_xoff, def->clipbox_xoff, w.clipbox_num)
-			.Array("clipbox_yoff", w.clipbox_yoff, def->clipbox_yoff, w.clipbox_num)
 			.Array("clipbox_ang", w.clipbox_ang, def->clipbox_ang, w.clipbox_num)
 			.Array("clipbox_vdist", w.clipbox_vdist, def->clipbox_vdist, w.clipbox_num)
 			.Array("scale_point_dist", w.scale_point_dist, def->scale_point_dist, MAX_SO_POINTS)
@@ -712,8 +698,7 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, SECTOR_OBJECT& w, 
 			("morph_rand_freq", w.morph_rand_freq, def->morph_rand_freq)
 			("morph_dist", w.morph_dist, def->morph_dist)
 			("morph_z_speed", w.morph_z_speed, def->morph_z_speed)
-			("morph_xoff", w.morph_xoff, def->morph_xoff)
-			("morph_yoff", w.morph_yoff, def->morph_yoff)
+			("morph_off", w.morph_off, def->morph_off)
 			("limit_ang_center", w.limit_ang_center, def->limit_ang_center)
 			("limit_ang_delta", w.limit_ang_delta, def->limit_ang_delta);
 
@@ -742,8 +727,7 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, ROTATOR& w, ROTATO
 			("speed", w.speed)
 			("orig_speed", w.orig_speed)
 			("vel", w.vel)
-			("origx", w.origX)
-			("origy", w.origY)
+			("orig", w.orig)
 			.EndObject();
 	}
 	return arc;
@@ -860,7 +844,7 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, USER& w, USER* def
 
 		if (arc.isReading())
 		{
-			w.oangdiff = 0;
+			w.oangdiff = nullAngle;
 		}
 	}
 	return arc;
@@ -883,9 +867,9 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, SINE_WAVE_FLOOR& w
 
 	if (arc.BeginObject(keyname))
 	{
-		arc("floor_origz", w.floor_origz, def->floor_origz)
-			("ceiling_origz", w.ceiling_origz, def->ceiling_origz)
-			("range", w.range, def->range)
+		arc("floor_origz", w.floorOrigz, def->floorOrigz)
+			("ceiling_origz", w.ceilingOrigz, def->ceilingOrigz)
+			("range", w.Range, def->Range)
 			("sector", w.sectp, def->sectp)
 			("sintable_ndx", w.sintable_ndx, def->sintable_ndx)
 			("speed_shift", w.speed_shift, def->speed_shift)
@@ -912,8 +896,8 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, SINE_WALL& w, SINE
 
 	if (arc.BeginObject(keyname))
 	{
-		arc("orig_xy", w.orig_xy, def->orig_xy)
-			("range", w.range, def->range)
+		arc("orig_xy", w.origXY, def->origXY)
+			("range", w.Range, def->Range)
 			("sector", w.wallp, def->wallp)
 			("sintable_ndx", w.sintable_ndx, def->sintable_ndx)
 			("speed_shift", w.speed_shift, def->speed_shift)

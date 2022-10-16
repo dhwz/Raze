@@ -37,7 +37,7 @@ static actionSeq MummySeq[] = {
 };
 
 
-void BuildMummy(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, int nAngle)
+void BuildMummy(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, DAngle nAngle)
 {
     if (pActor == nullptr)
     {
@@ -46,22 +46,22 @@ void BuildMummy(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector,
     }
     else
     {
-        nAngle = pActor->int_ang();
+        nAngle = pActor->spr.angle;
         ChangeActorStat(pActor, 102);
     }
 
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     pActor->spr.shade = -12;
     pActor->spr.clipdist = 32;
-    pActor->spr.xvel = 0;
-    pActor->spr.yvel = 0;
-    pActor->spr.zvel = 0;
+    pActor->vel.X = 0;
+    pActor->vel.Y = 0;
+    pActor->vel.Z = 0;
     pActor->spr.xrepeat = 42;
     pActor->spr.yrepeat = 42;
     pActor->spr.pal = pActor->sector()->ceilingpal;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->set_int_ang(nAngle);
+    pActor->spr.angle = nAngle;
     pActor->spr.picnum = 1;
     pActor->spr.hitag = 0;
     pActor->spr.lotag = runlist_HeadRun() + 1;
@@ -147,8 +147,8 @@ void AIMummy::Tick(RunListEvent* ev)
         {
             pActor->nAction = 0;
             pActor->nFrame = 0;
-            pActor->spr.xvel = 0;
-            pActor->spr.yvel = 0;
+            pActor->vel.X = 0;
+            pActor->vel.Y = 0;
         }
     }
 
@@ -176,8 +176,7 @@ void AIMummy::Tick(RunListEvent* ev)
                     pActor->nAction = 1;
                     pActor->nCount = 90;
 
-                    pActor->spr.xvel = bcos(pActor->int_ang(), -2);
-                    pActor->spr.yvel = bsin(pActor->int_ang(), -2);
+                    pActor->VelFromAngle(-2);
                 }
             }
         }
@@ -207,8 +206,8 @@ void AIMummy::Tick(RunListEvent* ev)
                         pActor->nAction = 3;
                         pActor->nFrame = 0;
 
-                        pActor->spr.xvel = 0;
-                        pActor->spr.yvel = 0;
+                        pActor->vel.X = 0;
+                        pActor->vel.Y = 0;
                         return;
                     }
                 }
@@ -218,39 +217,38 @@ void AIMummy::Tick(RunListEvent* ev)
         // loc_2B5A8
         if (!pActor->nFrame)
         {
-            pActor->spr.xvel = bcos(pActor->int_ang(), -1);
-            pActor->spr.yvel = bsin(pActor->int_ang(), -1);
+            pActor->VelFromAngle(-1);
         }
 
-        if (pActor->spr.xvel || pActor->spr.yvel)
+        if (pActor->vel.X != 0 || pActor->vel.Y != 0)
         {
-            if (pActor->spr.xvel > 0)
+            if (pActor->vel.X > 0)
             {
-                pActor->spr.xvel -= 1024;
-                if (pActor->spr.xvel < 0) {
-                    pActor->spr.xvel = 0;
+                pActor->add_int_xvel(-1024);
+                if (pActor->vel.X < 0) {
+                    pActor->vel.X = 0;
                 }
             }
-            else if (pActor->spr.xvel < 0)
+            else if (pActor->vel.X < 0)
             {
-                pActor->spr.xvel += 1024;
-                if (pActor->spr.xvel > 0) {
-                    pActor->spr.xvel = 0;
+                pActor->add_int_xvel( 1024);
+                if (pActor->vel.X > 0) {
+                    pActor->vel.X = 0;
                 }
             }
 
-            if (pActor->spr.yvel > 0)
+            if (pActor->vel.Y > 0)
             {
-                pActor->spr.yvel -= 1024;
-                if (pActor->spr.yvel < 0) {
-                    pActor->spr.yvel = 0;
+				pActor->vel.Y -= 64;
+                if (pActor->vel.Y < 0) {
+                    pActor->vel.Y = 0;
                 }
             }
-            else if (pActor->spr.yvel < 0)
+            else if (pActor->vel.Y < 0)
             {
-                pActor->spr.yvel += 1024;
-                if (pActor->spr.yvel > 0) {
-                    pActor->spr.yvel = 0;
+                pActor->vel.Y += 64;
+                if (pActor->vel.Y > 0) {
+                    pActor->vel.Y = 0;
                 }
             }
         }
@@ -260,8 +258,7 @@ void AIMummy::Tick(RunListEvent* ev)
         case kHitWall:
         {
             pActor->set_int_ang((pActor->int_ang() + ((RandomWord() & 0x3FF) + 1024)) & kAngleMask);
-            pActor->spr.xvel = bcos(pActor->int_ang(), -2);
-            pActor->spr.yvel = bsin(pActor->int_ang(), -2);
+            pActor->VelFromAngle(-2);
             return;
         }
 
@@ -275,8 +272,8 @@ void AIMummy::Tick(RunListEvent* ev)
                     pActor->nAction = 2;
                     pActor->nFrame = 0;
 
-                    pActor->spr.xvel = 0;
-                    pActor->spr.yvel = 0;
+                    pActor->vel.X = 0;
+                    pActor->vel.Y = 0;
                 }
             }
             return;
@@ -323,7 +320,7 @@ void AIMummy::Tick(RunListEvent* ev)
             SetQuake(pActor, 100);
 
             // low 16 bits of returned var contains the sprite index, the high 16 the bullet number
-            auto pBullet = BuildBullet(pActor, 9, -15360, pActor->int_ang(), pTarget, 1);
+            auto pBullet = BuildBullet(pActor, 9, -15360, pActor->spr.angle, pTarget, 1);
             CheckMummyRevive(pActor);
 
             if (pBullet)
@@ -373,14 +370,14 @@ void AIMummy::Tick(RunListEvent* ev)
     {
         if (nMov.exbits)
         {
-            pActor->spr.xvel >>= 1;
-            pActor->spr.yvel >>= 1;
+            pActor->vel.X *= 0.5;
+            pActor->vel.Y *= 0.5;
         }
 
         if (bVal)
         {
-            pActor->spr.xvel = 0;
-            pActor->spr.yvel = 0;
+            pActor->vel.X = 0;
+            pActor->vel.Y = 0;
             pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
 
             pActor->nAction = 0;
@@ -440,9 +437,9 @@ void AIMummy::Damage(RunListEvent* ev)
         pActor->nFrame = 0;
         pActor->nAction = 4;
 
-        pActor->spr.xvel = 0;
-        pActor->spr.yvel = 0;
-        pActor->spr.zvel = 0;
+        pActor->vel.X = 0;
+        pActor->vel.Y = 0;
+        pActor->vel.Z = 0;
         pActor->spr.pos.Z = pActor->sector()->floorz;
     }
     else
@@ -452,8 +449,8 @@ void AIMummy::Damage(RunListEvent* ev)
             pActor->nAction = 7;
             pActor->nFrame = 0;
 
-            pActor->spr.xvel = 0;
-            pActor->spr.yvel = 0;
+            pActor->vel.X = 0;
+            pActor->vel.Y = 0;
         }
     }
 

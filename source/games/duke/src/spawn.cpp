@@ -71,11 +71,11 @@ DDukeActor* CreateActor(sectortype* whatsectp, const DVector3& pos, int s_pn, in
 	act->spr.pal = 0;
 
 	act->set_int_ang(s_a);
-	act->spr.xvel = s_ve;
-	act->spr.zvel = s_zv;
+	act->set_int_xvel(s_ve);
+	act->set_int_zvel(s_zv);
 	act->spr.xoffset = 0;
 	act->spr.yoffset = 0;
-	act->spr.yvel = 0;
+	act->spr.yint = 0;
 	act->spr.clipdist = 0;
 	act->spr.pal = 0;
 	act->spr.lotag = 0;
@@ -160,6 +160,8 @@ bool initspriteforspawn(DDukeActor* act)
 
 	act->temp_data[0] = act->temp_data[1] = act->temp_data[2] = act->temp_data[3] = act->temp_data[4] = act->temp_data[5] = 0;
 	act->temp_actor = nullptr;
+	act->temp_angle = nullAngle;
+	act->temp_pos = DVector3(0, 0, 0);
 
 	if (wallswitchcheck(act) && (act->spr.cstat & CSTAT_SPRITE_ALIGNMENT_WALL))
 	{
@@ -326,7 +328,7 @@ void spawntransporter(DDukeActor *actj, DDukeActor* act, bool beam)
 	act->spr.cstat = CSTAT_SPRITE_YCENTER | CSTAT_SPRITE_TRANSLUCENT;
 	act->spr.angle = actj->spr.angle;
 
-	act->spr.xvel = 128;
+	act->vel.X = 8;
 	ChangeActorStat(act, STAT_MISC);
 	ssp(act, CLIPMASK0);
 	SetActor(act, act->spr.pos);
@@ -406,7 +408,7 @@ void initfootprint(DDukeActor* actj, DDukeActor* act)
 		else { act->spr.xrepeat = act->spr.yrepeat = 0; return; }
 
 		act->spr.cstat = CSTAT_SPRITE_ALIGNMENT_FLOOR;
-		if ((ps[actj->spr.yvel].footprintcount & 1)) act->spr.cstat |= CSTAT_SPRITE_XFLIP;
+		if ((ps[actj->PlayerIndex()].footprintcount & 1)) act->spr.cstat |= CSTAT_SPRITE_XFLIP;
 		act->spr.angle = actj->spr.angle;
 	}
 
@@ -428,37 +430,38 @@ void initshell(DDukeActor* actj, DDukeActor* act, bool isshell)
 {
 	if (actj)
 	{
-		int snum, a;
+		int snum;
+		DAngle ang;
 
 		if (actj->isPlayer())
 		{
-			snum = actj->spr.yvel;
-			a = ps[snum].angle.ang.Buildang() - (krand() & 63) + 8;  //Fine tune
+			snum = actj->PlayerIndex();
+			ang = ps[snum].angle.ang - DAngle::fromBuild((krand() & 63) + 8);  //Fine tune
 
 			act->temp_data[0] = krand() & 1;
-			act->set_int_z((3 << 8) + ps[snum].pyoff + ps[snum].player_int_pos().Z - (ps[snum].horizon.sum().asq16() >> 12) + (!isshell ? (3 << 8) : 0));
-			act->spr.zvel = -(krand() & 255);
+			act->spr.pos.Z = 3 + ps[snum].pos.Z + ps[snum].pyoff - (ps[snum].horizon.sum().asbuildf() * (1/16.)) + (!isshell ? 3 : 0);
+			act->set_int_zvel(-(krand() & 255));
 		}
 		else
 		{
-			a = act->int_ang();
+			ang = act->spr.angle;
 			act->spr.pos.Z = actj->spr.pos.Z - gs.playerheight + 3;
 		}
 
-		act->set_int_xy(actj->int_pos().X + bcos(a, -7), actj->int_pos().Y + bsin(a, -7));
+		act->spr.pos.XY() = actj->spr.pos.XY() + ang.ToVector() * 8;
 
 		act->spr.shade = -8;
 
 		if (isNamWW2GI())
 		{
 			// to the right, with feeling
-			act->set_int_ang(a + 512);
-			act->spr.xvel = 30;
+			act->spr.angle = ang + DAngle90;
+			act->set_int_xvel(30);
 		}
 		else
 		{
-			act->set_int_ang(a - 512);
-			act->spr.xvel = 20;
+			act->spr.angle = ang - DAngle90;
+			act->set_int_xvel(20);
 		}
 
 		act->spr.xrepeat = act->spr.yrepeat = isRR() && isshell? 2 : 4;
@@ -531,7 +534,7 @@ void initwaterdrip(DDukeActor* actj, DDukeActor* actor)
 		}
 		else actor->spr.pos.Z -= 13;
 		actor->spr.angle = VecToAngle(ps[connecthead].pos.XY() - actor->spr.pos.XY());
-		actor->spr.xvel = 48 - (krand() & 31);
+		actor->set_int_xvel(48 - (krand() & 31));
 		ssp(actor, CLIPMASK0);
 	}
 	else if (!actj)
@@ -602,7 +605,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 	auto sectp = actor->sector();
 	int d, clostest = 0;
 
-	actor->spr.yvel = sectp->extra;
+	actor->spr.yint = sectp->extra;
 	actor->spr.cstat |= CSTAT_SPRITE_INVISIBLE;
 	actor->spr.xrepeat = actor->spr.yrepeat = 0;
 
@@ -697,7 +700,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 			bool ceiling = (abs(actor->temp_data[0] - actor->int_pos().Z) < abs(actor->temp_data[1] - actor->int_pos().Z));
 			actor->spriteextra = ceiling;
 
-			if (actor->int_ang() == 512)
+			if (actor->spr.angle == DAngle90)
 			{
 				if (ceiling)
 					sectp->setceilingz(actor->spr.pos.Z);
@@ -715,7 +718,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 				sectp->ceilingstat ^= CSTAT_SECTOR_SKY;
 				actor->temp_data[3] = 1;
 
-				if (!ceiling && actor->int_ang() == 512)
+				if (!ceiling && actor->spr.angle == DAngle90)
 				{
 					sectp->ceilingstat ^= CSTAT_SECTOR_SKY;
 					actor->temp_data[3] = 0;
@@ -724,7 +727,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 				sectp->ceilingshade =
 					sectp->floorshade;
 
-				if (actor->int_ang() == 512)
+				if (actor->spr.angle == DAngle90)
 				{
 					for (auto& wl : wallsofsector(sectp))
 					{
@@ -747,8 +750,8 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 		case SE_17_WARP_ELEVATOR:
 		{
 			actor->temp_data[2] = sectp->int_floorz(); //Stopping loc
-			actor->temp_data[3] = nextsectorneighborzptr(sectp, sectp->int_floorz(), Find_CeilingUp | Find_Safe)->int_ceilingz();
-			actor->temp_data[4] = nextsectorneighborzptr(sectp, sectp->int_ceilingz(), Find_FloorDown | Find_Safe)->int_floorz();
+			actor->temp_data[3] = nextsectorneighborzptr(sectp, sectp->floorz, Find_CeilingUp | Find_Safe)->int_ceilingz();
+			actor->temp_data[4] = nextsectorneighborzptr(sectp, sectp->ceilingz, Find_FloorDown | Find_Safe)->int_floorz();
 
 			if (numplayers < 2)
 			{
@@ -767,7 +770,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 
 		case SE_24_CONVEYOR:
 			StartInterpolation(sectp, Interp_Sect_FloorPanX);
-			actor->spr.yvel <<= 1;
+			actor->spr.yint <<= 1;
 		case SE_36_PROJ_SHOOTER:
 			break;
 
@@ -867,7 +870,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 
 		case SE_9_DOWN_OPEN_DOOR_LIGHTS:
 			if (sectp->lotag &&
-				labs(sectp->int_ceilingz() - actor->int_pos().Z) > 1024)
+				abs(sectp->ceilingz - actor->spr.pos.Z) > 4)
 				sectp->lotag |= 32768; //If its open
 			[[fallthrough]];
 		case SE_8_UP_OPEN_DOOR_LIGHTS:
@@ -914,7 +917,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 		{
 			if (actor->spr.lotag == 0)
 			{
-				if (sectp->lotag == 30)
+				if (sectp->lotag == SE_30_TWO_WAY_TRAIN)
 				{
 					if (actor->spr.pal) actor->spr.clipdist = 1;
 					else actor->spr.clipdist = 0;
@@ -931,7 +934,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 							act2->spr.lotag == SE_1_PIVOT &&
 							act2->spr.hitag == actor->spr.hitag)
 						{
-							if (actor->int_ang() == 512)
+							if (actor->spr.angle == DAngle90)
 							{
 								actor->spr.pos.XY() = act2->spr.pos.XY();
 							}
@@ -1000,12 +1003,11 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 
 			else if (actor->spr.lotag == SE_26)
 			{
-				actor->temp_data[3] = actor->int_pos().X;
-				actor->temp_data[4] = actor->int_pos().Y;
+				actor->temp_pos.XY() = actor->spr.pos.XY();
 				if (actor->spr.shade == sectp->floorshade) //UP
-					actor->spr.zvel = -256;
+					actor->vel.Z = -1;
 				else
-					actor->spr.zvel = 256;
+					actor->vel.Z = 1;
 
 				actor->spr.shade = 0;
 			}
@@ -1096,7 +1098,7 @@ void lotsofglass(DDukeActor *actor, walltype* wal, int n)
 
 	int x1 = wal->wall_int_pos().X;
 	int y1 = wal->wall_int_pos().Y;
-	auto delta = wal->delta() / (n + 1);
+	auto delta = wal->int_delta() / (n + 1);
 
 	x1 -= Sgn(delta.Y);
 	y1 += Sgn(delta.X);
@@ -1152,7 +1154,7 @@ void ceilingglass(DDukeActor* actor, sectortype* sectp, int n)
 		int x1 = wal.wall_int_pos().X;
 		int y1 = wal.wall_int_pos().Y;
 
-		auto delta = wal.delta() / (n + 1);
+		auto delta = wal.int_delta() / (n + 1);
 
 		for (j = n; j > 0; j--)
 		{
@@ -1191,7 +1193,7 @@ void lotsofcolourglass(DDukeActor* actor, walltype* wal, int n)
 	int x1 = wal->wall_int_pos().X;
 	int y1 = wal->wall_int_pos().Y;
 
-	auto delta = wal->delta() / (n + 1);
+	auto delta = wal->int_delta() / (n + 1);
 
 	for (j = n; j > 0; j--)
 	{

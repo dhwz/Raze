@@ -45,9 +45,9 @@ DExhumedActor* BuildLavaLimb(DExhumedActor* pActor, int move, int ebx)
     pLimbActor->spr.cstat = 0;
     pLimbActor->spr.shade = -127;
     pLimbActor->spr.pal = 1;
-    pLimbActor->spr.xvel = (RandomSize(5) - 16) << 8;
-    pLimbActor->spr.yvel = (RandomSize(5) - 16) << 8;
-    pLimbActor->spr.zvel = 2560 - (RandomSize(5) << 8);
+    pLimbActor->set_int_xvel((RandomSize(5) - 16) << 8);
+    pLimbActor->set_int_yvel((RandomSize(5) - 16) << 8);
+    pLimbActor->set_int_zvel(2560 - (RandomSize(5) << 8));
     pLimbActor->spr.xoffset = 0;
     pLimbActor->spr.yoffset = 0;
     pLimbActor->spr.xrepeat = 90;
@@ -73,13 +73,13 @@ void AILavaDudeLimb::Tick(RunListEvent* ev)
 
     pActor->spr.shade += 3;
 
-    auto coll = movesprite(pActor, pActor->spr.xvel << 12, pActor->spr.yvel << 12, pActor->spr.zvel, 2560, -2560, CLIPMASK1);
+    auto coll = movesprite(pActor, pActor->int_xvel() << 12, pActor->int_yvel() << 12, pActor->int_zvel(), 2560, -2560, CLIPMASK1);
 
     if (coll.type || pActor->spr.shade > 100)
     {
-        pActor->spr.xvel = 0;
-        pActor->spr.yvel = 0;
-        pActor->spr.zvel = 0;
+        pActor->vel.X = 0;
+        pActor->vel.Y = 0;
+        pActor->vel.Z = 0;
 
         runlist_DoSubRunRec(pActor->spr.intowner);
         runlist_FreeRun(pActor->spr.lotag - 1);
@@ -97,7 +97,7 @@ void AILavaDudeLimb::Draw(RunListEvent* ev)
 }
 
 
-void BuildLava(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, int nAngle, int nChannel)
+void BuildLava(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, DAngle nAngle, int nChannel)
 {
     if (pActor == nullptr)
     {
@@ -107,7 +107,7 @@ void BuildLava(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, 
     else
     {
         pSector = pActor->sector();
-        nAngle = pActor->int_ang();
+        nAngle = pActor->spr.angle;
 		pActor->spr.pos.Z = pSector->floorz;
 
         ChangeActorStat(pActor, 118);
@@ -122,10 +122,10 @@ void BuildLava(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, 
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
     pActor->spr.picnum = seq_GetSeqPicnum(kSeqLavag, LavadudeSeq[3].a, 0);
-    pActor->spr.xvel = 0;
-    pActor->spr.yvel = 0;
-    pActor->spr.zvel = 0;
-    pActor->set_int_ang(nAngle);
+    pActor->vel.X = 0;
+    pActor->vel.Y = 0;
+    pActor->vel.Z = 0;
+    pActor->spr.angle = nAngle;
     pActor->spr.hitag = 0;
     pActor->spr.lotag = runlist_HeadRun() + 1;
 
@@ -264,8 +264,7 @@ void AILavaDude::Tick(RunListEvent* ev)
 
             PlotCourseToSprite(pActor, pTarget);
 
-            pActor->spr.xvel = bcos(pActor->int_ang());
-            pActor->spr.yvel = bsin(pActor->int_ang());
+            pActor->VelFromAngle();
 
             if (pTarget && !RandomSize(1))
             {
@@ -280,7 +279,7 @@ void AILavaDude::Tick(RunListEvent* ev)
 		auto pos = pActor->spr.pos;
         auto pSector =pActor->sector();
 
-        auto coll = movesprite(pActor, pActor->spr.xvel << 8, pActor->spr.yvel << 8, 0, 0, 0, CLIPMASK0);
+        auto coll = movesprite(pActor, pActor->int_xvel() << 8, pActor->int_yvel() << 8, 0, 0, 0, CLIPMASK0);
 
         if (pSector != pActor->sector())
         {
@@ -288,8 +287,7 @@ void AILavaDude::Tick(RunListEvent* ev)
 			pActor->spr.pos = pos;
 
             pActor->set_int_ang((pActor->int_ang() + ((RandomWord() & 0x3FF) + 1024)) & kAngleMask);
-            pActor->spr.xvel = bcos(pActor->int_ang());
-            pActor->spr.yvel = bsin(pActor->int_ang());
+            pActor->VelFromAngle();
             break;
         }
 
@@ -300,8 +298,7 @@ void AILavaDude::Tick(RunListEvent* ev)
         if (coll.type == kHitWall)
         {
             pActor->set_int_ang((pActor->int_ang() + ((RandomWord() & 0x3FF) + 1024)) & kAngleMask);
-            pActor->spr.xvel = bcos(pActor->int_ang());
-            pActor->spr.yvel = bsin(pActor->int_ang());
+            pActor->VelFromAngle();
             break;
         }
         else if (coll.type == kHitSprite)
@@ -350,7 +347,7 @@ void AILavaDude::Tick(RunListEvent* ev)
             int nHeight = GetActorHeight(pActor);
             GetUpAngle(pActor, -64000, pTarget, (-(nHeight >> 1)));
 
-            BuildBullet(pActor, 10, -1, pActor->int_ang(), pTarget, 1);
+            BuildBullet(pActor, 10, -1, pActor->spr.angle, pTarget, 1);
         }
         else if (var_1C)
         {

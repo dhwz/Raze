@@ -175,10 +175,10 @@ static void beastThinkGoto(DBloodActor* actor)
 	auto pXSector = pSector->hasX() ? &pSector->xs() : nullptr;
 
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
-	int nAngle = getangle(dvec);
+	auto nAngle = VecToAngle(dvec);
 	int nDist = approxDist(dvec);
 	aiChooseDirection(actor, nAngle);
-	if (nDist < 512 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
+	if (nDist < 512 && absangle(actor->spr.angle, nAngle) < DAngle::fromBuild(pDudeInfo->periphery))
 	{
 		if (pXSector && pXSector->Underwater)
 			aiNewState(actor, &beastSwimSearch);
@@ -208,7 +208,7 @@ static void beastThinkChase(DBloodActor* actor)
 
 	int dx = target->int_pos().X - actor->int_pos().X;
 	int dy = target->int_pos().Y - actor->int_pos().Y;
-	aiChooseDirection(actor, getangle(dx, dy));
+	aiChooseDirection(actor, VecToAngle(dx, dy));
 
 	auto pSector = actor->sector();
 	auto pXSector = pSector->hasX() ? &pSector->xs() : nullptr;
@@ -325,10 +325,10 @@ static void beastThinkSwimGoto(DBloodActor* actor)
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
-	int nAngle = getangle(dvec);
+	auto nAngle = VecToAngle(dvec);
 	int nDist = approxDist(dvec);
 	aiChooseDirection(actor, nAngle);
-	if (nDist < 512 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
+	if (nDist < 512 && absangle(actor->spr.angle, nAngle) < DAngle::fromBuild(pDudeInfo->periphery))
 		aiNewState(actor, &beastSwimSearch);
 	aiThinkTarget(actor);
 }
@@ -346,7 +346,7 @@ static void beastThinkSwimChase(DBloodActor* actor)
 	auto target = actor->GetTarget();
 
 	auto dvec = target->spr.pos.XY() - actor->spr.pos.XY();
-	int nAngle = getangle(dvec);
+	DAngle nAngle = VecToAngle(dvec);
 	int nDist = approxDist(dvec);
 
 	aiChooseDirection(actor, nAngle);
@@ -363,7 +363,7 @@ static void beastThinkSwimChase(DBloodActor* actor)
 
 	if (nDist <= pDudeInfo->seeDist)
 	{
-		int nDeltaAngle = getincangle(actor->int_ang(), nAngle);
+		int nDeltaAngle = getincangle(actor->int_ang(), nAngle.Buildang());
 		double height = (pDudeInfo->eyeHeight * actor->spr.yrepeat) * REPEAT_SCALE;
 		int top, bottom;
 		GetActorExtents(actor, &top, &bottom);
@@ -393,7 +393,7 @@ static void beastMoveForward(DBloodActor* actor)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 	if (abs(nAng) > DAngle60)
@@ -402,15 +402,15 @@ static void beastMoveForward(DBloodActor* actor)
 	int nDist = approxDist(dvec);
 	if (nDist <= 0x400 && Random(64) < 32)
 		return;
-	actor->vel.X += MulScale(pDudeInfo->frontSpeed, Cos(actor->int_ang()), 30);
-	actor->vel.Y += MulScale(pDudeInfo->frontSpeed, Sin(actor->int_ang()), 30);
+	actor->add_int_bvel_x(MulScale(pDudeInfo->frontSpeed, Cos(actor->int_ang()), 30));
+	actor->add_int_bvel_y(MulScale(pDudeInfo->frontSpeed, Sin(actor->int_ang()), 30));
 }
 
 static void sub_628A0(DBloodActor* actor)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 	int nAccel = pDudeInfo->frontSpeed << 2;
@@ -422,18 +422,12 @@ static void sub_628A0(DBloodActor* actor)
 	int nDist = approxDist(dvec);
 	if (Random(64) < 32 && nDist <= 0x400)
 		return;
-	int nCos = Cos(actor->int_ang());
-	int nSin = Sin(actor->int_ang());
-	int vx = actor->vel.X;
-	int vy = actor->vel.Y;
-	int t1 = DMulScale(vx, nCos, vy, nSin, 30);
-	int t2 = DMulScale(vx, nSin, -vy, nCos, 30);
-	if (actor->GetTarget() == nullptr)
-		t1 += nAccel;
-	else
-		t1 += nAccel >> 2;
-	actor->vel.X = DMulScale(t1, nCos, t2, nSin, 30);
-	actor->vel.Y = DMulScale(t1, nSin, -t2, nCos, 30);
+	AdjustVelocity(actor, ADJUSTER{
+		if (actor->GetTarget() == nullptr)
+			t1 += FixedToFloat(nAccel);
+		else
+			t1 += FixedToFloat(nAccel * 0.25);
+	});
 }
 
 static void sub_62AE0(DBloodActor* actor)
@@ -444,13 +438,13 @@ static void sub_62AE0(DBloodActor* actor)
 	auto target = actor->GetTarget();
 	int z = actor->int_pos().Z + getDudeInfo(actor->spr.type)->eyeHeight;
 	int z2 = target->int_pos().Z + getDudeInfo(target->spr.type)->eyeHeight;
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 	int nAccel = pDudeInfo->frontSpeed << 2;
 	if (abs(nAng) > DAngle60)
 	{
-		actor->xspr.goalAng = (actor->int_ang() + 512) & 2047;
+		actor->xspr.goalAng += DAngle90;
 		return;
 	}
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
@@ -458,16 +452,11 @@ static void sub_62AE0(DBloodActor* actor)
 	int dz = z2 - z;
 	if (Chance(0x600) && nDist <= 0x400)
 		return;
-	int nCos = Cos(actor->int_ang());
-	int nSin = Sin(actor->int_ang());
-	int vx = actor->vel.X;
-	int vy = actor->vel.Y;
-	int t1 = DMulScale(vx, nCos, vy, nSin, 30);
-	int t2 = DMulScale(vx, nSin, -vy, nCos, 30);
-	t1 += nAccel;
-	actor->vel.X = DMulScale(t1, nCos, t2, nSin, 30);
-	actor->vel.Y = DMulScale(t1, nSin, -t2, nCos, 30);
-	actor->vel.Z = -dz;
+	AdjustVelocity(actor, ADJUSTER{
+		t1 += FixedToFloat(nAccel);
+	});
+
+	actor->set_int_bvel_z(-dz);
 }
 
 static void sub_62D7C(DBloodActor* actor)
@@ -478,7 +467,7 @@ static void sub_62D7C(DBloodActor* actor)
 	auto target = actor->GetTarget();
 	int z = actor->int_pos().Z + getDudeInfo(actor->spr.type)->eyeHeight;
 	int z2 = target->int_pos().Z + getDudeInfo(target->spr.type)->eyeHeight;
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 	int nAccel = pDudeInfo->frontSpeed << 2;
@@ -492,16 +481,11 @@ static void sub_62D7C(DBloodActor* actor)
 	int dz = (z2 - z) << 3;
 	if (Chance(0x4000) && nDist <= 0x400)
 		return;
-	int nCos = Cos(actor->int_ang());
-	int nSin = Sin(actor->int_ang());
-	int vx = actor->vel.X;
-	int vy = actor->vel.Y;
-	int t1 = DMulScale(vx, nCos, vy, nSin, 30);
-	int t2 = DMulScale(vx, nSin, -vy, nCos, 30);
-	t1 += nAccel >> 1;
-	actor->vel.X = DMulScale(t1, nCos, t2, nSin, 30);
-	actor->vel.Y = DMulScale(t1, nSin, -t2, nCos, 30);
-	actor->vel.Z = dz;
+	AdjustVelocity(actor, ADJUSTER{
+		t1 += FixedToFloat(nAccel * 0.5);
+	});
+
+	actor->set_int_bvel_z(dz);
 }
 
 END_BLD_NS

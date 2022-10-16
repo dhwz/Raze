@@ -245,12 +245,9 @@ void DrawClock()
     DoEnergyTile();
 }
 
-double calc_smoothratio()
+double calc_interpfrac()
 {
-    if (bRecord || bPlayback || nFreeze != 0 || paused || cl_capfps || !cl_interpolate || EndLevel)
-        return MaxSmoothRatio;
-
-    return I_GetTimeFrac() * MaxSmoothRatio;
+    return bRecord || bPlayback || nFreeze != 0 || paused || cl_capfps || !cl_interpolate || EndLevel ? 1. : I_GetTimeFrac();
 }
 
 void DoGameOverScene(bool finallevel)
@@ -312,7 +309,6 @@ void GameMove(void)
     else
     {
         bobangle += 56;
-        bobangle &= kAngleMask;
     }
 
     UpdateCreepySounds();
@@ -337,12 +333,12 @@ void GameInterface::Ticker()
 	}
     else if (EndLevel == 0)
     {
-        inita &= kAngleMask;
+        inita = inita.Normalized360();
 
         for (int i = 0; i < 4; i++)
         {
-            lPlayerXVel += localInput.fvel * bcos(inita) + localInput.svel * bsin(inita);
-            lPlayerYVel += localInput.fvel * bsin(inita) - localInput.svel * bcos(inita);
+            lPlayerXVel += localInput.fvel * bcos(inita.Buildang()) + localInput.svel * bsin(inita.Buildang());
+            lPlayerYVel += localInput.fvel * bsin(inita.Buildang()) - localInput.svel * bcos(inita.Buildang());
             lPlayerXVel -= (lPlayerXVel >> 5) + (lPlayerXVel >> 6);
             lPlayerYVel -= (lPlayerYVel >> 5) + (lPlayerYVel >> 6);
         }
@@ -622,6 +618,7 @@ void DExhumedActor::Serialize(FSerializer& arc)
         ("index2", nIndex2)
         ("channel", nChannel)
         ("damage", nDamage)
+        ("angle2", angle2)
 
         ("turn", nTurn)
         ("x", x)

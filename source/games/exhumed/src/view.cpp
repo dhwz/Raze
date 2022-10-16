@@ -36,29 +36,24 @@ BEGIN_PS_NS
 
 bool bSubTitles = true;
 
-int zbob;
-
 int16_t dVertPan[kMaxPlayers];
-DVector3 nCamera;
+DVector3 nCamerapos;
 bool bTouchFloor;
 
-int16_t nQuake[kMaxPlayers] = { 0 };
+double nQuake[kMaxPlayers] = { 0 };
 
 int nChunkTotal = 0;
 
-DAngle nCameraa;
-fixedhoriz nCamerapan;
 int nViewTop;
 bool bCamera = false;
 
-int viewz;
 
 
 // We cannot drag these through the entire event system... :(
 tspriteArray* mytspriteArray;
 
 // NOTE - not to be confused with Ken's analyzesprites()
-static void analyzesprites(tspriteArray& tsprites, int x, int y, int z, double const smoothratio)
+static void analyzesprites(tspriteArray& tsprites, int x, int y, int z, double const interpfrac)
 {
     mytspriteArray = &tsprites;
 
@@ -69,8 +64,8 @@ static void analyzesprites(tspriteArray& tsprites, int x, int y, int z, double c
         if (pTSprite->ownerActor)
         {
             // interpolate sprite position
-            pTSprite->pos = pTSprite->ownerActor->interpolatedvec3(smoothratio / 65536.);
-            pTSprite->angle = pTSprite->ownerActor->interpolatedangle(smoothratio / 65536.);
+            pTSprite->pos = pTSprite->ownerActor->interpolatedpos(interpfrac);
+            pTSprite->angle = pTSprite->ownerActor->interpolatedangle(interpfrac);
         }
     }
 
@@ -179,20 +174,15 @@ void ResetView()
 
 static TextOverlay subtitleOverlay;
 
-void DrawView(double smoothRatio, bool sceneonly)
+void DrawView(double interpfrac, bool sceneonly)
 {
     DExhumedActor* pEnemy = nullptr;
     int nEnemyPal = -1;
-    int playerX;
-    int playerY;
-    int playerZ;
     sectortype* pSector = nullptr;
-    DAngle nAngle, rotscrnang;
-    fixedhoriz pan = {};
+    DAngle nCameraang, rotscrnang;
+    fixedhoriz nCamerapan = q16horiz(0);
 
-    zbob = bsin(2 * bobangle, -3);
-
-    DoInterpolations(smoothRatio / 65536.);
+    DoInterpolations(interpfrac);
 
     auto pPlayerActor = PlayerList[nLocalPlayer].pActor;
     auto nPlayerOldCstat = pPlayerActor->spr.cstat;
@@ -203,11 +193,9 @@ void DrawView(double smoothRatio, bool sceneonly)
     {
         DExhumedActor* pActor = SnakeList[nSnakeCam].pSprites[0];
 
-        playerX = pActor->int_pos().X;
-        playerY = pActor->int_pos().Y;
-        playerZ = pActor->int_pos().Z;
+        nCamerapos = pActor->spr.pos;
         pSector = pActor->sector();
-        nAngle = pActor->spr.angle;
+        nCameraang = pActor->spr.angle;
         rotscrnang = nullAngle;
 
         SetGreenPal();
@@ -226,25 +214,23 @@ void DrawView(double smoothRatio, bool sceneonly)
     }
     else
     {
-        playerX = pPlayerActor->__interpolatedx(smoothRatio);
-        playerY = pPlayerActor->__interpolatedy(smoothRatio);
-        playerZ = pPlayerActor->__interpolatedz(smoothRatio) + interpolatedvalue(PlayerList[nLocalPlayer].oeyelevel, PlayerList[nLocalPlayer].eyelevel, smoothRatio);
+        nCamerapos = pPlayerActor->interpolatedpos(interpfrac).plusZ(interpolatedvalue(PlayerList[nLocalPlayer].oeyelevel, PlayerList[nLocalPlayer].eyelevel, interpfrac));
 
         pSector = PlayerList[nLocalPlayer].pPlayerViewSect;
-        updatesector(playerX, playerY, &pSector);
+        updatesector(nCamerapos, &pSector);
         if (pSector == nullptr) pSector = PlayerList[nLocalPlayer].pPlayerViewSect;
 
         if (!SyncInput())
         {
-            pan = PlayerList[nLocalPlayer].horizon.sum();
-            nAngle = PlayerList[nLocalPlayer].angle.sum();
+            nCamerapan = PlayerList[nLocalPlayer].horizon.sum();
+            nCameraang = PlayerList[nLocalPlayer].angle.sum();
             rotscrnang = PlayerList[nLocalPlayer].angle.rotscrnang;
         }
         else
         {
-            pan = PlayerList[nLocalPlayer].horizon.interpolatedsum(smoothRatio);
-            nAngle = PlayerList[nLocalPlayer].angle.interpolatedsum(smoothRatio);
-            rotscrnang = PlayerList[nLocalPlayer].angle.interpolatedrotscrn(smoothRatio);
+            nCamerapan = PlayerList[nLocalPlayer].horizon.interpolatedsum(interpfrac);
+            nCameraang = PlayerList[nLocalPlayer].angle.interpolatedsum(interpfrac);
+            rotscrnang = PlayerList[nLocalPlayer].angle.interpolatedrotscrn(interpfrac);
         }
 
         if (!bCamera)
@@ -257,59 +243,37 @@ void DrawView(double smoothRatio, bool sceneonly)
             pPlayerActor->spr.cstat |= CSTAT_SPRITE_TRANSLUCENT;
             pDop->spr.cstat |= CSTAT_SPRITE_INVISIBLE;
         }
-        pan = q16horiz(clamp(pan.asq16(), gi->playerHorizMin(), gi->playerHorizMax()));
+        nCamerapan = q16horiz(clamp(nCamerapan.asq16(), gi->playerHorizMin(), gi->playerHorizMax()));
     }
-
-    nCameraa = nAngle;
 
     if (nSnakeCam >= 0 && !sceneonly)
     {
-        pan = q16horiz(0);
-        viewz = playerZ;
+        nCamerapan = q16horiz(0);
     }
     else
     {
-        viewz = playerZ + nQuake[nLocalPlayer];
-        int floorZ = pPlayerActor->sector()->int_floorz();
-
-        if (viewz > floorZ)
-            viewz = floorZ;
-
-        nCameraa += DAngle::fromBuild((nQuake[nLocalPlayer] >> 7) % 31);
+        nCamerapos.Z = min(nCamerapos.Z + nQuake[nLocalPlayer], pPlayerActor->sector()->floorz);
+        nCameraang += DAngle::fromDeg(fmod(nQuake[nLocalPlayer], 16.) * (45. / 128.));
 
         if (bCamera)
         {
-            viewz -= 2560;
-            if (!calcChaseCamPos(&playerX, &playerY, &viewz, pPlayerActor, &pSector, nAngle, pan, smoothRatio))
+            nCamerapos.Z -= 10;
+            if (!calcChaseCamPos(nCamerapos, pPlayerActor, &pSector, nCameraang, nCamerapan, interpfrac))
             {
-                viewz += 2560;
-                calcChaseCamPos(&playerX, &playerY, &viewz, pPlayerActor, &pSector, nAngle, pan, smoothRatio);
+                nCamerapos.Z += 10;
+                calcChaseCamPos(nCamerapos, pPlayerActor, &pSector, nCameraang, nCamerapan, interpfrac);
             }
         }
     }
-    nCamera = DVector3(playerX * inttoworld, playerY * inttoworld, playerZ * zinttoworld);
 
     if (pSector != nullptr)
     {
-        int Z = pSector->int_ceilingz() + 256;
-        if (Z <= viewz)
-        {
-            Z = pSector->int_floorz() - 256;
-
-            if (Z < viewz)
-                viewz = Z;
-        }
-        else {
-            viewz = Z;
-        }
+        nCamerapos.Z = min(max(nCamerapos.Z, pSector->ceilingz + 1), pSector->floorz - 1);
     }
-
-    nCamerapan = pan;
 
     if (nFreeze == 2 || nFreeze == 1)
     {
         nSnakeCam = -1;
-        //???
         viewport3d = { 0, 0, screen->GetWidth(), screen->GetHeight() };
     }
 
@@ -339,8 +303,8 @@ void DrawView(double smoothRatio, bool sceneonly)
         }
 
         if (!nFreeze && !sceneonly)
-            DrawWeapons(smoothRatio);
-        render_drawrooms(nullptr, { int(nCamera.X * worldtoint), int(nCamera.Y * worldtoint), viewz }, sectnum(pSector), nCameraa, nCamerapan, rotscrnang, smoothRatio);
+            DrawWeapons(interpfrac);
+        render_drawrooms(nullptr, nCamerapos, sectnum(pSector), nCameraang, nCamerapan, rotscrnang, interpfrac);
 
         if (HavePLURemap())
         {
@@ -368,13 +332,13 @@ void DrawView(double smoothRatio, bool sceneonly)
 
                     pPlayerActor->spr.cstat |= CSTAT_SPRITE_INVISIBLE;
 
-                    int ang2 = nCameraa.Buildang() - pPlayerActor->int_ang();
-                    if (ang2 < 0)
+                    auto ang2 = nCameraang - pPlayerActor->spr.angle;
+                    if (ang2.Degrees() < 0)
                         ang2 = -ang2;
 
-                    if (ang2 > 10)
+                    if (ang2 > DAngle::fromBuild(10))
                     {
-                        inita -= (ang2 >> 3);
+                        inita -= ang2 * (1. / 8.);
                         return;
                     }
 
@@ -405,7 +369,7 @@ void DrawView(double smoothRatio, bool sceneonly)
         {
             if (nSnakeCam < 0)
             {
-                DrawMap(smoothRatio);
+                DrawMap(interpfrac);
             }
             else
             {
@@ -414,7 +378,7 @@ void DrawView(double smoothRatio, bool sceneonly)
                     pEnemy->spr.pal = (uint8_t)nEnemyPal;
                 }
 
-                DrawMap(smoothRatio);
+                DrawMap(interpfrac);
             }
         }
     }
@@ -436,9 +400,9 @@ bool GameInterface::GenerateSavePic()
     return true;
 }
 
-void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double smoothRatio)
+void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double interpfrac)
 {
-    analyzesprites(tsprites, viewx, viewy, viewz, smoothRatio);
+    analyzesprites(tsprites, viewx, viewy, viewz, interpfrac);
 }
 
 
@@ -454,13 +418,10 @@ void SerializeView(FSerializer& arc)
 {
     if (arc.BeginObject("view"))
     {
-        arc("camera", nCamera)
+        arc("camerapos", nCamerapos)
             ("touchfloor", bTouchFloor)
             ("chunktotal", nChunkTotal)
-            ("cameraa", nCameraa)
-            ("camerapan", nCamerapan)
             ("camera", bCamera)
-            ("viewz", viewz)
             .Array("vertpan", dVertPan, countof(dVertPan))
             .Array("quake", nQuake, countof(nQuake))
             .EndObject();

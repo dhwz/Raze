@@ -318,9 +318,9 @@ void WeaponDraw(PLAYER* pPlayer, int shade, double xpos, double ypos, int palnum
 		return;
 	auto pQAV = getQAV(pPlayer->weaponQav);
 	int duration;
-	double smoothratio;
+	double interpfrac;
 
-	qavProcessTimer(pPlayer, pQAV, &duration, &smoothratio, pPlayer->weaponState == -1, pPlayer->curWeapon == kWeapShotgun && pPlayer->weaponState == 7);
+	qavProcessTimer(pPlayer, pQAV, &duration, &interpfrac, pPlayer->weaponState == -1, pPlayer->curWeapon == kWeapShotgun && pPlayer->weaponState == 7);
 
 	pQAV->x = int(xpos);
 	pQAV->y = int(ypos);
@@ -331,7 +331,7 @@ void WeaponDraw(PLAYER* pPlayer, int shade, double xpos, double ypos, int palnum
 		shade = -128;
 		flags |= 1;
 	}
-	pQAV->Draw(xpos, ypos, duration, flags, shade, palnum, true, smoothratio);
+	pQAV->Draw(xpos, ypos, duration, flags, shade, palnum, true, interpfrac);
 }
 
 //---------------------------------------------------------------------------
@@ -457,9 +457,9 @@ void UpdateAimVector(PLAYER* pPlayer)
 			if (pWeaponTrack->seeker)
 			{
 				int t = DivScale(nDist, pWeaponTrack->seeker, 12);
-				x2 += (actor->vel.X * t) >> 12;
-				y2 += (actor->vel.Y * t) >> 12;
-				z2 += (actor->vel.Z * t) >> 8;
+				x2 += (actor->int_vel().X * t) >> 12;
+				y2 += (actor->int_vel().Y * t) >> 12;
+				z2 += (actor->int_vel().Z * t) >> 8;
 			}
 			int lx = x + MulScale(Cos(plActor->int_ang()), nDist, 30);
 			int ly = y + MulScale(Sin(plActor->int_ang()), nDist, 30);
@@ -546,9 +546,9 @@ void UpdateAimVector(PLAYER* pPlayer)
 	aim2 = aim;
 	RotateVector((int*)&aim2.dx, (int*)&aim2.dy, -plActor->int_ang());
 	aim2.dz -= pPlayer->slope;
-	pPlayer->relAim.dx = interpolatedvalue(pPlayer->relAim.dx, aim2.dx, pWeaponTrack->aimSpeedHorz);
-	pPlayer->relAim.dy = interpolatedvalue(pPlayer->relAim.dy, aim2.dy, pWeaponTrack->aimSpeedHorz);
-	pPlayer->relAim.dz = interpolatedvalue(pPlayer->relAim.dz, aim2.dz, pWeaponTrack->aimSpeedVert);
+	pPlayer->relAim.dx = interpolatedvalue(pPlayer->relAim.dx, aim2.dx, pWeaponTrack->aimSpeedHorz * (1. / MaxSmoothRatio));
+	pPlayer->relAim.dy = interpolatedvalue(pPlayer->relAim.dy, aim2.dy, pWeaponTrack->aimSpeedHorz * (1. / MaxSmoothRatio));
+	pPlayer->relAim.dz = interpolatedvalue(pPlayer->relAim.dz, aim2.dz, pWeaponTrack->aimSpeedVert * (1. / MaxSmoothRatio));
 	pPlayer->aim = pPlayer->relAim;
 	RotateVector((int*)&pPlayer->aim.dx, (int*)&pPlayer->aim.dy, plActor->int_ang());
 	pPlayer->aim.dz += pPlayer->slope;

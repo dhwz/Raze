@@ -949,7 +949,7 @@ static void lotsofpopcorn(DDukeActor *actor, walltype* wal, int n)
 	int x1 = wal->wall_int_pos().X;
 	int y1 = wal->wall_int_pos().Y;
 
-	auto delta = wal->delta();
+	auto delta = wal->int_delta();
 
 	x1 -= Sgn(delta.X);
 	y1 += Sgn(delta.Y);
@@ -1353,7 +1353,7 @@ void checkhitwall_r(DDukeActor* spr, walltype* wal, const DVector3& pos, int atw
 		DukeStatIterator it(STAT_EFFECTOR);
 		while (auto act = it.Next())
 		{
-			if (act->spr.hitag == wal->lotag && act->spr.lotag == 3)
+			if (act->spr.hitag == wal->lotag && act->spr.lotag == SE_3_RANDOM_LIGHTS_AFTER_SHOT_OUT)
 			{
 				act->temp_data[2] = j;
 				act->temp_data[3] = darkestwall;
@@ -1412,7 +1412,7 @@ void checkplayerhurt_r(player_struct* p, const Collision &coll)
 	{
 	case BIGFORCE:
 		p->hurt_delay = 26;
-		fi.checkhitwall(p->GetActor(), wal, p->pos + DVector2(p->angle.ang.Cos() * 2, p->angle.ang.Sin() * 2), -1);
+		fi.checkhitwall(p->GetActor(), wal, p->pos + p->angle.ang.ToVector() * 2, -1);
 		break;
 
 	}
@@ -1489,7 +1489,7 @@ bool checkhitceiling_r(sectortype* sectp)
 			DukeSectIterator it(sectp);
 			while (auto act1 = it.Next())
 			{
-				if (act1->spr.picnum == SECTOREFFECTOR && (act1->spr.lotag == 12 || (isRRRA() && (act1->spr.lotag == 47 || act1->spr.lotag == 48))))
+				if (act1->spr.picnum == SECTOREFFECTOR && (act1->spr.lotag == SE_12_LIGHT_SWITCH || (isRRRA() && (act1->spr.lotag == 47 || act1->spr.lotag == 48))))
 				{
 					DukeStatIterator itr(STAT_EFFECTOR);
 					while (auto act2 = itr.Next())
@@ -2060,10 +2060,10 @@ void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 		lotsofglass(targ, nullptr, 10);
 		targ->spr.picnum++;
 		for (k = 0; k < 6; k++)
-			EGS(targ->sector(), targ->int_pos().X, targ->int_pos().Y, targ->int_pos().Z - (8 << 8), SCRAP6 + (krand() & 15), -8, 48, 48, krand() & 2047, (krand() & 63) + 64, -(krand() & 4095) - (targ->spr.zvel >> 2), targ, 5);
+			EGS(targ->sector(), targ->int_pos().X, targ->int_pos().Y, targ->int_pos().Z - (8 << 8), SCRAP6 + (krand() & 15), -8, 48, 48, krand() & 2047, (krand() & 63) + 64, -(krand() & 4095) - (targ->int_zvel() >> 2), targ, 5);
 		break;
 	case BOWLINGBALL:
-		proj->spr.xvel = (targ->spr.xvel >> 1) + (targ->spr.xvel >> 2);
+		proj->set_int_xvel((targ->int_xvel() >> 1) + (targ->int_xvel() >> 2));
 		proj->add_int_ang(-(krand() & 16));
 		S_PlayActorSound(355, targ);
 		break;
@@ -2076,7 +2076,7 @@ void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 	case HENSTAND + 1:
 		if (proj->spr.picnum == QUEBALL || proj->spr.picnum == STRIPEBALL)
 		{
-			proj->spr.xvel = (targ->spr.xvel >> 1) + (targ->spr.xvel >> 2);
+			proj->set_int_xvel((targ->int_xvel() >> 1) + (targ->int_xvel() >> 2));
 			proj->add_int_ang(-((targ->int_ang() << 1) + 1024));
 			targ->set_int_ang(getangle(targ->int_pos().X - proj->int_pos().X, targ->int_pos().Y - proj->int_pos().Y) - 512);
 			if (S_CheckSoundPlaying(POOLBALLHIT) < 2)
@@ -2084,14 +2084,14 @@ void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 		}
 		else if (proj->spr.picnum == BOWLINGPIN || proj->spr.picnum == BOWLINGPIN + 1)
 		{
-			proj->spr.xvel = (targ->spr.xvel >> 1) + (targ->spr.xvel >> 2);
+			proj->set_int_xvel((targ->int_xvel() >> 1) + (targ->int_xvel() >> 2));
 			proj->add_int_ang(-(((targ->int_ang() << 1) + krand()) & 64));
 			targ->set_int_ang((targ->int_ang() + krand()) & 16);
 			S_PlayActorSound(355, targ);
 		}
 		else if (proj->spr.picnum == HENSTAND || proj->spr.picnum == HENSTAND + 1)
 		{
-			proj->spr.xvel = (targ->spr.xvel >> 1) + (targ->spr.xvel >> 2);
+			proj->set_int_xvel((targ->int_xvel() >> 1) + (targ->int_xvel() >> 2));
 			proj->add_int_ang(-(((targ->int_ang() << 1) + krand()) & 16));
 			targ->set_int_ang((targ->int_ang() + krand()) & 16);
 			S_PlayActorSound(355, targ);
@@ -2100,7 +2100,7 @@ void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 		{
 			if (krand() & 3)
 			{
-				targ->spr.xvel = 164;
+				targ->set_int_xvel(164);
 				targ->spr.angle = proj->spr.angle;
 			}
 		}
@@ -2127,7 +2127,7 @@ void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 		{
 			for (k = 0; k < 64; k++)
 			{
-				auto spawned = EGS(targ->sector(), targ->int_pos().X, targ->int_pos().Y, targ->int_pos().Z - (krand() % (48 << 8)), SCRAP6 + (krand() & 3), -8, 48, 48, krand() & 2047, (krand() & 63) + 64, -(krand() & 4095) - (targ->spr.zvel >> 2), targ, 5);
+				auto spawned = EGS(targ->sector(), targ->int_pos().X, targ->int_pos().Y, targ->int_pos().Z - (krand() % (48 << 8)), SCRAP6 + (krand() & 3), -8, 48, 48, krand() & 2047, (krand() & 63) + 64, -(krand() & 4095) - (targ->int_zvel() >> 2), targ, 5);
 				if (spawned) spawned->spr.pal = 8;
 			}
 
@@ -2332,7 +2332,7 @@ void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 								if (proj->spr.pal == 6)
 									spawned->spr.pal = 6;
 								spawned->spr.pos.Z += 4;
-								spawned->spr.xvel = 16;
+								spawned->vel.X = 1;
 								spawned->spr.xrepeat = spawned->spr.yrepeat = 24;
 								spawned->add_int_ang(32 - (krand() & 63));
 							}
@@ -2370,7 +2370,7 @@ void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 
 			if (targ->spr.statnum == 10)
 			{
-				p = targ->spr.yvel;
+				p = targ->PlayerIndex();
 				if (ps[p].newOwner != nullptr)
 				{
 					ps[p].newOwner = nullptr;
@@ -2381,7 +2381,7 @@ void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 					DukeStatIterator it(STAT_EFFECTOR);
 					while (auto act = it.Next())
 					{
-						if (actorflag(act, SFLAG2_CAMERA)) act->spr.yvel = 0;
+						if (actorflag(act, SFLAG2_CAMERA)) act->spr.yint = 0;
 					}
 				}
 				auto Owner = targ->GetHitOwner();

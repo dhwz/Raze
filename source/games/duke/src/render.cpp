@@ -59,12 +59,6 @@ BEGIN_DUKE_NS
 //
 //---------------------------------------------------------------------------
 
-void renderView(DDukeActor* playersprite, sectortype* sect, int x, int y, int z, DAngle a, fixedhoriz h, DAngle rotscrnang, double smoothratio, bool sceneonly, float fov)
-{
-	if (!sceneonly) drawweapon(smoothratio);
-	render_drawrooms(playersprite, { x, y, z }, sectnum(sect), a, h, rotscrnang, smoothratio, fov);
-}
-
 //---------------------------------------------------------------------------
 //
 // 
@@ -95,7 +89,7 @@ void GameInterface::UpdateCameras(double smoothratio)
 				display_mirror = 1; // should really be 'display external view'.
 				auto cstat = camera->spr.cstat;
 				camera->spr.cstat = CSTAT_SPRITE_INVISIBLE;
-				render_camtex(camera, camera->int_pos(), camera->sector(), camera->interpolatedangle(smoothratio / 65536.), buildhoriz(camera->spr.shade), nullAngle, tex, rect, smoothratio);
+				render_camtex(camera, camera->int_pos(), camera->sector(), camera->interpolatedangle(smoothratio * (1. / MaxSmoothRatio)), buildhoriz(camera->spr.shade), nullAngle, tex, rect, smoothratio);
 				camera->spr.cstat = cstat;
 				display_mirror = 0;
 			});
@@ -220,14 +214,13 @@ static int getdrugmode(player_struct *p, int oyrepeat)
 //
 //---------------------------------------------------------------------------
 
-void displayrooms(int snum, double smoothratio, bool sceneonly)
+void displayrooms(int snum, double interpfrac, bool sceneonly)
 {
-	int cposx, cposy, cposz, fz, cz;
+	DVector3 cpos;
 	DAngle cang, rotscrnang;
 	fixedhoriz choriz;
-	player_struct* p;
 
-	p = &ps[snum];
+	player_struct* p = &ps[snum];
 
 	if (automapMode == am_full || !p->insector())
 		return;
@@ -237,35 +230,34 @@ void displayrooms(int snum, double smoothratio, bool sceneonly)
 	{
 		p->visibility = ud.const_visibility;
 	}
-
 	g_visibility = ud.const_visibility;
 	g_relvisibility = p->visibility - ud.const_visibility;
-
-	auto sect = p->cursector;
-
 	GlobalMapFog = fogactive ? 0x999999 : 0;
 	GlobalFogDensity = fogactive ? 350.f : 0.f;
-	DoInterpolations(smoothratio / 65536.);
+
+	DoInterpolations(interpfrac);
 
 	setgamepalette(BASEPAL);
 
 	float fov = r_fov;
+	auto sect = p->cursector;
+
+	DDukeActor* viewer;
+	bool camview = false;
 
 	if (ud.cameraactor)
 	{
-		auto act = ud.cameraactor;
+		viewer = ud.cameraactor;
+		camview = true;
 
-		if (act->spr.yvel < 0) act->spr.yvel = -100;
-		else if (act->spr.yvel > 199) act->spr.yvel = 300;
+		if (viewer->spr.yint < 0) viewer->spr.yint = -100;
+		else if (viewer->spr.yint > 199) viewer->spr.yint = 300;
 
-		cang = interpolatedangle(DAngle::fromBuild(ud.cameraactor->tempang), act->spr.angle, smoothratio);
-
-		auto bh = buildhoriz(act->spr.yvel);
-		auto cstat = act->spr.cstat;
-		act->spr.cstat = CSTAT_SPRITE_INVISIBLE;
-		renderView(act, act->sector(), act->int_pos().X, act->int_pos().Y, act->int_pos().Z - (4 << 8), cang, bh, nullAngle, smoothratio, sceneonly, fov);
-		act->spr.cstat = cstat;
-
+		cpos = viewer->spr.pos.plusZ(-4);
+		cang = viewer->interpolatedangle(interpfrac);
+		choriz = buildhoriz(viewer->spr.yint);
+		rotscrnang = nullAngle;
+		sect = viewer->sector();
 	}
 	else
 	{
@@ -275,43 +267,37 @@ void displayrooms(int snum, double smoothratio, bool sceneonly)
 			fov = (float)clamp<double>(r_fov + fovdelta * 0.6, r_fov, 150.);
 		}
 
-
 		// The camera texture must be rendered with the base palette, so this is the only place where the current global palette can be set.
 		// The setting here will be carried over to the rendering of the weapon sprites, but other 2D content will always default to the main palette.
 		setgamepalette(setpal(p));
 
 		// set screen rotation.
-		rotscrnang = !SyncInput() ? p->angle.rotscrnang : p->angle.interpolatedrotscrn(smoothratio);
+		rotscrnang = !SyncInput() ? p->angle.rotscrnang : p->angle.interpolatedrotscrn(interpfrac);
 
-#if 0
 		if ((snum == myconnectindex) && (numplayers > 1))
 		{
-			cposx = interpolatedvalue(omyx, myx, smoothratio);
-			cposy = interpolatedvalue(omyy, myy, smoothratio);
-			cposz = interpolatedvalue(omyz, myz, smoothratio);
+			cpos = interpolatedvalue(omypos, mypos, interpfrac);
+
 			if (SyncInput())
 			{
-				choriz = interpolatedhorizon(omyhoriz + omyhorizoff, myhoriz + myhorizoff, smoothratio);
-				cang = interpolatedangle(omyang, myang, smoothratio);
+				choriz = interpolatedvalue(omyhoriz + omyhorizoff, myhoriz + myhorizoff, interpfrac);
+				cang = interpolatedvalue(omyang, myang, interpfrac);
 			}
 			else
 			{
 				cang = myang;
 				choriz = myhoriz + myhorizoff;
 			}
-			sect = mycursectnum;
 		}
 		else
-#endif
 		{
-			cposx = interpolatedvalue(p->player_int_opos().X, p->player_int_pos().X, smoothratio);
-			cposy = interpolatedvalue(p->player_int_opos().Y, p->player_int_pos().Y, smoothratio);
-			cposz = interpolatedvalue(p->player_int_opos().Z, p->player_int_pos().Z, smoothratio);;
+			cpos = interpolatedvalue(p->opos, p->pos, interpfrac);
+
 			if (SyncInput())
 			{
 				// Original code for when the values are passed through the sync struct
-				cang = p->angle.interpolatedsum(smoothratio);
-				choriz = p->horizon.interpolatedsum(smoothratio);
+				cang = p->angle.interpolatedsum(interpfrac);
+				choriz = p->horizon.interpolatedsum(interpfrac);
 			}
 			else
 			{
@@ -321,70 +307,66 @@ void displayrooms(int snum, double smoothratio, bool sceneonly)
 			}
 		}
 
-		DDukeActor* viewer;
-		bool camview = false;
 		if (p->newOwner != nullptr)
 		{
-			auto act = p->newOwner;
-			cang = act->interpolatedangle(smoothratio / 65536.);
-			choriz = buildhoriz(act->spr.shade);
-			cposx = act->int_pos().X;
-			cposy = act->int_pos().Y;
-			cposz = act->int_pos().Z;
-			sect = act->sector();
+			viewer = p->newOwner;
+			cang = viewer->interpolatedangle(interpfrac);
+			choriz = buildhoriz(viewer->spr.shade);
+			cpos = viewer->spr.pos;
+			sect = viewer->sector();
 			rotscrnang = nullAngle;
-			smoothratio = MaxSmoothRatio;
-			viewer = act;
+			interpfrac = 1.;
 			camview = true;
 		}
 		else if (p->over_shoulder_on == 0)
 		{
-			if (cl_viewbob) cposz += interpolatedvalue(p->opyoff, p->pyoff, smoothratio);
+			if (cl_viewbob) cpos.Z += interpolatedvalue(p->opyoff, p->pyoff, interpfrac);
 			viewer = p->GetActor();
 		}
 		else
 		{
-			cposz -= isRR() ? 3840 : 3072;
+			auto adjustment = isRR() ? 15 : 12;
+			cpos.Z -= adjustment;
 
 			viewer = p->GetActor();
-			if (!calcChaseCamPos(&cposx, &cposy, &cposz, viewer, &sect, cang, choriz, smoothratio))
+			if (!calcChaseCamPos(cpos, viewer, &sect, cang, choriz, interpfrac))
 			{
-				cposz += isRR() ? 3840 : 3072;
-				calcChaseCamPos(&cposx, &cposy, &cposz, viewer, &sect, cang, choriz, smoothratio);
+				cpos.Z += adjustment;
+				calcChaseCamPos(cpos, viewer, &sect, cang, choriz, interpfrac);
 			}
 		}
 
-		cz = int(p->GetActor()->ceilingz * zworldtoint);
-		fz = int(p->GetActor()->floorz * zworldtoint);
+		double cz = p->GetActor()->ceilingz;
+		double fz = p->GetActor()->floorz;
 
 		if (earthquaketime > 0 && p->on_ground == 1)
 		{
-			cposz += 256 - (((earthquaketime) & 1) << 9);
+			cpos.Z += 1 - (((earthquaketime) & 1) * 2.);
 			cang += DAngle::fromBuild((2 - ((earthquaketime) & 2)) << 2);
 		}
 
-		if (p->GetActor()->spr.pal == 1) cposz -= (18 << 8);
+		if (p->GetActor()->spr.pal == 1) cpos.Z -= 18;
 
 		else if (p->spritebridge == 0 && p->newOwner == nullptr)
 		{
-			if (cposz < (p->truecz * zworldtoint + (4 << 8))) cposz = cz + (4 << 8);
-			else if (cposz > (p->truefz * zworldtoint - (4 << 8))) cposz = fz - (4 << 8);
+			cpos.Z = min(max(cpos.Z, p->truecz + 4), p->truefz - 4);
 		}
 
 		if (sect)
 		{
-			getzsofslopeptr(sect, cposx, cposy, &cz, &fz);
-			if (cposz < cz + (4 << 8)) cposz = cz + (4 << 8);
-			if (cposz > fz - (4 << 8)) cposz = fz - (4 << 8);
+			getzsofslopeptr(sect, cpos, &cz, &fz);
+			cpos.Z = min(max(cpos.Z, cz + 4), fz - 4);
 		}
 
 		choriz = clamp(choriz, q16horiz(gi->playerHorizMin()), q16horiz(gi->playerHorizMax()));
-
-		auto cstat = viewer->spr.cstat;
-		if (camview) viewer->spr.cstat = CSTAT_SPRITE_INVISIBLE;
-		renderView(viewer, sect, cposx, cposy, cposz, cang, choriz, rotscrnang, smoothratio, sceneonly, fov);
-		viewer->spr.cstat = cstat;
 	}
+
+	auto cstat = viewer->spr.cstat;
+	if (camview) viewer->spr.cstat = CSTAT_SPRITE_INVISIBLE;
+	if (!sceneonly) drawweapon(interpfrac);
+	render_drawrooms(viewer, cpos, sectnum(sect), cang, choriz, rotscrnang, interpfrac, fov);
+	viewer->spr.cstat = cstat;
+
 	//GLInterface.SetMapFog(false);
 	RestoreInterpolations();
 
@@ -405,9 +387,9 @@ bool GameInterface::GenerateSavePic()
 	return true;
 }
 
-void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double smoothRatio)
+void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double interpfrac)
 {
-	fi.animatesprites(tsprites, viewx, viewy, viewang.Buildang(), int(smoothRatio));
+	fi.animatesprites(tsprites, viewx, viewy, viewang.Buildang(), interpfrac);
 }
 
 

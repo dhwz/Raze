@@ -882,6 +882,12 @@ ACTOR_ACTION_SET Ripper2BrownActionSet =
     nullptr
 };
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int SetupRipper2(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -921,41 +927,37 @@ int SetupRipper2(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
 //
 // HANGING - Jumping/Falling/Stationary
 //
+//---------------------------------------------------------------------------
 
 int InitRipper2Hang(DSWActor* actor)
 {
-    int dist;
-
+    // Except for the states this is identical to InitRipperHang. Merge them?
     HitInfo hit{};
 
     bool Found = false;
-    short dang, tang;
 
-    for (dang = 0; dang < 2048; dang += 128)
+    for (int dang = 0; dang < 2048; dang += 128)
     {
-        tang = NORM_ANGLE(actor->int_ang() + dang);
+        auto tang = actor->spr.angle + DAngle::fromBuild(dang);
 
-        FAFhitscan(actor->int_pos().X, actor->int_pos().Y, actor->int_pos().Z - int_ActorSizeZ(actor), actor->sector(),  // Start position
-                   bcos(tang),   // X vector of 3D ang
-                   bsin(tang),   // Y vector of 3D ang
-                   0,            // Z vector of 3D ang
-                   hit, CLIPMASK_MISSILE);
+        FAFhitscan(actor->spr.pos.plusZ(-ActorSizeZ(actor)), actor->sector(), DVector3(tang.ToVector() * 1024, 0), hit, CLIPMASK_MISSILE);
 
         if (hit.hitSector == nullptr)
             continue;
 
-		dist = DistanceI(actor->spr.pos, hit.hitpos);
+		double dist = (actor->spr.pos.XY() - hit.hitpos.XY()).Length();
 
-        if (hit.hitWall == nullptr || dist < 2000 || dist > 7000)
+		if (hit.hitWall == nullptr || dist < 125 || dist > 437.5)
         {
             continue;
         }
 
         Found = true;
-        actor->set_int_ang(tang);
+        actor->spr.angle = tang;
         break;
     }
 
@@ -982,6 +984,12 @@ int InitRipper2Hang(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int DoRipper2Hang(DSWActor* actor)
 {
     if ((actor->user.WaitTics -= ACTORMOVETICS) > 0)
@@ -994,16 +1002,16 @@ int DoRipper2Hang(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int DoRipper2MoveHang(DSWActor* actor)
 {
-    int nx, ny;
-
-    // Move while jumping
-    nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14);
-    ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14);
-
     // if cannot move the sprite
-    if (!move_actor(actor, nx, ny, 0L))
+    if (!move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0)))
     {
         if (actor->user.coll.type == kHitWall)
         {
@@ -1011,7 +1019,7 @@ int DoRipper2MoveHang(DSWActor* actor)
             short w, nw;
 
             // Don't keep clinging and going ever higher!
-            if (abs(actor->int_pos().Z - actor->user.targetActor->int_pos().Z) > (4000<<4))
+            if (abs(actor->spr.pos.Z - actor->user.targetActor->spr.pos.Z) > 250)
                 return 0;
 
             NewStateGroup(actor, actor->user.ActorActionSet->Special[1]);
@@ -1021,7 +1029,7 @@ int DoRipper2MoveHang(DSWActor* actor)
                 actor->user.WaitTics = 0; // Double jump
 
             // hang flush with the wall
-            actor->set_int_ang(NORM_ANGLE(getangle(actor->user.coll.hitWall->delta()) - 512));
+			actor->spr.angle = VecToAngle(actor->user.coll.hitWall->delta()) - DAngle90;
 
             return 0;
         }
@@ -1030,6 +1038,11 @@ int DoRipper2MoveHang(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoRipper2HangJF(DSWActor* actor)
 {
@@ -1055,26 +1068,25 @@ int DoRipper2HangJF(DSWActor* actor)
 
 }
 
+//---------------------------------------------------------------------------
 //
 // JUMP ATTACK
 //
+//---------------------------------------------------------------------------
 
 int DoRipper2BeginJumpAttack(DSWActor* actor)
 {
     DSWActor* target = actor->user.targetActor;
-    short tang;
 
-    tang = getangle(target->int_pos().X - actor->int_pos().X, target->int_pos().Y - actor->int_pos().Y);
+	// Always jump at player if mad.
 
-    // Always jump at player if mad.
+	auto vec = (target->spr.pos.XY() - actor->spr.pos.XY()).Unit() * 8;
+	Collision coll = move_sprite(actor, DVector3(vec, 0), actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_ACTOR, ACTORMOVETICS);
 
-	Collision coll = move_sprite(actor, bcos(tang, -7), bsin(tang, -7),
-							   0, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_ACTOR, ACTORMOVETICS);
-    if (coll.type != kHitNone)
-        actor->set_int_ang(NORM_ANGLE((actor->int_ang() + 1024) + (RANDOM_NEG(256, 6) >> 6)));
-    else
-        actor->set_int_ang(NORM_ANGLE(tang));
-
+	if (coll.type != kHitNone)
+		actor->spr.angle += RandomAngle(DAngle45) + DAngle180 - DAngle22_5;
+	else
+		actor->spr.angle = VecToAngle(vec);
 
     DoActorSetSpeed(actor, FAST_SPEED);
 
@@ -1093,6 +1105,12 @@ int DoRipper2BeginJumpAttack(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoRipper2MoveJump(DSWActor* actor)
 {
@@ -1116,9 +1134,11 @@ int DoRipper2MoveJump(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
 //
 // STD MOVEMENT
 //
+//---------------------------------------------------------------------------
 
 int DoRipper2QuickJump(DSWActor* actor)
 {
@@ -1140,6 +1160,11 @@ int DoRipper2QuickJump(DSWActor* actor)
     return false;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int NullRipper2(DSWActor* actor)
 {
@@ -1151,6 +1176,11 @@ int NullRipper2(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoRipper2Pain(DSWActor* actor)
 {
@@ -1161,6 +1191,11 @@ int DoRipper2Pain(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoRipper2RipHeart(DSWActor* actor)
 {
@@ -1172,6 +1207,12 @@ int DoRipper2RipHeart(DSWActor* actor)
     target->spr.angle = VecToAngle(actor->spr.pos - target->spr.pos);
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoRipper2StandHeart(DSWActor* actor)
 {
@@ -1185,13 +1226,15 @@ int DoRipper2StandHeart(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 void Ripper2Hatch(DSWActor* actor)
 {
 	const int MAX_RIPPER2S = 1;
-    short rip_ang[MAX_RIPPER2S];
-
-    rip_ang[0] = RANDOM_P2(2048);
-    //rip_ang[1] = NORM_ANGLE(rip_ang[0] + 1024 + (RANDOM_P2(512) - 256));
 
     for (int i = 0; i < MAX_RIPPER2S; i++)
     {
@@ -1200,7 +1243,7 @@ void Ripper2Hatch(DSWActor* actor)
         actorNew->spr.pos = actor->spr.pos;
 
         actorNew->spr.xrepeat = actorNew->spr.yrepeat = 64;
-        actorNew->set_int_ang(rip_ang[i]);
+        actorNew->spr.angle = RandomAngle();
         actorNew->spr.pal = 0;
         actorNew->spr.shade = -10;
         SetupRipper2(actorNew);
@@ -1224,6 +1267,12 @@ void Ripper2Hatch(DSWActor* actor)
         DoJump(actorNew);
     }
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoRipper2Move(DSWActor* actor)
 {
@@ -1265,6 +1314,11 @@ int DoRipper2Move(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int InitRipper2Charge(DSWActor* actor)
 {
@@ -1277,12 +1331,23 @@ int InitRipper2Charge(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int ChestRipper2(DSWActor* actor)
 {
     PlaySound(DIGI_RIPPER2CHEST, actor, v3df_follow);
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 #include "saveable.h"
 

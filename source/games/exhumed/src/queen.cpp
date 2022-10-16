@@ -280,8 +280,8 @@ void SetHeadVel(DExhumedActor* pActor)
 {
     int nAngle = pActor->int_ang();
 
-    pActor->spr.xvel = bcos(nAngle, nVelShift);
-    pActor->spr.yvel = bsin(nAngle, nVelShift);
+    pActor->set_int_xvel(bcos(nAngle, nVelShift));
+    pActor->set_int_yvel(bsin(nAngle, nVelShift));
 }
 
 Collision QueenAngleChase(DExhumedActor* pActor, DExhumedActor* pActor2, int val1, int val2)
@@ -290,7 +290,7 @@ Collision QueenAngleChase(DExhumedActor* pActor, DExhumedActor* pActor2, int val
 
     if (pActor2 == nullptr)
     {
-        pActor->spr.zvel = 0;
+        pActor->angle2 = 0;
         nAngle = pActor->int_ang();
     }
     else
@@ -325,12 +325,12 @@ Collision QueenAngleChase(DExhumedActor* pActor, DExhumedActor* pActor2, int val
 
         nAngle = (nAngDelta + pActor->int_ang()) & kAngleMask;
 
-        pActor->spr.zvel = (AngleDelta(pActor->spr.zvel, var_14, 24) + pActor->spr.zvel) & kAngleMask;
+        pActor->angle2 = (AngleDelta(pActor->angle2, var_14, 24) + pActor->angle2) & kAngleMask;
     }
 
     pActor->set_int_ang(nAngle);
 
-    int da = pActor->spr.zvel;
+    int da = pActor->angle2;
     int x = abs(bcos(da));
 
     int v26 = x * ((val1 * bcos(nAngle)) >> 14);
@@ -444,18 +444,18 @@ void BuildQueenEgg(int nQueen, int nVal)
     {
         pActor2->spr.xrepeat = 30;
         pActor2->spr.yrepeat = 30;
-        pActor2->spr.xvel = bcos(pActor2->int_ang());
-        pActor2->spr.yvel = bsin(pActor2->int_ang());
-        pActor2->spr.zvel = -6000;
+        pActor2->set_int_xvel(bcos(pActor2->int_ang()));
+        pActor2->set_int_yvel(bsin(pActor2->int_ang()));
+        pActor2->set_int_zvel(-6000);
         pActor2->spr.cstat = 0;
     }
     else
     {
         pActor2->spr.xrepeat = 60;
         pActor2->spr.yrepeat = 60;
-        pActor2->spr.xvel = 0;
-        pActor2->spr.yvel = 0;
-        pActor2->spr.zvel = -2000;
+        pActor2->vel.X = 0;
+        pActor2->vel.Y = 0;
+        pActor2->set_int_zvel(-2000);
         pActor2->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     }
 
@@ -571,8 +571,8 @@ void AIQueenEgg::Tick(RunListEvent* ev)
             }
 
             pActor->set_int_ang(nAngle);
-            pActor->spr.xvel = bcos(nAngle, -1);
-            pActor->spr.yvel = bsin(nAngle, -1);
+            pActor->set_int_xvel(bcos(nAngle, -1));
+            pActor->set_int_yvel(bsin(nAngle, -1));
         }
 
         break;
@@ -604,9 +604,8 @@ void AIQueenEgg::Tick(RunListEvent* ev)
         case kHitWall:
             pActor->set_int_ang((RandomSize(9) + 768));
             pActor->norm_ang();
-            pActor->spr.xvel = bcos(pActor->int_ang(), -3);
-            pActor->spr.yvel = bsin(pActor->int_ang(), -3);
-            pActor->spr.zvel = -RandomSize(5);
+            pActor->VelFromAngle(-3);
+            pActor->set_int_zvel(-RandomSize(5));
             break;
         }
 
@@ -619,17 +618,17 @@ void AIQueenEgg::Tick(RunListEvent* ev)
 
         if (nMov.exbits & kHitAux2)
         {
-            pActor->spr.zvel = -(pActor->spr.zvel - 256);
-            if (pActor->spr.zvel < -512)
+            pActor->set_int_zvel(-(pActor->int_zvel() - 256));
+            if (pActor->vel.Z < -2)
             {
-                pActor->spr.zvel = 0;
+                pActor->vel.Z = 0;
             }
         }
 
         pEgg->nCounter--;
         if (pEgg->nCounter <= 0)
         {
-            auto pWaspSprite = BuildWasp(nullptr, pActor->spr.pos, pActor->sector(), pActor->int_ang(), true);
+            auto pWaspSprite = BuildWasp(nullptr, pActor->spr.pos, pActor->sector(), pActor->spr.angle, true);
             pActor->spr.pos.Z = pWaspSprite->spr.pos.Z;
 
             DestroyEgg(nEgg);
@@ -701,7 +700,7 @@ void BuildQueenHead(int nQueen)
     nVelShift = 2;
     SetHeadVel(pActor2);
 
-    pActor2->spr.zvel = -8192;
+    pActor2->set_int_zvel(-8192);
     pActor2->spr.lotag = runlist_HeadRun() + 1;
     pActor2->spr.hitag = 0;
     pActor2->spr.extra = -1;
@@ -797,12 +796,12 @@ void AIQueenHead::Tick(RunListEvent* ev)
             }
             else if (nMov.exbits == kHitAux2)
             {
-                pActor->spr.zvel = -(pActor->spr.zvel >> 1);
+                pActor->set_int_zvel(-(pActor->int_zvel() >> 1));
 
-                if (pActor->spr.zvel > -256)
+                if (pActor->vel.Z > -1)
                 {
                     nVelShift = 100;
-                    pActor->spr.zvel = 0;
+                    pActor->vel.Z = 0;
                 }
             }
 
@@ -816,10 +815,10 @@ void AIQueenHead::Tick(RunListEvent* ev)
             }
             else
             {
-                pActor->spr.xvel = 0;
-                pActor->spr.yvel = 0;
+                pActor->vel.X = 0;
+                pActor->vel.Y = 0;
 
-                if (pActor->spr.zvel == 0)
+                if (pActor->vel.Z == 0)
                 {
                     QueenHead.nIndex = 120;
                 }
@@ -885,7 +884,7 @@ void AIQueenHead::Tick(RunListEvent* ev)
                     pActor->add_int_ang(RandomSize(9) + 768);
                     pActor->norm_ang();
 
-                    pActor->spr.zvel = (-20) - RandomSize(6);
+                    pActor->set_int_zvel((-20) - RandomSize(6));
 
                     SetHeadVel(pActor);
                 }
@@ -1067,7 +1066,7 @@ void AIQueenHead::Draw(RunListEvent* ev)
     seq_PlotSequence(ev->nParam, nSeq, QueenHead.nFrame, edx);
 }
 
-void BuildQueen(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, int nAngle, int nChannel)
+void BuildQueen(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, DAngle nAngle, int nChannel)
 {
     QueenCount--;
 
@@ -1085,7 +1084,7 @@ void BuildQueen(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector,
 	{
 		ChangeActorStat(pActor, 121);
 		pActor->spr.pos.Z = pActor->sector()->floorz;
-        nAngle = pActor->int_ang();
+        nAngle = pActor->spr.angle;
     }
 
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
@@ -1097,10 +1096,10 @@ void BuildQueen(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector,
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
     pActor->spr.picnum = 1;
-    pActor->set_int_ang(nAngle);
-    pActor->spr.xvel = 0;
-    pActor->spr.yvel = 0;
-    pActor->spr.zvel = 0;
+    pActor->spr.angle = nAngle;
+    pActor->vel.X = 0;
+    pActor->vel.Y = 0;
+    pActor->vel.Z = 0;
     pActor->spr.lotag = runlist_HeadRun() + 1;
     pActor->spr.extra = -1;
     pActor->spr.hitag = 0;
@@ -1128,8 +1127,7 @@ void BuildQueen(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector,
 
 void SetQueenSpeed(DExhumedActor* pActor, int nSpeed)
 {
-    pActor->spr.xvel = bcos(pActor->int_ang(), -(2 - nSpeed));
-    pActor->spr.yvel = bsin(pActor->int_ang(), -(2 - nSpeed));
+    pActor->VelFromAngle(-(2 - nSpeed));
 }
 
 void AIQueen::Tick(RunListEvent* ev)
@@ -1222,8 +1220,8 @@ void AIQueen::Tick(RunListEvent* ev)
                 if (QueenList[nQueen].nIndex <= 0)
                 {
                     QueenList[nQueen].nFrame = 0;
-                    pActor->spr.xvel = 0;
-                    pActor->spr.yvel = 0;
+                    pActor->vel.X = 0;
+                    pActor->vel.Y = 0;
                     QueenList[nQueen].nAction = si + 4;
                     QueenList[nQueen].nIndex = RandomSize(6) + 30;
                     break;
@@ -1290,8 +1288,8 @@ void AIQueen::Tick(RunListEvent* ev)
                 QueenList[nQueen].nIndex = 100;
                 QueenList[nQueen].pTarget = nullptr;
 
-                pActor->spr.xvel = 0;
-                pActor->spr.yvel = 0;
+                pActor->vel.X = 0;
+                pActor->vel.Y = 0;
             }
         }
 
@@ -1316,7 +1314,7 @@ void AIQueen::Tick(RunListEvent* ev)
 
                 if (!si)
                 {
-                    BuildBullet(pActor, 12, -1, pActor->int_ang(), pTarget, 1);
+                    BuildBullet(pActor, 12, -1, pActor->spr.angle, pTarget, 1);
                 }
                 else
                 {
@@ -1419,9 +1417,9 @@ void AIQueen::Damage(RunListEvent* ev)
 
         if (QueenList[nQueen].nHealth <= 0)
         {
-            pActor->spr.xvel = 0;
-            pActor->spr.yvel = 0;
-            pActor->spr.zvel = 0;
+            pActor->vel.X = 0;
+            pActor->vel.Y = 0;
+            pActor->vel.Z = 0;
 
             QueenList[nQueen].nAction2++;
 

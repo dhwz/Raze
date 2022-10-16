@@ -5,8 +5,17 @@
 class FSerializer;
 struct IntRect;
 
-void render_drawrooms(DCoreActor* playersprite, const vec3_t& position, int sectnum, DAngle angle, fixedhoriz horizon, DAngle rollang, double smoothratio, float fov = -1);
-void render_camtex(DCoreActor* playersprite, const vec3_t& position, sectortype* sect, DAngle angle, fixedhoriz horizon, DAngle rollang, FGameTexture* camtex, IntRect& rect, double smoothratio);
+void render_drawrooms(DCoreActor* playersprite, const DVector3& position, int sectnum, DAngle angle, fixedhoriz horizon, DAngle rollang, double interpfrac, float fov = -1);
+void render_camtex(DCoreActor* playersprite, const DVector3& position, sectortype* sect, DAngle angle, fixedhoriz horizon, DAngle rollang, FGameTexture* camtex, IntRect& rect, double interpfrac);
+
+inline void render_drawrooms(DCoreActor* playersprite, const vec3_t& position, int sectnum, DAngle angle, fixedhoriz horizon, DAngle rollang, double smoothratio, float fov = -1)
+{
+	render_drawrooms(playersprite, DVector3(position.X * inttoworld, position.Y * inttoworld, position.Z * zinttoworld), sectnum, angle, horizon, rollang, smoothratio * (1. / MaxSmoothRatio), fov);
+}
+inline void render_camtex(DCoreActor* playersprite, const vec3_t& position, sectortype* sect, DAngle angle, fixedhoriz horizon, DAngle rollang, FGameTexture* camtex, IntRect& rect, double smoothratio)
+{
+	render_camtex(playersprite, DVector3(position.X* inttoworld, position.Y * inttoworld, position.Z* zinttoworld), sect, angle, horizon, rollang, camtex, rect, smoothratio * (1. / MaxSmoothRatio));
+}
 
 struct PortalDesc
 {
@@ -25,14 +34,14 @@ inline void portalClear()
 	allPortals.Clear();
 }
 
-inline int portalAdd(int type, int target, int dx = 0, int dy = 0, int dz = 0)
+inline int portalAdd(int type, int target, const DVector3& offset)
 {
 	auto& pt = allPortals[allPortals.Reserve(1)];
 	pt.type = type;
 	if (target >= 0) pt.targets.Push(target);
-	pt.dx = dx;
-	pt.dy = dy;
-	pt.dz = dz;
+	pt.dx = offset.X * worldtoint;
+	pt.dy = offset.Y * worldtoint;
+	pt.dz = offset.Z * zworldtoint;
 	return allPortals.Size() - 1;
 }
 

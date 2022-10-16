@@ -733,12 +733,12 @@ int SetupSerp(DSWActor* actor)
     actor->user.loz = actor->spr.pos.Z;
 
     // amount to move up for clipmove
-    actor->user.zclip = (80);
+    actor->user.zclip = 80;
     // size of step can walk off of
-    actor->user.lo_step = Z(40);
+    actor->user.lo_step = 40;
 
-    actor->user.floor_dist = actor->user.zclip - actor->user.lo_step * zinttoworld;
-    actor->user.ceiling_dist = int_ActorSizeZ(actor) * zinttoworld - actor->user.zclip;
+    actor->user.floor_dist = actor->user.zclip - actor->user.lo_step;
+    actor->user.ceiling_dist = ActorSizeZ(actor) - actor->user.zclip;
 
     return 0;
 }

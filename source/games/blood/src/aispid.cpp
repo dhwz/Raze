@@ -121,9 +121,9 @@ void SpidJumpSeqCallback(int, DBloodActor* actor)
 		case kDudeSpiderBrown:
 		case kDudeSpiderRed:
 		case kDudeSpiderBlack:
-			actor->vel.X = IntToFixed(dx);
-			actor->vel.Y = IntToFixed(dy);
-			actor->vel.Z = IntToFixed(dz);
+			actor->set_int_bvel_x(IntToFixed(dx));
+			actor->set_int_bvel_y(IntToFixed(dy));
+			actor->set_int_bvel_z(IntToFixed(dz));
 			break;
 		}
 	}
@@ -173,7 +173,7 @@ static void spidThinkGoto(DBloodActor* actor)
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
 	int nAngle = getangle(dvec);
 	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, nAngle);
+	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
 	if (nDist < 512 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
 		aiNewState(actor, &spidSearch);
 	aiThinkTarget(actor);
@@ -193,7 +193,7 @@ static void spidThinkChase(DBloodActor* actor)
 	auto dvec = target->spr.pos.XY() - actor->spr.pos.XY();
 	int nAngle = getangle(dvec);
 	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, nAngle);
+	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
 	if (target->xspr.health == 0)
 	{
 		aiNewState(actor, &spidSearch);

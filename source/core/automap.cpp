@@ -55,16 +55,17 @@ CVAR(Bool, am_textfont, false, CVAR_ARCHIVE)
 CVAR(Bool, am_showlabel, false, CVAR_ARCHIVE)
 CVAR(Bool, am_nameontop, false, CVAR_ARCHIVE)
 
-int automapMode;
+static DVector2 min_bounds = { INT_MAX, 0 };;
+static DVector2 max_bounds = { 0, 0 };
+static DVector2 follow = { INT_MAX, INT_MAX };
+static DAngle follow_a = DAngle::fromDeg(INT_MAX);
+static double gZoom = 0.75;
 static float am_zoomdir;
-double follow_x = INT_MAX, follow_y = INT_MAX;
-DAngle follow_a = DAngle::fromDeg(INT_MAX);
-static double gZoom = 768;
+int automapMode;
 bool automapping;
 bool gFullMap;
 BitArray show2dsector;
 BitArray show2dwall;
-static double x_min_bound = INT_MAX, y_min_bound, x_max_bound, y_max_bound;
 
 CVAR(Color, am_twosidedcolor, 0xaaaaaa, CVAR_ARCHIVE)
 CVAR(Color, am_onesidedcolor, 0xaaaaaa, CVAR_ARCHIVE)
@@ -104,7 +105,7 @@ CCMD(togglefollow)
 	auto msg = quoteMgr.GetQuote(am_followplayer ? 84 : 83);
 	if (!msg || !*msg) msg = am_followplayer ? GStrings("FOLLOW MODE ON") : GStrings("FOLLOW MODE Off");
 	Printf(PRINT_NOTIFY, "%s\n", msg);
-	if (am_followplayer) follow_x = INT_MAX;
+	if (am_followplayer) follow.X = INT_MAX;
 }
 
 CCMD(togglerotate)
@@ -113,7 +114,6 @@ CCMD(togglerotate)
 	auto msg = am_rotate ? GStrings("TXT_ROTATE_ON") : GStrings("TXT_ROTATE_OFF");
 	Printf(PRINT_NOTIFY, "%s\n", msg);
 }
-
 
 CCMD(am_zoom)
 {
@@ -162,19 +162,16 @@ bool AM_Responder(event_t* ev, bool last)
 
 static void CalcMapBounds()
 {
-	x_min_bound = INT_MAX;
-	y_min_bound = INT_MAX;
-	x_max_bound = INT_MIN;
-	y_max_bound = INT_MIN;
-
+	min_bounds = { INT_MAX, INT_MAX };
+	max_bounds = { INT_MIN, INT_MIN };
 
 	for(auto& wal : wall)
 	{
 		// get map min and max coordinates
-		if (wal.pos.X < x_min_bound) x_min_bound = wal.pos.X;
-		if (wal.pos.Y < y_min_bound) y_min_bound = wal.pos.Y;
-		if (wal.pos.X > x_max_bound) x_max_bound = wal.pos.X;
-		if (wal.pos.Y > y_max_bound) y_max_bound = wal.pos.Y;
+		if (wal.pos.X < min_bounds.X) min_bounds.X = wal.pos.X;
+		if (wal.pos.Y < min_bounds.Y) min_bounds.Y = wal.pos.Y;
+		if (wal.pos.X > max_bounds.X) max_bounds.X = wal.pos.X;
+		if (wal.pos.Y > max_bounds.Y) max_bounds.Y = wal.pos.Y;
 	}
 }
 
@@ -184,12 +181,11 @@ static void CalcMapBounds()
 //
 //---------------------------------------------------------------------------
 
-void AutomapControl()
+static void AutomapControl(const DVector2& cangvect)
 {
 	static double nonsharedtimer;
 	double ms = screen->FrameTime;
 	double interval;
-	int panvert = 0, panhorz = 0;
 
 	if (nonsharedtimer > 0 || ms < nonsharedtimer)
 	{
@@ -206,7 +202,6 @@ void AutomapControl()
 
 	if (automapMode != am_off)
 	{
-		const int keymove = 4;
 		if (am_zoomdir > 0)
 		{
 			gZoom = gZoom * am_zoomdir;
@@ -217,40 +212,19 @@ void AutomapControl()
 		}
 		am_zoomdir = 0;
 
-		double j = interval * 35. / gZoom;
-
-		if (buttonMap.ButtonDown(gamefunc_Enlarge_Screen))
-			gZoom += MulScaleF(j, max(gZoom, 256.), 6);
-		if (buttonMap.ButtonDown(gamefunc_Shrink_Screen))
-			gZoom -= MulScaleF(j, max(gZoom, 256.), 6);
-
-		gZoom = clamp(gZoom, 48., 2048.);
+		double j = interval * (35. / 65536.) / gZoom;
+		gZoom += (buttonMap.ButtonDown(gamefunc_Enlarge_Screen) - buttonMap.ButtonDown(gamefunc_Shrink_Screen)) * j * max(gZoom, 0.25);
+		gZoom = clamp(gZoom, 0.05, 2.);
 
 		if (!am_followplayer)
 		{
-			if (buttonMap.ButtonDown(gamefunc_AM_PanLeft))
-				panhorz += keymove;
+			const double zoomspeed = j * 512.;
+			const auto panhorz = buttonMap.ButtonDown(gamefunc_AM_PanRight) - buttonMap.ButtonDown(gamefunc_AM_PanLeft);
+			const auto panvert = buttonMap.ButtonDown(gamefunc_AM_PanUp) - buttonMap.ButtonDown(gamefunc_AM_PanDown);
 
-			if (buttonMap.ButtonDown(gamefunc_AM_PanRight))
-				panhorz -= keymove;
+			if (min_bounds.X == INT_MAX) CalcMapBounds();
 
-			if (buttonMap.ButtonDown(gamefunc_AM_PanUp))
-				panvert += keymove;
-
-			if (buttonMap.ButtonDown(gamefunc_AM_PanDown))
-				panvert -= keymove;
-
-			auto fcos = follow_a.Cos();
-			auto fsin = follow_a.Sin();
-			auto momx = (panvert * fcos * 8) + (panhorz * fsin * 8);
-			auto momy = (panvert * fsin * 8) - (panhorz * fcos * 8);
-
-			follow_x += momx * j;
-			follow_y += momy * j;
-
-			if (x_min_bound == INT_MAX) CalcMapBounds();
-			follow_x = clamp(follow_x, x_min_bound, x_max_bound);
-			follow_y = clamp(follow_y, y_min_bound, y_max_bound);
+			follow = clamp(follow + DVector2(panvert, panhorz).Rotated(cangvect.X, cangvect.Y) * zoomspeed, min_bounds, max_bounds);
 		}
 	}
 }
@@ -284,7 +258,7 @@ void ClearAutomap()
 {
 	show2dsector.Zero();
 	show2dwall.Zero();
-	x_min_bound = INT_MAX;
+	min_bounds.X = INT_MAX;
 }
 
 //---------------------------------------------------------------------------
@@ -318,13 +292,15 @@ void MarkSectorSeen(sectortype* sec)
 //
 //---------------------------------------------------------------------------
 
-void drawlinergb(const double x1, const double y1, const double x2, const double y2, PalEntry p)
+void drawlinergb(const DVector2& v1, const DVector2& v2, PalEntry p)
 {
-	if (am_linethickness >= 2) {
-		twod->AddThickLine(x1, y1, x2, y2, am_linethickness, p, uint8_t(am_linealpha * 255));
-	} else {
-		// Use more efficient thin line drawing routine.
-		twod->AddLine(x1, y1, x2, y2, &viewport3d, p, uint8_t(am_linealpha * 255));
+	if (am_linethickness <= 1) 
+	{
+		twod->AddLine(v1, v2, &viewport3d, p, uint8_t(am_linealpha * 255));
+	}
+	else
+	{
+		twod->AddThickLine(v1, v2, am_linethickness, p, uint8_t(am_linealpha * 255));
 	}
 }
 
@@ -334,7 +310,7 @@ void drawlinergb(const double x1, const double y1, const double x2, const double
 //
 //---------------------------------------------------------------------------
 
-PalEntry RedLineColor()
+static inline PalEntry RedLineColor()
 {
 	// todo:
 	// Blood uses palette index 12 (99,99,99)
@@ -343,7 +319,7 @@ PalEntry RedLineColor()
 	return automapMode == am_overlay? *am_ovtwosidedcolor : *am_twosidedcolor;
 }
 
-PalEntry WhiteLineColor()
+static inline PalEntry WhiteLineColor()
 {
 
 	// todo:
@@ -353,7 +329,7 @@ PalEntry WhiteLineColor()
 	return automapMode == am_overlay ? *am_ovonesidedcolor : *am_onesidedcolor;
 }
 
-PalEntry PlayerLineColor()
+static inline PalEntry PlayerLineColor()
 {
 	return automapMode == am_overlay ? *am_ovplayercolor : *am_playercolor;
 }
@@ -366,6 +342,7 @@ CCMD(printpalcol)
 	int i = atoi(argv[1]);
 	Printf("%d, %d, %d\n", GPalette.BaseColors[i].r, GPalette.BaseColors[i].g, GPalette.BaseColors[i].b);
 }
+
 //---------------------------------------------------------------------------
 //
 //
@@ -409,13 +386,8 @@ bool ShowRedLine(int j, int i)
 //
 //---------------------------------------------------------------------------
 
-static void drawredlines(const DVector2& cpos, const double czoom, const DAngle cang)
+static void drawredlines(const DVector2& cpos, const DVector2& cangvect, const DVector2& xydim)
 {
-	double xvect = -cang.Sin() * czoom * (1. / 1024.);
-	double yvect = -cang.Cos() * czoom * (1. / 1024.);
-	int width = screen->GetWidth();
-	int height = screen->GetHeight();
-
 	for (unsigned i = 0; i < sector.Size(); i++)
 	{
 		if (!gFullMap && !show2dsector[i]) continue;
@@ -434,16 +406,9 @@ static void drawredlines(const DVector2& cpos, const double czoom, const DAngle 
 
 			if (ShowRedLine(wallnum(&wal), i))
 			{
-				auto oxy1 = wal.pos - cpos;
-				double x1 = (oxy1.X * xvect) - (oxy1.Y * yvect) + (width * 0.5);
-				double y1 = (oxy1.Y * xvect) + (oxy1.X * yvect) + (height * 0.5);
-
-				auto wal2 = wal.point2Wall();
-				auto oxy2 = wal2->pos - cpos;
-				double x2 = (oxy2.X * xvect) - (oxy2.Y * yvect) + (width * 0.5);
-				double y2 = (oxy2.Y * xvect) + (oxy2.X * yvect) + (height * 0.5);
-
-				drawlinergb(x1, y1, x2, y2, RedLineColor());
+				auto v1 = OutAutomapVector(wal.pos - cpos, cangvect, gZoom, xydim);
+				auto v2 = OutAutomapVector(wal.point2Wall()->pos - cpos, cangvect, gZoom, xydim);
+				drawlinergb(v1, v2, RedLineColor());
 			}
 		}
 	}
@@ -455,13 +420,8 @@ static void drawredlines(const DVector2& cpos, const double czoom, const DAngle 
 //
 //---------------------------------------------------------------------------
 
-static void drawwhitelines(const DVector2& cpos, const double czoom, const DAngle cang)
+static void drawwhitelines(const DVector2& cpos, const DVector2& cangvect, const DVector2& xydim)
 {
-	double xvect = -cang.Sin() * czoom * (1. / 1024);
-	double yvect = -cang.Cos() * czoom * (1. / 1024);
-	int width = screen->GetWidth();
-	int height = screen->GetHeight();
-
 	for (int i = (int)sector.Size() - 1; i >= 0; i--)
 	{
 		if (!gFullMap && !show2dsector[i] && !isSWALL()) continue;
@@ -474,16 +434,9 @@ static void drawwhitelines(const DVector2& cpos, const double czoom, const DAngl
 			if (isSWALL() && !gFullMap && !show2dwall[wallnum(&wal)])
 				continue;
 
-			auto oxy1 = wal.pos - cpos;
-			double x1 = (oxy1.X * xvect) - (oxy1.Y * yvect) + (width * 0.5);
-			double y1 = (oxy1.Y * xvect) + (oxy1.X * yvect) + (height * 0.5);
-
-			auto wal2 = wal.point2Wall();
-			auto oxy2 = wal2->pos - cpos;
-			double x2 = (oxy2.X * xvect) - (oxy2.Y * yvect) + (width * 0.5);
-			double y2 = (oxy2.Y * xvect) + (oxy2.X * yvect) + (height * 0.5);
-
-			drawlinergb(x1, y1, x2, y2, WhiteLineColor());
+			auto v1 = OutAutomapVector(wal.pos - cpos, cangvect, gZoom, xydim);
+			auto v2 = OutAutomapVector(wal.point2Wall()->pos - cpos, cangvect, gZoom, xydim);
+			drawlinergb(v1, v2, WhiteLineColor());
 		}
 	}
 }
@@ -496,6 +449,7 @@ static void drawwhitelines(const DVector2& cpos, const double czoom, const DAngl
 
 static void DrawPlayerArrow(const DVector2& cpos, const DAngle cang, const double czoom, const DAngle pl_angle)
 {
+#if 0
 	static constexpr int arrow[] =
 	{
 		0, 65536, 0, -65536,
@@ -503,8 +457,8 @@ static void DrawPlayerArrow(const DVector2& cpos, const DAngle cang, const doubl
 		0, 65536, 32768, 32878,
 	};
 
-	double xvect = -cang.Sin() * czoom * (1. / 1024);
-	double yvect = -cang.Cos() * czoom * (1. / 1024);
+	double xvect = -cang.Sin() * czoom;
+	double yvect = -cang.Cos() * czoom;
 
 	double pxvect = -pl_angle.Sin();
 	double pyvect = -pl_angle.Cos();
@@ -514,6 +468,8 @@ static void DrawPlayerArrow(const DVector2& cpos, const DAngle cang, const doubl
 
 	for (int i = 0; i < 12; i += 4)
 	{
+		// FIXME: This has been broken since before the floatification refactor.
+		// Needs repair and changing out to backended vector function.
 		double px1 = (arrow[i] * pxvect) - (arrow[i+1] * pyvect);
 		double py1 = (arrow[i+1] * pxvect) + (arrow[i] * pyvect) + (height * 0.5);
 		double px2 = (arrow[i+2] * pxvect) - (arrow[i+3] * pyvect);
@@ -529,6 +485,7 @@ static void DrawPlayerArrow(const DVector2& cpos, const DAngle cang, const doubl
 
 		drawlinergb(sx1, sy1, sx2, sy2, WhiteLineColor());
 	}
+#endif
 }
 
 
@@ -538,12 +495,8 @@ static void DrawPlayerArrow(const DVector2& cpos, const DAngle cang, const doubl
 //
 //---------------------------------------------------------------------------
 
-static void renderDrawMapView(const DVector2& cpos, const double czoom, const DAngle cang)
+static void renderDrawMapView(const DVector2& cpos, const DVector2& cangvect, const DVector2& xydim)
 {
-	double xvect = -cang.Sin() * czoom * (1. / 1024.);
-	double yvect = -cang.Cos() * czoom * (1. / 1024.);
-	int width = screen->GetWidth();
-	int height = screen->GetHeight();
 	TArray<FVector4> vertices;
 	TArray<DCoreActor*> floorsprites;
 
@@ -583,10 +536,8 @@ static void renderDrawMapView(const DVector2& cpos, const double czoom, const DA
 			vertices.Resize(mesh->vertices.Size());
 			for (unsigned j = 0; j < mesh->vertices.Size(); j++)
 			{
-				auto oxy = DVector2(mesh->vertices[j].X - cpos.X, -mesh->vertices[j].Y - cpos.Y);
-				float x1 = (oxy.X * xvect) - (oxy.Y * yvect) + (width * 0.5);
-				float y1 = (oxy.Y * xvect) + (oxy.X * yvect) + (height * 0.5);
-				vertices[j] = { x1, y1, mesh->texcoords[j].X, mesh->texcoords[j].Y };
+				auto v = OutAutomapVector(DVector2(mesh->vertices[j].X - cpos.X, -mesh->vertices[j].Y - cpos.Y), cangvect, gZoom, xydim);
+				vertices[j] = { float(v.X), float(v.Y), mesh->texcoords[j].X, mesh->texcoords[j].Y };
 			}
 
 			twod->AddPoly(tileGetTexture(picnum, true), vertices.Data(), vertices.Size(), (unsigned*)indices->Data(), indices->Size(), translation, light,
@@ -611,10 +562,8 @@ static void renderDrawMapView(const DVector2& cpos, const double czoom, const DA
 
 		for (unsigned j = 0; j < 4; j++)
 		{
-			auto oxy = pp[j] - cpos;
-			float x1 = (oxy.X * xvect) - (oxy.Y * yvect) + (width * 0.5);
-			float y1 = (oxy.Y * xvect) + (oxy.X * yvect) + (height * 0.5);
-			vertices[j] = { x1, y1, j == 1 || j == 2 ? 1.f : 0.f, j == 2 || j == 3 ? 1.f : 0.f };
+			auto v = OutAutomapVector(pp[j] - cpos, cangvect, gZoom, xydim);
+			vertices[j] = { float(v.X), float(v.Y), j == 1 || j == 2 ? 1.f : 0.f, j == 2 || j == 3 ? 1.f : 0.f };
 		}
 		int shade;
 		if ((actor->sector()->ceilingstat & CSTAT_SECTOR_SKY)) shade = actor->sector()->ceilingshade;
@@ -644,28 +593,117 @@ static void renderDrawMapView(const DVector2& cpos, const double czoom, const DA
 //
 //---------------------------------------------------------------------------
 
-void DrawOverheadMap(int pl_x, int pl_y, const DAngle pl_angle, double const smoothratio)
+void DrawOverheadMap(const DVector2& plxy, const DAngle pl_angle, double const interpfrac)
 {
-	if (am_followplayer || follow_x == INT_MAX)
+	if (am_followplayer || follow.X == INT_MAX)
 	{
-		follow_x = pl_x * inttoworld;
-		follow_y = pl_y * inttoworld;
+		follow = plxy;
 	}
-	int x = follow_x * worldtoint;
-	int y = follow_y * worldtoint;
-	const DVector2 follow(follow_x, follow_y);
-	follow_a = am_rotate ? pl_angle : DAngle::fromBuild(1536);
-	AutomapControl();
+
+	follow_a = am_rotate ? pl_angle : DAngle270;
+	const DVector2 xydim = DVector2(screen->GetWidth(), screen->GetHeight()) * 0.5;
+	const DVector2 avect = follow_a.ToVector();
+
+	AutomapControl(avect);
 
 	if (automapMode == am_full)
 	{
 		twod->ClearScreen();
-		renderDrawMapView(follow, gZoom, follow_a);
+		renderDrawMapView(follow, avect, xydim);
 	}
-	drawredlines(follow, gZoom, follow_a);
-	drawwhitelines(follow, gZoom, follow_a);
-	if (!gi->DrawAutomapPlayer(pl_x, pl_y, x, y, gZoom, follow_a, smoothratio))
-		DrawPlayerArrow(follow, follow_a, gZoom, -pl_angle);
+
+	drawredlines(follow, avect, xydim);
+	drawwhitelines(follow, avect, xydim);
+	if (!gi->DrawAutomapPlayer(plxy, follow, follow_a, xydim, gZoom, interpfrac))
+		DrawPlayerArrow(follow, follow_a, gZoom, pl_angle);
 
 }
 
+//---------------------------------------------------------------------------
+//
+// Draws lines for alls in Duke/SW when cstat is CSTAT_SPRITE_ALIGNMENT_FACING.
+//
+//---------------------------------------------------------------------------
+
+void DrawAutomapAlignmentFacing(const spritetype& spr, const DVector2& bpos, const DVector2& cangvect, const double czoom, const DVector2& xydim, const PalEntry& col)
+{
+	auto v1 = OutAutomapVector(bpos, cangvect, czoom, xydim);
+	auto v2 = OutAutomapVector(spr.angle.ToVector() * 8., cangvect, czoom);
+	auto v3 = v2.Rotated90CW();
+	auto v4 = v1 + v2;
+
+	drawlinergb(v1 - v2, v4, col);
+	drawlinergb(v1 - v3, v4, col);
+	drawlinergb(v1 + v3, v4, col);
+}
+
+//---------------------------------------------------------------------------
+//
+// Draws lines for alls in Duke/SW when cstat is CSTAT_SPRITE_ALIGNMENT_WALL.
+//
+//---------------------------------------------------------------------------
+
+void DrawAutomapAlignmentWall(const spritetype& spr, const DVector2& bpos, const DVector2& cangvect, const double czoom, const DVector2& xydim, const PalEntry& col)
+{
+	auto xrep = spr.xrepeat * REPEAT_SCALE;
+	auto xspan = tileWidth(spr.picnum);
+	auto xoff = tileLeftOffset(spr.picnum) + spr.xoffset;
+
+	if ((spr.cstat & CSTAT_SPRITE_XFLIP) > 0) xoff = -xoff;
+
+	auto sprvec = spr.angle.ToVector().Rotated90CW() * xrep;
+	
+	auto b1 = bpos - sprvec * ((xspan * 0.5) + xoff);
+	auto b2 = b1 + sprvec * xspan;
+
+	auto v1 = OutAutomapVector(b1, cangvect, czoom, xydim);
+	auto v2 = OutAutomapVector(b2, cangvect, czoom, xydim);
+
+	drawlinergb(v1, v2, col);
+}
+
+
+//---------------------------------------------------------------------------
+//
+// Draws lines for alls in Duke/SW when cstat is CSTAT_SPRITE_ALIGNMENT_FLOOR.
+//
+//---------------------------------------------------------------------------
+
+void DrawAutomapAlignmentFloor(const spritetype& spr, const DVector2& bpos, const DVector2& cangvect, const double czoom, const DVector2& xydim, const PalEntry& col)
+{
+	auto xrep = spr.xrepeat * REPEAT_SCALE;
+	auto yrep = spr.yrepeat * REPEAT_SCALE;
+	auto xspan = tileWidth(spr.picnum);
+	auto yspan = tileHeight(spr.picnum);
+	auto xoff = tileLeftOffset(spr.picnum);
+	auto yoff = tileTopOffset(spr.picnum);
+
+	if (isSWALL() || (spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) != CSTAT_SPRITE_ALIGNMENT_SLOPE)
+	{
+		xoff += spr.xoffset;
+		yoff += spr.yoffset;
+	}
+
+	if ((spr.cstat & CSTAT_SPRITE_XFLIP) > 0) xoff = -xoff;
+	if ((spr.cstat & CSTAT_SPRITE_YFLIP) > 0) yoff = -yoff;
+
+	auto sprvec = spr.angle.ToVector();
+	auto xscale = sprvec.Rotated90CW() * xspan * xrep;
+	auto yscale = sprvec * yspan * yrep;
+	auto xybase = DVector2(((xspan * 0.5) + xoff) * xrep, ((yspan * 0.5) + yoff) * yrep);
+
+	auto b1 = bpos + (xybase * sprvec.Y) + (xybase.Rotated90CW() * sprvec.X);
+	auto b2 = b1 - xscale;
+	auto b3 = b2 - yscale;
+	auto b4 = b1 - yscale;
+
+	auto v1 = OutAutomapVector(b1, cangvect, czoom, xydim);
+	auto v2 = OutAutomapVector(b2, cangvect, czoom, xydim);
+	auto v3 = OutAutomapVector(b3, cangvect, czoom, xydim);
+	auto v4 = OutAutomapVector(b4, cangvect, czoom, xydim);
+
+	drawlinergb(v1, v2, col);
+	drawlinergb(v2, v3, col);
+	drawlinergb(v3, v4, col);
+	drawlinergb(v4, v1, col);
+}

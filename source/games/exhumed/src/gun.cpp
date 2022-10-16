@@ -632,11 +632,11 @@ loc_flag:
             }
 
             int nAmmoType = WeaponInfo[nWeapon].nAmmoType;
-            int nAngle = pPlayerActor->int_ang();
+            DAngle nAngle = pPlayerActor->spr.angle;
 			auto thePos = pPlayerActor->spr.pos;
 
-            int ebp = bcos(nAngle) * (pPlayerActor->spr.clipdist << 3);
-            int ebx = bsin(nAngle) * (pPlayerActor->spr.clipdist << 3);
+            int ebp = nAngle.Cos() * (1 << 14) * (pPlayerActor->spr.clipdist << 3);
+            int ebx = nAngle.Sin() * (1 << 14) * (pPlayerActor->spr.clipdist << 3);
 
             if (WeaponInfo[nWeapon].c)
             {
@@ -648,9 +648,9 @@ loc_flag:
                 else
                     ecx = theVal;
 
-                int var_44 = (nAngle + 512) & kAngleMask;
-                ebp += bcos(var_44, -11) * ecx;
-                ebx += bsin(var_44, -11) * ecx;
+                DAngle var_44 = (nAngle + DAngle90).Normalized360();
+                ebp += var_44.Cos() * (1 << 3) * ecx;
+                ebx += var_44.Sin() * (1 << 3) * ecx;
             }
 
             int nHeight = (-GetActorHeight(pPlayerActor)) >> 1;
@@ -775,7 +775,7 @@ loc_flag:
                 case kWeaponM60:
                 {
                     if (nWeapon == kWeaponM60) { // hack(?) to do fallthrough from kWeapon3 into kWeaponPistol without doing the nQuake[] change
-                        nQuake[nPlayer] = 128;
+                        nQuake[nPlayer] = 0.5;
                     }
                     // fall through
                     [[fallthrough]];
@@ -812,7 +812,7 @@ loc_flag:
                 case kWeaponStaff:
                 {
                     BuildSnake(nPlayer, nHeight);
-                    nQuake[nPlayer] = 512;
+                    nQuake[nPlayer] = 2.;
 
                     PlayerList[nPlayer].nDamage.X -= bcos(pPlayerActor->int_ang(), 9);
                     PlayerList[nPlayer].nDamage.Y -= bsin(pPlayerActor->int_ang(), 9);
@@ -869,7 +869,7 @@ loc_flag:
     }
 }
 
-void DrawWeapons(double smooth)
+void DrawWeapons(double interpfrac)
 {
     if (bCamera) {
         return;
@@ -910,8 +910,8 @@ void DrawWeapons(double smooth)
 
         if (cl_hudinterpolation)
         {
-            nBobAngle = interpolatedangle(DAngle::fromBuild(obobangle), DAngle::fromBuild(bobangle), smooth).Buildfang();
-            nVal = interpolatedvaluef(PlayerList[nLocalPlayer].ototalvel, PlayerList[nLocalPlayer].totalvel, smooth, 16) * 0.5;
+            nBobAngle = interpolatedvalue<double>(obobangle, bobangle, interpfrac) * BAngToDegree;
+            nVal = interpolatedvalue<double>(PlayerList[nLocalPlayer].ototalvel, PlayerList[nLocalPlayer].totalvel, interpfrac);
         }
         else
         {
@@ -919,11 +919,11 @@ void DrawWeapons(double smooth)
             nVal = PlayerList[nLocalPlayer].totalvel;
         }
 
-        yOffset = MulScaleF(nVal, bsinf(fmod(nBobAngle, 1024.), -8), 9);
+        yOffset = nVal * fabs(g_sindeg(nBobAngle)) * (1. / 16.);
 
         if (var_34 == 1)
         {
-            xOffset = MulScaleF(bcosf(nBobAngle, -8), nVal, 8);
+            xOffset = nVal * g_cosdeg(nBobAngle) * (1. / 8.);
         }
     }
     else
@@ -943,8 +943,8 @@ void DrawWeapons(double smooth)
         nShade = PlayerList[nLocalPlayer].pActor->spr.shade;
     }
 
-    double const look_anghalf = PlayerList[nLocalPlayer].angle.look_anghalf(smooth);
-    double const looking_arc = PlayerList[nLocalPlayer].angle.looking_arc(smooth);
+    double const look_anghalf = PlayerList[nLocalPlayer].angle.look_anghalf(interpfrac);
+    double const looking_arc = PlayerList[nLocalPlayer].angle.looking_arc(interpfrac);
 
     xOffset -= look_anghalf;
     yOffset += looking_arc;

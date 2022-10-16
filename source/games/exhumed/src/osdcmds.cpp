@@ -33,16 +33,16 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_PS_NS
 
-void GameInterface::WarpToCoords(int x, int y, int z, int ang, int horz)
+void GameInterface::WarpToCoords(double x, double y, double z, DAngle ang, int horz)
 {
     Player     *nPlayer = &PlayerList[nLocalPlayer];
 
-    nPlayer->pActor->set_int_pos({ x, y, z });
+    nPlayer->pActor->spr.pos = DVector3(x, y, z);
     nPlayer->pActor->backuppos();
 
-    if (ang != INT_MIN)
+    if (ang != DAngle::fromDeg(INT_MIN))
     {
-        nPlayer->angle.oang = nPlayer->angle.ang = DAngle::fromBuild(ang);
+        nPlayer->angle.oang = nPlayer->angle.ang = ang;
     }
 
     if (horz != INT_MIN)
@@ -74,7 +74,7 @@ static int osdcmd_spawn(CCmdFuncPtr parm)
     if (!stricmp(c, "anubis")) BuildAnubis(nullptr, initpos, sectp, inita, false);
     else if (!stricmp(c, "spider")) BuildSpider(nullptr, initpos, sectp, inita);
     else if (!stricmp(c, "mummy")) BuildMummy(nullptr, initpos, sectp, inita);
-    else if (!stricmp(c, "fish")) BuildFish(nullptr, initpos.plusZ(PlayerList[nLocalPlayer].eyelevel * zinttoworld), sectp, inita);
+    else if (!stricmp(c, "fish")) BuildFish(nullptr, initpos.plusZ(PlayerList[nLocalPlayer].eyelevel), sectp, inita);
     else if (!stricmp(c, "lion")) BuildLion(nullptr, initpos, sectp, inita);
     else if (!stricmp(c, "lava")) BuildLava(nullptr, initpos, sectp, inita, nNetPlayerCount);
     else if (!stricmp(c, "rex")) BuildRex(nullptr, initpos, sectp, inita, nNetPlayerCount);

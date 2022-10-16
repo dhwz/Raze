@@ -3,6 +3,7 @@
 #include "gamecontrol.h"
 #include "build.h"
 #include "coreactor.h"
+#include "fixedhorizon.h"
 #include "intrect.h"
 
 extern IntRect viewport3d;
@@ -252,11 +253,21 @@ inline constexpr int getincangle(unsigned a, unsigned na)
 }
 
 
-extern int cameradist, cameraclock;
+extern double cameradist, cameraclock;
 
 void loaddefinitionsfile(const char* fn, bool cumulative = false, bool maingrp = false);
 
-bool calcChaseCamPos(int* px, int* py, int* pz, DCoreActor* pspr, sectortype** psectnum, DAngle ang, fixedhoriz horiz, double const smoothratio);
+bool calcChaseCamPos(DVector3& ppos, DCoreActor* pspr, sectortype** psectnum, DAngle ang, fixedhoriz horiz, double const interpfrac);
+
+inline bool calcChaseCamPos(int* px, int* py, int* pz, DCoreActor* pspr, sectortype** psectnum, DAngle ang, fixedhoriz horiz, double const smoothratio)
+{
+	auto pos = DVector3((*px) * inttoworld, (*py) * inttoworld, (*pz) * zinttoworld);
+	auto res = calcChaseCamPos(pos, pspr, psectnum, ang, horiz, smoothratio * (1. / MaxSmoothRatio));
+	(*px) = pos.X * worldtoint;
+	(*py) = pos.Y * worldtoint;
+	(*pz) = pos.Z * zworldtoint;
+	return res;
+}
 
 void PlanesAtPoint(const sectortype* sec, float dax, float day, float* ceilz, float* florz);
 
@@ -280,9 +291,8 @@ EClose IsCloseToWall(const DVector2& vect, walltype* wal, double walldist);
 
 void checkRotatedWalls();
 bool sectorsConnected(int sect1, int sect2);
-void dragpoint(walltype* wal, int newx, int newy);
+[[deprecated]] void dragpoint(walltype* wal, int newx, int newy);
 void dragpoint(walltype* wal, const DVector2& pos);
-DVector2 rotatepoint(const DVector2& pivot, const DVector2& point, DAngle angle);
 int32_t inside(double x, double y, const sectortype* sect);
 void getcorrectzsofslope(int sectnum, int dax, int day, int* ceilz, int* florz);
 int getceilzofslopeptr(const sectortype* sec, int dax, int day);
@@ -328,6 +338,11 @@ inline double getflorzofslopeptrf(const sectortype* sec, const DVector2& pos)
 	return getflorzofslopeptr(sec, pos.X * worldtoint, pos.Y * worldtoint) * zinttoworld;
 }
 
+inline DVector2 rotatepoint(const DVector2& pivot, const DVector2& point, DAngle angle)
+{
+	return (point - pivot).Rotated(angle) + pivot;
+}
+
 
 enum EFindNextSector
 {
@@ -344,7 +359,7 @@ enum EFindNextSector
 	Find_FloorUp = Find_Floor | Find_Up,
 	Find_FloorDown = Find_Floor | Find_Down,
 };
-sectortype* nextsectorneighborzptr(sectortype* sectp, int startz, int flags);
+sectortype* nextsectorneighborzptr(sectortype* sectp, double startz, int flags);
 
 
 
@@ -480,7 +495,7 @@ inline int I_GetBuildTime()
 
 inline int32_t getangle(walltype* wal)
 {
-	return getangle(wal->fdelta());
+	return getangle(wal->delta());
 }
 
 inline TArrayView<walltype> wallsofsector(const sectortype* sec)
@@ -587,6 +602,11 @@ inline void alignceilslope(sectortype* sect, const DVector3& pos)
 inline void alignflorslope(sectortype* sect, const DVector3& pos)
 {
 	sect->setfloorslope(getslopeval(sect, pos.X * worldtoint, pos.Y * worldtoint, pos.Z * zworldtoint, sect->int_floorz()));
+}
+
+inline double BobVal(int val)
+{
+	return g_sinbam((unsigned)val << 21);
 }
 
 #include "updatesector.h"

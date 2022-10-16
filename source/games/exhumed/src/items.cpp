@@ -363,10 +363,10 @@ void StartRegenerate(DExhumedActor* pActor)
     auto pos = Regenerates.Find(pActor);
     if (pos >= Regenerates.Size())
     {
-        // ?? CHECKME
-        pActor->spr.xvel = pActor->spr.xrepeat;
-        pActor->spr.zvel = pActor->spr.shade;
-        pActor->spr.yvel = pActor->spr.pal;
+       // ?? CHECKME
+        pActor->spr.xint = pActor->spr.xrepeat;
+        pActor->spr.inittype = pActor->spr.shade;
+        pActor->spr.yint = pActor->spr.pal;
     }
     else
     {
@@ -408,7 +408,7 @@ void DoRegenerates()
         }
         else
         {
-            if (pActor->spr.xrepeat < pActor->spr.xvel)
+            if (pActor->spr.xrepeat < pActor->spr.xint)
             {
                 pActor->spr.xrepeat += 2;
                 pActor->spr.yrepeat += 2;
@@ -416,12 +416,16 @@ void DoRegenerates()
             }
         }
 
-        pActor->spr.zvel = 0;
-        pActor->spr.yrepeat = (uint8_t)pActor->spr.xvel;
-        pActor->spr.xrepeat = (uint8_t)pActor->spr.xvel;
-        pActor->spr.pal  = (uint8_t)pActor->spr.yvel;
-        pActor->spr.yvel = pActor->spr.zvel; // setting to 0
-        pActor->spr.xvel = pActor->spr.zvel; // setting to 0
+        pActor->spr.yrepeat = (uint8_t)pActor->spr.xint;
+        pActor->spr.xrepeat = (uint8_t)pActor->spr.xint;
+        pActor->spr.pal  = (uint8_t)pActor->spr.yint;
+        pActor->spr.yint = 0;
+        pActor->spr.xint = 0;
+
+        pActor->vel.Y = 0;
+        pActor->vel.X = 0;
+        pActor->vel.Z = 0;
+
 
         if (pActor->spr.statnum == kStatExplodeTrigger) {
             pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;

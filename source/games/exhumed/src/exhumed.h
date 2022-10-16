@@ -230,14 +230,14 @@ struct GameInterface : public ::GameInterface
 	void NewGame(MapRecord *map, int skill, bool) override;
 	void LevelCompleted(MapRecord *map, int skill) override;
 	void NextLevel(MapRecord *map, int skill) override;
-    bool DrawAutomapPlayer(int mx, int my, int x, int y, const double z, const DAngle a, double const smoothratio) override;
+    bool DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac) override;
     fixed_t playerHorizMin() override { return IntToFixed(-150); }
     fixed_t playerHorizMax() override { return IntToFixed(150); }
     int playerKeyMove() override { return 6; }
-    void WarpToCoords(int x, int y, int z, int a, int h) override;
+    void WarpToCoords(double x, double y, double z, DAngle ang, int horz) override;
     void ToggleThirdPerson() override;
-    vec3_t chaseCamPos(DAngle ang, fixedhoriz horiz) { return vec3_t(int(-ang.Cos() * 1536.), int(-ang.Sin() * 1536.), (horiz.asq16() * 3) >> 10); }
-    void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double smoothRatio) override;
+    DVector3 chaseCamPos(DAngle ang, fixedhoriz horiz) { return DVector3(-ang.ToVector() * 96., horiz.asbuildf() * 0.75); }
+    void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double interpfrac) override;
     int GetCurrentSkill() override;
     std::pair<DVector3, DAngle> GetCoordinates() override;
 

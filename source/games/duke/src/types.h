@@ -23,7 +23,7 @@ struct STATUSBARTYPE
 
 struct FireProj
 {
-	vec3_t pos, vel;
+	vec3_t vel;
 };
 
 // Todo - put more state in here
@@ -57,10 +57,13 @@ public:
 		int palvals;
 		int tempsound;
 	};
+	// note: all this temp shit needs to be moved to subclass specific variables once things get cleaned up. This is a major issue with code readability.
 	int temp_data[6];
 	// Some SE's stored indices in temp_data. For purposes of clarity avoid that. These variables are meant to store these elements now
 	walltype* temp_walls[2]; // SE20 + SE128
 	sectortype* temp_sect, *actorstayput;
+	DAngle temp_angle; // only used by TRIPBOMB
+	DVector3 temp_pos; // used by TRIPBOMB, SE_26 and FIREBALL.
 
 	TObjPtr<DDukeActor*> temp_actor, seek_actor;
 
@@ -111,7 +114,7 @@ public:
 	int PlayerIndex() const
 	{
 		// only valid for real players - just here to abstract yvel.
-		return spr.yvel;
+		return spr.yint;
 	}
 
 	bool isPlayer() const
@@ -226,7 +229,6 @@ struct player_struct
 	// From here on it is unaltered from JFDuke with the exception of a few fields that are no longer needed and were removed.
 	int numloogs, oloogcnt, loogcnt;
 	int invdisptime;
-	int pyoff, opyoff;
 	int last_pissed_time;
 	int player_par, visibility;
 	int bobcounter;
@@ -234,6 +236,7 @@ struct player_struct
 
 	int aim_mode, ftt;
 
+	double pyoff, opyoff;
 	double truefz, truecz;
 	sectortype* cursector;
 	sectortype* one_parallax_sectnum; // wall + sector references.
@@ -400,10 +403,6 @@ struct player_struct
 		pos.Z  += z * zinttoworld;
 	}
 
-	void player_set_int_z(int z)
-	{
-		pos.Z  = z * zinttoworld;
-	}
 	void player_add_int_xy(const vec2_t& v)
 	{
 		pos.X  += v.X * inttoworld;

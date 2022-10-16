@@ -347,7 +347,7 @@ DEFINE_PROPERTY(angle, I, CoreActor)
 DEFINE_PROPERTY(xvel, I, CoreActor)
 {
 	PROP_INT_PARM(i, 0);
-	bag.Info->ActorInfo()->defsprite.xvel = i;
+	bag.Info->ActorInfo()->defsprite.xint = i;
 	bag.Info->ActorInfo()->DefaultFlags |= DEFF_XVEL;
 }
 
@@ -357,7 +357,7 @@ DEFINE_PROPERTY(xvel, I, CoreActor)
 DEFINE_PROPERTY(yvel, I, CoreActor)
 {
 	PROP_INT_PARM(i, 0);
-	bag.Info->ActorInfo()->defsprite.yvel = i;
+	bag.Info->ActorInfo()->defsprite.yint = i;
 	bag.Info->ActorInfo()->DefaultFlags |= DEFF_YVEL;
 }
 
@@ -367,7 +367,7 @@ DEFINE_PROPERTY(yvel, I, CoreActor)
 DEFINE_PROPERTY(zvel, I, CoreActor)
 {
 	PROP_INT_PARM(i, 0);
-	bag.Info->ActorInfo()->defsprite.zvel = i;
+	bag.Info->ActorInfo()->defsprite.inittype = i;
 	bag.Info->ActorInfo()->DefaultFlags |= DEFF_ZVEL;
 }
 

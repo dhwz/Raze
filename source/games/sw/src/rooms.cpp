@@ -58,6 +58,12 @@ SAVE save;
 
 bool FAF_DebugView = false;
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 DSWActor* insertActor(sectortype* sect, int statnum)
 {
     auto pActor = static_cast<DSWActor*>(::InsertActor(RUNTIME_CLASS(DSWActor), sect, statnum));
@@ -65,6 +71,12 @@ DSWActor* insertActor(sectortype* sect, int statnum)
     pActor->spr.intowner = -1;
     return pActor;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 bool FAF_Sector(sectortype* sect)
 {
@@ -80,6 +92,12 @@ bool FAF_Sector(sectortype* sect)
 
     return false;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 void SetWallWarpHitscan(sectortype* sect)
 {
@@ -104,6 +122,12 @@ void SetWallWarpHitscan(sectortype* sect)
     while (wall_num != start_wall);
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 void ResetWallWarpHitscan(sectortype* sect)
 {
     auto start_wall = sect->firstWall();
@@ -118,12 +142,14 @@ void ResetWallWarpHitscan(sectortype* sect)
     while (wall_num != start_wall);
 }
 
-void
-FAFhitscan(int32_t x, int32_t y, int32_t z, sectortype* sect,
-    int32_t xvect, int32_t yvect, int32_t zvect,
-    HitInfo& hit, int32_t clipmask)
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
+inline void FAFhitscan(const DVector3& start, sectortype* sect, const DVector3& vect, HitInfo& hit, int32_t clipmask)
 {
-    int loz, hiz;
     auto newsector = sect;
     int startclipmask = 0;
     bool plax_found = false;
@@ -131,7 +157,7 @@ FAFhitscan(int32_t x, int32_t y, int32_t z, sectortype* sect,
     if (clipmask == CLIPMASK_MISSILE)
         startclipmask = CLIPMASK_WARP_HITSCAN;
 
-    hitscan(vec3_t( x, y, z ), sect, { xvect, yvect, zvect }, hit, startclipmask);
+    hitscan(start, sect, vect, hit, startclipmask);
 
     if (hit.hitSector == nullptr)
         return;
@@ -142,8 +168,7 @@ FAFhitscan(int32_t x, int32_t y, int32_t z, sectortype* sect,
         if ((hit.hitWall->cstat & CSTAT_WALL_WARP_HITSCAN))
         {
             // back it up a bit to get a correct warp location
-            hit.hitpos.X -= (xvect>>9) * inttoworld;
-            hit.hitpos.Y -= (yvect>>9) * inttoworld;
+            hit.hitpos.XY() -= vect.XY() * (1 / 512.);
 
             // warp to new x,y,z, sectnum
             if (Warp(hit.hitpos, &hit.hitSector))
@@ -152,8 +177,7 @@ FAFhitscan(int32_t x, int32_t y, int32_t z, sectortype* sect,
                 ResetWallWarpHitscan(hit.hitSector);
 
                 // NOTE: This could be recursive I think if need be
-                auto pos = hit.int_hitpos();
-                hitscan(pos, hit.hitSector, { xvect, yvect, zvect }, hit, startclipmask);
+                hitscan(hit.hitpos, hit.hitSector, vect, hit, startclipmask);
 
                 // reset hitscan block for dest sect
                 SetWallWarpHitscan(hit.hitSector);
@@ -179,8 +203,7 @@ FAFhitscan(int32_t x, int32_t y, int32_t z, sectortype* sect,
                 sectortype* newsect = nullptr;
                 if (Warp(hit.hitpos, &newsect))
                 {
-                    auto pos = hit.int_hitpos();
-                    hitscan(pos, newsect, { xvect, yvect, zvect }, hit, clipmask);
+                    hitscan(hit.hitpos, newsect, vect, hit, clipmask);
                     return;
                 }
             }
@@ -189,27 +212,27 @@ FAFhitscan(int32_t x, int32_t y, int32_t z, sectortype* sect,
                 sectortype* newsect = nullptr;
                 if (WarpPlane(hit.hitpos, &newsect))
                 {
-                    auto pos = hit.int_hitpos();
-                    hitscan(pos, newsect, { xvect, yvect, zvect }, hit, clipmask);
+                    hitscan(hit.hitpos, newsect, vect, hit, clipmask);
                     return;
                 }
             }
         }
 
-        getzsofslopeptr(hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, &hiz, &loz);
-        if (abs(hit.int_hitpos().Z - loz) < Z(4))
+        double loz, hiz;
+        getzsofslopeptr(hit.hitSector, hit.hitpos, &hiz, &loz);
+        if (abs(hit.hitpos.Z - loz) < 4)
         {
             if (FAF_ConnectFloor(hit.hitSector) && !(hit.hitSector->floorstat & CSTAT_SECTOR_FAF_BLOCK_HITSCAN))
             {
-                updatesectorz(hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z + Z(12), &newsector);
+                updatesectorz(hit.hitpos.plusZ(12), &newsector);
                 plax_found = true;
             }
         }
-        else if (labs(hit.int_hitpos().Z - hiz) < Z(4))
+        else if (abs(hit.hitpos.Z - hiz) < 4)
         {
             if (FAF_ConnectCeiling(hit.hitSector) && !(hit.hitSector->floorstat & CSTAT_SECTOR_FAF_BLOCK_HITSCAN))
             {
-                updatesectorz(hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z - Z(12), &newsector);
+                updatesectorz(hit.hitpos.plusZ(-12), &newsector);
                 plax_found = true;
             }
         }
@@ -217,54 +240,50 @@ FAFhitscan(int32_t x, int32_t y, int32_t z, sectortype* sect,
 
     if (plax_found)
     {
-        auto pos = hit.int_hitpos();
-        hitscan(pos, newsector, { xvect, yvect, zvect }, hit, clipmask);
+        hitscan(hit.hitpos, newsector, vect, hit, clipmask);
     }
 }
 
-bool FAFcansee_(int32_t xs, int32_t ys, int32_t zs, sectortype* sects,
-          int32_t xe, int32_t ye, int32_t ze, sectortype* secte)
-{
-    int loz, hiz;
-    auto newsect = sects;
-    int xvect, yvect, zvect;
-    short ang;
-    int dist;
-    bool plax_found = false;
-    vec3_t s = { xs, ys, zs };
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
+bool FAFcansee(const DVector3& start, sectortype* sects, const DVector3& end, sectortype* secte)
+{
+    auto newsect = sects;
+    bool plax_found = false;
     // ASSERT(sects >= 0 && secte >= 0);
 
     // early out to regular routine
     if ((!sects || !FAF_Sector(sects)) && (!secte || !FAF_Sector(secte)))
     {
-        return !!cansee(xs,ys,zs,sects,xe,ye,ze,secte);
+        return !!cansee(start, sects, end, secte);
     }
 
     // get angle
-    ang = getangle(xe - xs, ye - ys);
+    DVector3 diff = end - start;
+    DAngle ang = VecToAngle(diff);
+    DVector3 vect; 
+    vect.XY() = ang.ToVector() * 1024;
+    double dist = diff.XY().Length();
 
     // get x,y,z, vectors
-    xvect = bcos(ang);
-    yvect = bsin(ang);
-
-    // find the distance to the target
-    dist = ksqrt(SQ(xe - xs) + SQ(ye - ys));
-
     if (dist != 0)
     {
-        if (xe - xs != 0)
-            zvect = Scale(xvect, ze - zs, xe - xs);
-        else if (ye - ys != 0)
-            zvect = Scale(yvect, ze - zs, ye - ys);
+        if (end.X != start.X)
+            vect.Z = vect.X * diff.Z / diff.X;
+        else if (end.Y != start.Y)
+            vect.Z = vect.Y * diff.Z / diff.Y;
         else
-            zvect = 0;
+            vect.Z = 0;
     }
     else
-        zvect = 0;
+        vect.Z = 0;
 
     HitInfo hit{};
-    hitscan(s, sects, { xvect, yvect, zvect }, hit, CLIPMASK_MISSILE);
+    hitscan(start, sects, vect, hit, CLIPMASK_MISSILE);
 
     if (hit.hitSector == nullptr)
         return false;
@@ -272,37 +291,43 @@ bool FAFcansee_(int32_t xs, int32_t ys, int32_t zs, sectortype* sects,
     // make sure it hit JUST a sector before doing a check
     if (hit.hitWall == nullptr && hit.actor() == nullptr)
     {
-        getzsofslopeptr(hit.hitSector, hit.int_hitpos().X, hit.int_hitpos().Y, &hiz, &loz);
-        if (labs(hit.int_hitpos().Z - loz) < Z(4))
+        double loz, hiz;
+        getzsofslopeptr(hit.hitSector, hit.hitpos.X, hit.hitpos.Y, &hiz, &loz);
+        if (abs(hit.hitpos.Z - loz) < 4)
         {
             if (FAF_ConnectFloor(hit.hitSector))
             {
-                updatesectorz(hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z + Z(12), &newsect);
+                updatesectorz(hit.hitpos.plusZ(12), &newsect);
                 plax_found = true;
             }
         }
-        else if (labs(hit.int_hitpos().Z - hiz) < Z(4))
+        else if (abs(hit.hitpos.Z - hiz) < 4)
         {
             if (FAF_ConnectCeiling(hit.hitSector))
             {
-                updatesectorz(hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z - Z(12), &newsect);
+                updatesectorz(hit.hitpos.plusZ(-12), &newsect);
                 plax_found = true;
             }
         }
     }
     else
     {
-        return !!cansee(xs,ys,zs,sects,xe,ye,ze,secte);
+        return !!cansee(start, sects, end, secte);
     }
 
     if (plax_found)
-        return !!cansee(hit.int_hitpos().X, hit.int_hitpos().Y, hit.int_hitpos().Z, newsect, xe, ye, ze, secte);
+        return !!cansee(hit.hitpos, newsect, end, secte);
 
     return false;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
-int GetZadjustment(sectortype* sect, short hitag)
+double GetZadjustment(sectortype* sect, short hitag)
 {
     if (sect == nullptr || !(sect->extra & SECTFX_Z_ADJUST))
         return 0;
@@ -312,17 +337,22 @@ int GetZadjustment(sectortype* sect, short hitag)
     {
         if (itActor->spr.hitag == hitag && itActor->sector() == sect)
         {
-            return Z(itActor->spr.lotag);
+            return itActor->spr.lotag;
         }
     }
 
     return 0;
 }
 
-bool SectorZadjust(const Collision& ceilhit, int32_t* hiz, const Collision& florhit, int32_t* loz)
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
+bool SectorZadjust(const Collision& ceilhit, double* hiz, const Collision& florhit, double* loz)
 {
-    extern int PlaxCeilGlobZadjust, PlaxFloorGlobZadjust;
-    int z_amt = 0;
+    double z_amt = 0;
 
     bool SkipFAFcheck = false;
 
@@ -433,7 +463,13 @@ bool SectorZadjust(const Collision& ceilhit, int32_t* hiz, const Collision& flor
     return SkipFAFcheck;
 }
 
-void WaterAdjust(const Collision& florhit, int32_t* loz)
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
+void WaterAdjust(const Collision& florhit, double* loz)
 {
     if (florhit.type == kHitSector)
     {
@@ -441,13 +477,19 @@ void WaterAdjust(const Collision& florhit, int32_t* loz)
         if (!sect->hasU()) return;
 
         if (sect->hasU() && FixedToInt(sect->depth_fixed))
-            *loz += Z(FixedToInt(sect->depth_fixed));
+            *loz += FixedToInt(sect->depth_fixed);
     }
 }
 
-void FAFgetzrange(vec3_t pos, sectortype* sect, int32_t* hiz, Collision* ceilhit, int32_t* loz, Collision* florhit, int32_t clipdist, int32_t clipmask)
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
+inline void FAFgetzrange(const DVector3& pos, sectortype* sect, double* hiz, Collision* ceilhit, double* loz, Collision* florhit, int32_t clipdist, int32_t clipmask)
 {
-    int foo1;
+    double foo1;
     Collision foo2;
     bool SkipFAFcheck;
     Collision trash; trash.invalidate();
@@ -475,41 +517,43 @@ void FAFgetzrange(vec3_t pos, sectortype* sect, int32_t* hiz, Collision* ceilhit
     if (FAF_ConnectCeiling(sect))
     {
         auto uppersect = sect;
-        int newz = *hiz - Z(2);
+		auto newpos = DVector3(pos.XY(), *hiz - 2);
 
         if (ceilhit->type == kHitSprite) return;
 
-        updatesectorz(pos.X, pos.Y, newz, &uppersect);
+        updatesectorz(newpos, &uppersect);
         if (uppersect == nullptr)
             return;
-        vec3_t npos = pos;
-        npos.Z = newz;
-        getzrange(npos, uppersect, hiz,  *ceilhit, &foo1, foo2, clipdist, clipmask);
+
+        getzrange(newpos, uppersect, hiz,  *ceilhit, &foo1, foo2, clipdist, clipmask);
         SectorZadjust(*ceilhit, hiz, trash, nullptr);
     }
     else if (FAF_ConnectFloor(sect) && !(sect->floorstat & CSTAT_SECTOR_FAF_BLOCK_HITSCAN))
     {
         auto lowersect = sect;
-        int newz = *loz + Z(2);
+		auto newpos = DVector3(pos.XY(), *loz + 2);
 
         if (florhit->type == kHitSprite) return;
 
-        updatesectorz(pos.X, pos.Y, newz, &lowersect);
+        updatesectorz(newpos, &lowersect);
         if (lowersect == nullptr)
             return; // _ErrMsg(ERR_STD_ARG, "Did not find a sector at %d, %d, %d", x, y, newz);
-        vec3_t npos = pos;
-        npos.Z = newz;
-        getzrange(npos, lowersect, &foo1, foo2, loz,  *florhit, clipdist, clipmask);
+
+        getzrange(newpos, lowersect, &foo1, foo2, loz,  *florhit, clipdist, clipmask);
         SectorZadjust(trash, nullptr, *florhit, loz);
         WaterAdjust(*florhit, loz);
     }
 }
 
-void FAFgetzrangepoint(int32_t x, int32_t y, int32_t z, sectortype* const sect,
-                       int32_t* hiz, Collision* ceilhit,
-                       int32_t* loz, Collision* florhit)
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
+inline void FAFgetzrangepoint(const DVector3& pos, sectortype* sect, double* hiz, Collision* ceilhit, double* loz, Collision* florhit)
 {
-    int foo1;
+    double foo1;
     Collision foo2;
     bool SkipFAFcheck;
     Collision trash; trash.invalidate();
@@ -521,13 +565,13 @@ void FAFgetzrangepoint(int32_t x, int32_t y, int32_t z, sectortype* const sect,
     // early out to regular routine
     if (!FAF_ConnectArea(sect))
     {
-        getzrangepoint(x, y, z, sect, hiz,  ceilhit, loz,  florhit);
+        getzrangepoint(pos, sect, hiz,  ceilhit, loz,  florhit);
         SectorZadjust(*ceilhit, hiz, *florhit, loz);
         WaterAdjust(*florhit, loz);
         return;
     }
 
-    getzrangepoint(x, y, z, sect, hiz,  ceilhit, loz,  florhit);
+    getzrangepoint(pos, sect, hiz,  ceilhit, loz,  florhit);
     SkipFAFcheck = SectorZadjust(*ceilhit, hiz, *florhit, loz);
     WaterAdjust(*florhit, loz);
 
@@ -537,30 +581,36 @@ void FAFgetzrangepoint(int32_t x, int32_t y, int32_t z, sectortype* const sect,
     if (FAF_ConnectCeiling(sect))
     {
         auto uppersect = sect;
-        int newz = *hiz - Z(2);
+		auto newpos = DVector3(pos.XY(), *hiz - 2);
         if (ceilhit->type == kHitSprite)
             return;
 
-        updatesectorz(x, y, newz, &uppersect);
+        updatesectorz(newpos, &uppersect);
         if (uppersect == nullptr)
             return;
-        getzrangepoint(x, y, newz, uppersect, hiz,  ceilhit, &foo1,  &foo2);
+        getzrangepoint(newpos, uppersect, hiz,  ceilhit, &foo1,  &foo2);
         SectorZadjust(*ceilhit, hiz, trash, nullptr);
     }
     else if (FAF_ConnectFloor(sect) && !(sect->floorstat & CSTAT_SECTOR_FAF_BLOCK_HITSCAN))
     {
         auto lowersect = sect;
-        int newz = *loz + Z(2);
+		auto newpos = DVector3(pos.XY(), *loz + 2);
         if (florhit->type == kHitSprite)
             return;
-        updatesectorz(x, y, newz, &lowersect);
+        updatesectorz(newpos, &lowersect);
         if (lowersect == nullptr)
             return;
-        getzrangepoint(x, y, newz, lowersect, &foo1,  &foo2, loz,  florhit);
+        getzrangepoint(newpos, lowersect, &foo1,  &foo2, loz,  florhit);
         SectorZadjust(trash, nullptr, *florhit, loz);
         WaterAdjust(*florhit, loz);
     }
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 void SetupMirrorTiles(void)
 {
@@ -587,7 +637,13 @@ void SetupMirrorTiles(void)
     }
 }
 
-void GetUpperLowerSector(short match, int x, int y, sectortype** upper, sectortype** lower)
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
+void GetUpperLowerSector(int match, double x, double y, sectortype** upper, sectortype** lower)
 {
     int i;
     sectortype* sectorlist[16];
@@ -638,7 +694,7 @@ void GetUpperLowerSector(short match, int x, int y, sectortype** upper, sectorty
     else if (sln > 2)
     {
         // try again moving the x,y pos around until you only get two sectors
-        GetUpperLowerSector(match, x - 1, y, upper, lower);
+        GetUpperLowerSector(match, x - 1/16., y, upper, lower);
     }
 
     if (sln == 2)
@@ -655,12 +711,16 @@ void GetUpperLowerSector(short match, int x, int y, sectortype** upper, sectorty
     }
 }
 
-bool FindCeilingView(int match, int* x, int* y, int z, sectortype** sect)
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
+bool FindCeilingView(int match, double* x, double * y, double z, sectortype** sect)
 {
-    int xoff = 0;
-    int yoff = 0;
-    int pix_diff;
-    int newz;
+    double xoff = 0;
+    double yoff = 0;
 
     save.zcount = 0;
     DSWActor* actor = nullptr;
@@ -672,8 +732,8 @@ bool FindCeilingView(int match, int* x, int* y, int z, sectortype** sect)
     {
         if (actor->spr.hitag == VIEW_THRU_CEILING && actor->spr.lotag == match)
         {
-            xoff = *x - actor->int_pos().X;
-            yoff = *y - actor->int_pos().Y;
+            xoff = *x - actor->spr.pos.X;
+            yoff = *y - actor->spr.pos.Y;
             break;
         }
     }
@@ -688,8 +748,8 @@ bool FindCeilingView(int match, int* x, int* y, int z, sectortype** sect)
             {
                 sectortype* upper,* lower;
 
-                *x = actor->int_pos().X + xoff;
-                *y = actor->int_pos().Y + yoff;
+                *x = actor->spr.pos.X + xoff;
+                *y = actor->spr.pos.Y + yoff;
 
                 // get new sector
                 GetUpperLowerSector(match, *x, *y, &upper, &lower);
@@ -712,12 +772,16 @@ bool FindCeilingView(int match, int* x, int* y, int z, sectortype** sect)
     return true;
 }
 
-bool FindFloorView(int match, int* x, int* y, int z, sectortype** sect)
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
+bool FindFloorView(int match, double* x, double* y, double z, sectortype** sect)
 {
-    int xoff = 0;
-    int yoff = 0;
-    int newz;
-    int pix_diff;
+    double xoff = 0;
+    double yoff = 0;
 
     save.zcount = 0;
     DSWActor* actor = nullptr;
@@ -729,8 +793,8 @@ bool FindFloorView(int match, int* x, int* y, int z, sectortype** sect)
     {
         if (actor->spr.hitag == VIEW_THRU_FLOOR && actor->spr.lotag == match)
         {
-            xoff = *x - actor->int_pos().X;
-            yoff = *y - actor->int_pos().Y;
+            xoff = *x - actor->spr.pos.X;
+            yoff = *y - actor->spr.pos.Y;
             break;
         }
     }
@@ -746,8 +810,8 @@ bool FindFloorView(int match, int* x, int* y, int z, sectortype** sect)
             {
                 sectortype* upper,* lower;
 
-                *x = actor->int_pos().X + xoff;
-                *y = actor->int_pos().Y + yoff;
+                *x = actor->spr.pos.X + xoff;
+                *y = actor->spr.pos.Y + yoff;
 
                 // get new sector
                 GetUpperLowerSector(match, *x, *y, &upper, &lower);
@@ -769,9 +833,15 @@ bool FindFloorView(int match, int* x, int* y, int z, sectortype** sect)
     return true;
 }
 
-short FindViewSectorInScene(sectortype* cursect, short level)
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
+short FindViewSectorInScene(sectortype* cursect, int level)
 {
-    short match;
+    int match;
 
     SWStatIterator it(STAT_FAF);
     while (auto actor = it.Next())
@@ -781,7 +851,7 @@ short FindViewSectorInScene(sectortype* cursect, short level)
             if (cursect == actor->sector())
             {
                 // ignore case if sprite is pointing up
-                if (actor->int_ang() == 1536)
+                if (actor->spr.angle == DAngle270)
                     continue;
 
                 // only gets to here is sprite is pointing down
@@ -797,11 +867,17 @@ short FindViewSectorInScene(sectortype* cursect, short level)
     return -1;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 struct PortalGroup
 {
     TArray<int> sectors;
     int othersector = -1;
-    vec3_t offset = { 0,0,0 };
+	DVector3 offset = {0,0,0};
 };
 
     // This is very messy because some portals are linked outside the actual portal sectors, so we have to use the complicated original linking logic to find the connection. :?
@@ -867,21 +943,18 @@ void CollectPortals()
             SWSectIterator it(sec);
             while (auto actor = it.Next())
             {
-                int tx = actor->int_pos().X;
-                int ty = actor->int_pos().Y;
-                int tz = actor->int_pos().Z;
+                auto tpos = actor->spr.pos;
                 auto tsect = &sector[sec];
 
                 int match = FindViewSectorInScene(tsect, VIEW_LEVEL1);
                 if (match != -1)
                 {
-                    FindCeilingView(match, &tx, &ty, tz, &tsect);
+                    FindCeilingView(match, &tpos.X, &tpos.Y, tpos.Z, &tsect);
                     if (tsect != nullptr &&tsect->floorpicnum == FAF_MIRROR_PIC)
                     {
                         // got something!
                         fp.othersector = sectnum(tsect);
-                        fp.offset = { tx, ty, tz };
-                        fp.offset -= actor->int_pos();
+                        fp.offset = tpos - actor->spr.pos;
                         goto nextfg;
                     }
                 }
@@ -897,21 +970,18 @@ void CollectPortals()
             SWSectIterator it(sec);
             while (auto actor = it.Next())
             {
-                int tx = actor->int_pos().X;
-                int ty = actor->int_pos().Y;
-                int tz = actor->int_pos().Z;
+				auto tpos = actor->spr.pos;
                 auto tsect = &sector[sec];
 
                 int match = FindViewSectorInScene(tsect, VIEW_LEVEL2);
                 if (match != -1)
                 {
-                    FindFloorView(match, &tx, &ty, tz, &tsect);
+                    FindFloorView(match, &tpos.X, &tpos.Y, tpos.Z, &tsect);
                     if (tsect != nullptr && tsect->ceilingpicnum == FAF_MIRROR_PIC)
                     {
                         // got something!
                         fp.othersector = sectnum(tsect);
-                        fp.offset = { tx, ty, tz };
-                        fp.offset -= actor->int_pos();
+						fp.offset = tpos - actor->spr.pos;
                         goto nextcg;
                     }
                 }
@@ -935,7 +1005,8 @@ void CollectPortals()
             auto pt2 = findother(pt.othersector);
             if (pt2)
             {
-                int pnum = portalAdd(PORTAL_SECTOR_FLOOR, -1, pt.offset.X, pt.offset.Y, 0);
+				pt.offset.Z = 0;
+                int pnum = portalAdd(PORTAL_SECTOR_FLOOR, -1, pt.offset);
                 allPortals[pnum].targets = pt2->sectors; // do not move! We still need the original.
                 for (auto sec : pt.sectors)
                 {
@@ -961,7 +1032,8 @@ void CollectPortals()
             auto pt2 = findother(pt.othersector);
             if (pt2)
             {
-                int pnum = portalAdd(PORTAL_SECTOR_CEILING, -1, pt.offset.X, pt.offset.Y, 0);
+				pt.offset.Z = 0;
+                int pnum = portalAdd(PORTAL_SECTOR_CEILING, -1, pt.offset);
                 allPortals[pnum].targets = std::move(pt2->sectors);
                 for (auto sec : pt.sectors)
                 {

@@ -259,7 +259,7 @@ class ExhumedStatusBar : RazeStatusBar
 		{
 			int s = -8;
 			if (hud_flashing && pp.nHealth > 800)
-				s += Raze.bsin(PlayClock << 5, -10);
+				s += Raze.bsin(PlayClock << 5) >> 10;
 			int intens = clamp(255 - 4 * s, 0, 255);
 			format = String.Format("%d", pp.nHealth >> 3);
 			DrawString(numberFont, format, (13, -numberFont.mFont.GetHeight() + 3), DI_TEXT_ALIGN_LEFT, Font.CR_UNTRANSLATED, intens / 255.);
@@ -455,19 +455,22 @@ class ExhumedStatusBar : RazeStatusBar
 		stats.fontscale = 1.;
 		stats.altspacing = stats.spacing = SmallFont.GetHeight();
 		stats.screenbottomspace = bottomy;
-		stats.statfont = SmallFont;
 		stats.letterColor = TEXTCOLOR_RED;
 		stats.standardColor = TEXTCOLOR_UNTRANSLATED; 
 
+		int y = -1;
+		int mask = 1;
 		if (automapMode == am_full)
 		{
 			stats.statfont = Raze.PickSmallFont();
-			PrintAutomapInfo(stats, true);
+			y = PrintAutomapInfo(stats, summary, true);
+			mask = 2;
 		}
-		else if (automapMode == am_off && hud_stats) 
+		if (hud_stats & mask)
 		{
+			stats.statfont = SmallFont;
 			stats.completeColor = TEXTCOLOR_DARKGREEN;
-			PrintLevelStats(stats, summary);
+			PrintLevelStats(stats, summary, y);
 		}
 	}
 

@@ -36,10 +36,16 @@ BEGIN_SW_NS
 
 void DoPlayerHorizon(PLAYER* pp, float const horz, double const scaleAdjust);
 void DoPlayerTurn(PLAYER* pp, float const avel, double const scaleAdjust);
-void DoPlayerTurnVehicle(PLAYER* pp, float avel, int z, int floor_dist);
+void DoPlayerTurnVehicle(PLAYER* pp, float avel, double z, double floor_dist);
 void DoPlayerTurnTurret(PLAYER* pp, float avel);
 
 static InputPacket loc;
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 void InitNetVars(void)
 {
@@ -186,7 +192,7 @@ void GameInterface::GetInput(ControlInfo* const hidInput, double const scaleAdju
 
         if ((pp->Flags2 & PF2_INPUT_CAN_TURN_VEHICLE))
         {
-            DoPlayerTurnVehicle(pp, input.avel, pp->int_ppos().Z + Z(10), labs(pp->int_ppos().Z + Z(10) - pp->sop->floor_loz));
+            DoPlayerTurnVehicle(pp, input.avel, pp->pos.Z + 10, abs(pp->pos.Z + 10 - pp->sop->floor_loz));
         }
 
         if ((pp->Flags2 & PF2_INPUT_CAN_TURN_TURRET))

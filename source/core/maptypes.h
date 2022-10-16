@@ -292,6 +292,8 @@ struct sectortype
 	uint8_t portalflags;
 	int8_t portalnum;
 
+	DAngle angle; // this is SW only. GCC is stupid and does not allow it inside an anonmyous struct.
+
 	// Game specific extensions. Due to how sectors are used they need to be defined in the global class. :(
 	union
 	{
@@ -308,8 +310,8 @@ struct sectortype
 			TObjPtr<DCoreActor*> lowerLink;
 			double baseFloor;
 			double baseCeil;
-			int velFloor;
-			int velCeil;
+			double velFloor;
+			double velCeil;
 			uint8_t slopewallofs; // This was originally the repurposed filler byte.
 		};
 		struct // Exhumed
@@ -329,7 +331,6 @@ struct sectortype
 			int flags;
 			int depth_fixed;
 			short stag;    // ST? tag number - for certain things it helps to know it
-			short ang;
 			short height;
 			short speed;
 			short damage;
@@ -379,6 +380,8 @@ struct walltype
 	DVector2 pos;
 
 	vec2_t wall_int_pos() const { return vec2_t(pos.X * worldtoint, pos.Y * worldtoint); };
+	vec2_t int_delta() const { return point2Wall()->wall_int_pos() - wall_int_pos(); }
+
 	void setPosFromMap(int x, int y) { pos = { x * maptoworld, y * maptoworld }; }
 
 	int32_t point2;
@@ -425,12 +428,8 @@ struct walltype
 	walltype* nextWall() const;
 	walltype* lastWall(bool fast  = true) const;
 	walltype* point2Wall() const;
-	vec2_t delta() const { return point2Wall()->wall_int_pos() - wall_int_pos(); }
-	DVector2 fdelta() const { return point2Wall()->pos - pos; }
-	vec2_t center() const { return(point2Wall()->wall_int_pos() + wall_int_pos()) / 2; }
-	DVector2 fcenter() const { return(point2Wall()->pos + pos) / 2; }
-	int deltax() const { return point2Wall()->wall_int_pos().X - wall_int_pos().X; }
-	int deltay() const { return point2Wall()->wall_int_pos().Y - wall_int_pos().Y; }
+	DVector2 delta() const { return point2Wall()->pos - pos; }
+	DVector2 center() const { return(point2Wall()->pos + pos) / 2; }
 	bool twoSided() const { return nextsector >= 0; }
 	int Length();
 	void calcLength();	// this is deliberately not inlined and stored in a file where it can't be found at compile time.
@@ -465,9 +464,9 @@ struct spritetypebase
 	int16_t picnum;
 	int16_t statnum;
 	int16_t intangle;	// needs to be kept for SW's SP_TAG4
-	int16_t xvel;
-	int16_t yvel;
-	union { int16_t zvel, inittype; }; // inittype, type and flags are for Blood.
+	int16_t xint;		// formerly known as xvel and yvel
+	int16_t yint;
+	int16_t inittype; // was zvel. All accesses for that have been wrapped. inittype, type and flags are for Blood.
 	union { int16_t lotag, type; };
 	union { int16_t hitag, flags; };
 	int16_t extra;
@@ -527,18 +526,6 @@ struct tspritetype : public spritetypebase
 	DCoreActor* ownerActor;
 	int time;
 
-	void set_int_pos(const vec3_t& ipos)
-	{
-		pos = { ipos.X * inttoworld, ipos.Y * inttoworld, ipos.Z * zinttoworld };
-	}
-	void add_int_x(int x)
-	{
-		pos.X += x * inttoworld;
-	}
-	void add_int_y(int x)
-	{
-		pos.Y  += x * inttoworld;
-	}
 	void add_int_z(int x)
 	{
 		pos.Z += x * zinttoworld;

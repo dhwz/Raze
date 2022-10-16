@@ -207,6 +207,12 @@ STATE* sg_SkullExplode[] =
 };
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int SetupSkull(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -238,7 +244,7 @@ int SetupSkull(DSWActor* actor)
 
         actor->user.loz = actor->spr.pos.Z;
         // leave 8 pixels above the ground
-        actor->add_int_z(ActorSizeToTop(actor) - Z(3));
+        actor->spr.pos.Z += ActorSizeToTop(actor) - 3;
     }
     else
     {
@@ -250,19 +256,28 @@ int SetupSkull(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int DoSkullMove(DSWActor* actor)
 {
-    int32_t dax, day, daz;
+    auto vect = actor->spr.angle.ToVector() * actor->vel.X;
+    double daz = actor->vel.Z;
 
-    dax = MOVEx(actor->spr.xvel, actor->int_ang());
-    day = MOVEy(actor->spr.xvel, actor->int_ang());
-    daz = actor->spr.zvel;
-
-    actor->user.coll = move_missile(actor, dax, day, daz, Z(16), Z(16), CLIPMASK_MISSILE, ACTORMOVETICS);
+    actor->user.coll = move_missile(actor, DVector3(vect, daz), 16, 16, CLIPMASK_MISSILE, ACTORMOVETICS);
 
     DoFindGroundPoint(actor);
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoSkullBeginDeath(DSWActor* actor)
 {
@@ -332,7 +347,7 @@ int DoSkullBeginDeath(DSWActor* actor)
     actor->user.Tics = 0;
     actor->user.ID = SKULL_R0;
     actor->user.Radius = DamageData[DMG_SKULL_EXP].radius; //*DamageRadiusSkull;
-    actor->user.OverlapZ = Z(64);
+    actor->user.OverlapZ = 64;
     change_actor_stat(actor, STAT_DEAD_ACTOR);
     actor->spr.shade = -40;
 
@@ -342,9 +357,15 @@ int DoSkullBeginDeath(DSWActor* actor)
 }
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int DoSkullJump(DSWActor* actor)
 {
-    if (actor->spr.xvel)
+    if(actor->vel.X != 0)
         DoSkullMove(actor);
     else
         actor->set_int_ang(NORM_ANGLE(actor->int_ang() + (64 * ACTORMOVETICS)));
@@ -358,7 +379,7 @@ int DoSkullJump(DSWActor* actor)
         DoFall(actor);
 
         // jump/fall type
-        if (actor->spr.xvel)
+        if(actor->vel.X != 0)
         {
 
             int dist,a,b,c;
@@ -366,7 +387,7 @@ int DoSkullJump(DSWActor* actor)
             DISTANCE(actor->spr.pos, actor->user.targetActor->spr.pos, dist, a, b, c);
 
             if (dist < 1000 &&
-                SpriteOverlapZ(actor, actor->user.targetActor, Z(32)))
+                SpriteOverlapZ(actor, actor->user.targetActor, 32))
             {
                 UpdateSinglePlayKills(actor);
                 DoSkullBeginDeath(actor);
@@ -401,16 +422,28 @@ int DoSkullJump(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int DoSkullBob(DSWActor* actor)
 {
     // actor does a sine wave about actor->user.sz - this is the z mid point
     const int SKULL_BOB_AMT = 16;
 
     actor->user.Counter = (actor->user.Counter + (ACTORMOVETICS << 3) + (ACTORMOVETICS << 1)) & 2047;
-    actor->spr.pos.Z = actor->user.pos.Z + SKULL_BOB_AMT * 1.5 * DAngle::fromBuild(actor->user.Counter).Sin();
+    actor->spr.pos.Z = actor->user.pos.Z + SKULL_BOB_AMT * 1.5 * BobVal(actor->user.Counter);
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoSkullSpawnShrap(DSWActor* actor)
 {
@@ -419,6 +452,12 @@ int DoSkullSpawnShrap(DSWActor* actor)
     //PlaySpriteSound(actor,attr_extra1,v3df_none);
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoSkullWait(DSWActor* actor)
 {
@@ -443,7 +482,7 @@ int DoSkullWait(DSWActor* actor)
         // look for closest player every once in a while
         if (dist < 3500)
         {
-            actor->spr.xvel = 0;
+            actor->vel.X = 0;
             actor->user.jump_speed = -600;
             NewStateGroup(actor, sg_SkullJump);
             DoBeginJump(actor);
@@ -459,7 +498,7 @@ int DoSkullWait(DSWActor* actor)
         if (dist < 8000)
         {
             actor->spr.angle = VecToAngle(actor->user.targetActor->spr.pos - actor->spr.pos);
-            actor->spr.xvel = 128 + (RANDOM_P2(256<<8)>>8);
+            actor->vel.X = 8 + RandomRangeF(16);
             actor->user.jump_speed = -700;
             NewStateGroup(actor, sg_SkullJump);
             DoBeginJump(actor);
@@ -591,6 +630,12 @@ STATE* sg_BettyExplode[] =
 };
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int SetupBetty(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -622,7 +667,7 @@ int SetupBetty(DSWActor* actor)
 
         actor->user.loz = actor->spr.pos.Z;
         // leave 8 pixels above the ground
-        actor->add_int_z(ActorSizeToTop(actor) - Z(3));
+        actor->spr.pos.Z += ActorSizeToTop(actor) - 3;
     }
     else
     {
@@ -634,19 +679,22 @@ int SetupBetty(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int DoBettyMove(DSWActor* actor)
 {
-    int32_t dax, day, daz;
-
-    dax = MOVEx(actor->spr.xvel, actor->int_ang());
-    day = MOVEy(actor->spr.xvel, actor->int_ang());
-    daz = actor->spr.zvel;
-
-    actor->user.coll = move_missile(actor, dax, day, daz, Z(16), Z(16), CLIPMASK_MISSILE, ACTORMOVETICS);
-
-    DoFindGroundPoint(actor);
-    return 0;
+	return DoSkullMove(actor);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoBettyBeginDeath(DSWActor* actor)
 {
@@ -710,7 +758,7 @@ int DoBettyBeginDeath(DSWActor* actor)
     actor->user.Tics = 0;
     actor->user.ID = BETTY_R0;
     actor->user.Radius = DamageData[DMG_SKULL_EXP].radius; //*DamageRadiusBetty;
-    actor->user.OverlapZ = Z(64);
+    actor->user.OverlapZ = 64;
     change_actor_stat(actor, STAT_DEAD_ACTOR);
     actor->spr.shade = -40;
 
@@ -719,10 +767,15 @@ int DoBettyBeginDeath(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoBettyJump(DSWActor* actor)
 {
-    if (actor->spr.xvel)
+    if(actor->vel.X != 0)
         DoBettyMove(actor);
     else
         actor->set_int_ang(NORM_ANGLE(actor->int_ang() + (64 * ACTORMOVETICS)));
@@ -736,14 +789,14 @@ int DoBettyJump(DSWActor* actor)
         DoFall(actor);
 
         // jump/fall type
-        if (actor->spr.xvel)
+        if(actor->vel.X != 0)
         {
             int dist,a,b,c;
 
             DISTANCE(actor->spr.pos, actor->user.targetActor->spr.pos, dist, a, b, c);
 
             if (dist < 1000 &&
-                SpriteOverlapZ(actor, actor->user.targetActor, Z(32)))
+                SpriteOverlapZ(actor, actor->user.targetActor, 32))
             {
                 UpdateSinglePlayKills(actor);
                 DoBettyBeginDeath(actor);
@@ -777,22 +830,40 @@ int DoBettyJump(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int DoBettyBob(DSWActor* actor)
 {
     // actor does a sine wave about actor->user.sz - this is the z mid point
     const int  BETTY_BOB_AMT = 16;
 
     actor->user.Counter = (actor->user.Counter + (ACTORMOVETICS << 3) + (ACTORMOVETICS << 1)) & 2047;
-    actor->spr.pos.Z = actor->user.pos.Z + BETTY_BOB_AMT * 1.5 * DAngle::fromBuild(actor->user.Counter).Sin();
+    actor->spr.pos.Z = actor->user.pos.Z + BETTY_BOB_AMT * 1.5 * BobVal(actor->user.Counter);
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoBettySpawnShrap(DSWActor* actor)
 {
     SpawnShrap(actor, nullptr);
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoBettyWait(DSWActor* actor)
 {
@@ -814,7 +885,7 @@ int DoBettyWait(DSWActor* actor)
         // look for closest player every once in a while
         if (dist < 3500)
         {
-            actor->spr.xvel = 0;
+            actor->vel.X = 0;
             actor->user.jump_speed = -600;
             NewStateGroup(actor, sg_BettyJump);
             DoBeginJump(actor);
@@ -830,7 +901,7 @@ int DoBettyWait(DSWActor* actor)
         if (dist < 8000)
         {
             actor->spr.angle = VecToAngle(actor->user.targetActor->spr.pos - actor->spr.pos);
-            actor->spr.xvel = 128 + (RANDOM_P2(256<<8)>>8);
+            actor->vel.X = 8 + RandomRangeF(16);
             actor->user.jump_speed = -700;
             NewStateGroup(actor, sg_BettyJump);
             DoBeginJump(actor);
@@ -840,6 +911,11 @@ int DoBettyWait(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 #include "saveable.h"
 

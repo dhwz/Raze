@@ -69,11 +69,10 @@ void InitRats()
 
 void SetRatVel(DExhumedActor* pActor)
 {
-    pActor->spr.xvel = bcos(pActor->int_ang(), -2);
-    pActor->spr.yvel = bsin(pActor->int_ang(), -2);
+    pActor->VelFromAngle(-2);
 }
 
-void BuildRat(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, int nAngle)
+void BuildRat(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, DAngle nAngle)
 {
 	if (pActor == nullptr)
 	{
@@ -84,7 +83,7 @@ void BuildRat(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, i
 	{
 		ChangeActorStat(pActor, 108);
 		pActor->spr.pos.Z = pActor->sector()->floorz;
-		nAngle = pActor->int_ang();
+		nAngle = pActor->spr.angle;
 	}
 
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
@@ -94,17 +93,17 @@ void BuildRat(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, i
     pActor->spr.picnum = 1;
     pActor->spr.pal = pActor->sector()->ceilingpal;
     pActor->spr.clipdist = 30;
-    pActor->set_int_ang(nAngle);
+    pActor->spr.angle = nAngle;
     pActor->spr.xrepeat = 50;
     pActor->spr.yrepeat = 50;
-    pActor->spr.xvel = 0;
-    pActor->spr.yvel = 0;
-    pActor->spr.zvel = 0;
+    pActor->vel.X = 0;
+    pActor->vel.Y = 0;
+    pActor->vel.Z = 0;
     pActor->spr.lotag = runlist_HeadRun() + 1;
     pActor->spr.hitag = 0;
     pActor->spr.extra = -1;
 
-    if (nAngle >= 0) {
+    if (nAngle.Degrees() >= 0) {
         pActor->nAction = 2;
     }
     else {
@@ -171,8 +170,8 @@ void AIRat::Damage(RunListEvent* ev)
     if (ev->nDamage)
     {
         pActor->spr.cstat = 0;
-        pActor->spr.xvel = 0;
-        pActor->spr.yvel = 0;
+        pActor->vel.X = 0;
+        pActor->vel.Y = 0;
         pActor->nAction = 3;
         pActor->nFrame = 0;
     }
@@ -234,8 +233,8 @@ void AIRat::Tick(RunListEvent* ev)
             pActor->nFrame = 0;
             pActor->pTarget = nullptr;
 
-            pActor->spr.xvel = 0;
-            pActor->spr.yvel = 0;
+            pActor->vel.X = 0;
+            pActor->vel.Y = 0;
             return;
         }
 
@@ -272,8 +271,8 @@ void AIRat::Tick(RunListEvent* ev)
             pActor->nFrame = 0;
             pActor->pTarget = nullptr;
 
-            pActor->spr.xvel = 0;
-            pActor->spr.yvel = 0;
+            pActor->vel.X = 0;
+            pActor->vel.Y = 0;
         }
 
         MoveCreature(pActor);
@@ -299,13 +298,13 @@ void AIRat::Tick(RunListEvent* ev)
         pActor->nFrame = 0;
         pActor->nPhase = RandomSize(3);
 
-        pActor->spr.xvel = 0;
-        pActor->spr.yvel = 0;
+        pActor->vel.X = 0;
+        pActor->vel.Y = 0;
         return;
     }
     case 2:
     {
-        if (pActor->spr.xvel || pActor->spr.yvel || pActor->spr.zvel) {
+        if (pActor->vel.X != 0 || pActor->vel.Y != 0 || pActor->vel.Z != 0) {
             MoveCreature(pActor);
         }
 
@@ -317,10 +316,10 @@ void AIRat::Tick(RunListEvent* ev)
             if (pActor->pTarget == nullptr)
             {
                 pActor->nCount = RandomSize(6);
-                if (pActor->spr.xvel || pActor->spr.yvel)
+                if (pActor->vel.X != 0 || pActor->vel.Y != 0)
                 {
-                    pActor->spr.xvel = 0;
-                    pActor->spr.yvel = 0;
+                    pActor->vel.X = 0;
+                    pActor->vel.Y = 0;
                     return;
                 }
 

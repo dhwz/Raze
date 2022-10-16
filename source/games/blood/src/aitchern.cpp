@@ -84,9 +84,9 @@ void sub_71BD4(int, DBloodActor* actor)
 		if (tt.at10)
 		{
 			int t = DivScale(nDist, tt.at10, 12);
-			x2 += (actor->vel.X * t) >> 12;
-			y2 += (actor->vel.Y * t) >> 12;
-			z2 += (actor->vel.Z * t) >> 8;
+			x2 += (actor->int_vel().X * t) >> 12;
+			y2 += (actor->int_vel().Y * t) >> 12;
+			z2 += (actor->int_vel().Z * t) >> 8;
 		}
 		int tx = x + MulScale(Cos(actor->int_ang()), nDist, 30);
 		int ty = y + MulScale(Sin(actor->int_ang()), nDist, 30);
@@ -156,9 +156,9 @@ void sub_720AC(int, DBloodActor* actor)
 		if (tt.at10)
 		{
 			int t = DivScale(nDist, tt.at10, 12);
-			x2 += (actor->vel.X * t) >> 12;
-			y2 += (actor->vel.Y * t) >> 12;
-			z2 += (actor->vel.Z * t) >> 8;
+			x2 += (actor->int_vel().X * t) >> 12;
+			y2 += (actor->int_vel().Y * t) >> 12;
+			z2 += (actor->int_vel().Z * t) >> 8;
 		}
 		int tx = x + MulScale(Cos(actor->int_ang()), nDist, 30);
 		int ty = y + MulScale(Sin(actor->int_ang()), nDist, 30);
@@ -213,7 +213,7 @@ static void sub_725A4(DBloodActor* actor)
 		pDudeExtraE->thinkTime++;
 	else if (pDudeExtraE->thinkTime >= 10 && pDudeExtraE->active)
 	{
-		actor->xspr.goalAng += 256;
+		actor->xspr.goalAng += DAngle45;
 		aiSetTarget(actor, actor->basePoint);
 		aiNewState(actor, &tcherno13AA28);
 		return;
@@ -264,7 +264,7 @@ static void sub_72850(DBloodActor* actor)
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
 	int nAngle = getangle(dvec);
 	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, nAngle);
+	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
 	if (nDist < 512 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
 		aiNewState(actor, &tchernobogSearch);
 	aiThinkTarget(actor);
@@ -288,7 +288,7 @@ static void sub_72934(DBloodActor* actor)
 	auto dvec = target->spr.pos.XY() - actor->spr.pos.XY();
 	int nAngle = getangle(dvec);
 	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, nAngle);
+	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
 	if (target->xspr.health == 0)
 	{
 		aiNewState(actor, &tchernobogSearch);

@@ -110,6 +110,12 @@ STATE s_ToiletGirlUzi[16] =
     {TOILETGIRL_FIRE_R0 + 1, 0 | SF_QUICK_CALL, InitEnemyUzi, &s_ToiletGirlUzi[0]},
 };
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int  SetupToiletGirl(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -131,7 +137,8 @@ int  SetupToiletGirl(DSWActor* actor)
 
     actor->spr.xrepeat = 38;
     actor->spr.yrepeat = 32;
-    actor->spr.xvel = actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.X = 0;
+    actor->vel.Z = 0;
     actor->spr.lotag = TOILETGIRL_R0;
     actor->user.FlagOwner = 0;
     actor->user.ID = TOILETGIRL_R0;
@@ -141,12 +148,18 @@ int  SetupToiletGirl(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int DoToiletGirl(DSWActor* actor)
 {
     bool ICanSee = false;
 
     DoActorPickClosePlayer(actor);
-    ICanSee = FAFcansee(ActorVectOfMiddle(actor),actor->sector(),ActorVectOfMiddle(actor->user.targetActor),actor->user.targetActor->sector());
+    ICanSee = FAFcansee(ActorVectOfMiddle(actor), actor->sector(), ActorVectOfMiddle(actor->user.targetActor), actor->user.targetActor->sector());
 
     if (actor->user.FlagOwner != 1)
     {
@@ -189,10 +202,17 @@ int DoToiletGirl(DSWActor* actor)
 
     // take damage from environment
     DoActorSectorDamage(actor);
-    actor->spr.xvel = actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.X = 0;
+    actor->vel.Z = 0;
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int NullToiletGirl(DSWActor* actor)
 {
@@ -224,6 +244,12 @@ int NullToiletGirl(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int ToiletGirlUzi(DSWActor* actor)
 {
     if (!(actor->user.Flags & SPR_CLIMBING))
@@ -239,6 +265,12 @@ int ToiletGirlUzi(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int ToiletGirlPain(DSWActor* actor)
 {
     NullToiletGirl(actor);
@@ -249,7 +281,11 @@ int ToiletGirlPain(DSWActor* actor)
     return 0;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 ANIMATOR NullWashGirl;
 
@@ -331,6 +367,12 @@ STATE s_WashGirlUzi[16] =
     {WASHGIRL_FIRE_R0 + 1, 0 | SF_QUICK_CALL, InitEnemyUzi, &s_WashGirlUzi[0]},
 };
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int SetupWashGirl(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -351,7 +393,8 @@ int SetupWashGirl(DSWActor* actor)
 
     actor->spr.xrepeat = 28;
     actor->spr.yrepeat = 24;
-    actor->spr.xvel = actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.X = 0;
+    actor->vel.Z = 0;
     actor->spr.lotag = WASHGIRL_R0;
     actor->user.FlagOwner = 0;
     actor->user.ID = WASHGIRL_R0;
@@ -360,6 +403,12 @@ int SetupWashGirl(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoWashGirl(DSWActor* actor)
 {
@@ -418,10 +467,17 @@ int DoWashGirl(DSWActor* actor)
 
     // take damage from environment
     DoActorSectorDamage(actor);
-    actor->spr.xvel = actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.X = 0;
+    actor->vel.Z = 0;
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int NullWashGirl(DSWActor* actor)
 {
@@ -453,6 +509,12 @@ int NullWashGirl(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int WashGirlUzi(DSWActor* actor)
 {
     if (!(actor->user.Flags & SPR_CLIMBING))
@@ -468,6 +530,12 @@ int WashGirlUzi(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int WashGirlPain(DSWActor* actor)
 {
     NullWashGirl(actor);
@@ -479,7 +547,12 @@ int WashGirlPain(DSWActor* actor)
 }
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 
 ATTRIBUTE TrashCanAttrib =
 {
@@ -524,6 +597,12 @@ STATE s_TrashCanPain[7] =
     {TRASHCAN_PAIN_R0 + 6, TRASHCAN_PAIN_RATE, TrashCanPain, &s_TrashCanPain[0]}
 };
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int SetupTrashCan(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -545,7 +624,8 @@ int SetupTrashCan(DSWActor* actor)
 
     actor->spr.xrepeat = 46;
     actor->spr.yrepeat = 42;
-    actor->spr.xvel = actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.X = 0;
+    actor->vel.Z = 0;
     actor->user.ID = TRASHCAN;
 
     actor->user.Flags &= ~(SPR_XFLIP_TOGGLE);
@@ -553,6 +633,12 @@ int SetupTrashCan(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoTrashCan(DSWActor* actor)
 {
@@ -565,10 +651,17 @@ int DoTrashCan(DSWActor* actor)
         KeepActorOnFloor(actor);
     }
 
-    actor->spr.xvel = actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.X = 0;
+    actor->vel.Z = 0;
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int TrashCanPain(DSWActor* actor)
 {
@@ -585,11 +678,12 @@ int TrashCanPain(DSWActor* actor)
 }
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////
+//---------------------------------------------------------------------------
+//
 // PACHINKO WIN LIGHT
-////////////////////////////////////////////////////////////////////
+//
+//---------------------------------------------------------------------------
+
 ATTRIBUTE PachinkoLightAttrib =
 {
     {0, 0, 0, 0},                     // Speeds
@@ -617,6 +711,12 @@ STATE s_PachinkoLightOperate[] =
     {PACHINKOLIGHT_R0 - 5, 12, PachinkoLightOperate, &s_PachinkoLightOperate[0]},
 };
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int SetupPachinkoLight(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -636,7 +736,8 @@ int SetupPachinkoLight(DSWActor* actor)
     actor->user.RotNum = 0;
     actor->user.ID = PACHINKOLIGHT_R0;
 
-    actor->spr.xvel = actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.X = 0;
+    actor->vel.Z = 0;
     actor->spr.lotag = TAG_PACHINKOLIGHT;
     actor->spr.shade = -2;
     actor->user.spal = actor->spr.pal;
@@ -646,6 +747,12 @@ int SetupPachinkoLight(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int PachinkoLightOperate(DSWActor* actor)
 {
@@ -657,9 +764,11 @@ int PachinkoLightOperate(DSWActor* actor)
     return 0;
 }
 
-////////////////////////////////////////////////////////////////////
+//---------------------------------------------------------------------------
+//
 // PACHINKO MACHINE #1
-////////////////////////////////////////////////////////////////////
+//
+//---------------------------------------------------------------------------
 
 CVAR(Bool, Pachinko_Win_Cheat, false, 0)
 
@@ -707,6 +816,12 @@ STATE s_Pachinko1Operate[] =
     {PACHINKO1_R0 + 22, SF_QUICK_CALL, PachinkoCheckWin, &s_Pachinko1Stand[0]}
 };
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int SetupPachinko1(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -726,7 +841,7 @@ int SetupPachinko1(DSWActor* actor)
     actor->user.RotNum = 0;
     actor->user.ID = PACHINKO1;
 
-    actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.Z = 0;
     actor->spr.lotag = PACHINKO1;
 
     actor->user.Flags &= ~(SPR_XFLIP_TOGGLE);
@@ -734,6 +849,12 @@ int SetupPachinko1(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int PachinkoCheckWin(DSWActor* actor)
 {
@@ -791,6 +912,12 @@ int PachinkoCheckWin(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int Pachinko1Operate(DSWActor* actor)
 {
     short rnd;
@@ -811,9 +938,12 @@ int Pachinko1Operate(DSWActor* actor)
 }
 
 
-////////////////////////////////////////////////////////////////////
+//---------------------------------------------------------------------------
+//
 // PACHINKO MACHINE #2
-////////////////////////////////////////////////////////////////////
+//
+//---------------------------------------------------------------------------
+
 
 ATTRIBUTE Pachinko2Attrib =
 {
@@ -859,6 +989,12 @@ STATE s_Pachinko2Operate[] =
     {PACHINKO2_R0 + 22, SF_QUICK_CALL, PachinkoCheckWin, &s_Pachinko2Stand[0]}
 };
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int SetupPachinko2(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -878,7 +1014,7 @@ int SetupPachinko2(DSWActor* actor)
     actor->user.RotNum = 0;
     actor->user.ID = PACHINKO2;
 
-    actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.Z = 0;
     actor->spr.lotag = PACHINKO2;
 
     actor->user.Flags &= ~(SPR_XFLIP_TOGGLE);
@@ -887,9 +1023,12 @@ int SetupPachinko2(DSWActor* actor)
     return 0;
 }
 
-////////////////////////////////////////////////////////////////////
+//---------------------------------------------------------------------------
+//
 // PACHINKO MACHINE #3
-////////////////////////////////////////////////////////////////////
+//
+//---------------------------------------------------------------------------
+
 
 ATTRIBUTE Pachinko3Attrib =
 {
@@ -935,6 +1074,12 @@ STATE s_Pachinko3Operate[] =
     {PACHINKO3_R0 + 22, SF_QUICK_CALL, PachinkoCheckWin, &s_Pachinko3Stand[0]}
 };
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int SetupPachinko3(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -954,7 +1099,7 @@ int SetupPachinko3(DSWActor* actor)
     actor->user.RotNum = 0;
     actor->user.ID = PACHINKO3;
 
-    actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.Z = 0;
     actor->spr.lotag = PACHINKO3;
 
     actor->user.Flags &= ~(SPR_XFLIP_TOGGLE);
@@ -964,9 +1109,12 @@ int SetupPachinko3(DSWActor* actor)
 }
 
 
-////////////////////////////////////////////////////////////////////
+//---------------------------------------------------------------------------
+//
 // PACHINKO MACHINE #4
-////////////////////////////////////////////////////////////////////
+//
+//---------------------------------------------------------------------------
+
 
 ATTRIBUTE Pachinko4Attrib =
 {
@@ -1012,6 +1160,12 @@ STATE s_Pachinko4Operate[] =
     {PACHINKO4_R0 + 22, SF_QUICK_CALL, PachinkoCheckWin, &s_Pachinko4Stand[0]}
 };
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int SetupPachinko4(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -1031,7 +1185,7 @@ int SetupPachinko4(DSWActor* actor)
     actor->user.RotNum = 0;
     actor->user.ID = PACHINKO4;
 
-    actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.Z = 0;
     actor->spr.lotag = PACHINKO4;
 
     actor->user.Flags &= ~(SPR_XFLIP_TOGGLE);
@@ -1040,9 +1194,11 @@ int SetupPachinko4(DSWActor* actor)
     return 0;
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
-
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 ANIMATOR NullCarGirl;
 
@@ -1117,6 +1273,12 @@ STATE s_CarGirlUzi[16] =
     {CARGIRL_FIRE_R0 + 1, 0 | SF_QUICK_CALL, InitEnemyUzi, &s_CarGirlUzi[0]},
 };
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int SetupCarGirl(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -1138,7 +1300,8 @@ int SetupCarGirl(DSWActor* actor)
 
     actor->spr.xrepeat = 29;
     actor->spr.yrepeat = 25;
-    actor->spr.xvel = actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.X = 0;
+    actor->vel.Z = 0;
     actor->spr.lotag = CARGIRL_R0;
     actor->user.FlagOwner = 0;
     actor->user.ID = CARGIRL_R0;
@@ -1148,6 +1311,12 @@ int SetupCarGirl(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoCarGirl(DSWActor* actor)
 {
@@ -1188,10 +1357,17 @@ int DoCarGirl(DSWActor* actor)
 
     // take damage from environment
     DoActorSectorDamage(actor);
-    actor->spr.xvel = actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.X = 0;
+    actor->vel.Z = 0;
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int NullCarGirl(DSWActor* actor)
 {
@@ -1230,6 +1406,12 @@ int NullCarGirl(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int CarGirlUzi(DSWActor* actor)
 {
     if (!(actor->user.Flags & SPR_CLIMBING))
@@ -1245,6 +1427,12 @@ int CarGirlUzi(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int CarGirlPain(DSWActor* actor)
 {
     NullCarGirl(actor);
@@ -1255,8 +1443,11 @@ int CarGirlPain(DSWActor* actor)
     return 0;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 ANIMATOR NullMechanicGirl;
 
@@ -1318,6 +1509,12 @@ STATE s_MechanicGirlDrill[2] =
 };
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int SetupMechanicGirl(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -1339,7 +1536,8 @@ int SetupMechanicGirl(DSWActor* actor)
 
     actor->spr.xrepeat = 27;
     actor->spr.yrepeat = 26;
-    actor->spr.xvel = actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.X = 0;
+    actor->vel.Z = 0;
     actor->spr.lotag = MECHANICGIRL_R0;
     actor->user.FlagOwner = 0;
     actor->user.ID = MECHANICGIRL_R0;
@@ -1348,6 +1546,12 @@ int SetupMechanicGirl(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoMechanicGirl(DSWActor* actor)
 {
@@ -1388,10 +1592,17 @@ int DoMechanicGirl(DSWActor* actor)
 
     // take damage from environment
     DoActorSectorDamage(actor);
-    actor->spr.xvel = actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.X = 0;
+    actor->vel.Z = 0;
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int NullMechanicGirl(DSWActor* actor)
 {
@@ -1430,6 +1641,12 @@ int NullMechanicGirl(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int MechanicGirlDrill(DSWActor* actor)
 {
     if (!(actor->user.Flags & SPR_CLIMBING))
@@ -1445,6 +1662,12 @@ int MechanicGirlDrill(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int MechanicGirlPain(DSWActor* actor)
 {
     NullMechanicGirl(actor);
@@ -1455,8 +1678,11 @@ int MechanicGirlPain(DSWActor* actor)
     return 0;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 ANIMATOR NullSailorGirl;
 
@@ -1518,6 +1744,12 @@ STATE s_SailorGirlThrow[] =
 
 short alreadythrew;
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int SetupSailorGirl(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -1539,7 +1771,8 @@ int SetupSailorGirl(DSWActor* actor)
 
     actor->spr.xrepeat = 28;
     actor->spr.yrepeat = 26;
-    actor->spr.xvel = actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.X = 0;
+    actor->vel.Z = 0;
     actor->spr.lotag = SAILORGIRL_R0;
     actor->user.FlagOwner = 0;
     actor->user.ID = SAILORGIRL_R0;
@@ -1549,6 +1782,12 @@ int SetupSailorGirl(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoSailorGirl(DSWActor* actor)
 {
@@ -1593,10 +1832,17 @@ int DoSailorGirl(DSWActor* actor)
 
     // take damage from environment
     DoActorSectorDamage(actor);
-    actor->spr.xvel = actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.X = 0;
+    actor->vel.Z = 0;
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int NullSailorGirl(DSWActor* actor)
 {
@@ -1640,6 +1886,12 @@ int NullSailorGirl(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int SailorGirlThrow(DSWActor* actor)
 {
     if (!(actor->user.Flags & SPR_CLIMBING))
@@ -1655,6 +1907,12 @@ int SailorGirlThrow(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int SailorGirlPain(DSWActor* actor)
 {
     NullSailorGirl(actor);
@@ -1665,7 +1923,11 @@ int SailorGirlPain(DSWActor* actor)
     return 0;
 }
 
-////////////////////////////////////////////////////////////////////////////////
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 
 ANIMATOR NullPruneGirl;
@@ -1712,6 +1974,12 @@ STATE s_PruneGirlPain[2] =
     {PRUNEGIRL_PAIN_R0 + 0, 0|SF_QUICK_CALL, InitActorDecide, &s_PruneGirlPain[0]}
 };
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int SetupPruneGirl(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -1733,7 +2001,8 @@ int SetupPruneGirl(DSWActor* actor)
 
     actor->spr.xrepeat = 33;
     actor->spr.yrepeat = 28;
-    actor->spr.xvel = actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.X = 0;
+    actor->vel.Z = 0;
     actor->spr.lotag = PRUNEGIRL_R0;
     actor->user.FlagOwner = 0;
     actor->user.ID = PRUNEGIRL_R0;
@@ -1742,6 +2011,12 @@ int SetupPruneGirl(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoPruneGirl(DSWActor* actor)
 {
@@ -1798,10 +2073,17 @@ int DoPruneGirl(DSWActor* actor)
 
     // take damage from environment
     DoActorSectorDamage(actor);
-    actor->spr.xvel = actor->spr.yvel = actor->spr.zvel = 0;
+    actor->vel.X = 0;
+    actor->vel.Z = 0;
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int NullPruneGirl(DSWActor* actor)
 {
@@ -1839,6 +2121,12 @@ int NullPruneGirl(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int PruneGirlUzi(DSWActor* actor)
 {
     if (!(actor->user.Flags & SPR_CLIMBING))
@@ -1854,6 +2142,12 @@ int PruneGirlUzi(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int PruneGirlPain(DSWActor* actor)
 {
     NullPruneGirl(actor);
@@ -1863,6 +2157,12 @@ int PruneGirlPain(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 
 #include "saveable.h"

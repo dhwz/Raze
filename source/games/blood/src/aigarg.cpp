@@ -129,9 +129,9 @@ void BlastSSeqCallback(int, DBloodActor* actor)
 		if (tt.at10)
 		{
 			int t = DivScale(nDist, tt.at10, 12);
-			x2 += (actor->vel.X * t) >> 12;
-			y2 += (actor->vel.Y * t) >> 12;
-			z2 += (actor->vel.Z * t) >> 8;
+			x2 += (actor->int_vel().X * t) >> 12;
+			y2 += (actor->int_vel().Y * t) >> 12;
+			z2 += (actor->int_vel().Z * t) >> 8;
 		}
 		int tx = x + MulScale(Cos(actor->int_ang()), nDist, 30);
 		int ty = y + MulScale(Sin(actor->int_ang()), nDist, 30);
@@ -206,7 +206,7 @@ static void gargThinkTarget(DBloodActor* actor)
 		pDudeExtraE->thinkTime++;
 	else if (pDudeExtraE->thinkTime >= 10 && pDudeExtraE->active)
 	{
-		actor->xspr.goalAng += 256;
+		actor->xspr.goalAng += DAngle45;
 		aiSetTarget(actor, actor->basePoint);
 		aiNewState(actor, &gargoyleTurn);
 		return;
@@ -263,7 +263,7 @@ static void gargThinkGoto(DBloodActor* actor)
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
 	int nAngle = getangle(dvec);
 	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, nAngle);
+	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
 	if (nDist < 512 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
 		aiNewState(actor, &gargoyleFSearch);
 	aiThinkTarget(actor);
@@ -276,23 +276,17 @@ static void gargMoveDodgeUp(DBloodActor* actor)
 		return;
 	}
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
-	int nCos = Cos(actor->int_ang());
-	int nSin = Sin(actor->int_ang());
-	int dx = actor->vel.X;
-	int dy = actor->vel.Y;
-	int t1 = DMulScale(dx, nCos, dy, nSin, 30);
-	int t2 = DMulScale(dx, nSin, -dy, nCos, 30);
-	if (actor->xspr.dodgeDir > 0)
-		t2 += pDudeInfo->sideSpeed;
-	else
-		t2 -= pDudeInfo->sideSpeed;
+	AdjustVelocity(actor, ADJUSTER{
+		if (actor->xspr.dodgeDir > 0)
+			t2 += FixedToFloat(pDudeInfo->sideSpeed);
+		else
+			t2 -= FixedToFloat(pDudeInfo->sideSpeed);
+	});
 
-	actor->vel.X = DMulScale(t1, nCos, t2, nSin, 30);
-	actor->vel.Y = DMulScale(t1, nSin, -t2, nCos, 30);
-	actor->vel.Z = -0x1d555;
+	actor->vel.Z = FixedToFloat(-0x1d555);
 }
 
 static void gargMoveDodgeDown(DBloodActor* actor)
@@ -302,25 +296,19 @@ static void gargMoveDodgeDown(DBloodActor* actor)
 		return;
 	}
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 	if (actor->xspr.dodgeDir == 0)
 		return;
-	int nCos = Cos(actor->int_ang());
-	int nSin = Sin(actor->int_ang());
-	int dx = actor->vel.X;
-	int dy = actor->vel.Y;
-	int t1 = DMulScale(dx, nCos, dy, nSin, 30);
-	int t2 = DMulScale(dx, nSin, -dy, nCos, 30);
-	if (actor->xspr.dodgeDir > 0)
-		t2 += pDudeInfo->sideSpeed;
-	else
-		t2 -= pDudeInfo->sideSpeed;
+	AdjustVelocity(actor, ADJUSTER{
+		if (actor->xspr.dodgeDir > 0)
+			t2 += FixedToFloat(pDudeInfo->sideSpeed);
+		else
+			t2 -= FixedToFloat(pDudeInfo->sideSpeed);
+	});
 
-	actor->vel.X = DMulScale(t1, nCos, t2, nSin, 30);
-	actor->vel.Y = DMulScale(t1, nSin, -t2, nCos, 30);
-	actor->vel.Z = 0x44444;
+	actor->vel.Z = FixedToFloat(0x44444);
 }
 
 static void gargThinkChase(DBloodActor* actor)
@@ -340,7 +328,7 @@ static void gargThinkChase(DBloodActor* actor)
 
 	int dx = target->int_pos().X - actor->int_pos().X;
 	int dy = target->int_pos().Y - actor->int_pos().Y;
-	aiChooseDirection(actor, getangle(dx, dy));
+	aiChooseDirection(actor, VecToAngle(dx, dy));
 	if (target->xspr.health == 0)
 	{
 		aiNewState(actor, &gargoyleFSearch);
@@ -520,7 +508,7 @@ static void gargMoveForward(DBloodActor* actor)
 		return;
 	}
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 	int nAccel = pDudeInfo->frontSpeed << 2;
@@ -532,18 +520,13 @@ static void gargMoveForward(DBloodActor* actor)
 	int nDist = approxDist(dvec);
 	if ((unsigned int)Random(64) < 32 && nDist <= 0x400)
 		return;
-	int nCos = Cos(actor->int_ang());
-	int nSin = Sin(actor->int_ang());
-	int vx = actor->vel.X;
-	int vy = actor->vel.Y;
-	int t1 = DMulScale(vx, nCos, vy, nSin, 30);
-	int t2 = DMulScale(vx, nSin, -vy, nCos, 30);
-	if (actor->GetTarget() == nullptr)
-		t1 += nAccel;
-	else
-		t1 += nAccel >> 1;
-	actor->vel.X = DMulScale(t1, nCos, t2, nSin, 30);
-	actor->vel.Y = DMulScale(t1, nSin, -t2, nCos, 30);
+	AdjustVelocity(actor, ADJUSTER{
+		if (actor->GetTarget() == nullptr)
+			t1 += FixedToFloat(nAccel);
+		else
+			t1 += FixedToFloat(nAccel * 0.5);
+	});
+
 }
 
 static void gargMoveSlow(DBloodActor* actor)
@@ -553,35 +536,30 @@ static void gargMoveSlow(DBloodActor* actor)
 		return;
 	}
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 	int nAccel = pDudeInfo->frontSpeed << 2;
 	if (abs(nAng) > DAngle60)
 	{
-		actor->xspr.goalAng = (actor->int_ang() + 512) & 2047;
+		actor->xspr.goalAng += DAngle90;
 		return;
 	}
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
 	int nDist = approxDist(dvec);
 	if (Chance(0x600) && nDist <= 0x400)
 		return;
-	int nCos = Cos(actor->int_ang());
-	int nSin = Sin(actor->int_ang());
-	int vx = actor->vel.X;
-	int vy = actor->vel.Y;
-	int t1 = DMulScale(vx, nCos, vy, nSin, 30);
-	int t2 = DMulScale(vx, nSin, -vy, nCos, 30);
-	t1 = nAccel >> 1;
-	t2 >>= 1;
-	actor->vel.X = DMulScale(t1, nCos, t2, nSin, 30);
-	actor->vel.Y = DMulScale(t1, nSin, -t2, nCos, 30);
+	AdjustVelocity(actor, ADJUSTER{
+		t1 += FixedToFloat(nAccel * 0.5);
+		t2 *= 0.5;
+	});
+
 	switch (actor->spr.type) {
 	case kDudeGargoyleFlesh:
-		actor->vel.Z = 0x44444;
+		actor->vel.Z = FixedToFloat(0x44444);
 		break;
 	case kDudeGargoyleStone:
-		actor->vel.Z = 0x35555;
+		actor->vel.Z = FixedToFloat(0x35555);
 		break;
 	}
 }
@@ -593,36 +571,32 @@ static void gargMoveSwoop(DBloodActor* actor)
 		return;
 	}
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 	int nAccel = pDudeInfo->frontSpeed << 2;
 	if (abs(nAng) > DAngle60)
 	{
-		actor->xspr.goalAng = (actor->int_ang() + 512) & 2047;
+		actor->xspr.goalAng += DAngle90;
 		return;
 	}
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
 	int nDist = approxDist(dvec);
 	if (Chance(0x600) && nDist <= 0x400)
 		return;
-	int nCos = Cos(actor->int_ang());
-	int nSin = Sin(actor->int_ang());
-	int vx = actor->vel.X;
-	int vy = actor->vel.Y;
-	int t1 = DMulScale(vx, nCos, vy, nSin, 30);
-	int t2 = DMulScale(vx, nSin, -vy, nCos, 30);
-	t1 += nAccel >> 1;
-	actor->vel.X = DMulScale(t1, nCos, t2, nSin, 30);
-	actor->vel.Y = DMulScale(t1, nSin, -t2, nCos, 30);
-	switch (actor->spr.type) {
-	case kDudeGargoyleFlesh:
-		actor->vel.Z = t1;
-		break;
-	case kDudeGargoyleStone:
-		actor->vel.Z = t1;
-		break;
-	}
+
+	AdjustVelocity(actor, ADJUSTER{
+		t1 += FixedToFloat(nAccel * 0.5);
+		switch (actor->spr.type) {
+		case kDudeGargoyleFlesh:
+			actor->vel.Z = t1;
+			break;
+		case kDudeGargoyleStone:
+			actor->vel.Z = t1;
+			break;
+		}
+	});
+
 }
 
 static void gargMoveFly(DBloodActor* actor)
@@ -632,7 +606,7 @@ static void gargMoveFly(DBloodActor* actor)
 		return;
 	}
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 	int nAccel = pDudeInfo->frontSpeed << 2;
@@ -645,23 +619,19 @@ static void gargMoveFly(DBloodActor* actor)
 	int nDist = approxDist(dvec);
 	if (Chance(0x4000) && nDist <= 0x400)
 		return;
-	int nCos = Cos(actor->int_ang());
-	int nSin = Sin(actor->int_ang());
-	int vx = actor->vel.X;
-	int vy = actor->vel.Y;
-	int t1 = DMulScale(vx, nCos, vy, nSin, 30);
-	int t2 = DMulScale(vx, nSin, -vy, nCos, 30);
-	t1 += nAccel >> 1;
-	actor->vel.X = DMulScale(t1, nCos, t2, nSin, 30);
-	actor->vel.Y = DMulScale(t1, nSin, -t2, nCos, 30);
-	switch (actor->spr.type) {
-	case kDudeGargoyleFlesh:
-		actor->vel.Z = -t1;
-		break;
-	case kDudeGargoyleStone:
-		actor->vel.Z = -t1;
-		break;
-	}
+	
+	AdjustVelocity(actor, ADJUSTER{
+		t1 += FixedToFloat(nAccel * 0.5);
+		switch (actor->spr.type) {
+		case kDudeGargoyleFlesh:
+			actor->vel.Z = -t1;
+			break;
+		case kDudeGargoyleStone:
+			actor->vel.Z = -t1;
+			break;
+		}
+	});
+
 }
 
 END_BLD_NS

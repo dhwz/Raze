@@ -46,7 +46,7 @@ enum TriggerType { TRIGGER_TYPE_REMOTE_SO };
 
 int ActorFollowTrack(DSWActor*, short locktics);
 void ActorLeaveTrack(DSWActor*);
-void RefreshPoints(SECTOR_OBJECT* sop, int nx, int ny, bool dynamic);
+void RefreshPoints(SECTOR_OBJECT* sop, const DVector2& pos, bool dynamic);
 void TrackSetup(void);
 void PlaceSectorObject(SECTOR_OBJECT* sop, const DVector2& newpos);
 void PlaceSectorObjectsOnTracks(void);
@@ -54,7 +54,7 @@ void PlaceActorsOnTracks(void);
 void SetupSectorObject(sectortype* sect, short tag);
 void PostSetupSectorObject(void);
 void VehicleSetSmoke(SECTOR_OBJECT* sop, ANIMATOR* animator);
-void CollapseSectorObject(SECTOR_OBJECT* sop, int nx, int ny);
+void CollapseSectorObject(SECTOR_OBJECT* sop, const DVector2& pos);
 void KillSectorObjectSprites(SECTOR_OBJECT* sop);
 void MoveSectorObjects(SECTOR_OBJECT* sop, short locktics);
 
@@ -94,7 +94,7 @@ void SpawnPlayerUnderSprite(PLAYER* pp);
 void DoQuakeMatch(short match);
 void ProcessQuakeOn(void);
 void ProcessQuakeSpot(void);
-void QuakeViewChange(PLAYER* pp, int* z_diff, int* x_diff, int* y_diff, short* ang_diff);
+void QuakeViewChange(PLAYER* pp, DVector3& tpos, DAngle& tang);
 void DoQuake(PLAYER* pp);
 bool SetQuake(PLAYER* pp, short tics, short amt);
 int SetExpQuake(DSWActor*);

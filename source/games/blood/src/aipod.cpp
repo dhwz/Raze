@@ -142,7 +142,7 @@ static void aiPodMove(DBloodActor* actor)
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
 	int nAngle = getangle(dvec);
 	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, nAngle);
+	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
 	if (nDist < 512 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery) {
 		switch (actor->spr.type) {
 		case kDudePodGreen:
@@ -183,7 +183,7 @@ static void aiPodChase(DBloodActor* actor)
 	auto dvec = target->spr.pos.XY() - actor->spr.pos.XY();
 	int nAngle = getangle(dvec);
 	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, nAngle);
+	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
 	if (target->xspr.health == 0) {
 
 		switch (actor->spr.type) {

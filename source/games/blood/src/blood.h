@@ -87,9 +87,7 @@ struct MIRROR
 {
 	int type;
 	int link;
-	int dx;
-	int dy;
-	int dz;
+	DVector3 diff;
 	int wallnum;
 };
 
@@ -133,17 +131,17 @@ struct GameInterface : public ::GameInterface
 	void NewGame(MapRecord* sng, int skill, bool) override;
 	void NextLevel(MapRecord* map, int skill) override;
 	void LevelCompleted(MapRecord* map, int skill) override;
-	bool DrawAutomapPlayer(int mx, int my, int x, int y, const double z, const DAngle a, double const smoothratio) override;
+	bool DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac) override;
 	void SetTileProps(int til, int surf, int vox, int shade) override;
 	fixed_t playerHorizMin() override { return IntToFixed(-180); }
 	fixed_t playerHorizMax() override { return IntToFixed(120); }
 	int playerKeyMove() override { return 1024; }
-	void WarpToCoords(int x, int y, int z, int a, int h) override;
+	void WarpToCoords(double x, double y, double z, DAngle a, int h) override;
 	void ToggleThirdPerson() override;
 	void SwitchCoopView() override;
 	void ToggleShowWeapon() override;
-	vec3_t chaseCamPos(DAngle ang, fixedhoriz horiz) { return vec3_t(int(-ang.Cos() * 1280.), int(-ang.Sin() * 1280.), FixedToInt(MulScale(horiz.asq16(), 1280, 3)) - (16 << 8)); }
-	void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double smoothRatio) override;
+	DVector3 chaseCamPos(DAngle ang, fixedhoriz horiz) { return DVector3(-ang.ToVector() * 80., horiz.asbuildf() * 0.625 - 16); }
+	void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double interpfrac) override;
 	void EnterPortal(DCoreActor* viewer, int type) override;
 	void LeavePortal(DCoreActor* viewer, int type) override;
 	void LoadGameTextures() override;

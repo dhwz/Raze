@@ -85,9 +85,9 @@ DEFINE_FIELD_NAMED_X(tspritetype, tspritetype, sectp, sector)
 DEFINE_FIELD_X(tspritetype, tspritetype, cstat)
 DEFINE_FIELD_X(tspritetype, tspritetype, statnum)
 DEFINE_FIELD_X(tspritetype, tspritetype, angle)
-DEFINE_FIELD_X(tspritetype, tspritetype, xvel)
-DEFINE_FIELD_X(tspritetype, tspritetype, yvel)
-DEFINE_FIELD_X(tspritetype, tspritetype, zvel)
+DEFINE_FIELD_X(tspritetype, tspritetype, xint)
+DEFINE_FIELD_X(tspritetype, tspritetype, yint)
+DEFINE_FIELD_X(tspritetype, tspritetype, inittype)
 DEFINE_FIELD_X(tspritetype, tspritetype, lotag)
 DEFINE_FIELD_X(tspritetype, tspritetype, hitag)
 DEFINE_FIELD_X(tspritetype, tspritetype, extra)
@@ -449,25 +449,25 @@ DEFINE_ACTION_FUNCTION_NATIVE(_walltype, point2wall, wall_point2wall)
 double wall_deltax(walltype* wal)
 {
 	if (!wal) ThrowAbortException(X_READ_NIL, nullptr);
-	return wal->deltax();
+	return wal->delta().X;
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_walltype, deltax, wall_point2wall)
 {
 	PARAM_SELF_STRUCT_PROLOGUE(walltype);
-	ACTION_RETURN_FLOAT(self->deltax());
+	ACTION_RETURN_FLOAT(self->delta().X);
 }
 
 double wall_deltay(walltype* wal)
 {
 	if (!wal) ThrowAbortException(X_READ_NIL, nullptr);
-	return wal->deltay();
+	return wal->delta().Y;
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_walltype, deltay, wall_point2wall)
 {
 	PARAM_SELF_STRUCT_PROLOGUE(walltype);
-	ACTION_RETURN_FLOAT(self->deltay());
+	ACTION_RETURN_FLOAT(self->delta().Y);
 }
 
 double wall_length(walltype* wal)

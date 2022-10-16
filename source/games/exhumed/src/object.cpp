@@ -393,7 +393,7 @@ DExhumedActor* BuildWallSprite(sectortype* pSector)
 
     auto pActor = insertActor(pSector, 401);
 
-	pActor->spr.pos = DVector3(wal->fcenter(), (pSector->floorz + pSector->ceilingz) * 0.5);
+	pActor->spr.pos = DVector3(wal->center(), (pSector->floorz + pSector->ceilingz) * 0.5);
     pActor->spr.cstat = CSTAT_SPRITE_INVISIBLE;
 
     return pActor;
@@ -402,35 +402,35 @@ DExhumedActor* BuildWallSprite(sectortype* pSector)
 // done
 DExhumedActor* FindWallSprites(sectortype* pSector)
 {
-    int var_24 = 0x7FFFFFFF;
-    int ecx = 0x7FFFFFFF;
+    double min_x = DBL_MAX;
+    double min_y = DBL_MAX;
 
-    int esi = 0x80000002;
-    int edi = 0x80000002;
+    double max_x = -DBL_MAX;
+    double max_y = -DBL_MAX;
 
 	for (auto& wal : wallsofsector(pSector))
     {
-        if (wal.wall_int_pos().X < var_24) {
-            var_24 = wal.wall_int_pos().X;
+        if (wal.pos.X < min_x) {
+            min_x = wal.pos.X;
         }
 
-        if (esi < wal.wall_int_pos().X) {
-            esi = wal.wall_int_pos().X;
+        if (max_x < wal.pos.X) {
+            max_x = wal.pos.X;
         }
 
-        if (ecx > wal.wall_int_pos().Y) {
-            ecx = wal.wall_int_pos().Y;
+        if (min_y > wal.pos.Y) {
+            min_y = wal.pos.Y;
         }
 
-        if (edi < wal.wall_int_pos().Y) {
-            edi = wal.wall_int_pos().Y;
+        if (max_y < wal.pos.Y) {
+            max_y = wal.pos.Y;
         }
     }
 
-    ecx -= 5;
-    esi += 5;
-    edi += 5;
-    var_24 -= 5;
+    min_y -= 5./16;
+    max_x += 5./16;
+    max_y += 5./16;
+    min_x -= 5./16;
 
     DExhumedActor* pAct = nullptr;
 
@@ -441,10 +441,10 @@ DExhumedActor* FindWallSprites(sectortype* pSector)
         {
             if ((actor->spr.cstat & (CSTAT_SPRITE_ALIGNMENT_WALL | CSTAT_SPRITE_ONE_SIDE)) == (CSTAT_SPRITE_ALIGNMENT_WALL | CSTAT_SPRITE_ONE_SIDE))
             {
-                int var_28 = actor->int_pos().X;
-                int ebx = actor->int_pos().Y;
+                double act_x = actor->spr.pos.X;
+                double act_y = actor->spr.pos.Y;
 
-                if ((var_28 >= var_24) && (esi >= var_28) && (ebx >= ecx) && (ebx <= edi))
+                if ((act_x >= min_x) && (max_x >= act_x) && (act_y >= min_y) && (act_y <= max_y))
                 {
                     actor->pTarget = pAct;
                     pAct = actor;
@@ -457,7 +457,7 @@ DExhumedActor* FindWallSprites(sectortype* pSector)
     {
         pAct = insertActor(pSector, 401);
 
-        pAct->set_int_pos({ (var_24 + esi) / 2, (ecx + edi) / 2, pSector->int_floorz() });
+        pAct->spr.pos = { (min_x + max_x) / 2, (min_y + max_y) / 2, pSector->floorz };
         pAct->spr.cstat = CSTAT_SPRITE_INVISIBLE;
         pAct->spr.intowner = -1;
         pAct->spr.lotag = 0;
@@ -1202,9 +1202,9 @@ int BuildTrap(DExhumedActor* pActor, int edx, int ebx, int ecx)
     ChangeActorStat(pActor, 0);
 
     pActor->spr.cstat = CSTAT_SPRITE_INVISIBLE;
-    pActor->spr.xvel = 0;
-    pActor->spr.yvel = 0;
-    pActor->spr.zvel = 0;
+    pActor->vel.X = 0;
+    pActor->vel.Y = 0;
+    pActor->vel.Z = 0;
     pActor->spr.extra = -1;
 
     pActor->spr.lotag = runlist_HeadRun() + 1;
@@ -1308,7 +1308,7 @@ void AITrap::Tick(RunListEvent* ev)
                 return;
             }
 
-            auto pBullet = BuildBullet(pActor, nType, 0, pActor->int_ang(), nullptr, 1);
+            auto pBullet = BuildBullet(pActor, nType, 0, pActor->spr.angle, nullptr, 1);
             if (pBullet)
             {
                 if (nType == 15)
@@ -1384,16 +1384,16 @@ DExhumedActor* BuildSpark(DExhumedActor* pActor, int nVal)
 
         if (nVal)
         {
-            pSpark->spr.xvel = bcos(nAngle, -5);
-            pSpark->spr.yvel = bsin(nAngle, -5);
+            pSpark->set_int_xvel(bcos(nAngle, -5));
+            pSpark->set_int_yvel(bsin(nAngle, -5));
         }
         else
         {
-            pSpark->spr.xvel = bcos(nAngle, -6);
-            pSpark->spr.yvel = bsin(nAngle, -6);
+            pSpark->set_int_xvel(bcos(nAngle, -6));
+            pSpark->set_int_yvel(bsin(nAngle, -6));
         }
 
-        pSpark->spr.zvel = -(RandomSize(4) << 7);
+        pSpark->set_int_zvel(-(RandomSize(4) << 7));
         pSpark->spr.picnum = kTile985 + nVal;
     }
 
@@ -1434,21 +1434,21 @@ void AISpark::Tick(RunListEvent* ev)
             return;
         }
 
-        pActor->spr.zvel += 128;
+        pActor->add_int_zvel( 128);
 
-        auto nMov = movesprite(pActor, pActor->spr.xvel << 12, pActor->spr.yvel << 12, pActor->spr.zvel, 2560, -2560, CLIPMASK1);
+        auto nMov = movesprite(pActor, pActor->int_xvel() << 12, pActor->int_yvel() << 12, pActor->int_zvel(), 2560, -2560, CLIPMASK1);
         if (!nMov.type && !nMov.exbits) {
             return;
         }
 
-        if (pActor->spr.zvel <= 0) {
+        if (pActor->vel.Z <= 0) {
             return;
         }
     }
 
-    pActor->spr.xvel = 0;
-    pActor->spr.yvel = 0;
-    pActor->spr.zvel = 0;
+    pActor->vel.X = 0;
+    pActor->vel.Y = 0;
+    pActor->vel.Z = 0;
 
     if (pActor->spr.picnum > kTile3000) {
         nSmokeSparks--;
@@ -1509,7 +1509,7 @@ void DoFinale()
             PlayFX2(StaticSound[kSound78] | 0x2000, pFinaleSpr);
 
             for (int i = 0; i < nTotalPlayers; i++) {
-                nQuake[i] = 1280;
+                nQuake[i] = 5.;
             }
         }
     }
@@ -1554,25 +1554,20 @@ void DoFinale()
 
 DExhumedActor* BuildEnergyBlock(sectortype* pSector)
 {
-    int x = 0;
-    int y = 0;
+	DVector2 apos(0, 0);
 
 	for(auto& wal : wallsofsector(pSector))
     {
-        x += wal.wall_int_pos().X;
-        y += wal.wall_int_pos().Y;
-
+		apos += wal.pos;
+		
         wal.picnum = kClockSymbol16;
         wal.pal = 0;
         wal.shade = 50;
     }
 
-    int xAvg = x / pSector->wallnum;
-    int yAvg = y / pSector->wallnum;
-
     auto pActor = insertActor(pSector, 406);
 
-	pActor->set_int_xy(xAvg, yAvg);
+	pActor->spr.pos.XY() = apos / pSector->wallnum;
 
     pSector->extra = (int16_t)EnergyBlocks.Push(pActor);
 
@@ -1588,9 +1583,9 @@ DExhumedActor* BuildEnergyBlock(sectortype* pSector)
 
     pActor->spr.xrepeat = nRepeat;
     pActor->spr.cstat = CSTAT_SPRITE_INVISIBLE;
-    pActor->spr.xvel = 0;
-    pActor->spr.yvel = 0;
-    pActor->spr.zvel = 0;
+    pActor->vel.X = 0;
+    pActor->vel.Y = 0;
+    pActor->vel.Z = 0;
     pActor->spr.extra = -1;
     pActor->spr.lotag = runlist_HeadRun() + 1;
     pActor->spr.hitag = 0;
@@ -1789,9 +1784,9 @@ DExhumedActor* BuildObject(DExhumedActor* pActor, int nOjectType, int nHitag)
 
     // 0x7FFD to ensure set as blocking ('B' and 'H') sprite and also disable translucency and set not invisible
     pActor->spr.cstat = (pActor->spr.cstat | CSTAT_SPRITE_BLOCK_ALL) & ~(CSTAT_SPRITE_TRANSLUCENT | CSTAT_SPRITE_INVISIBLE);
-    pActor->spr.xvel = 0;
-    pActor->spr.yvel = 0;
-    pActor->spr.zvel = 0;
+    pActor->vel.X = 0;
+    pActor->vel.Y = 0;
+    pActor->vel.Z = 0;
     pActor->spr.extra = -1;
     pActor->spr.lotag = runlist_HeadRun() + 1;
     pActor->spr.hitag = 0;
@@ -1893,7 +1888,7 @@ void AIObject::Tick(RunListEvent* ev)
     FUNCOBJECT_GOTO:
         if (nStat != kStatExplodeTarget)
         {
-            auto nMov = movesprite(pActor, pActor->spr.xvel << 6, pActor->spr.yvel << 6, pActor->spr.zvel, 0, 0, CLIPMASK0);
+            auto nMov = movesprite(pActor, pActor->int_xvel() << 6, pActor->int_yvel() << 6, pActor->int_zvel(), 0, 0, CLIPMASK0);
 
             if (pActor->spr.statnum == kStatExplodeTrigger) {
                 pActor->spr.pal = 1;
@@ -1901,14 +1896,13 @@ void AIObject::Tick(RunListEvent* ev)
 
             if (nMov.exbits & kHitAux2)
             {
-                pActor->spr.xvel -= pActor->spr.xvel >> 3;
-                pActor->spr.yvel -= pActor->spr.yvel >> 3;
+				pActor->vel.XY() *= 0.875;
             }
 
             if (nMov.type == kHitSprite)
             {
-                pActor->spr.yvel = 0;
-                pActor->spr.xvel = 0;
+                pActor->vel.Y = 0;
+                pActor->vel.X = 0;
             }
         }
 
@@ -2036,15 +2030,11 @@ void AIObject::RadialDamage(RunListEvent* ev)
 
         if (pActor->spr.statnum == kStatExplodeTarget)
         {
-            pActor->spr.xvel = 0;
-            pActor->spr.yvel = 0;
-            pActor->spr.zvel = 0;
+            pActor->ZeroVelocity();
         }
         else if (pActor->spr.statnum != kStatAnubisDrum)
         {
-            pActor->spr.xvel >>= 1;
-            pActor->spr.yvel >>= 1;
-            pActor->spr.zvel >>= 1;
+            pActor->vel *= 0.5;
         }
 
         if (pActor->nHealth > 0) {

@@ -318,13 +318,11 @@ void HWDrawInfo::DispatchSprites()
 
 		if (actor->sprext.renderflags & SPREXT_AWAY1)
 		{
-			tspr->add_int_x(bcos(tspr->int_ang(), -13));
-			tspr->add_int_y(bsin(tspr->int_ang(), -13));
+			tspr->pos.XY() += tspr->angle.ToVector() * 0.125;
 		}
 		else if (actor->sprext.renderflags & SPREXT_AWAY2)
 		{
-			tspr->add_int_x(-bcos(tspr->int_ang(), -13));
-			tspr->add_int_y(-bsin(tspr->int_ang(), -13));
+			tspr->pos.XY() -= tspr->angle.ToVector() * 0.125;
 		}
 
 		switch (tspr->cstat & CSTAT_SPRITE_ALIGNMENT_MASK)
@@ -394,7 +392,7 @@ void HWDrawInfo::CreateScene(bool portal)
 		mDrawer.RenderScene(&vp.SectCount, 1, portal);
 
 	SetupSprite.Clock();
-	gi->processSprites(tsprites, view.X, view.Y, vp.Pos.Z * -256, DAngle::fromBam(vp.RotAngle), vp.TicFrac * 65536);
+	gi->processSprites(tsprites, view.X, view.Y, vp.Pos.Z * -256, DAngle::fromBam(vp.RotAngle), vp.TicFrac);
 	DispatchSprites();
 	SetupSprite.Unclock();
 

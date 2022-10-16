@@ -84,7 +84,7 @@ static void houndThinkGoto(DBloodActor* actor)
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
 	int nAngle = getangle(dvec);
 	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, nAngle);
+	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
 	if (nDist < 512 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
 		aiNewState(actor, &houndSearch);
 	aiThinkTarget(actor);
@@ -107,7 +107,7 @@ static void houndThinkChase(DBloodActor* actor)
 	auto dvec = target->spr.pos.XY() - actor->spr.pos.XY();
 	int nAngle = getangle(dvec);
 	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, nAngle);
+	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
 	if (target->xspr.health == 0)
 	{
 		aiNewState(actor, &houndSearch);

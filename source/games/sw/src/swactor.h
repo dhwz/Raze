@@ -36,6 +36,17 @@ public:
 	void Serialize(FSerializer& arc) override;
 };
 
+inline void UpdateChangeXY(DSWActor* actor)
+{
+	actor->user.change.XY() = actor->spr.angle.ToVector() * actor->vel.X;
+}
+
+inline void UpdateChange(DSWActor* actor, double zfactor = 1.0)
+{
+	UpdateChangeXY(actor);
+	actor->user.change.Z = actor->vel.Z * zfactor;
+}
+
 
 // subclassed to add a game specific actor() method
 

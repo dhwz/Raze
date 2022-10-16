@@ -145,6 +145,19 @@ inline void getzrange(const vec3_t& pos, sectortype* sect, double* ceilz, Collis
     *florz = f * zinttoworld;
 }
 
+inline void getzrange(const DVector3& pos, sectortype* sect, double* ceilz, CollisionBase& ceilhit, double* florz,
+	CollisionBase& florhit, int32_t walldist, uint32_t cliptype)
+{
+	vec3_t ipos(int(pos.X * worldtoint), int(pos.Y * worldtoint), int(pos.Z * zworldtoint) );
+
+	int c = int(*ceilz * zworldtoint);
+	int f = int(*florz * zworldtoint);
+	getzrange(ipos, sect, &c, ceilhit, &f, florhit, walldist, cliptype);
+	*ceilz = c * zinttoworld;
+	*florz = f * zinttoworld;
+}
+
+
 extern vec2_t hitscangoal;
 
 struct HitInfoBase;
@@ -167,6 +180,11 @@ inline void neartag(const DVector3& start, sectortype* sect, DAngle angle, HitIn
     vec3_t vec(start.X * worldtoint, start.Y * worldtoint, start.Z * zworldtoint);
     neartag(vec, sect, angle.Buildang(), result, neartagrange, tagsearch);
 }
+inline void neartag(const DVector3& start, sectortype* sect, DAngle angle, HitInfoBase& result, double neartagrange, int tagsearch)
+{
+	vec3_t vec(start.X * worldtoint, start.Y * worldtoint, start.Z * zworldtoint);
+	neartag(vec, sect, angle.Buildang(), result, int(neartagrange * worldtoint), tagsearch);
+}
 
 int cansee(int x1, int y1, int z1, sectortype* sect1, int x2, int y2, int z2, sectortype* sect2);
 
@@ -188,6 +206,11 @@ inline int32_t krand(void)
     return ((uint32_t) randomseed)>>16;
 }
 
+inline double krandf(double span)
+{
+    return (krand() & 0x7fff) * span / 32767;
+}
+
 inline int32_t ksqrt(uint64_t num)
 {
     return int(sqrt(double(num)));
@@ -197,8 +220,6 @@ inline constexpr uint32_t uhypsq(int32_t const dx, int32_t const dy)
 {
     return (uint32_t)dx*dx + (uint32_t)dy*dy;
 }
-
-void rotatepoint(vec2_t const pivot, vec2_t p, int16_t const daang, vec2_t * const p2) ATTRIBUTE((nonnull(4)));
 
 int32_t lintersect(int32_t originX, int32_t originY, int32_t originZ,
                    int32_t destX, int32_t destY, int32_t destZ,

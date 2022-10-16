@@ -710,6 +710,12 @@ ACTOR_ACTION_SET GirlNinjaActionSet =
     nullptr
 };
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int SetupGirlNinja(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -738,6 +744,11 @@ int SetupGirlNinja(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoGirlNinjaMove(DSWActor* actor)
 {
@@ -774,16 +785,16 @@ int DoGirlNinjaMove(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int GirlNinjaJumpActionFunc(DSWActor* actor)
 {
-    int nx, ny;
-
-    // Move while jumping
-    nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14);
-    ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14);
-
     // if cannot move the sprite
-    if (!move_actor(actor, nx, ny, 0L))
+    if (!move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0)))
     {
         return 0;
     }
@@ -795,6 +806,12 @@ int GirlNinjaJumpActionFunc(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int NullGirlNinja(DSWActor* actor)
 {
@@ -811,6 +828,11 @@ int NullGirlNinja(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoGirlNinjaPain(DSWActor* actor)
 {
@@ -821,6 +843,12 @@ int DoGirlNinjaPain(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoGirlNinjaSpecial(DSWActor* actor)
 {
@@ -834,6 +862,11 @@ int DoGirlNinjaSpecial(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 #include "saveable.h"
 

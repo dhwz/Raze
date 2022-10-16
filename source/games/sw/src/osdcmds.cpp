@@ -48,15 +48,21 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_SW_NS
 
-void GameInterface::WarpToCoords(int x, int y, int z, int ang, int horz)
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+void GameInterface::WarpToCoords(double x, double y, double z, DAngle ang, int horz)
 {
-    Player->set_int_ppos({x,y,z});
+    Player->pos = DVector3(x,y,z);
 
     Player->opos = Player->pos;
 
-    if (ang != INT_MIN)
+    if (ang != DAngle::fromDeg(INT_MIN))
     {
-		Player->angle.oang = Player->angle.ang = DAngle::fromBuild(ang);
+		Player->angle.oang = Player->angle.ang = ang;
     }
 
     if (horz != INT_MIN)
@@ -64,6 +70,12 @@ void GameInterface::WarpToCoords(int x, int y, int z, int ang, int horz)
     	Player->horizon.ohoriz = Player->horizon.horiz = buildhoriz(horz);
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 static int osdcmd_mirror(CCmdFuncPtr parm)
 {
@@ -95,6 +107,12 @@ static int osdcmd_mirror(CCmdFuncPtr parm)
     return CCMD_OK;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void GameInterface::ToggleThirdPerson()
 {
     if (gamestate != GS_LEVEL) return;
@@ -107,8 +125,15 @@ void GameInterface::ToggleThirdPerson()
     {
         pp->Flags |= (PF_VIEW_FROM_OUTSIDE);
         cameradist = 0;
+        cameraclock = INT_MIN;
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void GameInterface::SwitchCoopView()
 {
@@ -135,6 +160,12 @@ void GameInterface::SwitchCoopView()
         }
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int32_t registerosdcommands(void)
 {

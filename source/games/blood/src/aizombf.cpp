@@ -93,7 +93,7 @@ static void zombfThinkGoto(DBloodActor* actor)
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
 	int nAngle = getangle(dvec);
 	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, nAngle);
+	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
 	if (nDist < 512 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
 		aiNewState(actor, &zombieFSearch);
 	aiThinkTarget(actor);
@@ -113,7 +113,7 @@ static void zombfThinkChase(DBloodActor* actor)
 
 	int dx = target->int_pos().X - actor->int_pos().X;
 	int dy = target->int_pos().Y - actor->int_pos().Y;
-	aiChooseDirection(actor, getangle(dx, dy));
+	aiChooseDirection(actor, VecToAngle(dx, dy));
 	if (target->xspr.health == 0)
 	{
 		aiNewState(actor, &zombieFSearch);

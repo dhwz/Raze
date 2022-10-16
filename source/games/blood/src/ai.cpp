@@ -247,43 +247,44 @@ bool CanMove(DBloodActor* actor, DBloodActor* target, int nAngle, int nRange)
 //
 //---------------------------------------------------------------------------
 
-void aiChooseDirection(DBloodActor* actor, int a3)
+void aiChooseDirection(DBloodActor* actor, DAngle direction)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
-	int vc = getincangle(actor->int_ang(), a3);
-	int nCos = Cos(actor->int_ang());
-	int nSin = Sin(actor->int_ang());
-	int dx = actor->vel.X;
-	int dy = actor->vel.Y;
-	int t1 = DMulScale(dx, nCos, dy, nSin, 30);
-	int vsi = ((t1 * 15) >> 12) / 2;
-	int v8 = 341;
-	if (vc < 0)
-		v8 = -341;
-	if (CanMove(actor, actor->GetTarget(), actor->int_ang() + vc, vsi))
-		actor->xspr.goalAng = actor->int_ang() + vc;
-	else if (CanMove(actor, actor->GetTarget(), actor->int_ang() + vc / 2, vsi))
-		actor->xspr.goalAng = actor->int_ang() + vc / 2;
-	else if (CanMove(actor, actor->GetTarget(), actor->int_ang() - vc / 2, vsi))
-		actor->xspr.goalAng = actor->int_ang() - vc / 2;
-	else if (CanMove(actor, actor->GetTarget(), actor->int_ang() + v8, vsi))
-		actor->xspr.goalAng = actor->int_ang() + v8;
-	else if (CanMove(actor, actor->GetTarget(), actor->int_ang(), vsi))
-		actor->xspr.goalAng = actor->int_ang();
-	else if (CanMove(actor, actor->GetTarget(), actor->int_ang() - v8, vsi))
-		actor->xspr.goalAng = actor->int_ang() - v8;
+	DAngle vc = deltaangle(actor->spr.angle, direction);
+	double nCos = actor->spr.angle.Cos();
+	double nSin = actor->spr.angle.Sin();
+	double t1 = actor->vel.X * nCos + actor->vel.Y * nSin;
+	auto almost60deg = DAngle::fromBuild(341); // 60° does not work correctly - this is a little bit less, actually.
+
+	int range = FloatToFixed(t1 * (15 / 8192.));
+	DAngle v8 = vc.Sgn() == -1 ? -almost60deg : almost60deg;
+
+	if (CanMove(actor, actor->GetTarget(), actor->spr.angle + vc, range))
+		actor->xspr.goalAng = actor->spr.angle + vc;
+	else if (CanMove(actor, actor->GetTarget(), actor->spr.angle + vc / 2, range))
+		actor->xspr.goalAng = actor->spr.angle + vc / 2;
+	else if (CanMove(actor, actor->GetTarget(), actor->spr.angle - vc / 2, range))
+		actor->xspr.goalAng = actor->spr.angle - vc / 2;
+	else if (CanMove(actor, actor->GetTarget(), actor->spr.angle + v8, range))
+		actor->xspr.goalAng = actor->spr.angle + v8;
+	else if (CanMove(actor, actor->GetTarget(), actor->spr.angle, range))
+		actor->xspr.goalAng = actor->spr.angle;
+	else if (CanMove(actor, actor->GetTarget(), actor->spr.angle - v8, range))
+		actor->xspr.goalAng = actor->spr.angle - v8;
 	//else if (actor->spr.flags&2)
 		//actor->xspr.goalAng = actor->spr.angle+341;
 	else // Weird..
-		actor->xspr.goalAng = actor->int_ang() + 341;
+		actor->xspr.goalAng = actor->spr.angle + almost60deg;
 	if (Chance(0x8000))
 		actor->xspr.dodgeDir = 1;
 	else
 		actor->xspr.dodgeDir = -1;
-	if (!CanMove(actor, actor->GetTarget(), actor->int_ang() + actor->xspr.dodgeDir * 512, 512))
+
+	actor->xspr.goalAng = actor->xspr.goalAng.Normalized360();
+	if (!CanMove(actor, actor->GetTarget(), actor->spr.angle + DAngle90 * actor->xspr.dodgeDir, 512))
 	{
 		actor->xspr.dodgeDir = -actor->xspr.dodgeDir;
-		if (!CanMove(actor, actor->GetTarget(), actor->int_ang() + actor->xspr.dodgeDir * 512, 512))
+		if (!CanMove(actor, actor->GetTarget(), actor->spr.angle + DAngle90 * actor->xspr.dodgeDir, 512))
 			actor->xspr.dodgeDir = 0;
 	}
 }
@@ -298,13 +299,13 @@ void aiMoveForward(DBloodActor* actor)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 	if (abs(nAng) > DAngle60)
 		return;
-	actor->vel.X += MulScale(pDudeInfo->frontSpeed, Cos(actor->int_ang()), 30);
-	actor->vel.Y += MulScale(pDudeInfo->frontSpeed, Sin(actor->int_ang()), 30);
+	actor->add_int_bvel_x(MulScale(pDudeInfo->frontSpeed, Cos(actor->int_ang()), 30));
+	actor->add_int_bvel_y(MulScale(pDudeInfo->frontSpeed, Sin(actor->int_ang()), 30));
 }
 
 //---------------------------------------------------------------------------
@@ -317,7 +318,7 @@ void aiMoveTurn(DBloodActor* actor)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 }
@@ -332,24 +333,17 @@ void aiMoveDodge(DBloodActor* actor)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 	if (actor->xspr.dodgeDir)
 	{
-		int nCos = Cos(actor->int_ang());
-		int nSin = Sin(actor->int_ang());
-		int dx = actor->vel.X;
-		int dy = actor->vel.Y;
-		int t1 = DMulScale(dx, nCos, dy, nSin, 30);
-		int t2 = DMulScale(dx, nSin, -dy, nCos, 30);
-		if (actor->xspr.dodgeDir > 0)
-			t2 += pDudeInfo->sideSpeed;
-		else
-			t2 -= pDudeInfo->sideSpeed;
-
-		actor->vel.X = DMulScale(t1, nCos, t2, nSin, 30);
-		actor->vel.Y = DMulScale(t1, nSin, -t2, nCos, 30);
+		AdjustVelocity(actor, ADJUSTER{
+			if (actor->xspr.dodgeDir > 0)
+				t2 += FixedToFloat(pDudeInfo->sideSpeed);
+			else
+				t2 -= FixedToFloat(pDudeInfo->sideSpeed);
+		});
 	}
 }
 
@@ -364,7 +358,7 @@ void aiActivateDude(DBloodActor* actor)
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	if (!actor->xspr.state)
 	{
-		aiChooseDirection(actor, getangle(actor->xspr.int_TargetPos().X - actor->int_pos().X, actor->xspr.int_TargetPos().Y - actor->int_pos().Y));
+		aiChooseDirection(actor, VecToAngle(actor->xspr.TargetPos - actor->spr.pos));
 		actor->xspr.state = 1;
 	}
 	switch (actor->spr.type)

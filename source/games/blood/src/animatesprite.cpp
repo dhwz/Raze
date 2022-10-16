@@ -42,41 +42,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 BEGIN_BLD_NS
 
 static DAngle gCameraAng;
-int dword_172CE0[16][3];
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-static void RotateYZ(int*, int* pY, int* pZ, int ang)
-{
-	int oY, oZ, angSin, angCos;
-	oY = *pY;
-	oZ = *pZ;
-	angSin = Sin(ang);
-	angCos = Cos(ang);
-	*pY = dmulscale30r(oY, angCos, oZ, -angSin);
-	*pZ = dmulscale30r(oY, angSin, oZ, angCos);
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-static void RotateXZ(int* pX, int*, int* pZ, int ang)
-{
-	int oX, oZ, angSin, angCos;
-	oX = *pX;
-	oZ = *pZ;
-	angSin = Sin(ang);
-	angCos = Cos(ang);
-	*pX = dmulscale30r(oX, angCos, oZ, -angSin);
-	*pZ = dmulscale30r(oX, angSin, oZ, angCos);
-}
+DAngle random_angles[16][3];
 
 //---------------------------------------------------------------------------
 //
@@ -103,8 +69,7 @@ tspritetype* viewInsertTSprite(tspriteArray& tsprites, sectortype* pSector, int 
 		pTSprite->ownerActor = parentTSprite->ownerActor;
 		pTSprite->angle = parentTSprite->angle;
 	}
-	pos.X += gCameraAng.Cos() * 2;
-	pos.Y += gCameraAng.Sin() * 2;
+	pos.XY() += gCameraAng.ToVector() * 2;
 	pTSprite->pos = pos;
 	return pTSprite;
 }
@@ -181,17 +146,21 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 			if (!pNSprite)
 				break;
 
-			int ang = (PlayClock * 2048) / 120;
-			int nRand1 = dword_172CE0[i][0];
-			int nRand2 = dword_172CE0[i][1];
-			int nRand3 = dword_172CE0[i][2];
+			auto ang = DAngle::fromBuild((PlayClock * 2048) / 120).Normalized360();
+			auto nRand1 = random_angles[i][0];
+			auto nRand2 = random_angles[i][1];
+			auto nRand3 = random_angles[i][2];
 			ang += nRand3;
-			int x = MulScale(512, Cos(ang), 30);
-			int y = MulScale(512, Sin(ang), 30);
-			int z = 0;
-			RotateYZ(&x, &y, &z, nRand1);
-			RotateXZ(&x, &y, &z, nRand2);
-			pNSprite->set_int_pos({ pTSprite->int_pos().X + x, pTSprite->int_pos().Y + y, pTSprite->int_pos().Z + (z << 4) });
+			auto vect = DVector3(32 * ang.ToVector(), 0);
+			DVector2 pt(vect.Y, vect.Z);
+			pt = rotatepoint({0,0}, pt, nRand1);
+			vect.Y = pt.X;
+			pt.X = vect.X;
+			pt = rotatepoint({0,0}, pt, nRand2);
+			vect.X = pt.X;
+			vect.Z = pt.Y;
+
+			pNSprite->pos = pTSprite->pos + vect;
 			pNSprite->picnum = 1720;
 			pNSprite->shade = -128;
 		}
@@ -272,14 +241,14 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 	}
 	case kViewEffectTrail:
 	{
-		int nAng = pTSprite->int_ang();
+		auto nAng = pTSprite->angle;
 		if (pTSprite->cstat & CSTAT_SPRITE_ALIGNMENT_WALL)
 		{
-			nAng = (nAng + 512) & 2047;
+			nAng += DAngle90;
 		}
 		else
 		{
-			nAng = (nAng + 1024) & 2047;
+			nAng += DAngle180;
 		}
 		for (int i = 0; i < 5; i++)
 		{
@@ -288,10 +257,9 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 			if (!pNSprite)
 				break;
 
-			int nLen = 128 + (i << 7);
-			int x = MulScale(nLen, Cos(nAng), 30);
-			int y = MulScale(nLen, Sin(nAng), 30);
-			pNSprite->set_int_pos({ pTSprite->int_pos().X + x, pTSprite->int_pos().Y + y, pTSprite->int_pos().Z });
+			double nLen = 8.0 * (i + 1);
+			auto vect = nAng.ToVector() * nLen;
+			pNSprite->pos = pTSprite->pos + vect;
 			assert(pSector);
 			auto pSector2 = pSector;
 			updatesectorz(pNSprite->pos, &pSector2);
@@ -515,8 +483,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 			pNSprite->picnum = nVoxel;
 			if (pPlayer->curWeapon == kWeapLifeLeech) // position lifeleech behind player
 			{
-				pNSprite->add_int_x(MulScale(128, Cos(gView->actor->int_ang()), 30));
-				pNSprite->add_int_y(MulScale(128, Sin(gView->actor->int_ang()), 30));
+				pNSprite->pos.XY() += gView->actor->spr.angle.ToVector() * 8;
 			}
 			if ((pPlayer->curWeapon == kWeapLifeLeech) || (pPlayer->curWeapon == kWeapVoodooDoll))  // make lifeleech/voodoo doll always face viewer like sprite
 				pNSprite->set_int_ang((pNSprite->int_ang() + 512) & 2047); // offset angle 90 degrees
@@ -548,11 +515,18 @@ static void viewApplyDefaultPal(tspritetype* pTSprite, sectortype const* pSector
 //
 //---------------------------------------------------------------------------
 
-void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t cZ, DAngle cA, int32_t smoothratio)
+static int GetOctant(int x, int y)
+{
+	static const uint8_t OctantTable[8] = { 5, 6, 2, 1, 4, 7, 3, 0 };
+	int vc = abs(x) - abs(y);
+	return OctantTable[7 - (x < 0) - (y < 0) * 2 - (vc < 0) * 4];
+}
+
+void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t cZ, DAngle cA, double interpfrac)
 {
 	int nViewSprites = tsprites.Size();
 	// shift before interpolating to increase precision.
-	int myclock = (PlayClock << 3) + MulScale(4 << 3, smoothratio, 16);
+	DAngle myclock = DAngle::fromDeg(((PlayClock << 3) + (4 << 3) * interpfrac) * BAngToDegree);
 	gCameraAng = cA;
 	for (int nTSprite = int(tsprites.Size()) - 1; nTSprite >= 0; nTSprite--)
 	{
@@ -580,8 +554,8 @@ void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t 
 
 		if (cl_interpolate && owneractor->interpolated && !(pTSprite->flags & 512))
 		{
-			pTSprite->pos = owneractor->interpolatedvec3(gInterpolate / 65536.);
-			pTSprite->angle = owneractor->interpolatedangle(gInterpolate / 65536.);
+			pTSprite->pos = owneractor->interpolatedpos(interpfrac);
+			pTSprite->angle = owneractor->interpolatedangle(interpfrac);
 		}
 		int nAnim = 0;
 		switch (picanm[nTile].extra & 7) {
@@ -671,7 +645,7 @@ void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t 
 					pTSprite->picnum = voxelIndex[pTSprite->picnum];
 					if ((picanm[nTile].extra & 7) == 7)
 					{
-						pTSprite->set_int_ang( myclock & 2047);
+						pTSprite->angle = myclock.Normalized360();
 					}
 				}
 			}
@@ -906,8 +880,7 @@ void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t 
 					auto pNTSprite = viewAddEffect(tsprites, nTSprite, kViewEffectShoot);
 					if (pNTSprite) {
 						POSTURE* pPosture = &pPlayer->pPosture[pPlayer->lifeMode][pPlayer->posture];
-						pNTSprite->add_int_x(MulScale(pPosture->zOffset, Cos(pTSprite->int_ang()), 28));
-						pNTSprite->add_int_y(MulScale(pPosture->zOffset, Sin(pTSprite->int_ang()), 28));
+						pNTSprite->pos.XY() += pTSprite->angle.ToVector() * pPosture->zOffset * 0.25;
 						pNTSprite->set_int_z(pPlayer->actor->int_pos().Z - pPosture->xOffset);
 					}
 				}
@@ -1020,9 +993,9 @@ void viewProcessSprites(tspriteArray& tsprites, int32_t cX, int32_t cY, int32_t 
 //
 //---------------------------------------------------------------------------
 
-void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double smoothRatio)
+void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double interpfrac)
 {
-	viewProcessSprites(tsprites, viewx, viewy, viewz, viewang, int(smoothRatio));
+	viewProcessSprites(tsprites, viewx, viewy, viewz, viewang, interpfrac);
 }
 
 int display_mirror;

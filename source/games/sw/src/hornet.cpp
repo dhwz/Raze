@@ -287,6 +287,12 @@ ACTOR_ACTION_SET HornetActionSet =
 int DoHornetMatchPlayerZ(DSWActor* actor);
 
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int SetupHornet(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
@@ -323,6 +329,12 @@ int SetupHornet(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int NullHornet(DSWActor* actor)
 {
     if (actor->user.Flags & (SPR_SLIDING))
@@ -333,6 +345,12 @@ int NullHornet(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 static const int HORNET_BOB_AMT = 16;
 
@@ -390,7 +408,7 @@ int DoHornetMatchPlayerZ(DSWActor* actor)
     actor->user.pos.Z = max(actor->user.pos.Z, hiz + actor->user.ceiling_dist);
 
     actor->user.Counter = (actor->user.Counter + (ACTORMOVETICS << 3) + (ACTORMOVETICS << 1)) & 2047;
-    actor->spr.pos.Z = actor->user.pos.Z + HORNET_BOB_AMT * DAngle::fromBuild(actor->user.Counter).Sin();
+    actor->spr.pos.Z = actor->user.pos.Z + HORNET_BOB_AMT * BobVal(actor->user.Counter);
 
     bound = actor->user.hiz + actor->user.ceiling_dist + HORNET_BOB_AMT;
     if (actor->spr.pos.Z < bound)
@@ -403,6 +421,12 @@ int DoHornetMatchPlayerZ(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int InitHornetCircle(DSWActor* actor)
 {
     actor->user.ActorActionFunc = DoHornetCircle;
@@ -413,9 +437,9 @@ int InitHornetCircle(DSWActor* actor)
     DoActorSetSpeed(actor, FAST_SPEED);
 
     // set to really fast
-    actor->spr.xvel = 400;
+    actor->vel.X = 25;
     // angle adjuster
-    actor->user.Counter2 = actor->spr.xvel/3;
+    actor->user.Counter2 = 400 / 3;
     // random angle direction
     if (RANDOM_P2(1024) < 512)
         actor->user.Counter2 = -actor->user.Counter2;
@@ -432,27 +456,27 @@ int InitHornetCircle(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int DoHornetCircle(DSWActor* actor)
 {
-    int nx,ny;
     double bound;
 
-    actor->set_int_ang(NORM_ANGLE(actor->int_ang() + actor->user.Counter2));
+    actor->spr.angle += DAngle::fromBuild(actor->user.Counter2);
 
-    nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14);
-    ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14);
-
-    if (!move_actor(actor, nx, ny, 0L))
+    if (!move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0)))
     {
         //ActorMoveHitReact(actor);
 
         // try moving in the opposite direction
         actor->user.Counter2 = -actor->user.Counter2;
         actor->spr.angle += DAngle180;
-        nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14);
-        ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14);
 
-        if (!move_actor(actor, nx, ny, 0))
+        if (!move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0)))
         {
             InitActorReposition(actor);
             return 0;
@@ -483,10 +507,14 @@ int DoHornetCircle(DSWActor* actor)
 }
 
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int DoHornetDeath(DSWActor* actor)
 {
-    int nx, ny;
-
     if (actor->user.Flags & (SPR_FALLING))
     {
         actor->user.loz = actor->user.zclip;
@@ -506,10 +534,9 @@ int DoHornetDeath(DSWActor* actor)
         DoActorSlide(actor);
 
     // slide while falling
-    nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14);
-    ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14);
+	auto vec = actor->spr.angle.ToVector() * actor->vel.X;
 
-    actor->user.coll = move_sprite(actor, nx, ny, 0L, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), 1, ACTORMOVETICS);
+    actor->user.coll = move_sprite(actor, DVector3(vec, 0), actor->user.ceiling_dist, actor->user.floor_dist, 1, ACTORMOVETICS);
 
     // on the ground
     if (actor->spr.pos.Z >= actor->user.loz)
@@ -524,10 +551,15 @@ int DoHornetDeath(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
 // Hornets can swarm around other hornets or whatever is tagged as swarm target
+//
+//---------------------------------------------------------------------------
+
 int DoCheckSwarm(DSWActor* actor)
 {
-    int dist, pdist, a,b,c;
+    double dist, pdist;
     PLAYER* pp;
 
     if (!MoveSkip8) return 0;     // Don't over check
@@ -540,7 +572,7 @@ int DoCheckSwarm(DSWActor* actor)
     if (actor->user.targetActor->user.PlayerP)
     {
         pp = actor->user.targetActor->user.PlayerP;
-        DISTANCE(actor->spr.pos, pp->pos, pdist, a, b, c);
+        pdist = (actor->spr.pos.XY() - pp->pos.XY()).LengthSquared();
     }
     else
         return 0;
@@ -553,7 +585,7 @@ int DoCheckSwarm(DSWActor* actor)
 
         if (itActor->spr.hitag != TAG_SWARMSPOT || itActor->spr.lotag != 2) continue;
 
-        DISTANCE(actor->spr.pos, itActor->spr.pos, dist, a, b, c);
+        dist = (actor->spr.pos.XY() - itActor->spr.pos.XY()).LengthSquared();
 
         if (dist < pdist && actor->user.ID == itActor->user.ID) // Only flock to your own kind
         {
@@ -564,6 +596,12 @@ int DoCheckSwarm(DSWActor* actor)
     return true;
 
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoHornetMove(DSWActor* actor)
 {
@@ -587,6 +625,12 @@ int DoHornetMove(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 
 #include "saveable.h"

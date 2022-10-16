@@ -274,8 +274,8 @@ void LifeLeechOperate(DBloodActor* actor, EVENT event)
 					if (nDist != 0 && cansee(actor->int_pos().X, actor->int_pos().Y, top, actor->sector(), x, y, z, target->sector()))
 					{
 						int t = DivScale(nDist, 0x1aaaaa, 12);
-						x += (target->vel.X * t) >> 12;
-						y += (target->vel.Y * t) >> 12;
+						x += (target->int_vel().X * t) >> 12;
+						y += (target->int_vel().Y * t) >> 12;
 						auto angBak = actor->spr.angle;
 						actor->spr.angle = VecToAngle(x - actor->int_pos().X, y - actor->int_pos().Y);
 						int dx = bcos(actor->int_ang());
@@ -841,21 +841,22 @@ void PathSound(sectortype* pSector, int nSound)
 
 void TranslateSector(sectortype* pSector, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, bool bAllWalls)
 {
-	int x, y;
 	XSECTOR* pXSector = &pSector->xs();
-	int v20 = interpolatedvalue(a6, a9, a2);
-	int vc = interpolatedvalue(a6, a9, a3);
+	int v20 = interpolatedvalue(a6, a9, a2 * (1. / MaxSmoothRatio));
+	int vc = interpolatedvalue(a6, a9, a3 * (1. / MaxSmoothRatio));
 	int v28 = vc - v20;
-	int v24 = interpolatedvalue(a7, a10, a2);
-	int v8 = interpolatedvalue(a7, a10, a3);
+	int v24 = interpolatedvalue(a7, a10, a2 * (1. / MaxSmoothRatio));
+	int v8 = interpolatedvalue(a7, a10, a3 * (1. / MaxSmoothRatio));
 	int v2c = v8 - v24;
-	int v44 = interpolatedvalue(a8, a11, a2);
-	int ang = interpolatedvalue(a8, a11, a3);
+	int v44 = interpolatedvalue(a8, a11, a2 * (1. / MaxSmoothRatio));
+	int ang = interpolatedvalue(a8, a11, a3 * (1. / MaxSmoothRatio));
 	int v14 = ang - v44;
 
 	DVector2 pivot = { a4 * inttoworld, a5 * inttoworld };
 	DVector2 offset = { (vc - a4) * inttoworld, (v8 - a5) * inttoworld };
+	DVector2 aoffset = { (vc) * inttoworld, (v8) * inttoworld };
 	auto angle = DAngle::fromBuild(ang);
+	auto angleofs = DAngle::fromBuild(v14);
 
 	auto rotatewall = [=](walltype* wal, DAngle angle, const DVector2& offset)
 	{
@@ -870,16 +871,7 @@ void TranslateSector(sectortype* pSector, int a2, int a3, int a4, int a5, int a6
 				wal->move(vec);
 			});
 	};
-
-
-#ifdef NOONE_EXTENSIONS
-	// fix Y arg in RotatePoint for reverse (green) moving sprites?
-	int sprDy = (gModernMap) ? a5 : a4;
-#else
-	int sprDy = a4;
-#endif
-
-
+	
 	if (bAllWalls)
 	{
 		for (auto& wal : wallsofsector(pSector))
@@ -914,6 +906,7 @@ void TranslateSector(sectortype* pSector, int a2, int a3, int a4, int a5, int a6
 			}
 		}
 	}
+	
 	BloodSectIterator it(pSector);
 	while (auto actor = it.Next())
 	{
@@ -929,23 +922,24 @@ void TranslateSector(sectortype* pSector, int a2, int a3, int a4, int a5, int a6
 			break;
 		}
 
-		x = int(actor->basePoint.X * worldtoint);
-		y = int(actor->basePoint.Y * worldtoint);
+		int x = int(actor->basePoint.X * worldtoint);
+		int y = int(actor->basePoint.Y * worldtoint);
 		if (actor->spr.cstat & CSTAT_SPRITE_MOVE_FORWARD)
 		{
-			if (ang)
-				RotatePoint(&x, &y, ang, a4, a5);
+			auto spot = rotatepoint(pivot, actor->basePoint, angle);
 			viewBackupSpriteLoc(actor);
-			actor->set_int_ang((actor->int_ang() + v14) & 2047);
-			actor->set_int_xy(x + vc - a4, y + v8 - a5);
+			actor->spr.pos.XY() = spot + aoffset - pivot;
+			actor->spr.angle += angleofs;
 		}
 		else if (actor->spr.cstat & CSTAT_SPRITE_MOVE_REVERSE)
 		{
-			if (ang)
-				RotatePoint((int*)&x, (int*)&y, -ang, a4, sprDy);
+			// fix Y arg in RotatePoint for reverse (green) moving sprites. (Original Blood bug?)
+			DVector2 pivotDy(pivot.X, gModernMap ? pivot.Y : pivot.X);
+
+			auto spot = rotatepoint(pivotDy, actor->basePoint, angle);
 			viewBackupSpriteLoc(actor);
-			actor->set_int_ang((actor->int_ang() - v14) & 2047);
-			actor->set_int_xy(x - vc + a4, y - v8 + a5);
+			actor->spr.pos.XY() = spot - aoffset + pivot;
+			actor->spr.angle += angleofs;
 		}
 		else if (pXSector->Drag)
 		{
@@ -955,13 +949,12 @@ void TranslateSector(sectortype* pSector, int a2, int a3, int a4, int a5, int a6
 			if (!(actor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) && floorZ <= bottom)
 			{
 				viewBackupSpriteLoc(actor);
-				if (v14)
+				if (angleofs != nullAngle)
 				{
-					auto pos = actor->int_pos();
-					RotatePoint(&pos.X, &pos.Y, v14, v20, v24);
-					actor->set_int_pos(pos);
+					DVector2 mypivot(v20 * inttoworld, v24 * inttoworld);
+					actor->spr.pos.XY() = rotatepoint(mypivot, actor->spr.pos.XY(), angleofs);
 				}
-				actor->set_int_ang((actor->int_ang() + v14) & 2047);
+				actor->spr.angle += angleofs;
 				actor->add_int_pos({ v28, v2c, 0 });
 			}
 		}
@@ -981,23 +974,19 @@ void TranslateSector(sectortype* pSector, int a2, int a3, int a4, int a5, int a6
 				if (ac == nullptr)
 					continue;
 
-				x = int(ac->basePoint.X * worldtoint);
-				y = int(ac->basePoint.Y * worldtoint);
 				if (ac->spr.cstat & CSTAT_SPRITE_MOVE_FORWARD)
 				{
-					if (ang)
-						RotatePoint(&x, &y, ang, a4, a5);
+					auto spot = rotatepoint(pivot, ac->basePoint, angle);
 					viewBackupSpriteLoc(ac);
-					ac->set_int_ang((ac->int_ang() + v14) & 2047);
-					ac->set_int_xy(x + vc - a4, y + v8 - a5);
+					ac->spr.pos.XY() = spot + aoffset - pivot;
+					ac->spr.angle += angleofs;
 				}
 				else if (ac->spr.cstat & CSTAT_SPRITE_MOVE_REVERSE)
 				{
-					if (ang)
-						RotatePoint(&x, &y, -ang, a4, sprDy);
+					auto spot = rotatepoint(pivot, ac->basePoint, angle);
 					viewBackupSpriteLoc(ac);
-					ac->set_int_ang((ac->int_ang() - v14) & 2047);
-					ac->set_int_xy(x + vc - a4, y + v8 - a5);
+					ac->spr.pos.XY() = spot - aoffset + pivot;
+					ac->spr.angle += angleofs;
 				}
 			}
 		}
@@ -1028,29 +1017,29 @@ void ZTranslateSector(sectortype* pSector, XSECTOR* pXSector, int a3, int a4)
 
 	if (dfz != 0)
 	{
-		int oldZ = pSector->int_floorz();
+		double old_Z = pSector->floorz;
 		pSector->set_int_floorz((pXSector->offFloorZ + MulScale(dfz, GetWaveValue(a3, a4), 16)));
 		pSector->baseFloor = pSector->floorz;
-		pSector->velFloor += (pSector->int_floorz() - oldZ) << 8;
+		pSector->velFloor += (pSector->floorz - old_Z);
 
 		BloodSectIterator it(pSector);
 		while (auto actor = it.Next())
 		{
 			if (actor->spr.statnum == kStatMarker || actor->spr.statnum == kStatPathMarker)
 				continue;
-			int top, bottom;
+			double top, bottom;
 			GetActorExtents(actor, &top, &bottom);
 			if (actor->spr.cstat & CSTAT_SPRITE_MOVE_FORWARD)
 			{
 				viewBackupSpriteLoc(actor);
-				actor->add_int_z(pSector->int_floorz() - oldZ);
+				actor->spr.pos.Z += pSector->floorz - old_Z;
 			}
 			else if (actor->spr.flags & 2)
 				actor->spr.flags |= 4;
-			else if (oldZ <= bottom && !(actor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK))
+			else if (old_Z <= bottom && !(actor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK))
 			{
 				viewBackupSpriteLoc(actor);
-				actor->add_int_z(pSector->int_floorz() - oldZ);
+				actor->spr.pos.Z += pSector->floorz - old_Z;
 			}
 		}
 
@@ -1065,7 +1054,7 @@ void ZTranslateSector(sectortype* pSector, XSECTOR* pXSector, int a3, int a4)
 				if (ac && (ac->spr.cstat & CSTAT_SPRITE_MOVE_FORWARD))
 				{
 					viewBackupSpriteLoc(ac);
-					ac->add_int_z(pSector->int_floorz() - oldZ);
+					ac->spr.pos.Z += pSector->floorz - old_Z;
 				}
 			}
 		}
@@ -1076,10 +1065,10 @@ void ZTranslateSector(sectortype* pSector, XSECTOR* pXSector, int a3, int a4)
 
 	if (dcz != 0)
 	{
-		int oldZ = pSector->int_ceilingz();
+		double old_Z = pSector->ceilingz;
 		pSector->set_int_ceilingz((pXSector->offCeilZ + MulScale(dcz, GetWaveValue(a3, a4), 16)));
 		pSector->baseCeil = pSector->ceilingz;
-		pSector->velCeil += (pSector->int_ceilingz() - oldZ) << 8;
+		pSector->velCeil += pSector->ceilingz - old_Z;
 
 		BloodSectIterator it(pSector);
 		while (auto actor = it.Next())
@@ -1089,7 +1078,7 @@ void ZTranslateSector(sectortype* pSector, XSECTOR* pXSector, int a3, int a4)
 			if (actor->spr.cstat & CSTAT_SPRITE_MOVE_REVERSE)
 			{
 				viewBackupSpriteLoc(actor);
-				actor->add_int_z(pSector->int_ceilingz() - oldZ);
+				actor->spr.pos.Z += pSector->ceilingz - old_Z;
 			}
 		}
 
@@ -1104,7 +1093,7 @@ void ZTranslateSector(sectortype* pSector, XSECTOR* pXSector, int a3, int a4)
 				if (ac && (ac->spr.cstat & CSTAT_SPRITE_MOVE_REVERSE))
 				{
 					viewBackupSpriteLoc(ac);
-					ac->add_int_z(pSector->int_ceilingz() - oldZ);
+					ac->spr.pos.Z += pSector->ceilingz - old_Z;
 				}
 			}
 		}

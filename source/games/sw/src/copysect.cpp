@@ -40,6 +40,12 @@ BEGIN_SW_NS
 
 extern DAngle GlobSpeedSO;
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 void CopySectorWalls(sectortype* dest_sect, sectortype* src_sect)
 {
     SECTOR_OBJECT* sop;
@@ -103,6 +109,12 @@ void CopySectorWalls(sectortype* dest_sect, sectortype* src_sect)
             }
     }
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 void CopySectorMatch(int match)
 {
@@ -187,7 +199,7 @@ void CopySectorMatch(int match)
                             // update sprites postions so they aren't in the
                             // wrong place for one frame
                             GlobSpeedSO = nullAngle;
-                            RefreshPoints(sop, 0, 0, true);
+                            RefreshPoints(sop, DVector2(0, 0), true);
                         }
                     }
                 }
@@ -197,7 +209,7 @@ void CopySectorMatch(int match)
                 dsectp->flags        = ssectp->flags;
                 dsectp->depth_fixed  = ssectp->depth_fixed;
                 dsectp->stag         = ssectp->stag;
-                dsectp->ang          = ssectp->ang;
+                dsectp->angle        = ssectp->angle;
                 dsectp->height       = ssectp->height;
                 dsectp->speed        = ssectp->speed;
                 dsectp->damage       = ssectp->damage;

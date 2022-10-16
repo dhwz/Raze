@@ -31,20 +31,20 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_BLD_NS
 
-void GameInterface::WarpToCoords(int x, int y, int z, int ang, int horz)
+void GameInterface::WarpToCoords(double x, double y, double z, DAngle ang, int horz)
 {
 	PLAYER* pPlayer = &gPlayer[myconnectindex];
 	VIEW* pView = &gPrevView[myconnectindex];
 
+	gView->actor->spr.pos.XY() = { x , y };
 	pPlayer->actor->spr.pos.XY() = gView->actor->spr.pos.XY();
-	pView->x = gView->actor->int_pos().X;
-	pView->y = gView->actor->int_pos().Y;
+	pView->pos.XY() = gView->actor->spr.pos.XY();
 	pPlayer->zView = pView->viewz = gView->zView = z;
 
-	if (ang != INT_MIN)
+	if (ang != DAngle::fromDeg(INT_MIN))
 	{
-		pPlayer->angle.oang = pPlayer->angle.ang = gView->angle.ang = DAngle::fromBuild(ang);
-		pView->angle = DAngle::fromBuild(ang);
+		pPlayer->angle.oang = pPlayer->angle.ang = gView->angle.ang = ang;
+		pView->angle = ang;
 	}
 
 	if (horz != INT_MIN)
@@ -57,9 +57,15 @@ void GameInterface::ToggleThirdPerson()
 {
 	if (gamestate != GS_LEVEL) return;
 	if (gViewPos > VIEWPOS_0)
+	{
 		gViewPos = VIEWPOS_0;
+	}
 	else
+	{
 		gViewPos = VIEWPOS_1;
+		cameradist = 0;
+		cameraclock = INT_MIN;
+	}
 }
 
 void GameInterface::SwitchCoopView()

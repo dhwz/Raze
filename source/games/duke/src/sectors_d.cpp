@@ -681,8 +681,7 @@ void checkhitwall_d(DDukeActor* spr, walltype* wal, const DVector3& pos, int atw
 					if (spawned)
 					{
 						spawned->spr.cstat |= CSTAT_SPRITE_TRANSLUCENT | CSTAT_SPRITE_ALIGNMENT_WALL | CSTAT_SPRITE_YCENTER;
-						auto delta = wal->delta();
-						spawned->set_int_ang(getangle(-delta.X, -delta.Y) - 512);
+						spawned->set_int_ang(getangle(-wal->delta()) - 512);
 
 						S_PlayActorSound(SOMETHINGHITFORCE, spawned);
 					}
@@ -867,7 +866,7 @@ void checkhitwall_d(DDukeActor* spr, walltype* wal, const DVector3& pos, int atw
 		DukeStatIterator it(STAT_EFFECTOR);
 		while (auto effector = it.Next())
 		{
-			if (effector->spr.hitag == wal->lotag && effector->spr.lotag == 3)
+			if (effector->spr.hitag == wal->lotag && effector->spr.lotag == SE_3_RANDOM_LIGHTS_AFTER_SHOT_OUT)
 			{
 				effector->temp_data[2] = j;
 				effector->temp_data[3] = darkestwall;
@@ -921,12 +920,12 @@ void checkplayerhurt_d(player_struct* p, const Collision& coll)
 		p->vel.Y = -p->angle.ang.Sin() * (1 << 22);
 		S_PlayActorSound(DUKE_LONGTERM_PAIN, p->GetActor());
 
-		fi.checkhitwall(p->GetActor(), wal, p->pos + DVector2(p->angle.ang.Cos() * 2, p->angle.ang.Sin() * 2), -1);
+		fi.checkhitwall(p->GetActor(), wal, p->pos + p->angle.ang.ToVector() * 2, -1);
 		break;
 
 	case BIGFORCE:
 		p->hurt_delay = 26;
-		fi.checkhitwall(p->GetActor(), wal, p->pos + DVector2(p->angle.ang.Cos() * 2, p->angle.ang.Sin() * 2), -1);
+		fi.checkhitwall(p->GetActor(), wal, p->pos + p->angle.ang.ToVector() * 2, -1);
 		break;
 
 	}
@@ -978,7 +977,7 @@ bool checkhitceiling_d(sectortype* sectp)
 			DukeSectIterator it(sectp);
 			while (auto act = it.Next())
 			{
-				if (act->spr.picnum == SECTOREFFECTOR && act->spr.lotag == 12)
+				if (act->spr.picnum == SECTOREFFECTOR && act->spr.lotag == SE_12_LIGHT_SWITCH)
 				{
 					DukeStatIterator it1(STAT_EFFECTOR);
 					while (auto act2 = it1.Next())
@@ -1041,7 +1040,7 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 	case STRIPEBALL:
 		if (proj->spr.picnum == QUEBALL || proj->spr.picnum == STRIPEBALL)
 		{
-			proj->spr.xvel = (targ->spr.xvel >> 1) + (targ->spr.xvel >> 2);
+			proj->set_int_xvel((targ->int_xvel() >> 1) + (targ->int_xvel() >> 2));
 			proj->add_int_ang(-((targ->int_ang() << 1) + 1024));
 			targ->set_int_ang(getangle(targ->int_pos().X - proj->int_pos().X, targ->int_pos().Y - proj->int_pos().Y) - 512);
 			if (S_CheckSoundPlaying(POOLBALLHIT) < 2)
@@ -1051,7 +1050,7 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 		{
 			if (krand() & 3)
 			{
-				targ->spr.xvel = 164;
+				targ->set_int_xvel(164);
 				targ->spr.angle = proj->spr.angle;
 			}
 			else
@@ -1082,7 +1081,7 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 		{
 			for (k = 0; k < 64; k++)
 			{
-				auto spawned = EGS(targ->sector(), targ->int_pos().X, targ->int_pos().Y, targ->int_pos().Z - (krand() % (48 << 8)), SCRAP3 + (krand() & 3), -8, 48, 48, krand() & 2047, (krand() & 63) + 64, -(krand() & 4095) - (targ->spr.zvel >> 2), targ, 5);
+				auto spawned = EGS(targ->sector(), targ->int_pos().X, targ->int_pos().Y, targ->int_pos().Z - (krand() % (48 << 8)), SCRAP3 + (krand() & 3), -8, 48, 48, krand() & 2047, (krand() & 63) + 64, -(krand() & 4095) - (targ->int_zvel() >> 2), targ, 5);
 				spawned->spr.pal = 8;
 			}
 
@@ -1095,7 +1094,7 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 	case HANGLIGHT:
 	case GENERICPOLE2:
 		for (k = 0; k < 6; k++)
-			EGS(targ->sector(), targ->int_pos().X, targ->int_pos().Y, targ->int_pos().Z - (8 << 8), SCRAP1 + (krand() & 15), -8, 48, 48, krand() & 2047, (krand() & 63) + 64, -(krand() & 4095) - (targ->spr.zvel >> 2), targ, 5);
+			EGS(targ->sector(), targ->int_pos().X, targ->int_pos().Y, targ->int_pos().Z - (8 << 8), SCRAP1 + (krand() & 15), -8, 48, 48, krand() & 2047, (krand() & 63) + 64, -(krand() & 4095) - (targ->int_zvel() >> 2), targ, 5);
 		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
 		deletesprite(targ);
 		break;
@@ -1368,7 +1367,7 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 								if (proj->spr.pal == 6)
 									spawned->spr.pal = 6;
 								spawned->spr.pos.Z += 4;
-								spawned->spr.xvel = 16;
+								spawned->vel.X = 1;
 								spawned->spr.xrepeat = spawned->spr.yrepeat = 24;
 								spawned->add_int_ang(32 - (krand() & 63));
 							}
@@ -1389,7 +1388,7 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 				{
 					if ((targ->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) == 0)
 						targ->set_int_ang((proj->int_ang() + 1024) & 2047);
-					targ->spr.xvel = -(proj->spr.extra << 2);
+					targ->set_int_xvel(-(proj->spr.extra << 2));
 					auto sp = targ->sector();
 					pushmove(targ, &sp, 128L, (4 << 8), (4 << 8), CLIPMASK0);
 					if (sp != targ->sector() && sp != nullptr)
@@ -1430,7 +1429,7 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 
 			if (targ->spr.statnum == 10)
 			{
-				p = targ->spr.yvel;
+				p = targ->spr.yint;
 				if (ps[p].newOwner != nullptr)
 				{
 					ps[p].newOwner = nullptr;
@@ -1442,7 +1441,7 @@ void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
 					DukeStatIterator it(STAT_ACTOR);
 					while (auto itActor = it.Next())
 					{
-						if (actorflag(itActor, SFLAG2_CAMERA)) itActor->spr.yvel = 0;
+						if (actorflag(itActor, SFLAG2_CAMERA)) itActor->spr.yint = 0;
 					}
 				}
 
@@ -1478,7 +1477,7 @@ void clearcameras(int i, player_struct* p)
 		DukeStatIterator it(STAT_ACTOR);
 		while (auto act = it.Next())
 		{
-			if (actorflag(act, SFLAG2_CAMERA)) act->spr.yvel = 0;
+			if (actorflag(act, SFLAG2_CAMERA)) act->spr.yint = 0;
 		}
 	}
 	else if (p->newOwner != nullptr)
@@ -1708,13 +1707,13 @@ void checksectors_d(int snum)
 				DukeStatIterator it(STAT_ACTOR);
 				while (auto acti = it.Next())
 				{
-					if (actorflag(acti, SFLAG2_CAMERA) && acti->spr.yvel == 0 && neartagsprite->spr.hitag == acti->spr.lotag)
+					if (actorflag(acti, SFLAG2_CAMERA) && acti->spr.yint == 0 && neartagsprite->spr.hitag == acti->spr.lotag)
 					{
-						acti->spr.yvel = 1; //Using this camera
+						acti->spr.yint = 1; //Using this camera
 						if (snum == screenpeek) S_PlaySound(MONITOR_ACTIVE);
 
 						neartagsprite->SetOwner(acti);
-						neartagsprite->spr.yvel = 1;
+						neartagsprite->spr.yint = 1;
 						camsprite = neartagsprite;
 
 						p->newOwner = acti;

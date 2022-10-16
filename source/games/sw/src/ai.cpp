@@ -41,32 +41,18 @@ Prepared for public release: 03/28/2005 - Charlie Wiederhold, 3D Realms
 BEGIN_SW_NS
 
 ANIMATOR InitActorRunToward;
-bool DropAhead(DSWActor* actor, int  min_height);
+bool DropAhead(DSWActor* actor, double min_height);
 
 ANIMATOR* ChooseAction(DECISION decision[]);
 
 
 #define CHOOSE2(value) (RANDOM_P2(1024) < (value))
 
-int Distance(int x1, int y1, int x2, int y2)
-{
-    int min;
-
-    if ((x2 = x2 - x1) < 0)
-        x2 = -x2;
-
-    if ((y2 = y2 - y1) < 0)
-        y2 = -y2;
-
-    if (x2 > y2)
-        min = y2;
-    else
-        min = x2;
-
-    return x2 + y2 - (min >> 1);
-}
-
-
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 bool ActorMoveHitReact(DSWActor* actor)
 {
@@ -92,22 +78,29 @@ bool ActorMoveHitReact(DSWActor* actor)
     return false;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 bool ActorFlaming(DSWActor* actor)
 {
     auto flame = actor->user.flameActor;
     if (flame != nullptr)
     {
-        int size;
-
-        size = int_ActorSizeZ(actor) - (int_ActorSizeZ(actor) >> 2);
-
-        if (int_ActorSizeZ(flame) > size)
+        if (ActorSizeZ(flame) > ActorSizeZ(actor) * 0.75)
             return true;
     }
 
     return false;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 void DoActorSetSpeed(DSWActor* actor, uint8_t speed)
 {
@@ -118,17 +111,22 @@ void DoActorSetSpeed(DSWActor* actor, uint8_t speed)
 
     actor->user.speed = speed;
 
+    int vel;
     if (ActorFlaming(actor))
-        actor->spr.xvel = actor->user.Attrib->Speed[speed] + (actor->user.Attrib->Speed[speed] >> 1);
+        vel = actor->user.Attrib->Speed[speed] + (actor->user.Attrib->Speed[speed] >> 1);
     else
-        actor->spr.xvel = actor->user.Attrib->Speed[speed];
+        vel = actor->user.Attrib->Speed[speed];
+
+    actor->vel.X = vel * maptoworld;
 }
 
+//---------------------------------------------------------------------------
 /*
   !AIC - Does a table lookup based on a random value from 0 to 1023.
   These tables are defined at the top of all actor files such as ninja.c,
   goro.c etc.
 */
+//---------------------------------------------------------------------------
 
 ANIMATOR* ChooseAction(DECISION decision[])
 {
@@ -146,9 +144,11 @@ ANIMATOR* ChooseAction(DECISION decision[])
     }
 }
 
+//---------------------------------------------------------------------------
 /*
   !AIC - Sometimes just want the offset of the action
 */
+//---------------------------------------------------------------------------
 
 int ChooseActionNumber(int16_t decision[])
 {
@@ -162,6 +162,12 @@ int ChooseActionNumber(int16_t decision[])
         }
     }
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoActorNoise(ANIMATOR* Action, DSWActor* actor)
 {
@@ -214,10 +220,22 @@ int DoActorNoise(ANIMATOR* Action, DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 bool CanSeePlayer(DSWActor* actor)
 {
     return actor->user.targetActor && FAFcansee(ActorVectOfTop(actor), actor->sector(), ActorUpperVect(actor->user.targetActor), actor->user.targetActor->sector());
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int CanHitPlayer(DSWActor* actor)
 {
@@ -241,18 +259,22 @@ int CanHitPlayer(DSWActor* actor)
     return false;
 }
 
+//---------------------------------------------------------------------------
 /*
   !AIC - Pick a nearby player to be the actors target
 */
+//---------------------------------------------------------------------------
 
 int DoActorPickClosePlayer(DSWActor* actor)
 {
-    int dist, near_dist = MAX_ACTIVE_RANGE, a,b,c;
     int pnum;
     PLAYER* pp;
     // if actor can still see the player
     bool found = false;
     int i;
+
+    double near_dist = MAX_ACTIVE_RANGE;
+    double dist;
 
     if (actor->user.ID == ZOMBIE_RUN_R0 && gNet.MultiGameType == MULTI_GAME_COOPERATIVE)
         goto TARGETACTOR;
@@ -276,7 +298,6 @@ int DoActorPickClosePlayer(DSWActor* actor)
 
 
     // Set initial target to the closest player
-    near_dist = MAX_ACTIVE_RANGE;
     TRAVERSE_CONNECT(pnum)
     {
         pp = &Player[pnum];
@@ -295,7 +316,7 @@ int DoActorPickClosePlayer(DSWActor* actor)
             //    continue;
         }
 
-        DISTANCE(actor->spr.pos, pp->pos, dist, a, b, c);
+        dist = (actor->spr.pos - pp->pos).Length();
 
         if (dist < near_dist)
         {
@@ -321,7 +342,7 @@ int DoActorPickClosePlayer(DSWActor* actor)
                 continue;
         }
 
-        DISTANCE(actor->spr.pos, pp->pos, dist, a, b, c);
+        dist = (actor->spr.pos - pp->pos).Length();
 
         DSWActor* plActor = pp->actor;
 
@@ -349,7 +370,7 @@ TARGETACTOR:
             if ((itActor->user.Flags & (SPR_SUICIDE | SPR_DEAD)))
                 continue;
 
-            DISTANCE(actor->spr.pos, itActor->spr.pos, dist, a, b, c);
+            dist = (actor->spr.pos - itActor->spr.pos).Length();
 
             if (dist < near_dist && FAFcansee(ActorVectOfTop(actor), actor->sector(), ActorUpperVect(itActor), itActor->sector()))
             {
@@ -361,6 +382,12 @@ TARGETACTOR:
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 DSWActor* GetPlayerSpriteNum(DSWActor* actor)
 {
@@ -379,6 +406,12 @@ DSWActor* GetPlayerSpriteNum(DSWActor* actor)
     return nullptr;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int CloseRangeDist(DSWActor* actor1, DSWActor* actor2)
 {
     int clip1 = actor1->spr.clipdist;
@@ -389,6 +422,17 @@ int CloseRangeDist(DSWActor* actor1, DSWActor* actor2)
 
     return (clip1 << 2) + (clip2 << 2) + DIST_CLOSE_RANGE;
 }
+
+double CloseRangeDistF(DSWActor* actor1, DSWActor* actor2)
+{
+    return CloseRangeDist(actor1, actor2) * inttoworld;
+}
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoActorOperate(DSWActor* actor)
 {
@@ -427,6 +471,12 @@ int DoActorOperate(DSWActor* actor)
 
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 DECISION GenericFlaming[] =
 {
     {30, InitActorAttack},
@@ -447,7 +497,6 @@ DECISION GenericFlaming[] =
 
 ANIMATOR* DoActorActionDecide(DSWActor* actor)
 {
-    int dist;
     ANIMATOR* action;
     bool ICanSee=false;
 
@@ -490,9 +539,9 @@ ANIMATOR* DoActorActionDecide(DSWActor* actor)
         DoActorOperate(actor);
 
         // if far enough away and cannot see the player
-        dist = DistanceI(actor->spr.pos, actor->user.targetActor->spr.pos);
+        double dist = (actor->spr.pos.XY() - actor->user.targetActor->spr.pos.XY()).Length();
 
-        if (dist > 30000 && !ICanSee)
+        if (dist > 1875 && !ICanSee)
         {
             // Enemy goes inactive - he is still allowed to roam about for about
             // 5 seconds trying to find another player before his active_range is
@@ -508,7 +557,7 @@ ANIMATOR* DoActorActionDecide(DSWActor* actor)
 
         auto pActor = GetPlayerSpriteNum(actor);
         // check for short range attack possibility
-        if ((dist < CloseRangeDist(actor, actor->user.targetActor) && ICanSee) ||
+        if ((dist < CloseRangeDistF(actor, actor->user.targetActor) && ICanSee) ||
             (pActor && pActor->hasU() && pActor->user.WeaponNum == WPN_FIST && actor->user.ID != RIPPER2_RUN_R0 && actor->user.ID != RIPPER_RUN_R0))
         {
             if ((actor->user.ID == COOLG_RUN_R0 && (actor->spr.cstat & CSTAT_SPRITE_TRANSLUCENT)) || (actor->spr.cstat & CSTAT_SPRITE_INVISIBLE))
@@ -581,10 +630,10 @@ ANIMATOR* DoActorActionDecide(DSWActor* actor)
             DoActorPickClosePlayer(actor);
 
         // if close by
-		dist = DistanceI(actor->spr.pos, actor->user.targetActor->spr.pos);
-        if (dist < 15000 || ICanSee)
+		double const dist = (actor->spr.pos.XY() - actor->user.targetActor->spr.pos.XY()).Length();
+        if (dist < 937.5 || ICanSee)
         {
-            if ((Facing(actor, actor->user.targetActor) && dist < 10000) || ICanSee)
+            if ((Facing(actor, actor->user.targetActor) && dist < 625) || ICanSee)
             {
                 DoActorOperate(actor);
 
@@ -614,16 +663,23 @@ ANIMATOR* DoActorActionDecide(DSWActor* actor)
     return action;
 }
 
-/*
-  !AIC - Setup to do the decision
-*/
-
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int InitActorDecide(DSWActor* actor)
 {
     actor->user.ActorActionFunc = DoActorDecide;
     return DoActorDecide(actor);
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoActorDecide(DSWActor* actor)
 {
@@ -675,6 +731,12 @@ int DoActorDecide(DSWActor* actor)
 // Assigning 'sw_snd_scratch' different values makes them different so that merging does not occur.
 int sw_snd_scratch = 0;
 
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int InitActorAlertNoise(DSWActor* actor)
 {
@@ -766,9 +828,11 @@ int InitActorExtra6Noise(DSWActor* actor)
 }
 
 
+//---------------------------------------------------------------------------
 /*
   !AIC KEY - Routines handle moving toward the player.
 */
+//---------------------------------------------------------------------------
 
 int InitActorMoveCloser(DSWActor* actor)
 {
@@ -781,6 +845,12 @@ int InitActorMoveCloser(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoActorCantMoveCloser(DSWActor* actor)
 {
@@ -805,15 +875,16 @@ int DoActorCantMoveCloser(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int DoActorMoveCloser(DSWActor* actor)
 {
-    int nx, ny;
-
-    nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14);
-    ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14);
-
     // if cannot move the sprite
-    if (!move_actor(actor, nx, ny, 0))
+    if (!move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0)))
     {
         if (ActorMoveHitReact(actor))
             return 0;
@@ -826,7 +897,7 @@ int DoActorMoveCloser(DSWActor* actor)
     DoActorNoise(ChooseAction(actor->user.Personality->Broadcast), actor);
 
     // after moving a ways check to see if player is still in sight
-    if (actor->user.DistCheck > 550)
+    if (actor->user.DistCheck > 34.375)
     {
         actor->user.DistCheck = 0;
 
@@ -845,7 +916,7 @@ int DoActorMoveCloser(DSWActor* actor)
     }
 
     // Should be a random value test
-    if (actor->user.Dist > 512 * 3)
+    if (actor->user.Dist > 32 * 3)
     {
         InitActorDecide(actor);
     }
@@ -854,10 +925,11 @@ int DoActorMoveCloser(DSWActor* actor)
 
 }
 
+//---------------------------------------------------------------------------
 /*
   !AIC - Find tracks of different types.  Toward target, away from target, etc.
 */
-
+//---------------------------------------------------------------------------
 
 int FindTrackToPlayer(DSWActor* actor)
 {
@@ -935,7 +1007,11 @@ int FindTrackToPlayer(DSWActor* actor)
 
 }
 
-
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int FindTrackAwayFromPlayer(DSWActor* actor)
 {
@@ -974,6 +1050,11 @@ int FindTrackAwayFromPlayer(DSWActor* actor)
 
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int FindWanderTrack(DSWActor* actor)
 {
@@ -1011,6 +1092,11 @@ int FindWanderTrack(DSWActor* actor)
     return -1;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int InitActorRunAway(DSWActor* actor)
 {
@@ -1035,6 +1121,12 @@ int InitActorRunAway(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int InitActorRunToward(DSWActor* actor)
 {
     actor->user.ActorActionFunc = DoActorDecide;
@@ -1046,12 +1138,13 @@ int InitActorRunToward(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
 /*
   !AIC - Where actors do their attacks.  There is some special case code throughout
   these.  Both close and long range attacks are handled here by transitioning to
   the correct attack state.
 */
-
+//---------------------------------------------------------------------------
 
 int InitActorAttack(DSWActor* actor)
 {
@@ -1114,9 +1207,7 @@ int InitActorAttack(DSWActor* actor)
     // Hari Kari for Ninja's
     if (actor->user.ActorActionSet->Death2)
     {
-        //#define SUICIDE_HEALTH_VALUE 26
-#define SUICIDE_HEALTH_VALUE 38
-        //#define SUICIDE_HEALTH_VALUE 50
+        const int SUICIDE_HEALTH_VALUE = 38;
 
         if (actor->user.Health < SUICIDE_HEALTH_VALUE)
         {
@@ -1135,18 +1226,22 @@ int InitActorAttack(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoActorAttack(DSWActor* actor)
 {
     int rand_num;
-    int dist,a,b,c;
 
     DoActorNoise(ChooseAction(actor->user.Personality->Broadcast),actor);
 
-    DISTANCE(actor->spr.pos, actor->user.targetActor->spr.pos, dist, a, b, c);
+    double dist =(actor->spr.pos.XY() - actor->user.targetActor->spr.pos.XY()).Length();
 
     auto pActor = GetPlayerSpriteNum(actor);
-    if ((actor->user.ActorActionSet->CloseAttack[0] && dist < CloseRangeDist(actor, actor->user.targetActor)) ||
+    if ((actor->user.ActorActionSet->CloseAttack[0] && dist < CloseRangeDistF(actor, actor->user.targetActor)) ||
         (pActor && pActor->hasU() && pActor->user.WeaponNum == WPN_FIST))      // JBF: added null check
     {
         rand_num = ChooseActionNumber(actor->user.ActorActionSet->CloseAttackPercent);
@@ -1170,6 +1265,12 @@ int DoActorAttack(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int InitActorEvade(DSWActor* actor)
 {
     // Evade is same thing as run away except when you get to the end of the track
@@ -1192,6 +1293,12 @@ int InitActorEvade(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int InitActorWanderAround(DSWActor* actor)
 {
     actor->user.ActorActionFunc = DoActorDecide;
@@ -1210,6 +1317,12 @@ int InitActorWanderAround(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int InitActorFindPlayer(DSWActor* actor)
 {
@@ -1232,15 +1345,17 @@ int InitActorFindPlayer(DSWActor* actor)
     {
         InitActorReposition(actor);
     }
-
-
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int InitActorDuck(DSWActor* actor)
 {
-    int dist;
-
     if (!actor->user.ActorActionSet->Duck)
     {
         actor->user.ActorActionFunc = DoActorDecide;
@@ -1250,9 +1365,9 @@ int InitActorDuck(DSWActor* actor)
     actor->user.ActorActionFunc = DoActorDuck;
     NewStateGroup(actor, actor->user.ActorActionSet->Duck);
 
-	dist = DistanceI(actor->spr.pos, actor->user.targetActor->spr.pos);
+	double dist = (actor->spr.pos.XY(), actor->user.targetActor->spr.pos.XY()).LengthSquared();
 
-    if (dist > 8000)
+    if (dist > 500*500)
     {
         actor->user.WaitTics = 190;
     }
@@ -1268,6 +1383,12 @@ int InitActorDuck(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int DoActorDuck(DSWActor* actor)
 {
     if ((actor->user.WaitTics -= ACTORMOVETICS) < 0)
@@ -1280,16 +1401,15 @@ int DoActorDuck(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int DoActorMoveJump(DSWActor* actor)
 {
-    int nx, ny;
-
-    // Move while jumping
-
-    nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14);
-    ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14);
-
-    move_actor(actor, nx, ny, 0L);
+	move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0));
 
     if (!(actor->user.Flags & (SPR_JUMPING|SPR_FALLING)))
     {
@@ -1299,10 +1419,14 @@ int DoActorMoveJump(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
-Collision move_scan(DSWActor* actor, int ang, int dist, int *stopx, int *stopy, int *stopz)
+Collision move_scan(DSWActor* actor, DAngle ang, double dst, DVector3& stop)
 {
-    int nx,ny;
     uint32_t cliptype = CLIPMASK_ACTOR;
 
     DSWActor* highActor;
@@ -1324,19 +1448,16 @@ Collision move_scan(DSWActor* actor, int ang, int dist, int *stopx, int *stopy, 
     ssp = actor->sector();
 
     // do the move
-    actor->set_int_ang(ang);
-    nx = MulScale(dist, bcos(actor->int_ang()), 14);
-    ny = MulScale(dist, bsin(actor->int_ang()), 14);
+    actor->spr.angle = ang;
+	auto vec = ang.ToVector() * dst;
 
-    Collision ret = move_sprite(actor, nx, ny, 0, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), cliptype, 1);
+    Collision ret = move_sprite(actor, DVector3(vec, 0), actor->user.ceiling_dist, actor->user.floor_dist, cliptype, 1);
     // move_sprite DOES do a getzrange point?
 
     // should I look down with a FAFgetzrange to see where I am?
 
     // remember where it stopped
-    *stopx = actor->int_pos().X;
-    *stopy = actor->int_pos().Y;
-    *stopz = actor->int_pos().Z;
+    stop = actor->spr.pos;
 
     // reset position information
 	actor->spr.pos = pos;
@@ -1352,13 +1473,19 @@ Collision move_scan(DSWActor* actor, int ang, int dist, int *stopx, int *stopy, 
     return ret;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 enum
 {
     TOWARD = 1,
     AWAY = -1
 };
 
-int FindNewAngle(DSWActor* actor, int dir, int DistToMove)
+DAngle FindNewAngle(DSWActor* actor, int dir, double DistToMove)
 {
     static const int16_t toward_angle_delta[4][9] =
     {
@@ -1379,20 +1506,20 @@ int FindNewAngle(DSWActor* actor, int dir, int DistToMove)
 
     const int16_t* adp = nullptr;
 
-    int new_ang, oang;
-    int save_ang = -1;
+    DAngle new_ang;
+    DAngle save_ang = -minAngle;
+    bool save_set = false;
+    
     int set;
-
-    int dist, stopx, stopy, stopz;
     // start out with mininum distance that will be accepted as a move
-    int save_dist = 500;
+    double save_dist = 31.25;
 
     // if on fire, run shorter distances
     if (ActorFlaming(actor))
-        DistToMove = (DistToMove >> 2) + (DistToMove >> 3);
+        DistToMove *= .375;
 
     // Find angle to from the player
-    oang = NORM_ANGLE(getangle(actor->user.targetActor->spr.pos - actor->spr.pos));
+    auto oang = VecToAngle(actor->user.targetActor->spr.pos - actor->spr.pos);
 
     // choose a random angle array
     switch (dir)
@@ -1414,50 +1541,53 @@ int FindNewAngle(DSWActor* actor, int dir, int DistToMove)
         break;
     default:
         Printf("FindNewAngle called with dir=%d!\n",dir);
-        return 0;
+        return nullAngle;
     }
 
     for (; *adp != -99; adp++)
     {
-        new_ang = NORM_ANGLE(oang + *adp);
+        new_ang = oang + DAngle::fromBuild(* adp);
 
 #if 1
         // look directly ahead for a ledge
         if (!(actor->user.Flags & (SPR_NO_SCAREDZ | SPR_JUMPING | SPR_FALLING | SPR_SWIMMING | SPR_DEAD)))
         {
-            actor->set_int_ang(new_ang);
+            actor->spr.angle = new_ang;
             if (DropAhead(actor, actor->user.lo_step))
             {
-                actor->set_int_ang(oang);
+                actor->spr.angle = oang;
                 continue;
             }
-            actor->set_int_ang(oang);
+            actor->spr.angle = oang;
         }
 #endif
 
+        DVector3 stop;
+
         // check to see how far we can move
-        auto ret = move_scan(actor, new_ang, DistToMove, &stopx, &stopy, &stopz);
+        auto ret = move_scan(actor, new_ang, DistToMove, stop);
+        double dist = (actor->spr.pos.XY() - stop.XY()).Length();
 
         if (ret.type == kHitNone)
         {
             // cleanly moved in new direction without hitting something
-            actor->user.TargetDist = Distance(actor->int_pos().X, actor->int_pos().Y, stopx, stopy);
+            actor->user.TargetDist = dist;
             return new_ang;
         }
         else
         {
             // hit something
-            dist = Distance(actor->int_pos().X, actor->int_pos().Y, stopx, stopy);
 
             if (dist > save_dist)
             {
                 save_ang = new_ang;
+                save_set = true;
                 save_dist = dist;
             }
         }
     }
 
-    if (save_ang != -1)
+    if (save_set)
     {
         actor->user.TargetDist = save_dist;
 
@@ -1467,19 +1597,19 @@ int FindNewAngle(DSWActor* actor, int dir, int DistToMove)
         // To keep this from happening make the TargetDist is less than the
         // point you would hit something
 
-        if (actor->user.TargetDist > 4000)
-            actor->user.TargetDist -= 3500;
+        if (actor->user.TargetDist > 250)
+            actor->user.TargetDist -= 218.75;
 
-        actor->set_int_ang(save_ang);
+        actor->spr.angle = save_ang;
         return save_ang;
     }
 
-    return -1;
+    return -minAngle;
 }
 
 
+//---------------------------------------------------------------------------
 /*
-
   !AIC KEY - Reposition code is called throughout this file.  What this does is
   pick a new direction close to the target direction (or away from the target
   direction if running away) and a distance to move in and tries to move there
@@ -1488,68 +1618,68 @@ int FindNewAngle(DSWActor* actor, int dir, int DistToMove)
   Location variables that are changed are saved and reset.  FindNewAngle() and
   move_scan() are two routines (above) that go with this.  This is definately
   not called every time through the loop.  It would be majorly slow.
-
 */
+//---------------------------------------------------------------------------
 
 int InitActorReposition(DSWActor* actor)
 {
-    int ang;
+    DAngle ang;
     int rnum;
-    int dist;
+    double dist;
 
-    static const int AwayDist[8] =
+    static const int16_t AwayDist[8] =
     {
-        17000,
-        20000,
-        26000,
-        26000,
-        26000,
-        32000,
-        32000,
-        42000
+        17000 / 16,
+        20000 / 16,
+        26000 / 16,
+        26000 / 16,
+        26000 / 16,
+        32000 / 16,
+        32000 / 16,
+        42000 / 16
     };
 
-    static const int TowardDist[8] =
+    static const int16_t TowardDist[8] =
     {
-        10000,
-        15000,
-        20000,
-        20000,
-        25000,
-        30000,
-        35000,
-        40000
+        10000 / 16,
+        15000 / 16,
+        20000 / 16,
+        20000 / 16,
+        25000 / 16,
+        30000 / 16,
+        35000 / 16,
+        40000 / 16
     };
 
     static const int16_t PlayerDist[8] =
     {
-        2000,
-        3000,
-        3000,
-        5000,
-        5000,
-        5000,
-        9000,
-        9000
+        2000 / 16,
+        3000 / 16,
+        3000 / 16,
+        5000 / 16,
+        5000 / 16,
+        5000 / 16,
+        9000 / 16,
+        9000 / 16
     };
 
     actor->user.Dist = 0;
 
     rnum = RANDOM_P2(8<<8)>>8;
-	dist = DistanceI(actor->spr.pos, actor->user.targetActor->spr.pos);
+	dist = (actor->spr.pos.XY(), actor->user.targetActor->spr.pos.XY()).Length();
 
     if (dist < PlayerDist[rnum] || (actor->user.Flags & SPR_RUN_AWAY))
     {
         rnum = RANDOM_P2(8<<8)>>8;
         ang = FindNewAngle(actor, AWAY, AwayDist[rnum]);
-        if (ang == -1)
+        if (ang == -minAngle)
         {
             actor->user.Vis = 8;
             InitActorPause(actor);
             return 0;
         }
 
-        actor->set_int_ang(ang);
+        actor->spr.angle = ang;
         DoActorSetSpeed(actor, FAST_SPEED);
         actor->user.Flags &= ~(SPR_RUN_AWAY);
     }
@@ -1558,12 +1688,12 @@ int InitActorReposition(DSWActor* actor)
         // try to move toward player
         rnum = RANDOM_P2(8<<8)>>8;
         ang = FindNewAngle(actor, TOWARD, TowardDist[rnum]);
-        if (ang == -1)
+        if (ang == -minAngle)
         {
             // try to move away from player
             rnum = RANDOM_P2(8<<8)>>8;
             ang = FindNewAngle(actor, AWAY, AwayDist[rnum]);
-            if (ang == -1)
+            if (ang == -minAngle)
             {
                 actor->user.Vis = 8;
                 InitActorPause(actor);
@@ -1579,7 +1709,7 @@ int InitActorReposition(DSWActor* actor)
                 DoActorSetSpeed(actor, MID_SPEED);
         }
 
-        actor->set_int_ang(ang);
+        actor->spr.angle = ang;
     }
 
 
@@ -1592,15 +1722,16 @@ int InitActorReposition(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int DoActorReposition(DSWActor* actor)
 {
-    int nx, ny;
-
-    nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14);
-    ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14);
-
     // still might hit something and have to handle it.
-    if (!move_actor(actor, nx, ny, 0L))
+    if (!move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0)))
     {
         if (ActorMoveHitReact(actor))
             return 0;
@@ -1611,7 +1742,7 @@ int DoActorReposition(DSWActor* actor)
     }
 
     // if close to target distance do a Decision again
-    if (actor->user.TargetDist < 50)
+    if (actor->user.TargetDist < 3.125)
     {
         InitActorDecide(actor);
     }
@@ -1619,6 +1750,12 @@ int DoActorReposition(DSWActor* actor)
     return 0;
 }
 
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int InitActorPause(DSWActor* actor)
 {
@@ -1628,6 +1765,12 @@ int InitActorPause(DSWActor* actor)
 
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 int DoActorPause(DSWActor* actor)
 {
@@ -1642,7 +1785,11 @@ int DoActorPause(DSWActor* actor)
     return 0;
 }
 
-
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 #include "saveable.h"
 

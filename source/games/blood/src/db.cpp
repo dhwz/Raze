@@ -477,8 +477,8 @@ void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum,
 		pSprite->statnum = LittleShort(load.statnum);
 		pSprite->angle = DAngle::fromBuild(LittleShort(load.ang));
 		pSprite->intowner = LittleShort(load.owner);
-		pSprite->xvel = LittleShort(load.index);
-		pSprite->yvel = LittleShort(load.yvel);
+		pSprite->xint = LittleShort(load.index);
+		pSprite->yint = LittleShort(load.yvel);
 		pSprite->inittype = LittleShort(load.inittype);
 		pSprite->type = LittleShort(load.type);
 		pSprite->flags = LittleShort(load.hitag);
@@ -549,7 +549,7 @@ void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum,
 			pXSprite->data1 = bitReader.readSigned(16);
 			pXSprite->data2 = bitReader.readSigned(16);
 			pXSprite->data3 = bitReader.readSigned(16);
-			pXSprite->goalAng = bitReader.readUnsigned(11);
+			pXSprite->goalAng = DAngle::fromBuild(bitReader.readUnsigned(11));
 			pXSprite->dodgeDir = bitReader.readSigned(2);
 			pXSprite->locked = bitReader.readUnsigned(1);
 			pXSprite->medium = bitReader.readUnsigned(2);

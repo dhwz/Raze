@@ -107,17 +107,17 @@ struct GameInterface
 	virtual void NextLevel(MapRecord* map, int skill) {}
 	virtual void NewGame(MapRecord* map, int skill, bool special = false) {}
 	virtual void LevelCompleted(MapRecord* map, int skill) {}
-	virtual bool DrawAutomapPlayer(int mx, int my, int x, int y, const double z, const DAngle a, double const smoothratio) { return false; }
+	virtual bool DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac) { return false; }
 	virtual void SetTileProps(int tile, int surf, int vox, int shade) {}
 	virtual fixed_t playerHorizMin() { return IntToFixed(-200); }
 	virtual fixed_t playerHorizMax() { return IntToFixed(200); }
 	virtual int playerKeyMove() { return 0; }
-	virtual void WarpToCoords(int x, int y, int z, int a, int h) {}
+	virtual void WarpToCoords(double x, double y, double z, DAngle a, int h) {}
 	virtual void ToggleThirdPerson() { }
 	virtual void SwitchCoopView() { Printf("Unsupported command\n"); }
 	virtual void ToggleShowWeapon() { Printf("Unsupported command\n"); }
-	virtual vec3_t chaseCamPos(DAngle ang, fixedhoriz horiz) { return vec3_t(0,0,0); }
-	virtual void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double smoothRatio) = 0;
+	virtual DVector3 chaseCamPos(DAngle ang, fixedhoriz horiz) { return DVector3(0,0,0); }
+	virtual void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double interpfrac) = 0;
 	virtual void UpdateCameras(double smoothratio) {}
 	virtual void EnterPortal(DCoreActor* viewer, int type) {}
 	virtual void LeavePortal(DCoreActor* viewer, int type) {}

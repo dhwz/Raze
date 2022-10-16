@@ -51,8 +51,6 @@ VIEW gPrevView[kMaxPlayers];
 VIEWPOS gViewPos;
 int gViewIndex;
 
-double gInterpolate;
-
 //---------------------------------------------------------------------------
 //
 // 
@@ -64,13 +62,12 @@ void viewBackupView(int nPlayer)
 	PLAYER* pPlayer = &gPlayer[nPlayer];
 	VIEW* pView = &gPrevView[nPlayer];
 	pView->angle = pPlayer->angle.ang;
-	pView->x = pPlayer->actor->int_pos().X;
-	pView->y = pPlayer->actor->int_pos().Y;
+	pView->pos.XY() = pPlayer->actor->spr.pos.XY();
 	pView->viewz = pPlayer->zView;
 	pView->weaponZ = pPlayer->zWeapon - pPlayer->zView - 0xc00;
 	pView->horiz = pPlayer->horizon.horiz;
 	pView->horizoff = pPlayer->horizon.horizoff;
-	pView->at2c = pPlayer->slope;
+	pView->slope = pPlayer->slope;
 	pView->bobHeight = pPlayer->bobHeight;
 	pView->bobWidth = pPlayer->bobWidth;
 	pView->shakeBobY = pPlayer->swayHeight;
@@ -91,8 +88,7 @@ void viewCorrectViewOffsets(int nPlayer, vec3_t const* oldpos)
 {
 	PLAYER* pPlayer = &gPlayer[nPlayer];
 	VIEW* pView = &gPrevView[nPlayer];
-	pView->x += pPlayer->actor->int_pos().X - oldpos->X;
-	pView->y += pPlayer->actor->int_pos().Y - oldpos->Y;
+	pView->pos.XY() += pPlayer->actor->spr.pos.XY() - DVector2(oldpos->X, oldpos->Y) * inttoworld;
 	pView->viewz += pPlayer->actor->int_pos().Z - oldpos->Z;
 }
 
@@ -160,7 +156,7 @@ void viewDrawAimedPlayerName(void)
 static TArray<uint8_t> lensdata;
 int* lensTable;
 
-extern int dword_172CE0[16][3];
+extern DAngle random_angles[16][3];
 
 //---------------------------------------------------------------------------
 //
@@ -187,9 +183,9 @@ void viewInit(void)
 
 	for (int i = 0; i < 16; i++)
 	{
-		dword_172CE0[i][0] = MulScale(wrand(), 2048, 16);
-		dword_172CE0[i][1] = MulScale(wrand(), 2048, 16);
-		dword_172CE0[i][2] = MulScale(wrand(), 2048, 16);
+		random_angles[i][0] = randomAngle();
+		random_angles[i][1] = randomAngle();
+		random_angles[i][2] = randomAngle();
 	}
 }
 
@@ -463,7 +459,7 @@ int32_t g_frameRate;
 //
 //---------------------------------------------------------------------------
 
-static void DrawMap(DBloodActor* view)
+static void DrawMap(DBloodActor* view, const double smoothratio)
 {
 	int tm = 0;
 	if (viewport3d.Left() > 0)
@@ -472,10 +468,8 @@ static void DrawMap(DBloodActor* view)
 		tm = 1;
 	}
 	VIEW* pView = &gPrevView[gViewIndex];
-	int x = interpolatedvalue(pView->x, view->int_pos().X, gInterpolate);
-	int y = interpolatedvalue(pView->y, view->int_pos().Y, gInterpolate);
-	auto ang = !SyncInput() ? gView->angle.sum() : gView->angle.interpolatedsum(gInterpolate);
-	DrawOverheadMap(x, y, ang, gInterpolate);
+	auto ang = !SyncInput() ? gView->angle.sum() : gView->angle.interpolatedsum(smoothratio * (1. / MaxSmoothRatio));
+	DrawOverheadMap(interpolatedvalue(pView->pos, view->spr.pos, smoothratio * (1. / MaxSmoothRatio)).XY(), ang, smoothratio * (1. / MaxSmoothRatio));
 	if (tm)
 		setViewport(hud_size);
 }
@@ -486,7 +480,7 @@ static void DrawMap(DBloodActor* view)
 //
 //---------------------------------------------------------------------------
 
-void SetupView(int& cX, int& cY, int& cZ, DAngle& cA, fixedhoriz& cH, sectortype*& pSector, double& zDelta, double& shakeX, double& shakeY, DAngle& rotscrnang)
+static void SetupView(int& cX, int& cY, int& cZ, DAngle& cA, fixedhoriz& cH, sectortype*& pSector, double& zDelta, double& shakeX, double& shakeY, DAngle& rotscrnang, const double smoothratio)
 {
 	int bobWidth, bobHeight;
 
@@ -495,14 +489,14 @@ void SetupView(int& cX, int& cY, int& cZ, DAngle& cA, fixedhoriz& cH, sectortype
 	if (numplayers > 1 && gView == gMe && gPrediction && gMe->actor->xspr.health > 0)
 	{
 		nSectnum = predict.sectnum;
-		cX = interpolatedvalue(predictOld.x, predict.x, gInterpolate);
-		cY = interpolatedvalue(predictOld.y, predict.y, gInterpolate);
-		cZ = interpolatedvalue(predictOld.viewz, predict.viewz, gInterpolate);
-		zDelta = interpolatedvaluef(predictOld.weaponZ, predict.weaponZ, gInterpolate);
-		bobWidth = interpolatedvalue(predictOld.bobWidth, predict.bobWidth, gInterpolate);
-		bobHeight = interpolatedvalue(predictOld.bobHeight, predict.bobHeight, gInterpolate);
-		shakeX = interpolatedvaluef(predictOld.shakeBobX, predict.shakeBobX, gInterpolate);
-		shakeY = interpolatedvaluef(predictOld.shakeBobY, predict.shakeBobY, gInterpolate);
+		cX = interpolatedvalue(predictOld.x, predict.x, smoothratio * (1. / MaxSmoothRatio));
+		cY = interpolatedvalue(predictOld.y, predict.y, smoothratio * (1. / MaxSmoothRatio));
+		cZ = interpolatedvalue(predictOld.viewz, predict.viewz, smoothratio * (1. / MaxSmoothRatio));
+		zDelta = interpolatedvalue(predictOld.weaponZ, predict.weaponZ, smoothratio * (1. / MaxSmoothRatio));
+		bobWidth = interpolatedvalue(predictOld.bobWidth, predict.bobWidth, smoothratio * (1. / MaxSmoothRatio));
+		bobHeight = interpolatedvalue(predictOld.bobHeight, predict.bobHeight, smoothratio * (1. / MaxSmoothRatio));
+		shakeX = interpolatedvalue(predictOld.shakeBobX, predict.shakeBobX, smoothratio * (1. / MaxSmoothRatio));
+		shakeY = interpolatedvalue(predictOld.shakeBobY, predict.shakeBobY, smoothratio * (1. / MaxSmoothRatio));
 
 		if (!SyncInput())
 		{
@@ -512,23 +506,23 @@ void SetupView(int& cX, int& cY, int& cZ, DAngle& cA, fixedhoriz& cH, sectortype
 		}
 		else
 		{
-			cA = interpolatedangle(predictOld.angle + predictOld.look_ang, predict.angle + predict.look_ang, gInterpolate);
-			cH = interpolatedhorizon(predictOld.horiz + predictOld.horizoff, predict.horiz + predict.horizoff, gInterpolate);
-			rotscrnang = interpolatedangle(predictOld.rotscrnang, predict.rotscrnang, gInterpolate);
+			cA = interpolatedvalue(predictOld.angle + predictOld.look_ang, predict.angle + predict.look_ang, smoothratio * (1. / MaxSmoothRatio));
+			cH = interpolatedvalue(predictOld.horiz + predictOld.horizoff, predict.horiz + predict.horizoff, smoothratio);
+			rotscrnang = interpolatedvalue(predictOld.rotscrnang, predict.rotscrnang, smoothratio * (1. / MaxSmoothRatio));
 		}
 	}
 	else
 #endif
 	{
 		VIEW* pView = &gPrevView[gViewIndex];
-		cX = interpolatedvalue(pView->x, gView->actor->int_pos().X, gInterpolate);
-		cY = interpolatedvalue(pView->y, gView->actor->int_pos().Y, gInterpolate);
-		cZ = interpolatedvalue(pView->viewz, gView->zView, gInterpolate);
-		zDelta = interpolatedvaluef(pView->weaponZ, gView->zWeapon - gView->zView - (12 << 8), gInterpolate);
-		bobWidth = interpolatedvalue(pView->bobWidth, gView->bobWidth, gInterpolate);
-		bobHeight = interpolatedvalue(pView->bobHeight, gView->bobHeight, gInterpolate);
-		shakeX = interpolatedvaluef(pView->shakeBobX, gView->swayWidth, gInterpolate);
-		shakeY = interpolatedvaluef(pView->shakeBobY, gView->swayHeight, gInterpolate);
+		cX = interpolatedvalue(pView->pos.X, gView->actor->spr.pos.X, smoothratio * (1. / MaxSmoothRatio)) * worldtoint;
+		cY = interpolatedvalue(pView->pos.Y, gView->actor->spr.pos.Y, smoothratio * (1. / MaxSmoothRatio)) * worldtoint;
+		cZ = interpolatedvalue(pView->viewz, gView->zView, smoothratio * (1. / MaxSmoothRatio));
+		zDelta = interpolatedvalue<double>(pView->weaponZ, gView->zWeapon - gView->zView - (12 << 8), smoothratio * (1. / MaxSmoothRatio));
+		bobWidth = interpolatedvalue(pView->bobWidth, gView->bobWidth, smoothratio * (1. / MaxSmoothRatio));
+		bobHeight = interpolatedvalue(pView->bobHeight, gView->bobHeight, smoothratio * (1. / MaxSmoothRatio));
+		shakeX = interpolatedvalue<double>(pView->shakeBobX, gView->swayWidth, smoothratio * (1. / MaxSmoothRatio));
+		shakeY = interpolatedvalue<double>(pView->shakeBobY, gView->swayHeight, smoothratio * (1. / MaxSmoothRatio));
 
 		if (!SyncInput())
 		{
@@ -538,9 +532,9 @@ void SetupView(int& cX, int& cY, int& cZ, DAngle& cA, fixedhoriz& cH, sectortype
 		}
 		else
 		{
-			cA = gView->angle.interpolatedsum(gInterpolate);
-			cH = gView->horizon.interpolatedsum(gInterpolate);
-			rotscrnang = gView->angle.interpolatedrotscrn(gInterpolate);
+			cA = gView->angle.interpolatedsum(smoothratio * (1. / MaxSmoothRatio));
+			cH = gView->horizon.interpolatedsum(smoothratio * (1. / MaxSmoothRatio));
+			rotscrnang = gView->angle.interpolatedrotscrn(smoothratio * (1. / MaxSmoothRatio));
 		}
 	}
 
@@ -558,12 +552,10 @@ void SetupView(int& cX, int& cY, int& cZ, DAngle& cA, fixedhoriz& cH, sectortype
 			cZ += bobHeight;
 		}
 		cZ += int(cH.asq16() * (1. / 6553.6));
-		cameradist = -1;
-		cameraclock = PlayClock + MulScale(4, (int)gInterpolate, 16);
 	}
 	else
 	{
-		calcChaseCamPos((int*)&cX, (int*)&cY, (int*)&cZ, gView->actor, &pSector, cA, cH, gInterpolate);
+		calcChaseCamPos((int*)&cX, (int*)&cY, (int*)&cZ, gView->actor, &pSector, cA, cH, smoothratio);
 	}
 	if (pSector != nullptr)
 		CheckLink((int*)&cX, (int*)&cY, (int*)&cZ, &pSector);
@@ -648,6 +640,8 @@ void viewDrawScreen(bool sceneonly)
 		FireProcess();
 	}
 
+	double gInterpolate;
+
 	if (!paused && (!M_Active() || gGameOptions.nGameType != 0))
 	{
 		gInterpolate = !cl_interpolate || cl_capfps ? MaxSmoothRatio : I_GetTimeFrac() * MaxSmoothRatio;
@@ -656,7 +650,7 @@ void viewDrawScreen(bool sceneonly)
 
 	if (cl_interpolate)
 	{
-		DoInterpolations(gInterpolate / MaxSmoothRatio);
+		DoInterpolations(gInterpolate * (1. / MaxSmoothRatio));
 	}
 
 	if (automapMode != am_full)
@@ -685,9 +679,9 @@ void viewDrawScreen(bool sceneonly)
 		sectortype* pSector;
 		double zDelta;
 		double shakeX, shakeY;
-		SetupView(cX, cY, cZ, cA, cH, pSector, zDelta, shakeX, shakeY, rotscrnang);
+		SetupView(cX, cY, cZ, cA, cH, pSector, zDelta, shakeX, shakeY, rotscrnang, gInterpolate);
 
-		DAngle tilt = interpolatedangle(gScreenTiltO, gScreenTilt, gInterpolate);
+		DAngle tilt = interpolatedvalue(gScreenTiltO, gScreenTilt, gInterpolate * (1. / MaxSmoothRatio));
 		bool bDelirium = powerupCheck(gView, kPwUpDeliriumShroom) > 0;
 		static bool bDeliriumOld = false;
 		//int tiltcs, tiltdim;
@@ -736,7 +730,7 @@ void viewDrawScreen(bool sceneonly)
 			}
 		}
 		g_relvisibility = (int32_t)(ClipLow(gVisibility - 32 * gView->visibility - brightness, 0)) - g_visibility;
-		cA += interpolatedangle(deliriumTurnO, deliriumTurn, gInterpolate);
+		cA += interpolatedvalue(deliriumTurnO, deliriumTurn, gInterpolate * (1. / MaxSmoothRatio));
 
 		if (pSector != nullptr)
 		{
@@ -766,11 +760,11 @@ void viewDrawScreen(bool sceneonly)
 			}
 		}
 
-		if (!sceneonly) hudDraw(gView, pSector, shakeX, shakeY, zDelta, basepal, gInterpolate);
-		fixedhoriz deliriumPitchI = interpolatedhorizon(q16horiz(deliriumPitchO), q16horiz(deliriumPitch), gInterpolate);
+		if (!sceneonly) hudDraw(gView, pSector, shakeX, shakeY, zDelta, basepal, gInterpolate * (1. / MaxSmoothRatio));
+		fixedhoriz deliriumPitchI = interpolatedvalue(q16horiz(deliriumPitchO), q16horiz(deliriumPitch), gInterpolate * (1. / MaxSmoothRatio));
 		auto bakCstat = gView->actor->spr.cstat;
 		gView->actor->spr.cstat |= (gViewPos == 0) ? CSTAT_SPRITE_INVISIBLE : CSTAT_SPRITE_TRANSLUCENT | CSTAT_SPRITE_TRANS_FLIP;
-		render_drawrooms(gView->actor, { cX, cY, cZ }, sectnum(pSector), cA, cH + deliriumPitchI, rotscrnang, gInterpolate);
+		render_drawrooms(gView->actor, vec3_t( cX, cY, cZ ), sectnum(pSector), cA, cH + deliriumPitchI, rotscrnang, gInterpolate);
 		gView->actor->spr.cstat = bakCstat;
 		bDeliriumOld = bDelirium && gDeliriumBlur;
 
@@ -779,7 +773,7 @@ void viewDrawScreen(bool sceneonly)
 		Collision c1, c2;
 		GetZRange(gView->actor, &vf4, &c1, &vec, &c2, nClipDist, 0);
 		if (sceneonly) return;
-		double look_anghalf = gView->angle.look_anghalf(gInterpolate);
+		double look_anghalf = gView->angle.look_anghalf(gInterpolate * (1. / MaxSmoothRatio));
 		DrawCrosshair(kCrosshairTile, gView->actor->xspr.health >> 4, -look_anghalf, 0, 2);
 #if 0 // This currently does not work. May have to be redone as a hardware effect.
 		if (v4 && gNetPlayers > 1)
@@ -812,9 +806,12 @@ void viewDrawScreen(bool sceneonly)
 #endif
 	}
 	UpdateDacs(0, true);    // keep the view palette active only for the actual 3D view and its overlays.
+
+	MarkSectorSeen(gView->actor->sector());
+
 	if (automapMode != am_off)
 	{
-		DrawMap(gView->actor);
+		DrawMap(gView->actor, gInterpolate);
 	}
 	UpdateStatusBar();
 
@@ -860,37 +857,18 @@ std::pair<DVector3, DAngle> GameInterface::GetCoordinates()
 //
 //---------------------------------------------------------------------------
 
-bool GameInterface::DrawAutomapPlayer(int mx, int my, int x, int y, const double z, const DAngle a, double const smoothratio)
+bool GameInterface::DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac)
 {
+	auto cangvect = cang.ToVector();
+
 	for (int i = connecthead; i >= 0; i = connectpoint2[i])
 	{
-		PLAYER* pPlayer = &gPlayer[i];
-		auto actor = pPlayer->actor;
-
-		int xvect = -a.Sin() * 16384. * z;
-		int yvect = -a.Cos() * 16384. * z;
-		int ox = mx - x;
-		int oy = my - y;
-		int x1 = DMulScale(ox, xvect, -oy, yvect, 16);
-		int y1 = DMulScale(oy, xvect, ox, yvect, 16);
-		int xx = twod->GetWidth() / 2. + x1 / 4096.;
-		int yy = twod->GetHeight() / 2. + y1 / 4096.;
-
 		if (i == gView->nPlayer || gGameOptions.nGameType == 1)
 		{
-			int nTile = actor->spr.picnum;
-			int ceilZ, floorZ;
-			Collision ceilHit, floorHit;
-			GetZRange(gView->actor, &ceilZ, &ceilHit, &floorZ, &floorHit, (actor->spr.clipdist << 2) + 16, CLIPMASK0, PARALLAXCLIP_CEILING | PARALLAXCLIP_FLOOR);
-			int nTop, nBottom;
-			GetActorExtents(actor, &nTop, &nBottom);
-			int nScale = (actor->spr.yrepeat + ((floorZ - nBottom) >> 8)) * z;
-			nScale = ClipRange(nScale, 8000, 65536 << 1);
-			// Players on automap
-			double xsize = twod->GetWidth() / 2. + x1 / double(1 << 12);
-			double ysize = twod->GetHeight() / 2. + y1 / double(1 << 12);
-			// This very likely needs fixing later
-			DrawTexture(twod, tileGetTexture(nTile, true), xx, yy, DTA_ClipLeft, viewport3d.Left(), DTA_ClipTop, viewport3d.Top(), DTA_ScaleX, z / 1536., DTA_ScaleY, z / 1536., DTA_CenterOffset, true,
+			auto actor = gPlayer[i].actor;
+			auto vect = OutAutomapVector(mxy - cpos, cangvect, czoom, xydim);
+
+			DrawTexture(twod, tileGetTexture(actor->spr.picnum, true), vect.X, vect.Y, DTA_ClipLeft, viewport3d.Left(), DTA_ClipTop, viewport3d.Top(), DTA_ScaleX, czoom * (2. / 3.), DTA_ScaleY, czoom * (2. / 3.), DTA_CenterOffset, true,
 				DTA_ClipRight, viewport3d.Right(), DTA_ClipBottom, viewport3d.Bottom(), DTA_Alpha, (actor->spr.cstat & CSTAT_SPRITE_TRANSLUCENT ? 0.5 : 1.), TAG_DONE);
 		}
 	}

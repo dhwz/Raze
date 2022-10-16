@@ -60,7 +60,7 @@ static struct so_interp
         double bakipos;
         double lastipos;
         double lastoldipos;
-        double lastangdiff;
+        DAngle lastangdiff;
         TObjPtr<DSWActor*> actorofang;
     } data[SO_MAXINTERPOLATIONS];
 
@@ -68,6 +68,12 @@ static struct so_interp
     int32_t tic, lasttic;
     bool hasvator;
 } so_interpdata[MAX_SECTOR_OBJECTS];
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 void MarkSOInterp()
 {
@@ -87,6 +93,12 @@ void MarkSOInterp()
         }
     }
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 static double getvalue(so_interp::interp_data& element)
 {
@@ -125,6 +137,12 @@ static double getvalue(so_interp::interp_data& element)
     }
 	return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 static void setvalue(so_interp::interp_data& element, double value)
 {
@@ -172,6 +190,12 @@ static void setvalue(so_interp::interp_data& element, double value)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 static void so_setpointinterpolation(so_interp *interp, int element, DSWActor* actor = nullptr)
 {
     int32_t i;
@@ -193,6 +217,12 @@ static void so_setpointinterpolation(so_interp *interp, int element, DSWActor* a
         data->lastoldipos = getvalue(*data);
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 static void so_setspriteanginterpolation(so_interp *interp, DSWActor* actor)
 {
     int32_t i;
@@ -208,12 +238,17 @@ static void so_setspriteanginterpolation(so_interp *interp, DSWActor* actor)
     data->curelement = soi_sprang;
     data->oldipos =
         data->lastipos =
-        data->lastoldipos = actor->int_ang();
-    data->lastangdiff = 0;
+        data->lastoldipos = actor->spr.angle.Degrees();
+    data->lastangdiff = nullAngle;
     data->actorofang = actor;
 }
 
+//---------------------------------------------------------------------------
+//
 // Covers points and angles altogether
+//
+//---------------------------------------------------------------------------
+
 static void so_stopdatainterpolation(so_interp *interp, int element, DSWActor* actor)
 {
 	for (int i = 0; i < interp->numinterpolations; i++)
@@ -225,6 +260,12 @@ static void so_stopdatainterpolation(so_interp *interp, int element, DSWActor* a
 		}
 	}
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 void so_addinterpolation(SECTOR_OBJECT* sop)
 {
@@ -277,6 +318,12 @@ void so_addinterpolation(SECTOR_OBJECT* sop)
     interp->lasttic = synctics;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 void so_setspriteinterpolation(SECTOR_OBJECT* sop, DSWActor* actor)
 {
     so_interp *interp = &so_interpdata[sop - SectorObject];
@@ -287,6 +334,12 @@ void so_setspriteinterpolation(SECTOR_OBJECT* sop, DSWActor* actor)
         so_setpointinterpolation(interp, soi_sprz, actor);
     so_setspriteanginterpolation(interp, actor);
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 void so_stopspriteinterpolation(SECTOR_OBJECT* sop, DSWActor *actor)
 {
@@ -299,6 +352,12 @@ void so_stopspriteinterpolation(SECTOR_OBJECT* sop, DSWActor *actor)
     so_stopdatainterpolation(interp, soi_sprang, actor);
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 void so_setinterpolationtics(SECTOR_OBJECT* sop, int16_t locktics)
 {
     so_interp *interp = &so_interpdata[sop - SectorObject];
@@ -306,6 +365,12 @@ void so_setinterpolationtics(SECTOR_OBJECT* sop, int16_t locktics)
     interp->tic = 0;
     interp->lasttic = locktics;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 void so_updateinterpolations(void) // Stick at beginning of domovethings
 {
@@ -333,10 +398,10 @@ void so_updateinterpolations(void) // Stick at beginning of domovethings
                 if (actorofang)
                 {
                     if (actorofang->hasU())
-                        actorofang->user.oangdiff = 0;
+                        actorofang->user.oangdiff = nullAngle;
                     if (!interpolating)
-                        data->lastangdiff = 0;
-                    data->oldipos = actorofang->int_ang();
+                        data->lastangdiff = nullAngle;
+                    data->oldipos = actorofang->spr.angle.Degrees();
                 }
             }
             else
@@ -350,9 +415,14 @@ void so_updateinterpolations(void) // Stick at beginning of domovethings
     }
 }
 
+//---------------------------------------------------------------------------
+//
 // must call restore for every do interpolations
 // make sure you don't exit
-void so_dointerpolations(int32_t smoothratio)                      // Stick at beginning of drawscreen
+//
+//---------------------------------------------------------------------------
+
+void so_dointerpolations(double interpfrac)                      // Stick at beginning of drawscreen
 {
     int32_t i;
     SECTOR_OBJECT* sop;
@@ -376,7 +446,7 @@ void so_dointerpolations(int32_t smoothratio)                      // Stick at b
                 continue; // target went poof.
 
             interp->data[i].bakipos = (interp->data[i].curelement == soi_sprang) ?
-                                      (double)actorofang->int_ang() :
+                                      actorofang->spr.angle.Degrees() :
                                       getvalue(interp->data[i]);
         }
         if (interp->tic == 0) // Only if the SO has just moved
@@ -390,7 +460,7 @@ void so_dointerpolations(int32_t smoothratio)                      // Stick at b
                     auto actorofang = data->actorofang;
                     if (actorofang)
                     {
-                        data->lastangdiff = actorofang->hasU() ? actorofang->user.oangdiff : 0;
+                        data->lastangdiff = actorofang->hasU() ? actorofang->user.oangdiff : nullAngle;
                     }
                 }
             }
@@ -418,9 +488,9 @@ void so_dointerpolations(int32_t smoothratio)                      // Stick at b
                !Player[screenpeek].sop_remote)))
             continue;
 
-        int32_t ratio = smoothratio * synctics + 65536 * interp->tic;
+        double ratio = interpfrac * synctics + interp->tic;
         ratio /= interp->lasttic;
-        ratio = (interp->tic == interp->lasttic) ? 65536 : ratio;
+        ratio = (interp->tic == interp->lasttic) ? 1. : ratio;
 
         for (i = 0, data = interp->data; i < interp->numinterpolations; i++, data++)
         {
@@ -443,16 +513,22 @@ void so_dointerpolations(int32_t smoothratio)                      // Stick at b
             {
                 DSWActor* actor = data->actorofang;
                 if (!actor) continue;
-                actor->set_int_ang(NORM_ANGLE(data->lastoldipos + MulScale(data->lastangdiff, ratio, 16)));
+                actor->spr.angle = (DAngle::fromDeg(data->lastoldipos) + data->lastangdiff * ratio).Normalized360();
             }
             else
             {
                 double delta = data->lastipos - data->lastoldipos;
-                setvalue(*data, data->lastoldipos + MulScaleF(delta, ratio, 16));
+                setvalue(*data, data->lastoldipos + delta * ratio);
             }
         }
     }
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 void so_restoreinterpolations(void)                 // Stick at end of drawscreen
 {
@@ -472,7 +548,7 @@ void so_restoreinterpolations(void)                 // Stick at end of drawscree
             if (data->curelement == soi_sprang)
             {
                 auto actorofang = interp->data[i].actorofang;
-                if (actorofang) actorofang->set_int_ang(data->bakipos);
+                if (actorofang) actorofang->spr.angle = DAngle::fromDeg(data->bakipos);
             }
             else
             {
@@ -480,6 +556,12 @@ void so_restoreinterpolations(void)                 // Stick at end of drawscree
             }
     }
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 void so_serializeinterpolations(FSerializer& arc)
 {
@@ -508,7 +590,7 @@ void so_serializeinterpolations(FSerializer& arc)
                             if (arc.isReading())
                             {
                                 data->lastipos = data->lastoldipos = data->oldipos;
-                                data->lastangdiff = 0;
+                                data->lastangdiff = nullAngle;
                             }
                         }
                     }

@@ -393,13 +393,13 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_PYOFF:
-		if (bSet) ps[iPlayer].pyoff = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].pyoff, sActor, sPlayer);
+		if (bSet) ps[iPlayer].pyoff = lValue * zmaptoworld;
+		else SetGameVarID(lVar2, ps[iPlayer].pyoff / zmaptoworld, sActor, sPlayer);
 		break;
 
 	case PLAYER_OPYOFF:
-		if (bSet) ps[iPlayer].opyoff = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].opyoff, sActor, sPlayer);
+		if (bSet) ps[iPlayer].opyoff = lValue * zmaptoworld;
+		else SetGameVarID(lVar2, ps[iPlayer].opyoff / zmaptoworld, sActor, sPlayer);
 		break;
 
 	case PLAYER_POSXV:
@@ -710,11 +710,7 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_ROTSCRNANG:
-		if (bSet)
-		{
-			ps[iPlayer].angle.orotscrnang = ps[iPlayer].angle.rotscrnang;
-			ps[iPlayer].angle.rotscrnang = DAngle::fromBuild(lValue);
-		}
+		if (bSet) ps[iPlayer].angle.orotscrnang = ps[iPlayer].angle.rotscrnang = DAngle::fromBuild(lValue);
 		else SetGameVarID(lVar2, ps[iPlayer].angle.rotscrnang.Buildang(), sActor, sPlayer);
 		break;
 
@@ -1241,16 +1237,16 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 		else SetGameVarID(lVar2, act->spr.intowner, sActor, sPlayer);
 		break;
 	case ACTOR_XVEL:
-		if (bSet) act->spr.xvel = lValue;
-		else SetGameVarID(lVar2, act->spr.xvel, sActor, sPlayer);
+		if (bSet) act->set_int_xvel(lValue);
+		else SetGameVarID(lVar2, act->int_xvel(), sActor, sPlayer);
 		break;
 	case ACTOR_YVEL:
-		if (bSet) act->spr.yvel = lValue;
-		else SetGameVarID(lVar2, act->spr.yvel, sActor, sPlayer);
+		if (bSet) act->spr.yint = lValue;
+		else SetGameVarID(lVar2, act->spr.yint, sActor, sPlayer);
 		break;
 	case ACTOR_ZVEL:
-		if (bSet) act->spr.zvel = lValue;
-		else SetGameVarID(lVar2, act->spr.zvel, sActor, sPlayer);
+		if (bSet) act->set_int_zvel(lValue);
+		else SetGameVarID(lVar2, act->int_zvel(), sActor, sPlayer);
 		break;
 	case ACTOR_LOTAG:
 		if (bSet) act->spr.lotag = lValue;
@@ -1616,7 +1612,7 @@ int ParseState::parse(void)
 
 	case concmd_rndmove:
 		g_ac->set_int_ang(krand() & 2047);
-		g_ac->spr.xvel = 25;
+		g_ac->set_int_xvel(25);
 		insptr++;
 		break;
 	case concmd_mamatrigger:
@@ -1689,7 +1685,7 @@ int ParseState::parse(void)
 	case concmd_getlastpal:
 		insptr++;
 		if (g_ac->isPlayer())
-			g_ac->spr.pal = ps[g_ac->spr.yvel].palookup;
+			g_ac->spr.pal = ps[g_ac->PlayerIndex()].palookup;
 		else
 		{
 			// Copied from DukeGDX.
@@ -1704,15 +1700,15 @@ int ParseState::parse(void)
 		break;
 	case concmd_tossweapon:
 		insptr++;
-		fi.checkweapons(&ps[g_ac->spr.yvel]);
+		fi.checkweapons(&ps[g_ac->PlayerIndex()]);
 		break;
 	case concmd_nullop:
 		insptr++;
 		break;
 	case concmd_mikesnd:
 		insptr++;
-		if (!S_CheckActorSoundPlaying(g_ac, g_ac->spr.yvel))
-			S_PlayActorSound(g_ac->spr.yvel, g_ac, CHAN_VOICE);
+		if (!S_CheckActorSoundPlaying(g_ac, g_ac->spr.yint))
+			S_PlayActorSound(g_ac->spr.yint, g_ac, CHAN_VOICE);
 		break;
 	case concmd_pkick:
 		insptr++;
@@ -1973,11 +1969,11 @@ int ParseState::parse(void)
 		break;
 	case concmd_strafeleft:
 		insptr++;
-		movesprite_ex(g_ac, -bsin(g_ac->int_ang(), -10), bcos(g_ac->int_ang(), -10), g_ac->spr.zvel, CLIPMASK0, coll);
+		movesprite_ex(g_ac, -bsin(g_ac->int_ang(), -10), bcos(g_ac->int_ang(), -10), g_ac->int_zvel(), CLIPMASK0, coll);
 		break;
 	case concmd_straferight:
 		insptr++;
-		movesprite_ex(g_ac, bsin(g_ac->int_ang(), -10), -bcos(g_ac->int_ang(), -10), g_ac->spr.zvel, CLIPMASK0, coll);
+		movesprite_ex(g_ac, bsin(g_ac->int_ang(), -10), -bcos(g_ac->int_ang(), -10), g_ac->int_zvel(), CLIPMASK0, coll);
 		break;
 	case concmd_larrybird:
 		insptr++;
@@ -2054,7 +2050,7 @@ int ParseState::parse(void)
 			while (auto actj = it.Next())
 			{
 				if (actorflag(actj, SFLAG2_CAMERA))
-					actj->spr.yvel = 0;
+					actj->spr.yint = 0;
 			}
 		}
 
@@ -2174,8 +2170,8 @@ int ParseState::parse(void)
 				if (spawned)
 				{
 					if (weap)
-						spawned->spr.yvel = gs.weaponsandammosprites[j % 14];
-					else spawned->spr.yvel = -1;
+						spawned->spr.yint = gs.weaponsandammosprites[j % 14];
+					else spawned->spr.yint = -1;
 					spawned->spr.pal = g_ac->spr.pal;
 				}
 			}
@@ -2387,7 +2383,7 @@ int ParseState::parse(void)
 			l = *insptr;
 			j = 0;
 
-			s = g_ac->spr.xvel;
+			s = g_ac->int_xvel();
 
 			// sigh.. this was yet another place where number literals were used as bit masks for every single value, making the code totally unreadable.
 			if( (l& pducking) && ps[g_p].on_ground && PlayerInput(g_p, SB_CROUCH))

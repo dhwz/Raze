@@ -36,7 +36,7 @@ static actionSeq SpiderSeq[] = {
 };
 
 
-DExhumedActor* BuildSpider(DExhumedActor* spp, const DVector3& pos, sectortype* pSector, int nAngle)
+DExhumedActor* BuildSpider(DExhumedActor* spp, const DVector3& pos, sectortype* pSector, DAngle nAngle)
 {
     if (spp == nullptr)
     {
@@ -48,21 +48,21 @@ DExhumedActor* BuildSpider(DExhumedActor* spp, const DVector3& pos, sectortype* 
         ChangeActorStat(spp, 99);
 
         spp->spr.pos.Z = spp->sector()->floorz;
-        nAngle = spp->int_ang();
+        nAngle = spp->spr.angle;
     }
 
     spp->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     spp->spr.shade = -12;
     spp->spr.clipdist = 15;
-    spp->spr.xvel = 0;
-    spp->spr.yvel = 0;
-    spp->spr.zvel = 0;
+    spp->vel.X = 0;
+    spp->vel.Y = 0;
+    spp->vel.Z = 0;
     spp->spr.xrepeat = 40;
     spp->spr.yrepeat = 40;
     spp->spr.pal = spp->sector()->ceilingpal;
     spp->spr.xoffset = 0;
     spp->spr.yoffset = 0;
-    spp->set_int_ang(nAngle);
+    spp->spr.angle = nAngle;
     spp->spr.picnum = 1;
     spp->spr.hitag = 0;
     spp->spr.lotag = runlist_HeadRun() + 1;
@@ -142,8 +142,7 @@ void AISpider::Tick(RunListEvent* ev)
                     spp->nFrame = 0;
                     spp->pTarget = pTarget;
 
-                    spp->spr.xvel = bcos(spp->int_ang());
-                    spp->spr.yvel = bsin(spp->int_ang());
+					spp->VelFromAngle();
                     return;
                 }
             }
@@ -174,13 +173,13 @@ void AISpider::Tick(RunListEvent* ev)
 
             if (spp->spr.cstat & CSTAT_SPRITE_YFLIP)
             {
-                spp->spr.zvel = 0;
+                spp->vel.Z = 0;
                 spp->spr.pos.Z = pSector->ceilingz + (tileHeight(spp->spr.picnum) / 8.); // was << 5 in Build coordinates
 
                 if (pSector->ceilingstat & CSTAT_SECTOR_SKY)
                 {
                     spp->spr.cstat ^= CSTAT_SPRITE_YFLIP;
-                    spp->spr.zvel = 1;
+                    spp->set_int_zvel(1);
 
                     spp->nAction = 3;
                     spp->nFrame = 0;
@@ -193,13 +192,12 @@ void AISpider::Tick(RunListEvent* ev)
 
                 if (RandomSize(3))
                 {
-                    spp->spr.xvel = bcos(spp->int_ang());
-                    spp->spr.yvel = bsin(spp->int_ang());
+					spp->VelFromAngle();
                 }
                 else
                 {
-                    spp->spr.xvel = 0;
-                    spp->spr.yvel = 0;
+                    spp->vel.X = 0;
+                    spp->vel.Y = 0;
                 }
 
                 if (spp->nAction == 1 && RandomBit())
@@ -207,12 +205,12 @@ void AISpider::Tick(RunListEvent* ev)
                     if (spp->spr.cstat & CSTAT_SPRITE_YFLIP)
                     {
                         spp->spr.cstat ^= CSTAT_SPRITE_YFLIP;
-                        spp->spr.zvel = 1;
+                        spp->set_int_zvel(1);
 						spp->spr.pos.Z = spp->sector()->ceilingz+ GetActorHeightF(spp);
                     }
                     else
                     {
-                        spp->spr.zvel = -5120;
+                        spp->set_int_zvel(-5120);
                     }
 
                     spp->nAction = 3;
@@ -256,8 +254,8 @@ void AISpider::Tick(RunListEvent* ev)
             else
             {
                 spp->nAction = 0;
-                spp->spr.xvel = 0;
-                spp->spr.yvel = 0;
+                spp->vel.X = 0;
+                spp->vel.Y = 0;
             }
 
             spp->nFrame = 0;
@@ -271,23 +269,23 @@ void AISpider::Tick(RunListEvent* ev)
         spp->nAction = 0;
         spp->nFrame = 0;
 
-        spp->spr.xvel = 0;
-        spp->spr.yvel = 0;
+        spp->vel.X = 0;
+        spp->vel.Y = 0;
     }
 
-    auto nMov = movesprite(spp, spp->spr.xvel << nVel, spp->spr.yvel << nVel, spp->spr.zvel, 1280, -1280, CLIPMASK0);
+    auto nMov = movesprite(spp, spp->int_xvel() << nVel, spp->int_yvel() << nVel, spp->int_zvel(), 1280, -1280, CLIPMASK0);
 
     if (nMov.type == kHitNone && nMov.exbits == 0)
         return;
 
     if (nMov.exbits & kHitAux1
-        && spp->spr.zvel < 0
+        && spp->vel.Z < 0
         && hiHit.type != kHitSprite
         && !((spp->sector()->ceilingstat) & CSTAT_SECTOR_SKY))
     {
         spp->spr.cstat |= CSTAT_SPRITE_YFLIP;
 		spp->spr.pos.Z = spp->sector()->ceilingz + GetActorHeightF(spp);
-        spp->spr.zvel = 0;
+        spp->vel.Z = 0;
 
         spp->nAction = 1;
         spp->nFrame = 0;
@@ -300,8 +298,7 @@ void AISpider::Tick(RunListEvent* ev)
         case kHitWall:
         {
             spp->set_int_ang((spp->int_ang() + 256) & 0x7EF);
-            spp->spr.xvel = bcos(spp->int_ang());
-            spp->spr.yvel = bsin(spp->int_ang());
+			spp->VelFromAngle();
             return;
         }
         case kHitSprite:

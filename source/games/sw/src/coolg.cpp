@@ -499,6 +499,12 @@ ACTOR_ACTION_SET CoolgActionSet =
 
 int DoCoolgMatchPlayerZ(DSWActor* actor);
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void CoolgCommon(DSWActor* actor)
 {
     actor->spr.clipdist = (200) >> 2;
@@ -511,6 +517,12 @@ void CoolgCommon(DSWActor* actor)
     actor->spr.yrepeat = 42;
     actor->spr.extra |= (SPRX_PLAYER_OR_ENEMY);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int SetupCoolg(DSWActor* actor)
 {
@@ -537,11 +549,17 @@ int SetupCoolg(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int NewCoolg(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
 
-    auto actorNew = SpawnActor(STAT_ENEMY, COOLG_RUN_R0, &s_CoolgBirth[0], actor->sector(), actor->spr.pos, actor->spr.angle, 50);
+    auto actorNew = SpawnActor(STAT_ENEMY, COOLG_RUN_R0, &s_CoolgBirth[0], actor->sector(), actor->spr.pos, actor->spr.angle, 50/16.);
 
     ChangeState(actorNew, &s_CoolgBirth[0]);
     actorNew->user.StateEnd = s_CoolgDie;
@@ -561,6 +579,12 @@ int NewCoolg(DSWActor* actor)
     return 0;
 }
 
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoCoolgBirth(DSWActor* actor)
 {
@@ -584,6 +608,12 @@ int DoCoolgBirth(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int NullCoolg(DSWActor* actor)
 {
     actor->user.ShellNum -= ACTORMOVETICS;
@@ -596,6 +626,12 @@ int NullCoolg(DSWActor* actor)
     return 0;
 }
 
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoCoolgMatchPlayerZ(DSWActor* actor)
 {
@@ -658,7 +694,7 @@ int DoCoolgMatchPlayerZ(DSWActor* actor)
     actor->user.pos.Z = max(actor->user.pos.Z, hiz + actor->user.ceiling_dist);
 
     actor->user.Counter = (actor->user.Counter + (ACTORMOVETICS<<3)) & 2047;
-    actor->spr.pos.Z = actor->user.pos.Z + COOLG_BOB_AMT * DAngle::fromBuild(actor->user.Counter).Sin();
+    actor->spr.pos.Z = actor->user.pos.Z + COOLG_BOB_AMT * BobVal(actor->user.Counter);
 
     bound = actor->user.hiz + actor->user.ceiling_dist + COOLG_BOB_AMT;
     if (actor->spr.pos.Z < bound)
@@ -670,6 +706,12 @@ int DoCoolgMatchPlayerZ(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int InitCoolgCircle(DSWActor* actor)
 {
     actor->user.ActorActionFunc = DoCoolgCircle;
@@ -680,9 +722,9 @@ int InitCoolgCircle(DSWActor* actor)
     DoActorSetSpeed(actor, FAST_SPEED);
 
     // set to really fast
-    actor->spr.xvel = 400;
+    actor->vel.Z = 400 / 256.;
     // angle adjuster
-    actor->user.Counter2 = actor->spr.xvel/3;
+    actor->user.Counter2 = int(actor->vel.X * (16. / 3));
     // random angle direction
     if (RANDOM_P2(1024) < 512)
         actor->user.Counter2 = -actor->user.Counter2;
@@ -699,17 +741,19 @@ int InitCoolgCircle(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int DoCoolgCircle(DSWActor* actor)
 {
     double bound;
-    int nx,ny;
 
-    actor->set_int_ang(NORM_ANGLE(actor->int_ang() + actor->user.Counter2));
+    actor->spr.angle += DAngle::fromBuild(actor->user.Counter2);
 
-    nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14);
-    ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14);
-
-    if (!move_actor(actor, nx, ny, 0L))
+    if (!move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0)))
     {
         InitActorReposition(actor);
         return 0;
@@ -739,10 +783,14 @@ int DoCoolgCircle(DSWActor* actor)
 }
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int DoCoolgDeath(DSWActor* actor)
 {
-    int nx, ny;
-
     actor->spr.cstat &= ~(CSTAT_SPRITE_TRANSLUCENT);
     actor->spr.cstat &= ~(CSTAT_SPRITE_INVISIBLE);
     actor->spr.xrepeat = 42;
@@ -763,10 +811,9 @@ int DoCoolgDeath(DSWActor* actor)
         DoActorSlide(actor);
 
     // slide while falling
-    nx = MulScale(actor->spr.xvel, bcos(actor->int_ang()), 14);
-    ny = MulScale(actor->spr.xvel, bsin(actor->int_ang()), 14);
+	auto vec = actor->spr.angle.ToVector() * actor->vel.X;
 
-    actor->user.coll = move_sprite(actor, nx, ny, 0L, actor->user.int_ceiling_dist(), actor->user.int_floor_dist(), CLIPMASK_MISSILE, ACTORMOVETICS);
+    actor->user.coll = move_sprite(actor, DVector3(vec, 0), actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, ACTORMOVETICS);
     DoFindGroundPoint(actor);
 
     // on the ground
@@ -781,6 +828,11 @@ int DoCoolgDeath(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DoCoolgMove(DSWActor* actor)
 {
@@ -865,6 +917,12 @@ int DoCoolgMove(DSWActor* actor)
 
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int DoCoolgPain(DSWActor* actor)
 {
     NullCoolg(actor);
@@ -875,6 +933,12 @@ int DoCoolgPain(DSWActor* actor)
     return 0;
 }
 
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 #include "saveable.h"
 

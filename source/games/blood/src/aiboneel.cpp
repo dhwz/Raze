@@ -97,7 +97,7 @@ static void eelThinkTarget(DBloodActor* actor)
 	else if (pDudeExtraE->thinkTime >= 10 && pDudeExtraE->active)
 	{
 		pDudeExtraE->thinkTime = 0;
-		actor->xspr.goalAng += 256;
+		actor->xspr.goalAng += DAngle45;
 		aiSetTarget(actor, actor->basePoint);
 		aiNewState(actor, &eelTurn);
 		return;
@@ -149,10 +149,10 @@ static void eelThinkGoto(DBloodActor* actor)
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
-	int nAngle = getangle(dvec);
+	auto nAngle = VecToAngle(dvec);
 	int nDist = approxDist(dvec);
 	aiChooseDirection(actor, nAngle);
-	if (nDist < 512 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
+	if (nDist < 512 && absangle(actor->spr.angle, nAngle) < DAngle::fromBuild(pDudeInfo->periphery))
 		aiNewState(actor, &eelSearch);
 	eelThinkTarget(actor);
 }
@@ -171,7 +171,7 @@ static void eelThinkPonder(DBloodActor* actor)
 	auto dvec = target->spr.pos.XY() - actor->spr.pos.XY();
 	int nAngle = getangle(dvec);
 	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, nAngle);
+	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
 	if (target->xspr.health == 0)
 	{
 		aiNewState(actor, &eelSearch);
@@ -215,48 +215,36 @@ static void eelMoveDodgeUp(DBloodActor* actor)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
-	int nCos = Cos(actor->int_ang());
-	int nSin = Sin(actor->int_ang());
-	int dx = actor->vel.X;
-	int dy = actor->vel.Y;
-	int t1 = DMulScale(dx, nCos, dy, nSin, 30);
-	int t2 = DMulScale(dx, nSin, -dy, nCos, 30);
-	if (actor->xspr.dodgeDir > 0)
-		t2 += pDudeInfo->sideSpeed;
-	else
-		t2 -= pDudeInfo->sideSpeed;
+	AdjustVelocity(actor, ADJUSTER{
+		if (actor->xspr.dodgeDir > 0)
+			t2 += FixedToFloat(pDudeInfo->sideSpeed);
+		else
+			t2 -= FixedToFloat(pDudeInfo->sideSpeed);
+	});
 
-	actor->vel.X = DMulScale(t1, nCos, t2, nSin, 30);
-	actor->vel.Y = DMulScale(t1, nSin, -t2, nCos, 30);
-	actor->vel.Z = -0x8000;
+	actor->vel.Z = -0.5;
 }
 
 static void eelMoveDodgeDown(DBloodActor* actor)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 	if (actor->xspr.dodgeDir == 0)
 		return;
-	int nCos = Cos(actor->int_ang());
-	int nSin = Sin(actor->int_ang());
-	int dx = actor->vel.X;
-	int dy = actor->vel.Y;
-	int t1 = DMulScale(dx, nCos, dy, nSin, 30);
-	int t2 = DMulScale(dx, nSin, -dy, nCos, 30);
-	if (actor->xspr.dodgeDir > 0)
-		t2 += pDudeInfo->sideSpeed;
-	else
-		t2 -= pDudeInfo->sideSpeed;
+	AdjustVelocity(actor, ADJUSTER{
+		if (actor->xspr.dodgeDir > 0)
+			t2 += FixedToFloat(pDudeInfo->sideSpeed);
+		else
+			t2 -= FixedToFloat(pDudeInfo->sideSpeed);
+	});
 
-	actor->vel.X = DMulScale(t1, nCos, t2, nSin, 30);
-	actor->vel.Y = DMulScale(t1, nSin, -t2, nCos, 30);
-	actor->vel.Z = 0x44444;
+	actor->vel.Z = FixedToFloat(0x44444);
 }
 
 static void eelThinkChase(DBloodActor* actor)
@@ -273,7 +261,7 @@ static void eelThinkChase(DBloodActor* actor)
 	auto dvec = target->spr.pos.XY() - actor->spr.pos.XY();
 	int nAngle = getangle(dvec);
 	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, nAngle);
+	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
 	if (target->xspr.health == 0)
 	{
 		aiNewState(actor, &eelSearch);
@@ -319,7 +307,7 @@ static void eelMoveForward(DBloodActor* actor)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 	int nAccel = (pDudeInfo->frontSpeed - (((4 - gGameOptions.nDifficulty) << 26) / 120) / 120) << 2;
@@ -331,25 +319,20 @@ static void eelMoveForward(DBloodActor* actor)
 	int nDist = approxDist(dvec);
 	if (nDist <= 0x399)
 		return;
-	int nCos = Cos(actor->int_ang());
-	int nSin = Sin(actor->int_ang());
-	int vx = actor->vel.X;
-	int vy = actor->vel.Y;
-	int t1 = DMulScale(vx, nCos, vy, nSin, 30);
-	int t2 = DMulScale(vx, nSin, -vy, nCos, 30);
-	if (actor->GetTarget() == nullptr)
-		t1 += nAccel;
-	else
-		t1 += nAccel >> 1;
-	actor->vel.X = DMulScale(t1, nCos, t2, nSin, 30);
-	actor->vel.Y = DMulScale(t1, nSin, -t2, nCos, 30);
+	AdjustVelocity(actor, ADJUSTER{
+		if (actor->GetTarget() == nullptr)
+			t1 += FixedToFloat(nAccel);
+		else
+			t1 += FixedToFloat(nAccel * 0.5);
+	});
+
 }
 
 static void eelMoveSwoop(DBloodActor* actor)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 	int nAccel = (pDudeInfo->frontSpeed - (((4 - gGameOptions.nDifficulty) << 26) / 120) / 120) << 2;
@@ -359,23 +342,18 @@ static void eelMoveSwoop(DBloodActor* actor)
 	int nDist = approxDist(dvec);
 	if (Chance(0x8000) && nDist <= 0x399)
 		return;
-	int nCos = Cos(actor->int_ang());
-	int nSin = Sin(actor->int_ang());
-	int vx = actor->vel.X;
-	int vy = actor->vel.Y;
-	int t1 = DMulScale(vx, nCos, vy, nSin, 30);
-	int t2 = DMulScale(vx, nSin, -vy, nCos, 30);
-	t1 += nAccel >> 1;
-	actor->vel.X = DMulScale(t1, nCos, t2, nSin, 30);
-	actor->vel.Y = DMulScale(t1, nSin, -t2, nCos, 30);
-	actor->vel.Z = 0x22222;
+	AdjustVelocity(actor, ADJUSTER{
+		t1 += FixedToFloat(nAccel * 0.5);
+	});
+
+	actor->vel.Z = FixedToFloat(0x22222);
 }
 
 static void eelMoveAscend(DBloodActor* actor)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, DAngle::fromBuild(actor->xspr.goalAng));
+	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
 	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
 	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
 	int nAccel = (pDudeInfo->frontSpeed - (((4 - gGameOptions.nDifficulty) << 26) / 120) / 120) << 2;
@@ -385,16 +363,11 @@ static void eelMoveAscend(DBloodActor* actor)
 	int nDist = approxDist(dvec);
 	if (Chance(0x4000) && nDist <= 0x399)
 		return;
-	int nCos = Cos(actor->int_ang());
-	int nSin = Sin(actor->int_ang());
-	int vx = actor->vel.X;
-	int vy = actor->vel.Y;
-	int t1 = DMulScale(vx, nCos, vy, nSin, 30);
-	int t2 = DMulScale(vx, nSin, -vy, nCos, 30);
-	t1 += nAccel >> 1;
-	actor->vel.X = DMulScale(t1, nCos, t2, nSin, 30);
-	actor->vel.Y = DMulScale(t1, nSin, -t2, nCos, 30);
-	actor->vel.Z = -0x8000;
+	AdjustVelocity(actor, ADJUSTER{
+		t1 += FixedToFloat(nAccel * 0.5);
+	});
+
+	actor->vel.Z = FixedToFloat(-0x8000);
 }
 
 void eelMoveToCeil(DBloodActor* actor)

@@ -31,15 +31,10 @@ Prepared for public release: 03/28/2005 - Charlie Wiederhold, 3D Realms
 BEGIN_SW_NS
 
 void KillActor(DSWActor* actor);
-DSWActor* SpawnActor(int stat, int id, STATE* state, sectortype* sect, const DVector3& pos, DAngle ang, int vel);
-inline DSWActor* SpawnActor(int stat, int id, STATE* state, sectortype* sect, int x, int y, int z, int ang, int vel)
-{
-	auto vec= DVector3(x * inttoworld, y * inttoworld, z * zinttoworld);
-	return SpawnActor(stat, id, state, sect, vec, DAngle::fromBuild(ang), vel);
-}
+DSWActor* SpawnActor(int stat, int id, STATE* state, sectortype* sect, const DVector3& pos, DAngle ang, double vel = 0);
 
 void SpriteSetup(void);
-int move_actor(DSWActor* actor, int xchange, int ychange, int zchange);
+int move_actor(DSWActor* actor, const DVector3& change);
 short GetSpriteDir(short sn);
 short GetDirToPlayer(short sn);
 short PlayerInVision(short sn, short view_deg);
@@ -55,7 +50,7 @@ bool ActorSpawn(DSWActor*);
 int SpawnItemsMatch(short match);
 void PicAnimOff(short picnum);
 int MissileWaterAdjust(DSWActor*);
-bool SpriteOverlapZ(DSWActor*, DSWActor*, int);
+bool SpriteOverlapZ(DSWActor*, DSWActor*, double);
 
 enum
 {

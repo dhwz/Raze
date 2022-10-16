@@ -185,11 +185,11 @@ static void shootmelee(DDukeActor *actor, int p, int sx, int sy, int sz, int sa,
 			auto splash = spawn(ps[p].GetActor(), WATERSPLASH2);
 			if (splash)
 			{
-				splash->set_int_xy(hit.int_hitpos().X, hit.int_hitpos().Y);
-				splash->set_int_ang(ps[p].angle.ang.Buildang()); // Total tweek
-				splash->spr.xvel = 32;
+				splash->spr.pos.XY() = hit.hitpos.XY();
+				splash->spr.angle = ps[p].angle.ang; // Total tweek
+				splash->vel.X = 2;
 				ssp(actor, 0);
-				splash->spr.xvel = 0;
+				splash->vel.X = 0;
 			}
 		}
 	}
@@ -335,7 +335,7 @@ static void shootweapon(DDukeActor* actor, int p, int sx, int sy, int sz, int sa
 				if (l)
 				{
 					l->spr.pos.Z += 4;
-					l->spr.xvel = 16;
+					l->vel.X = 1;
 					l->spr.xrepeat = l->spr.yrepeat = 24;
 					l->add_int_ang(64 - (krand() & 127));
 				}
@@ -409,9 +409,8 @@ static void shootweapon(DDukeActor* actor, int p, int sx, int sy, int sz, int sa
 							auto hole = spawn(spark, BULLETHOLE);
 							if (hole)
 							{
-								hole->spr.xvel = -1;
-								auto delta = hit.hitWall->delta();
-								hole->set_int_ang(getangle(-delta.X, -delta.Y) + 512);
+								hole->set_int_xvel(-1);
+								hole->set_int_ang(getangle(-hit.hitWall->delta()) + 512);
 								ssp(hole, CLIPMASK0);
 								hole->spr.cstat2 |= CSTAT2_SPRITE_DECAL;
 							}
@@ -678,7 +677,7 @@ static void shootrpg(DDukeActor* actor, int p, int sx, int sy, int sz, int sa, i
 		if (atwith == RRTILE1790)
 		{
 			spawned->spr.extra = 10;
-			spawned->spr.zvel = -(10 << 8);
+			spawned->set_int_zvel(-(10 << 8));
 		}
 		else if (atwith == RPG2)
 		{
@@ -693,10 +692,10 @@ static void shootrpg(DDukeActor* actor, int p, int sx, int sy, int sz, int sa, i
 		spawned->temp_actor = aimed;
 	else
 	{
-		spawned->spr.yvel = gs.numfreezebounces;
+		spawned->spr.yint = gs.numfreezebounces;
 		spawned->spr.xrepeat >>= 1;
 		spawned->spr.yrepeat >>= 1;
-		spawned->spr.zvel -= (2 << 4);
+		spawned->add_int_zvel(- (2 << 4));
 	}
 
 	if (p == -1)
@@ -717,7 +716,7 @@ static void shootrpg(DDukeActor* actor, int p, int sx, int sy, int sz, int sa, i
 	{
 		spawned->spr.extra >>= 2;
 		spawned->add_int_ang(16 - (krand() & 31));
-		spawned->spr.zvel += 256 - (krand() & 511);
+		spawned->add_int_zvel( 256 - (krand() & 511));
 
 		if (ps[p].hbomb_hold_delay)
 		{
@@ -832,11 +831,11 @@ void shoot_r(DDukeActor* actor, int atwith)
 
 	if (actor->isPlayer())
 	{
-		p = actor->spr.yvel;
+		p = actor->PlayerIndex();
 
 		sx = ps[p].player_int_pos().X;
 		sy = ps[p].player_int_pos().Y;
-		sz = ps[p].player_int_pos().Z + ps[p].pyoff + (4 << 8);
+		sz = ps[p].player_int_pos().Z + ps[p].pyoff * zworldtoint + (4 << 8);
 		sa = ps[p].angle.ang.Buildang();
 
 		if (isRRRA()) ps[p].crack_time = CRACK_TIME;
@@ -892,7 +891,7 @@ void shoot_r(DDukeActor* actor, int atwith)
 		auto j = spawn(actor, atwith);
 		if (j)
 		{
-			j->spr.xvel = 32;
+			j->vel.X = 2;
 			j->spr.angle = actor->spr.angle;
 			j->spr.pos.Z -= 5;
 		}
@@ -903,7 +902,7 @@ void shoot_r(DDukeActor* actor, int atwith)
 		auto j = spawn(actor, atwith);
 		if (j)
 		{
-			j->spr.xvel = 250;
+			j->set_int_xvel(250);
 			j->spr.angle = actor->spr.angle;
 			j->spr.pos.Z -= 15;
 		}
@@ -1259,7 +1258,7 @@ int doincrements_r(player_struct* p)
 		}
 	}
 
-	snum = p->GetActor()->spr.yvel;
+	snum = p->GetActor()->PlayerIndex();
 
 	p->player_par++;
 	if (p->yehaa_timer)
@@ -2060,10 +2059,12 @@ static void onBoat(int snum, ESyncBits &actions)
 //
 //---------------------------------------------------------------------------
 
-static void movement(int snum, ESyncBits actions, sectortype* psect, int fz, int cz, int shrunk, int truefdist, int psectlotag)
+static void movement(int snum, ESyncBits actions, sectortype* psect, int fz_, int cz_, int shrunk, int truefdist, int psectlotag)
 {
 	auto p = &ps[snum];
 	auto pact = p->GetActor();
+	double floorz = fz_ * zinttoworld;
+	double ceilingz = cz_ * zinttoworld;
 
 	if (p->airleft != 15 * 26)
 		p->airleft = 15 * 26; //Aprox twenty seconds.
@@ -2071,7 +2072,7 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, int fz, int
 	if (p->scuba_on == 1)
 		p->scuba_on = 0;
 
-	int i = 40;
+	double i = 40;
 	if (psectlotag == ST_1_ABOVE_WATER && p->spritebridge == 0)
 	{
 		if (shrunk == 0)
@@ -2079,7 +2080,7 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, int fz, int
 			i = 34;
 			p->pycount += 32;
 			p->pycount &= 2047;
-			p->pyoff = bsin(p->pycount, -6);
+			p->pyoff = BobVal(p->pycount) * 2;
 		}
 		else i = 12;
 
@@ -2114,15 +2115,15 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, int fz, int
 		footprints(snum);
 	}
 
-	if (p->player_int_pos().Z < (fz - (i << 8))) //falling
+	if (p->pos.Z < floorz - i) //falling
 	{
-		if ((actions & (SB_JUMP|SB_CROUCH)) == 0 && p->on_ground && (psect->floorstat & CSTAT_SECTOR_SLOPE) && p->player_int_pos().Z >= (fz - (i << 8) - (16 << 8)))
-			p->player_set_int_z(fz - (i << 8));
+		if ((actions & (SB_JUMP|SB_CROUCH)) == 0 && p->on_ground && (psect->floorstat & CSTAT_SECTOR_SLOPE) && p->pos.Z >= (floorz - i - 16))
+			p->pos.Z = floorz - i;
 		else
 		{
 			p->on_ground = 0;
 
-			if ((p->OnMotorcycle || p->OnBoat) && fz - (i << 8) * 2 > p->player_int_pos().Z)
+			if ((p->OnMotorcycle || p->OnBoat) && floorz - i * 2 > p->pos.Z)
 			{
 				if (p->MotoOnGround)
 				{
@@ -2152,7 +2153,7 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, int fz, int
 					S_PlayActorSound(DUKE_SCREAM, pact);
 			}
 
-			if ((p->player_int_pos().Z + p->vel.Z) >= (fz - (i << 8))) // hit the ground
+			if (p->pos.Z + p->vel.Z * zinttoworld >= floorz - i) // hit the ground
 			{
 				S_StopSound(DUKE_SCREAM, pact);
 				if (!p->insector() || p->cursector->lotag != 1)
@@ -2212,18 +2213,18 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, int fz, int
 		{
 			//Smooth on the ground
 
-			int k = ((fz - (i << 8)) - p->player_int_pos().Z) >> 1;
-			if (abs(k) < 256) k = 0;
-			p->player_add_int_z(k);
+			double k = (floorz - i - p->pos.Z) * 0.5;
+			if (abs(k) < 1) k = 0;
+			p->pos.Z += k;
 			p->vel.Z -= 768;
 			if (p->vel.Z < 0) p->vel.Z = 0;
 		}
 		else if (p->jumping_counter == 0)
 		{
-			p->player_add_int_z(((fz - (i << 7)) - p->player_int_pos().Z) >> 1); //Smooth on the water
-			if (p->on_warping_sector == 0 && p->player_int_pos().Z > fz - (16 << 8))
+			p->pos.Z += ((floorz - i * 0.5) - p->pos.Z) * 0.5; //Smooth on the water
+			if (p->on_warping_sector == 0 && p->pos.Z > floorz - 16)
 			{
-				p->player_set_int_z(fz - (16 << 8));
+				p->pos.Z = floorz - 16;
 				p->vel.Z >>= 1;
 			}
 		}
@@ -2240,7 +2241,7 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, int fz, int
 
 		else if ((actions & SB_JUMP) && !p->OnMotorcycle && p->jumping_toggle == 0)
 		{
-			playerJump(snum, fz, cz);
+			playerJump(snum, fz_, cz_);
 		}
 	}
 
@@ -2270,15 +2271,15 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, int fz, int
 		}
 	}
 
-	p->player_add_int_z(p->vel.Z);
+	p->pos.Z += p->vel.Z * zinttoworld;
 
-	if (p->player_int_pos().Z < (cz + (4 << 8)))
+	if (p->pos.Z < ceilingz + 4)
 	{
 		p->jumping_counter = 0;
 		if (p->vel.Z < 0)
 			p->vel.X = p->vel.Y = 0;
 		p->vel.Z = 128;
-		p->player_set_int_z(cz + (4 << 8));
+		p->pos.Z = ceilingz + 4;
 	}
 }
 
@@ -2288,16 +2289,18 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, int fz, int
 //
 //---------------------------------------------------------------------------
 
-static void underwater(int snum, ESyncBits actions, int fz, int cz)
+static void underwater(int snum, ESyncBits actions, int fz_, int cz_)
 {
 	auto p = &ps[snum];
 	auto pact = p->GetActor();
+	double floorz = fz_ * zinttoworld;
+	double ceilingz = cz_ * zinttoworld;
 
 	p->jumping_counter = 0;
 
 	p->pycount += 32;
 	p->pycount &= 2047;
-	p->pyoff = bsin(p->pycount, -7);
+	p->pyoff = BobVal(p->pycount);
 
 	if (!S_CheckActorSoundPlaying(pact, DUKE_UNDERWATER))
 		S_PlayActorSound(DUKE_UNDERWATER, pact);
@@ -2333,14 +2336,14 @@ static void underwater(int snum, ESyncBits actions, int fz, int cz)
 	if (p->vel.Z > 2048)
 		p->vel.Z >>= 1;
 
-	p->player_add_int_z(p->vel.Z);
+	p->pos.Z += p->vel.Z * zinttoworld;
 
-	if (p->player_int_pos().Z > (fz - (15 << 8)))
-		p->player_add_int_z(((fz - (15 << 8)) - p->player_int_pos().Z) >> 1);
+	if (p->pos.Z > floorz - 15)
+		p->pos.Z += (((floorz - 15) - p->pos.Z) * 0.5);
 
-	if (p->player_int_pos().Z < (cz + (4 << 8)))
+	if (p->pos.Z < ceilingz + 4)
 	{
-		p->player_set_int_z(cz + (4 << 8));
+		p->pos.Z = ceilingz + 4;
 		p->vel.Z = 0;
 	}
 
@@ -2352,7 +2355,7 @@ static void underwater(int snum, ESyncBits actions, int fz, int cz)
 			j->add_int_pos({ bcos(p->angle.ang.Buildang() + 64 - (global_random & 128) + 128, -6), bsin(p->angle.ang.Buildang() + 64 - (global_random & 128) + 128, -6), 0 });
 			j->spr.xrepeat = 3;
 			j->spr.yrepeat = 2;
-			j->set_int_z(p->player_int_pos().Z + (8 << 8));
+			j->spr.pos.Z = p->pos.Z + 8;
 			j->spr.cstat = CSTAT_SPRITE_TRANS_FLIP | CSTAT_SPRITE_TRANSLUCENT;
 		}
 	}
@@ -2422,7 +2425,6 @@ void onBoatMove(int snum, int psectlotag, walltype* wal)
 {
 	auto p = &ps[snum];
 	auto pact = p->GetActor();
-	auto delta = wal->delta();
 	int angleDelta = abs(p->angle.ang.Buildang() - getangle(wal->delta()));
 
 	p->angle.addadjustment(DAngle::fromBuildf(p->MotoSpeed / (krand() & 1 ? -4 : 4)));
@@ -2471,7 +2473,7 @@ void onMotorcycleHit(int snum, DDukeActor* victim)
 			{
 				Collision coll;
 				int ang = int(p->TiltStatus * 20 + p->angle.ang.Buildang());
-				movesprite_ex(victim, bcos(ang, -8), bsin(ang, -8), victim->spr.zvel, CLIPMASK0, coll);
+				movesprite_ex(victim, bcos(ang, -8), bsin(ang, -8), victim->int_zvel(), CLIPMASK0, coll);
 			}
 		}
 		else
@@ -2531,7 +2533,7 @@ void onBoatHit(int snum, DDukeActor* victim)
 			{
 				Collision coll;
 				int ang = int(p->TiltStatus * 20 + p->angle.ang.Buildang());
-				movesprite_ex(victim, bcos(ang, -9), bsin(ang, -9), victim->spr.zvel, CLIPMASK0, coll);
+				movesprite_ex(victim, bcos(ang, -9), bsin(ang, -9), victim->int_zvel(), CLIPMASK0, coll);
 			}
 		}
 		else
@@ -2753,16 +2755,15 @@ static void operateweapon(int snum, ESyncBits actions, sectortype* psectp)
 			{
 				if (k == 15)
 				{
-					spawned->spr.yvel = 3;
+					spawned->spr.yint = 3;
 					spawned->spr.pos.Z += 8;
 				}
 
 				k = hits(p->GetActor());
 				if (k < 512)
 				{
-					spawned->add_int_ang(1024);
-					spawned->spr.zvel /= 3;
-					spawned->spr.xvel /= 3;
+					spawned->spr.angle += DAngle180;
+					spawned->vel *= 1./3.;
 				}
 
 				p->hbomb_on = 1;
@@ -2977,7 +2978,7 @@ static void operateweapon(int snum, ESyncBits actions, sectortype* psectp)
 					{
 
 						j->set_int_ang((j->int_ang() + 1024) & 2047);
-						j->spr.xvel += 32;
+						j->add_int_xvel( 32);
 						j->spr.pos.Z += 3;
 						ssp(j, CLIPMASK0);
 					}
@@ -3544,7 +3545,7 @@ void processinput_r(int snum)
 	if (p->GetActor()->spr.xrepeat < 8 && p->jetpack_on == 0)
 	{
 		p->ofistsign = p->fistsign;
-		p->fistsign += p->GetActor()->spr.xvel;
+		p->fistsign += p->GetActor()->int_xvel();
 	}
 
 	if (p->transporter_hold > 0)
@@ -3558,7 +3559,8 @@ void processinput_r(int snum)
 
 	if (p->newOwner != nullptr)
 	{
-		p->vel.X = p->vel.Y = pact->spr.xvel = 0;
+		p->vel.X = p->vel.Y = 0;
+		pact->vel.X = 0;
 
 		fi.doincrements(p);
 
@@ -3576,10 +3578,10 @@ void processinput_r(int snum)
 	if (p->on_crane != nullptr)
 		goto HORIZONLY;
 
-	p->playerweaponsway(pact->spr.xvel);
+	p->playerweaponsway(pact->int_xvel());
 
-	pact->spr.xvel = int(clamp((p->pos.XY() - p->bobpos).Length(), 0., 32.) * worldtoint);
-	if (p->on_ground) p->bobcounter += p->GetActor()->spr.xvel >> 1;
+	pact->set_int_xvel(int(clamp((p->pos.XY() - p->bobpos).Length(), 0., 32.) * worldtoint));
+	if (p->on_ground) p->bobcounter += p->GetActor()->int_xvel() >> 1;
 
 	p->backuppos(ud.clipping == 0 && ((p->insector() && p->cursector->floorpicnum == MIRROR) || !p->insector()));
 
@@ -3603,7 +3605,7 @@ void processinput_r(int snum)
 	{
 		p->pycount += 32;
 		p->pycount &= 2047;
-		p->pyoff = bsin(p->pycount, -(p->SeaSick ? 2 : 7));
+		p->pyoff = BobVal(p->pycount) * (p->SeaSick? 32 : 1);
 	}
 
 	if (psectlotag == ST_2_UNDERWATER)
@@ -3880,14 +3882,14 @@ HORIZONLY:
 
 	if (p->jetpack_on == 0)
 	{
-		if (pact->spr.xvel > 16)
+		if (pact->int_xvel() > 16)
 		{
 			if (psectlotag != ST_1_ABOVE_WATER && psectlotag != ST_2_UNDERWATER && p->on_ground && (!isRRRA() || !p->sea_sick_stat))
 			{
 				p->pycount += 52;
 				p->pycount &= 2047;
-				p->pyoff =
-					abs(pact->spr.xvel * bsin(p->pycount)) / 1596;
+				const double factor = 64. / 1596; // What is 1596?
+				p->pyoff = abs(pact->int_xvel() * BobVal(p->pycount)) * factor;
 			}
 		}
 		else if (psectlotag != ST_2_UNDERWATER && psectlotag != 1 && (!isRRRA() || !p->sea_sick_stat))
@@ -3910,7 +3912,7 @@ HORIZONLY:
 		if (ud.clipping == 0 && psectp->lotag == ST_31_TWO_WAY_TRAIN)
 		{
 			auto act = barrier_cast<DDukeActor*>(psectp->hitagactor);
-			if (act && act->spr.xvel && act->temp_data[0] == 0)
+			if (act && act->vel.X != 0 && act->temp_data[0] == 0)
 			{
 				quickkill(p);
 				return;
@@ -4103,8 +4105,6 @@ void OffMotorcycle(player_struct *p)
 		if (spawned)
 		{
 			spawned->spr.angle = p->angle.ang;
-			spawned->spr.xvel += p->angle.ang.Cos() * (1 << 7);
-			spawned->spr.yvel += p->angle.ang.Sin() * (1 << 7);
 			spawned->saved_ammo = p->ammo_amount[MOTORCYCLE_WEAPON];
 		}
 	}
@@ -4168,8 +4168,6 @@ void OffBoat(player_struct *p)
 		if (spawned)
 		{
 			spawned->spr.angle = p->angle.ang;
-			spawned->spr.xvel += p->angle.ang.Cos() * (1 << 7);
-			spawned->spr.yvel += p->angle.ang.Sin() * (1 << 7);
 			spawned->saved_ammo = p->ammo_amount[BOAT_WEAPON];
 		}
 	}

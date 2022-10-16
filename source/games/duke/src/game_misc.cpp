@@ -206,16 +206,16 @@ void V_AddBlend (float r, float g, float b, float a, float v_blend[4])
  //
  //---------------------------------------------------------------------------
 
- void drawweapon(double smoothratio)
+ void drawweapon(double interpfrac)
  {
 	 auto pp = &ps[screenpeek];
 	 if (!isRR() && pp->newOwner != nullptr)
 		 cameratext(pp->newOwner);
 	 else
 	 {
-		 fi.displayweapon(screenpeek, smoothratio);
+		 fi.displayweapon(screenpeek, interpfrac);
 		 if (pp->over_shoulder_on == 0)
-			 fi.displaymasks(screenpeek, pp->GetActor()->spr.pal == 1 || !pp->insector() ? 1 : pp->cursector->floorpal, smoothratio);
+			 fi.displaymasks(screenpeek, pp->GetActor()->spr.pal == 1 || !pp->insector() ? 1 : pp->cursector->floorpal, interpfrac);
 	 }
 
  }
@@ -226,10 +226,10 @@ void V_AddBlend (float r, float g, float b, float a, float v_blend[4])
 //
 //---------------------------------------------------------------------------
 
-void drawoverlays(double smoothratio)
+void drawoverlays(double interpfrac)
 {
 	player_struct* pp;
-	int cposx, cposy;
+	DVector2 cposxy;
 	DAngle cang;
 
 	pp = &ps[screenpeek];
@@ -260,30 +260,27 @@ void drawoverlays(double smoothratio)
 	{
 		if (automapMode != am_off)
 		{
-			DoInterpolations(smoothratio / 65536.);
+			DoInterpolations(interpfrac);
 
 			if (pp->newOwner == nullptr && playrunning())
 			{
 				if (screenpeek == myconnectindex && numplayers > 1)
 				{
-					cposx = interpolatedvalue(omyx, myx, smoothratio);
-					cposy = interpolatedvalue(omyy, myy, smoothratio);
-					cang = !SyncInput() ? myang : interpolatedangle(omyang, myang, smoothratio);
+					cposxy = interpolatedvalue(omypos, mypos, interpfrac).XY();
+					cang = !SyncInput() ? myang : interpolatedvalue(omyang, myang, interpfrac);
 				}
 				else
 				{
-					cposx = interpolatedvalue(pp->player_int_opos().X, pp->player_int_pos().X, smoothratio);
-					cposy = interpolatedvalue(pp->player_int_opos().Y, pp->player_int_pos().Y, smoothratio);
-					cang = !SyncInput() ? pp->angle.ang : interpolatedangle(pp->angle.oang, pp->angle.ang, smoothratio);
+					cposxy = interpolatedvalue(pp->opos, pp->pos, interpfrac).XY();
+					cang = !SyncInput() ? pp->angle.ang : interpolatedvalue(pp->angle.oang, pp->angle.ang, interpfrac);
 				}
 			}
 			else
 			{
-				cposx = pp->player_int_opos().X;
-				cposy = pp->player_int_opos().Y;
+				cposxy = pp->opos.XY();
 				cang = pp->angle.oang;
 			}
-			DrawOverheadMap(cposx, cposy, cang, smoothratio);
+			DrawOverheadMap(cposxy, cang, interpfrac);
 			RestoreInterpolations();
 		}
 	}
@@ -292,7 +289,7 @@ void drawoverlays(double smoothratio)
 
 	if (ps[myconnectindex].newOwner == nullptr && ud.cameraactor == nullptr)
 	{
-		DrawCrosshair(TILE_CROSSHAIR, ps[screenpeek].last_extra, -pp->angle.look_anghalf(smoothratio), pp->over_shoulder_on ? 2.5 : 0, isRR() ? 0.5 : 1);
+		DrawCrosshair(TILE_CROSSHAIR, ps[screenpeek].last_extra, -pp->angle.look_anghalf(interpfrac), pp->over_shoulder_on ? 2.5 : 0, isRR() ? 0.5 : 1);
 	}
 
 	if (paused == 2)
@@ -385,198 +382,61 @@ ReservedSpace GameInterface::GetReservedScreenSpace(int viewsize)
 //
 //---------------------------------------------------------------------------
 
-bool GameInterface::DrawAutomapPlayer(int mx, int my, int cposx, int cposy, const double czoom, const DAngle cang, double const smoothratio)
+bool GameInterface::DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac)
 {
-	int i, j, k, l, x1, y1, x2, y2, x3, y3, x4, y4, ox, oy, xoff, yoff;
-	int dax, day, cosang, sinang, xspan, yspan, sprx, spry;
-	int xrepeat, yrepeat, tilenum;
-	int xvect, yvect;
-	int p;
-	PalEntry col;
+	// Pre-caculate incoming angle vector.
+	auto cangvect = cang.ToVector();
 
-	xvect = -cang.Sin() * 16384. * czoom;
-	yvect = -cang.Cos() * 16384. * czoom;
-
-	int xdim = twod->GetWidth() << 11;
-	int ydim = twod->GetHeight() << 11;
-
-	//Draw sprites
-	auto pactor = ps[screenpeek].GetActor();
-	for (unsigned ii = 0; ii < sector.Size(); ii++)
+	// Draw sprites
+	if (gFullMap)
 	{
-		if (!gFullMap || !show2dsector[ii]) continue;
-		DukeSectIterator it(ii);
-		while (auto act = it.Next())
+		for (unsigned ii = 0; ii < sector.Size(); ii++)
 		{
-			if (act == pactor || (act->spr.cstat & CSTAT_SPRITE_INVISIBLE) || act->spr.cstat == CSTAT_SPRITE_BLOCK_ALL || act->spr.xrepeat == 0) continue;
-
-			col = PalEntry(0, 170, 170);
-			if (act->spr.cstat & CSTAT_SPRITE_BLOCK) col = PalEntry(170, 0, 170);
-
-			sprx = act->int_pos().X;
-			spry = act->int_pos().Y;
-
-			if ((act->spr.cstat & CSTAT_SPRITE_BLOCK_ALL) != 0) switch (act->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK)
+			if (show2dsector[ii]) continue;
+			DukeSectIterator it(ii);
+			while (auto act = it.Next())
 			{
-			case CSTAT_SPRITE_ALIGNMENT_FACING:
-				//break;
+				if (act == ps[screenpeek].actor || (act->spr.cstat & CSTAT_SPRITE_INVISIBLE) || act->spr.cstat == CSTAT_SPRITE_BLOCK_ALL || act->spr.xrepeat == 0) continue;
 
-				ox = sprx - cposx;
-				oy = spry - cposy;
-				x1 = DMulScale(ox, xvect, -oy, yvect, 16);
-				y1 = DMulScale(oy, xvect, ox, yvect, 16);
-
-				ox = bcos(act->int_ang(), -7);
-				oy = bsin(act->int_ang(), -7);
-				x2 = DMulScale(ox, xvect, -oy, yvect, 16);
-				y2 = DMulScale(oy, xvect, ox, yvect, 16);
-
-				x3 = x2;
-				y3 = y2;
-
-				drawlinergb(x1 - x2 + xdim, y1 - y3 + ydim, x1 + x2 + xdim, y1 + y3 + ydim, col);
-				drawlinergb(x1 - y2 + xdim, y1 + x3 + ydim, x1 + x2 + xdim, y1 + y3 + ydim, col);
-				drawlinergb(x1 + y2 + xdim, y1 - x3 + ydim, x1 + x2 + xdim, y1 + y3 + ydim, col);
-				break;
-
-			case CSTAT_SPRITE_ALIGNMENT_WALL:
-				if (actorflag(act, SFLAG2_SHOWWALLSPRITEONMAP))
+				if ((act->spr.cstat & CSTAT_SPRITE_BLOCK_ALL) != 0)
 				{
-					x1 = sprx;
-					y1 = spry;
-					tilenum = act->spr.picnum;
-					xoff = tileLeftOffset(tilenum) + act->spr.xoffset;
-					if ((act->spr.cstat & CSTAT_SPRITE_XFLIP) > 0) xoff = -xoff;
-					k = act->int_ang();
-					l = act->spr.xrepeat;
-					dax = bsin(k) * l;
-					day = -bcos(k) * l;
-					l = tileWidth(tilenum);
-					k = (l >> 1) + xoff;
-					x1 -= MulScale(dax, k, 16);
-					x2 = x1 + MulScale(dax, l, 16);
-					y1 -= MulScale(day, k, 16);
-					y2 = y1 + MulScale(day, l, 16);
+					PalEntry col = act->spr.cstat & CSTAT_SPRITE_BLOCK ? PalEntry(170, 0, 170) : PalEntry(0, 170, 170);
+					auto sprpos = act->spr.pos.XY() - cpos;
 
-					ox = x1 - cposx;
-					oy = y1 - cposy;
-					x1 = DMulScale(ox, xvect, -oy, yvect, 16);
-					y1 = DMulScale(oy, xvect, ox, yvect, 16);
+					switch (act->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK)
+					{
+					case CSTAT_SPRITE_ALIGNMENT_FACING:
+						DrawAutomapAlignmentFacing(act->spr, sprpos, cangvect, czoom, xydim, col);
+						break;
 
-					ox = x2 - cposx;
-					oy = y2 - cposy;
-					x2 = DMulScale(ox, xvect, -oy, yvect, 16);
-					y2 = DMulScale(oy, xvect, ox, yvect, 16);
+					case CSTAT_SPRITE_ALIGNMENT_WALL:
+						if (actorflag(act, SFLAG2_SHOWWALLSPRITEONMAP)) DrawAutomapAlignmentWall(act->spr, sprpos, cangvect, czoom, xydim, col);
+						break;
 
-					drawlinergb(x1 + xdim, y1 + ydim,
-						x2 + xdim, y2 + ydim, col);
+					case CSTAT_SPRITE_ALIGNMENT_FLOOR:
+					case CSTAT_SPRITE_ALIGNMENT_SLOPE:
+						DrawAutomapAlignmentFloor(act->spr, sprpos, cangvect, czoom, xydim, col);
+						break;
+					}
 				}
-
-				break;
-
-			case CSTAT_SPRITE_ALIGNMENT_FLOOR:
-			case CSTAT_SPRITE_ALIGNMENT_SLOPE:
-				tilenum = act->spr.picnum;
-				xoff = tileLeftOffset(tilenum);
-				yoff = tileTopOffset(tilenum);
-				if ((act->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) != CSTAT_SPRITE_ALIGNMENT_SLOPE)
-				{
-					xoff += act->spr.xoffset;
-					yoff += act->spr.yoffset;
-				}
-
-				if ((act->spr.cstat & CSTAT_SPRITE_XFLIP) > 0) xoff = -xoff;
-				if ((act->spr.cstat & CSTAT_SPRITE_YFLIP) > 0) yoff = -yoff;
-
-				k = act->int_ang();
-				cosang = bcos(k);
-				sinang = bsin(k);
-				xspan = tileWidth(tilenum);
-				xrepeat = act->spr.xrepeat;
-				yspan = tileHeight(tilenum);
-				yrepeat = act->spr.yrepeat;
-
-				dax = ((xspan >> 1) + xoff) * xrepeat;
-				day = ((yspan >> 1) + yoff) * yrepeat;
-				x1 = sprx + DMulScale(sinang, dax, cosang, day, 16);
-				y1 = spry + DMulScale(sinang, day, -cosang, dax, 16);
-				l = xspan * xrepeat;
-				x2 = x1 - MulScale(sinang, l, 16);
-				y2 = y1 + MulScale(cosang, l, 16);
-				l = yspan * yrepeat;
-				k = -MulScale(cosang, l, 16);
-				x3 = x2 + k;
-				x4 = x1 + k;
-				k = -MulScale(sinang, l, 16);
-				y3 = y2 + k;
-				y4 = y1 + k;
-
-				ox = x1 - cposx;
-				oy = y1 - cposy;
-				x1 = DMulScale(ox, xvect, -oy, yvect, 16);
-				y1 = DMulScale(oy, xvect, ox, yvect, 16);
-
-				ox = x2 - cposx;
-				oy = y2 - cposy;
-				x2 = DMulScale(ox, xvect, -oy, yvect, 16);
-				y2 = DMulScale(oy, xvect, ox, yvect, 16);
-
-				ox = x3 - cposx;
-				oy = y3 - cposy;
-				x3 = DMulScale(ox, xvect, -oy, yvect, 16);
-				y3 = DMulScale(oy, xvect, ox, yvect, 16);
-
-				ox = x4 - cposx;
-				oy = y4 - cposy;
-				x4 = DMulScale(ox, xvect, -oy, yvect, 16);
-				y4 = DMulScale(oy, xvect, ox, yvect, 16);
-
-				drawlinergb(x1 + xdim, y1 + ydim,
-					x2 + xdim, y2 + ydim, col);
-
-				drawlinergb(x2 + xdim, y2 + ydim,
-					x3 + xdim, y3 + ydim, col);
-
-				drawlinergb(x3 + xdim, y3 + ydim,
-					x4 + xdim, y4 + ydim, col);
-
-				drawlinergb(x4 + xdim, y4 + ydim,
-					x1 + xdim, y1 + ydim, col);
-
-				break;
 			}
 		}
 	}
 
-	for (p = connecthead; p >= 0; p = connectpoint2[p])
+	for (int p = connecthead; p >= 0; p = connectpoint2[p])
 	{
-		auto act = ps[p].GetActor();
-
-		ox = mx - cposx;
-		oy = my - cposy;
-		x1 = DMulScale(ox, xvect, -oy, yvect, 16);
-		y1 = DMulScale(oy, xvect, ox, yvect, 16);
-		int xx = twod->GetWidth() / 2. + x1 / 4096.;
-		int yy = twod->GetHeight() / 2. + y1 / 4096.;
-
-		auto const daang = -((!SyncInput() ? act->spr.angle : act->interpolatedangle(smoothratio / 65536.)) - cang).Normalized360().Degrees();
-
 		if (p == screenpeek || ud.coop == 1)
 		{
 			auto& pp = ps[p];
-			if (act->spr.xvel > 16 && pp.on_ground)
-				i = TILE_APLAYERTOP + ((PlayClock >> 4) & 3);
-			else
-				i = TILE_APLAYERTOP;
+			auto act = pp.GetActor();
+			int i = TILE_APLAYERTOP + (act->int_xvel() > 16 && pp.on_ground ? (PlayClock >> 4) & 3 : 0);
+			double j = clamp(czoom * act->spr.yrepeat + abs(pp.truefz - pp.pos.Z), 21.5, 128.) * REPEAT_SCALE;
 
-			j = abs(int(pp.truefz - pp.pos.Z));
-			j = czoom * (act->spr.yrepeat + j);
+			auto const vec = OutAutomapVector(mxy - cpos, cangvect, czoom, xydim);
+			auto const daang = -((!SyncInput() ? act->spr.angle : act->interpolatedangle(interpfrac)) - cang).Normalized360().Degrees();
 
-			if (j < 22000) j = 22000;
-			else if (j > (65536 << 1)) j = (65536 << 1);
-
-			DrawTexture(twod, tileGetTexture(i), xx, yy, DTA_TranslationIndex, TRANSLATION(Translation_Remap + setpal(&pp), act->spr.pal), DTA_CenterOffset, true,
-				DTA_Rotate, daang, DTA_Color, shadeToLight(act->spr.shade), DTA_ScaleX, j / 65536., DTA_ScaleY, j / 65536., TAG_DONE);
+			DrawTexture(twod, tileGetTexture(i), vec.X, vec.Y, DTA_TranslationIndex, TRANSLATION(Translation_Remap + setpal(&pp), act->spr.pal), DTA_CenterOffset, true,
+				DTA_Rotate, daang, DTA_Color, shadeToLight(act->spr.shade), DTA_ScaleX, j, DTA_ScaleY, j, TAG_DONE);
 		}
 	}
 	return true;

@@ -56,10 +56,10 @@ static actionSeq PlayerSeq[] = {
 
 static const uint8_t nHeightTemplate[] = { 0, 0, 0, 0, 0, 0, 7, 7, 7, 9, 9, 9, 9, 0, 0, 0, 0, 0, 0, 0, 0 };
 
-static const int16_t nActionEyeLevel[] = {
-    -14080, -14080, -14080, -14080, -14080, -14080, -8320,
-    -8320,  -8320,  -8320,  -8320,  -8320,  -8320,  -14080,
-    -14080, -14080, -14080, -14080, -14080, -14080, -14080
+static constexpr double nActionEyeLevel[] = {
+    -55.0,  -55.0,  -55.0,  -55.0,  -55.0,  -55.0,  -32.5,
+    -32.5,  -32.5,  -32.5,  -32.5,  -32.5,  -32.5,  -55.0,
+    -55.0,  -55.0,  -55.0,  -55.0,  -55.0,  -55.0,  -55.0
 };
 
 static const uint16_t nGunLotag[] = { 52, 53, 54, 55, 56, 57 };
@@ -101,7 +101,7 @@ size_t MarkPlayers()
     return 5 * kMaxPlayers;
 }
 
-void SetSavePoint(int nPlayer, const DVector3& pos, sectortype* pSector, int nAngle)
+void SetSavePoint(int nPlayer, const DVector3& pos, sectortype* pSector, DAngle nAngle)
 {
     PlayerList[nPlayer].sPlayerSave.pos = pos;
     PlayerList[nPlayer].sPlayerSave.pSector = pSector;
@@ -278,7 +278,7 @@ void RestartPlayer(int nPlayer)
 	{
         pActor->spr.pos.XY() = plr->sPlayerSave.pos.XY();
 		pActor->spr.pos.Z = plr->sPlayerSave.pSector->floorz;
-		plr->angle.ang = DAngle::fromBuild(plr->sPlayerSave.nAngle&kAngleMask);
+		plr->angle.ang = plr->sPlayerSave.nAngle;
 		pActor->spr.angle = plr->angle.ang;
 
 		floorsprt = nullptr;
@@ -300,9 +300,9 @@ void RestartPlayer(int nPlayer)
 	pActor->spr.picnum = seq_GetSeqPicnum(kSeqJoe, 18, 0);
 
 	int nHeight = GetActorHeight(pActor);
-	pActor->spr.xvel = 0;
-	pActor->spr.yvel = 0;
-	pActor->spr.zvel = 0;
+	pActor->vel.X = 0;
+	pActor->vel.Y = 0;
+	pActor->vel.Z = 0;
 
 	nStandHeight = nHeight;
 
@@ -374,7 +374,7 @@ void RestartPlayer(int nPlayer)
 	}
 
 	plr->pPlayerGrenade = nullptr;
-	plr->oeyelevel = plr->eyelevel = -14080;
+	plr->oeyelevel = plr->eyelevel = -55.;
 	dVertPan[nPlayer] = 0;
 
 	nTemperature[nPlayer] = 0;
@@ -467,7 +467,7 @@ void StartDeathSeq(int nPlayer, int nVal)
     StopFiringWeapon(nPlayer);
 
     PlayerList[nPlayer].horizon.ohoriz = PlayerList[nPlayer].horizon.horiz = q16horiz(0);
-    PlayerList[nPlayer].oeyelevel = PlayerList[nPlayer].eyelevel = -14080;
+    PlayerList[nPlayer].oeyelevel = PlayerList[nPlayer].eyelevel = -55;
     PlayerList[nPlayer].nInvisible = 0;
     dVertPan[nPlayer] = 15;
 
@@ -545,8 +545,8 @@ void SetPlayerMummified(int nPlayer, int bIsMummified)
 {
     DExhumedActor* pActor = PlayerList[nPlayer].pActor;
 
-    pActor->spr.yvel = 0;
-    pActor->spr.xvel = 0;
+    pActor->vel.Y = 0;
+    pActor->vel.X = 0;
 
     PlayerList[nPlayer].bIsMummified = bIsMummified;
 
@@ -591,8 +591,8 @@ static void pickupMessage(int no)
 
 void UpdatePlayerSpriteAngle(Player* pPlayer)
 {
-    inita = pPlayer->angle.ang.Buildang();
-    if (pPlayer->pActor) pPlayer->pActor->set_int_ang(inita);
+    inita = pPlayer->angle.ang;
+    if (pPlayer->pActor) pPlayer->pActor->spr.angle = inita;
 }
 
 void AIPlayer::Draw(RunListEvent* ev)
@@ -747,8 +747,8 @@ void AIPlayer::Tick(RunListEvent* ev)
     PlayerList[nPlayer].horizon.resetadjustment();
     PlayerList[nPlayer].oeyelevel = PlayerList[nPlayer].eyelevel;
 
-    pPlayerActor->spr.xvel = sPlayerInput[nPlayer].xVel >> 14;
-    pPlayerActor->spr.yvel = sPlayerInput[nPlayer].yVel >> 14;
+    pPlayerActor->set_int_xvel(sPlayerInput[nPlayer].xVel >> 14);
+    pPlayerActor->set_int_yvel(sPlayerInput[nPlayer].yVel >> 14);
 
     if (sPlayerInput[nPlayer].nItem > -1)
     {
@@ -815,7 +815,7 @@ void AIPlayer::Tick(RunListEvent* ev)
         nQuake[nPlayer] = -nQuake[nPlayer];
         if (nQuake[nPlayer] > 0)
         {
-            nQuake[nPlayer] -= 512;
+            nQuake[nPlayer] -= 2.;
             if (nQuake[nPlayer] < 0)
                 nQuake[nPlayer] = 0;
         }
@@ -829,12 +829,12 @@ void AIPlayer::Tick(RunListEvent* ev)
         UpdatePlayerSpriteAngle(pPlayer);
     }
 
-    // pPlayerActor->spr.zvel is modified within Gravity()
-    int zVel = pPlayerActor->spr.zvel;
+    // player.zvel is modified within Gravity()
+    int zVel = pPlayerActor->int_zvel();
 
     Gravity(pPlayerActor);
 
-    if (pPlayerActor->spr.zvel >= 6500 && zVel < 6500)
+    if (pPlayerActor->vel.Z >= 6500/256. && zVel < 6500)
     {
         D3PlayFX(StaticSound[kSound17], pPlayerActor);
     }
@@ -848,10 +848,10 @@ void AIPlayer::Tick(RunListEvent* ev)
 
     int x = (sPlayerInput[nPlayer].xVel * 4) >> 2;
     int y = (sPlayerInput[nPlayer].yVel * 4) >> 2;
-    int z = (pPlayerActor->spr.zvel * 4) >> 2;
+    int z = (pPlayerActor->int_zvel() * 4) >> 2;
 
-    if (pPlayerActor->spr.zvel > 8192)
-        pPlayerActor->spr.zvel = 8192;
+    if (pPlayerActor->vel.Z > 32)
+        pPlayerActor->set_int_zvel(8192);
 
     if (PlayerList[nPlayer].bIsMummified)
     {
@@ -865,7 +865,7 @@ void AIPlayer::Tick(RunListEvent* ev)
     // TODO
     // nSectFlag & kSectUnderwater;
 
-    zVel = pPlayerActor->spr.zvel;
+    zVel = pPlayerActor->int_zvel();
 
     Collision nMove;
     nMove.setNone();
@@ -895,8 +895,8 @@ void AIPlayer::Tick(RunListEvent* ev)
 
 		pPlayerActor->spr.pos.XY() = spr_pos.XY();
 
-        if (zVel < pPlayerActor->spr.zvel) {
-            pPlayerActor->spr.zvel = zVel;
+        if (zVel < pPlayerActor->int_zvel()) {
+            pPlayerActor->set_int_zvel(zVel);
         }
     }
 
@@ -923,9 +923,9 @@ void AIPlayer::Tick(RunListEvent* ev)
             lPlayerXVel = 0;
             lPlayerYVel = 0;
 
-            pPlayerActor->spr.xvel = 0;
-            pPlayerActor->spr.yvel = 0;
-            pPlayerActor->spr.zvel = 0;
+            pPlayerActor->vel.X = 0;
+            pPlayerActor->vel.Y = 0;
+            pPlayerActor->vel.Z = 0;
 
             if (nFreeze < 1)
             {
@@ -969,15 +969,14 @@ void AIPlayer::Tick(RunListEvent* ev)
 
             if (zVel >= 6500)
             {
-                pPlayerActor->spr.xvel >>= 2;
-                pPlayerActor->spr.yvel >>= 2;
+                pPlayerActor->vel.XY() *= 0.25;
 
                 runlist_DamageEnemy(pPlayerActor, nullptr, ((zVel - 6500) >> 7) + 10);
 
                 if (PlayerList[nPlayer].nHealth <= 0)
                 {
-                    pPlayerActor->spr.xvel = 0;
-                    pPlayerActor->spr.yvel = 0;
+                    pPlayerActor->vel.X = 0;
+                    pPlayerActor->vel.Y = 0;
 
                     StopActorSound(pPlayerActor);
                     PlayFXAtXYZ(StaticSound[kSoundJonFDie], pPlayerActor->spr.pos, CHANF_NONE, 1); // CHECKME
@@ -1081,11 +1080,11 @@ sectdone:
 
     auto pViewSect = pPlayerActor->sector();
 
-    int EyeZ = PlayerList[nPlayer].eyelevel + pPlayerActor->int_pos().Z + nQuake[nPlayer];
+    double EyeZ = PlayerList[nPlayer].eyelevel + pPlayerActor->spr.pos.Z + nQuake[nPlayer];
 
     while (1)
     {
-        int nCeilZ = pViewSect->int_ceilingz();
+        double nCeilZ = pViewSect->ceilingz;
 
         if (EyeZ >= nCeilZ)
             break;
@@ -2171,7 +2170,7 @@ sectdone:
                         ChangeActorStat(pActorB, 899);
                     }
 
-                    SetSavePoint(nPlayer, pPlayerActor->spr.pos, pPlayerActor->sector(), pPlayerActor->int_ang());
+                    SetSavePoint(nPlayer, pPlayerActor->spr.pos, pPlayerActor->sector(), pPlayerActor->spr.angle);
                     break;
                 }
 
@@ -2252,14 +2251,14 @@ sectdone:
             {
                 if (bUnderwater)
                 {
-                    pPlayerActor->spr.zvel = -2048;
+                    pPlayerActor->set_int_zvel(-2048);
                     nActionB = 10;
                 }
                 else if (bTouchFloor)
                 {
                     if (nAction < 6 || nAction > 8)
                     {
-                        pPlayerActor->spr.zvel = -3584;
+                        pPlayerActor->set_int_zvel(-3584);
                         nActionB = 3;
                     }
                 }
@@ -2270,13 +2269,13 @@ sectdone:
             {
                 if (bUnderwater)
                 {
-                    pPlayerActor->spr.zvel = 2048;
+                    pPlayerActor->set_int_zvel(2048);
                     nActionB = 10;
                 }
                 else
                 {
-                    if (PlayerList[nPlayer].eyelevel < -8320) {
-                        PlayerList[nPlayer].eyelevel += ((-8320 - PlayerList[nPlayer].eyelevel) >> 1);
+                    if (PlayerList[nPlayer].eyelevel < -32.5) {
+                        PlayerList[nPlayer].eyelevel += ((-32.5 - PlayerList[nPlayer].eyelevel) * 0.5);
                     }
 
                 loc_1BD2E:
@@ -2294,8 +2293,7 @@ sectdone:
             {
                 if (PlayerList[nPlayer].nHealth > 0)
                 {
-                    int var_EC = nActionEyeLevel[nAction];
-                    PlayerList[nPlayer].eyelevel += (var_EC - PlayerList[nPlayer].eyelevel) >> 1;
+                    PlayerList[nPlayer].eyelevel += (nActionEyeLevel[nAction] - PlayerList[nPlayer].eyelevel) * 0.5;
 
                     if (bUnderwater)
                     {
@@ -2517,7 +2515,7 @@ sectdone:
     {
         initpos = pPlayerActor->spr.pos;
         initsectp = pPlayerActor->sector();
-        inita = pPlayerActor->int_ang();
+        inita = pPlayerActor->spr.angle;
     }
 
     if (!PlayerList[nPlayer].nHealth)
@@ -2525,9 +2523,9 @@ sectdone:
         PlayerList[nPlayer].nDamage.Y = 0;
         PlayerList[nPlayer].nDamage.X = 0;
 
-        if (PlayerList[nPlayer].eyelevel >= -2816)
+        if (PlayerList[nPlayer].eyelevel >= -11)
         {
-            PlayerList[nPlayer].eyelevel = -2816;
+            PlayerList[nPlayer].eyelevel = -11;
             dVertPan[nPlayer] = 0;
         }
         else
@@ -2535,7 +2533,7 @@ sectdone:
             if (PlayerList[nPlayer].horizon.horiz.asq16() < 0)
             {
                 PlayerList[nPlayer].horizon.settarget(buildhoriz(0));
-                PlayerList[nPlayer].eyelevel -= (dVertPan[nPlayer] << 8);
+                PlayerList[nPlayer].eyelevel -= dVertPan[nPlayer];
             }
             else
             {

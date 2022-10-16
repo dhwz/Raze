@@ -188,13 +188,12 @@ struct SWPlayer native
     native voidptr sop_remote;	// the status bar needs to check this - remove once the underlying type can be supported.
 
     native int jump_count, jump_speed;     // jumping
-    native int16 down_speed, up_speed; // diving
-    native int z_speed; // used for diving and flying instead of down_speed, up_speed
+    native double z_speed;
     native int climb_ndx;
     native double hiz,loz;
-    native int p_ceiling_dist,p_floor_dist;
-    native int circle_camera_dist;
-    native int16 siang;
+    native double p_ceiling_dist,p_floor_dist;
+    native double circle_camera_dist;
+    native double siang;
 
     native int friction;
     native int16 slide_ang;
@@ -207,7 +206,6 @@ struct SWPlayer native
     //native int /*cursectnum,*/lastcursectnum;
 
     // variables that do not fit into sprite structure
-    native int hvel,tilt,tilt_dest;
     native int16 recoil_amt;
     native int16 recoil_speed;
     native int16 recoil_ndx;
@@ -220,10 +218,10 @@ struct SWPlayer native
     //native int16 LadderSector;
     native int16 JumpDuration;
     native int16 WadeDepth;
-    //native double bob_amt;
+    native double pbob_amt;
     native int16 bob_ndx;
     native int16 bcnt; // bob count
-    native int bob_z, obob_z;
+    native double bob_z, obob_z;
 
     // must start out as 0
     native int playerreadyflag;

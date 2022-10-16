@@ -44,6 +44,12 @@ void DoMatchEverything(PLAYER* pp, short match, short state);
 void DoRotatorSetInterp(DSWActor*);
 void DoRotatorStopInterp(DSWActor*);
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 void ReverseRotator(DSWActor* actor)
 {
     ROTATOR* r;
@@ -71,6 +77,12 @@ void ReverseRotator(DSWActor* actor)
     r->vel = -r->vel;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 bool RotatorSwitch(short match, short setting)
 {
     bool found = false;
@@ -87,6 +99,12 @@ bool RotatorSwitch(short match, short setting)
 
     return found;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 void SetRotatorActive(DSWActor* actor)
 {
@@ -109,6 +127,12 @@ void SetRotatorActive(DSWActor* actor)
         VatorSwitch(SP_TAG2(actor), true);
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 void SetRotatorInactive(DSWActor* actor)
 {
     DoRotatorStopInterp(actor);
@@ -119,7 +143,12 @@ void SetRotatorInactive(DSWActor* actor)
     actor->user.Flags &= ~(SPR_ACTIVE);
 }
 
+//---------------------------------------------------------------------------
+//
 // called for operation from the space bar
+//
+//---------------------------------------------------------------------------
+
 void DoRotatorOperate(PLAYER* pp, sectortype* sect)
 {
     short match = sect->hitag;
@@ -131,8 +160,13 @@ void DoRotatorOperate(PLAYER* pp, sectortype* sect)
     }
 }
 
+//---------------------------------------------------------------------------
+//
 // called from switches and triggers
 // returns first vator found
+//
+//---------------------------------------------------------------------------
+
 void DoRotatorMatch(PLAYER* pp, short match, bool manual)
 {
     DSWActor* firstVator = nullptr;
@@ -186,6 +220,11 @@ void DoRotatorMatch(PLAYER* pp, short match, bool manual)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 bool TestRotatorMatchActive(short match)
 {
@@ -206,6 +245,11 @@ bool TestRotatorMatchActive(short match)
     return false;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 void DoRotatorSetInterp(DSWActor* actor)
 {
@@ -223,6 +267,12 @@ void DoRotatorSetInterp(DSWActor* actor)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 void DoRotatorStopInterp(DSWActor* actor)
 {
     for (auto& wal : wallsofsector(actor->sector()))
@@ -239,13 +289,17 @@ void DoRotatorStopInterp(DSWActor* actor)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 int DoRotator(DSWActor* actor)
 {
     ROTATOR* r;
     short ndx,w,startwall,endwall;
     DSWActor* pivot = nullptr;
-    vec2_t nxy;
-    int dist,closest;
     bool kill = false;
 
     r = actor->user.rotator.Data();
@@ -301,7 +355,7 @@ int DoRotator(DSWActor* actor)
             // new tgt is OPEN (open)
             r->tgt = r->open_dest;
             r->speed = r->orig_speed;
-            r->vel = labs(r->vel);
+            r->vel = abs(r->vel);
 
             SetRotatorInactive(actor);
 
@@ -320,13 +374,13 @@ int DoRotator(DSWActor* actor)
             kill = true;
     }
 
-    closest = 99999;
+    double closest = 99999;
     SWStatIterator it(STAT_ROTATOR_PIVOT);
     while (auto itActor = it.Next())
     {
         if (itActor->spr.lotag == actor->spr.lotag)
         {
-			dist = DistanceI(actor->spr.pos, itActor->spr.pos);
+			double dist = (actor->spr.pos.XY() - itActor->spr.pos.XY()).Length();
             if (dist < closest)
             {
                 closest = dist;
@@ -342,10 +396,9 @@ int DoRotator(DSWActor* actor)
     ndx = 0;
     for(auto& wal : wallsofsector(actor->sector()))
     {
-        vec2_t const orig = { r->origX[ndx], r->origY[ndx] };
-        rotatepoint(pivot->int_pos().vec2, orig, r->pos, &nxy);
+        auto nxy = rotatepoint(pivot->spr.pos, r->orig[ndx], DAngle::fromBuild(r->pos));
 
-        dragpoint(&wal, nxy.X, nxy.Y);
+        dragpoint(&wal, nxy);
         ndx++;
     }
 
@@ -359,6 +412,11 @@ int DoRotator(DSWActor* actor)
     return 0;
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 #include "saveable.h"
 

@@ -154,10 +154,10 @@ struct sectortype native
 			BLD_NS::XSECTOR* _xs;
 			TObjPtr<DCoreActor*> upperLink;
 			TObjPtr<DCoreActor*> lowerLink;
-			int baseFloor;
-			int baseCeil;
-			int velFloor;
-			int velCeil;
+			double baseFloor;
+			double baseCeil;
+			double velFloor;
+			double velCeil;
 			uint8_t slopewallofs; // This was originally the repurposed filler byte.
 		}
 		struct // Exhumed
@@ -278,9 +278,9 @@ struct tspritetype native
 	native int16 statnum;
 	//native int16 ang;
 	/* these are not needed for tsprites
-	native int16 xvel;
-	native int16 yvel;
-	native int16 zvel;
+	native int16 xint;
+	native int16 yint;
+	native int16 inittype;
 	native int16 lotag;
 	native int16 hitag;
 	native int16 extra;

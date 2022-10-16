@@ -36,40 +36,34 @@ struct VIEW {
 	int Kills;
 	int bobHeight; // bob height
 	int bobWidth; // bob width
-	int at10;
-	int at14;
+	int swayPhase;
+	int swayAmp;
 	int shakeBobY; // bob sway y
 	int shakeBobX; // bob sway x
 	fixedhoriz horiz; // horiz
 	fixedhoriz horizoff; // horizoff
-	int at2c;
+	int slope;
 	DAngle angle; // angle
 	int weaponZ; // weapon z
 	int viewz; // view z
-	int at3c;
-	int at40;
-	int at44;
-	int at48; // posture
+	int zViewVel;
+	int zWeapon;
+	int zWeaponVel;
+	int posture; // posture
 	double spin; // spin
-	union {
-		struct
-		{
-			int32_t x, y, z;
-		};
-		vec3_t pos;
-	};
+	DVector3 pos;
 	int xvel; //xvel
 	int yvel; //yvel
 	int zvel; //zvel
 	int sectnum; // sectnum
 	unsigned int floordist; // floordist
-	uint8_t at6e; // look center
-	uint8_t at6f;
-	uint8_t at70; // run
-	uint8_t at71; // jump
-	uint8_t at72; // underwater
-	int16_t at73; // sprite flags
-	SPRITEHIT at75;
+	uint8_t lookCenter; // look center
+	uint8_t cantJump;
+	uint8_t isRunning; // run
+	uint8_t jump; // jump
+	uint8_t isUnderwater; // underwater
+	int16_t sprflags; // sprite flags
+	SPRITEHIT hit;
 	DAngle look_ang;
 	DAngle rotscrnang;
 };
@@ -137,9 +131,8 @@ extern DAngle deliriumTurnO, deliriumTurn;
 extern DAngle gScreenTiltO, gScreenTilt;
 extern int gShowFrameRate;
 extern int gLastPal;
-extern double gInterpolate;
 
-void hudDraw(PLAYER* gView, sectortype* pSector, double bobx, double boby, double zDelta, int basepal, double smoothratio);
+void hudDraw(PLAYER* gView, sectortype* pSector, double bobx, double boby, double zDelta, int basepal, double interpfrac);
 void viewInitializePrediction(void);
 void viewUpdatePrediction(InputPacket* pInput);
 void viewCorrectPrediction(void);

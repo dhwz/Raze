@@ -210,8 +210,8 @@ void TreeToGibCallback(int, int);
 
 bool IsUnderwaterSector(sectortype* pSector);
 void actInit(TArray<DBloodActor*>& actors);
-int actWallBounceVector(int *x, int *y, walltype* pWall, int a4);
-int actFloorBounceVector(int *x, int *y, int *z, sectortype* pSector, int a5);
+void actWallBounceVector(DBloodActor* actor, walltype* pWall, double factor);
+DVector4 actFloorBounceVector(DBloodActor* actor, double oldz, sectortype* pSector, double factor);
 void actRadiusDamage(DBloodActor* source, const DVector3& pos, sectortype* pSector, int nDist, int a7, int a8, DAMAGE_TYPE a9, int a10, int a11);
 DBloodActor *actDropObject(DBloodActor *pSprite, int nType);
 bool actHealDude(DBloodActor* pXDude, int a2, int a3);
@@ -240,5 +240,6 @@ void MakeSplash(DBloodActor *actor);
 void actBuildMissile(DBloodActor* spawned, DBloodActor* actor);
 
 extern const int16_t DudeDifficulty[];
+
 
 END_BLD_NS

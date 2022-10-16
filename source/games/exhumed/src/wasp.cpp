@@ -36,11 +36,10 @@ static actionSeq WaspSeq[] = {
 
 void SetWaspVel(DExhumedActor* pActor)
 {
-    pActor->spr.xvel = bcos(pActor->int_ang());
-    pActor->spr.yvel = bsin(pActor->int_ang());
+    pActor->VelFromAngle();
 }
 
-DExhumedActor* BuildWasp(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, int nAngle, bool bEggWasp)
+DExhumedActor* BuildWasp(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, DAngle nAngle, bool bEggWasp)
 {
     if (pActor == nullptr)
     {
@@ -50,7 +49,7 @@ DExhumedActor* BuildWasp(DExhumedActor* pActor, const DVector3& pos, sectortype*
     }
     else
     {
-        nAngle = pActor->int_ang();
+        nAngle = pActor->spr.angle;
         ChangeActorStat(pActor, 107);
     }
 
@@ -73,10 +72,10 @@ DExhumedActor* BuildWasp(DExhumedActor* pActor, const DVector3& pos, sectortype*
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
     pActor->spr.picnum = 1;
-    pActor->set_int_ang(nAngle);
-    pActor->spr.xvel = 0;
-    pActor->spr.yvel = 0;
-    pActor->spr.zvel = 0;
+    pActor->spr.angle = nAngle;
+    pActor->vel.X = 0;
+    pActor->vel.Y = 0;
+    pActor->vel.Z = 0;
     pActor->spr.hitag = 0;
     pActor->spr.lotag = runlist_HeadRun() + 1;
     pActor->spr.extra = -1;
@@ -161,7 +160,7 @@ void AIWasp::Damage(RunListEvent* ev)
 
             pActor->nVel = 3000;
 
-            pActor->spr.zvel = (-20) - RandomSize(6);
+            pActor->set_int_zvel((-20) - RandomSize(6));
         }
         else
         {
@@ -170,11 +169,11 @@ void AIWasp::Damage(RunListEvent* ev)
             pActor->nFrame = 0;
 
             pActor->spr.cstat = 0;
-            pActor->set_int_ang((pActor->int_ang() + 1024) & kAngleMask);
+            pActor->spr.angle += DAngle180;
 
             SetWaspVel(pActor);
 
-            pActor->spr.zvel = 512;
+            pActor->vel.Z = 2;
 
             nCreaturesKilled++;
         }
@@ -226,7 +225,7 @@ void AIWasp::Tick(RunListEvent* ev)
 
     case 0:
     {
-        pActor->spr.zvel = bsin(pActor->nAngle, -4);
+        pActor->set_int_zvel(bsin(pActor->nAngle, -4));
 
         pActor->nAngle += pActor->nAngle2;
         pActor->nAngle &= kAngleMask;
@@ -242,7 +241,8 @@ void AIWasp::Tick(RunListEvent* ev)
             }
             else
             {
-                pActor->spr.zvel = 0;
+                pActor->angle2 = 0;
+                pActor->vel.Z = 0;
                 pActor->nAction = 1;
                 pActor->nFrame = 0;
                 pActor->nVel = 1500;
@@ -286,8 +286,8 @@ void AIWasp::Tick(RunListEvent* ev)
         {
             if (nChaseVal.actor() == pTarget)
             {
-                pActor->spr.xvel = 0;
-                pActor->spr.yvel = 0;
+                pActor->vel.X = 0;
+                pActor->vel.Y = 0;
                 runlist_DamageEnemy(pTarget, pActor, pActor->nDamage);
                 pActor->nAction = 2;
                 pActor->nFrame = 0;
@@ -306,7 +306,7 @@ void AIWasp::Tick(RunListEvent* ev)
         {
             pActor->add_int_ang(RandomSize(9) + 768);
             pActor->norm_ang();
-            pActor->spr.zvel = (-20) - RandomSize(6);
+            pActor->set_int_zvel((-20) - RandomSize(6));
 
             pActor->nAction = 1;
             pActor->nVel = 3000;
@@ -319,9 +319,9 @@ void AIWasp::Tick(RunListEvent* ev)
 
         //if (nMove.type != kHitNone) // The code messed up the return value so this check always was true.
         {
-            pActor->spr.xvel = 0;
-            pActor->spr.yvel = 0;
-            pActor->spr.zvel = 1024;
+            pActor->vel.X = 0;
+            pActor->vel.Y = 0;
+            pActor->vel.Z = 4;
             pActor->nAction = 5;
             pActor->nFrame = 0;
         }
@@ -332,9 +332,9 @@ void AIWasp::Tick(RunListEvent* ev)
     {
         auto pSector =pActor->sector();
 
-        pActor->add_int_z(pActor->spr.zvel);
+        pActor->spr.pos.Z = pActor->vel.Z;
 
-        if (pActor->int_pos().Z >= pSector->int_floorz())
+        if (pActor->spr.pos.Z >= pSector->floorz)
         {
             if (pSector->pBelow != nullptr)
             {
@@ -342,9 +342,9 @@ void AIWasp::Tick(RunListEvent* ev)
                 pActor->spr.cstat |= CSTAT_SPRITE_INVISIBLE;
             }
 
-            pActor->spr.xvel = 0;
-            pActor->spr.yvel = 0;
-            pActor->spr.zvel = 0;
+            pActor->vel.X = 0;
+            pActor->vel.Y = 0;
+            pActor->vel.Z = 0;
             pActor->nAction = 6;
             pActor->nFrame = 0;
             runlist_SubRunRec(pActor->nRun);

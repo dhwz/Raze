@@ -73,7 +73,7 @@ void ThrowGrenade(int nPlayer, int, int, int ecx, int push1)
         int nVel = PlayerList[nPlayer].totalvel << 5;
 
         pActor->nTurn = ((90 - pActor->nIndex2) * (90 - pActor->nIndex2)) + nVel;
-        pActor->spr.zvel = (-64 * push1) - 4352;
+        pActor->set_int_zvel((-64 * push1) - 4352);
 
         auto nMov = movesprite(pActor, bcos(nAngle) * (pPlayerActor->spr.clipdist << 3), bsin(nAngle) * (pPlayerActor->spr.clipdist << 3), ecx, 0, 0, CLIPMASK1);
         if (nMov.type == kHitWall)
@@ -85,7 +85,7 @@ void ThrowGrenade(int nPlayer, int, int, int ecx, int push1)
     else
     {
         pActor->nTurn = 0;
-        pActor->spr.zvel = pPlayerActor->spr.zvel;
+        pActor->set_int_zvel(pPlayerActor->int_zvel());
     }
 
     pActor->x = bcos(nAngle, -4) * pActor->nTurn;
@@ -114,9 +114,9 @@ void BuildGrenade(int nPlayer)
     pActor->spr.yoffset = 0;
     pActor->spr.angle = pPlayerActor->spr.angle;
     pActor->spr.intowner = nPlayer;
-    pActor->spr.xvel = 0;
-    pActor->spr.yvel = 0;
-    pActor->spr.zvel = 0;
+    pActor->vel.X = 0;
+    pActor->vel.Y = 0;
+    pActor->vel.Z = 0;
     pActor->spr.hitag = 0;
     pActor->spr.lotag = runlist_HeadRun() + 1;
     pActor->spr.extra = -1;
@@ -277,10 +277,10 @@ void AIGrenade::Tick(RunListEvent* ev)
             return;
         }
 
-        int zVel = pActor->spr.zvel;
+        int zVel = pActor->int_zvel();
 
         Gravity(pActor);
-        auto nMov = movesprite(pActor, pActor->x, pActor->y, pActor->spr.zvel, pActor->spr.clipdist >> 1, pActor->spr.clipdist >> 1, CLIPMASK1);
+        auto nMov = movesprite(pActor, pActor->x, pActor->y, pActor->int_zvel(), pActor->spr.clipdist >> 1, pActor->spr.clipdist >> 1, CLIPMASK1);
 
         if (!nMov.type && !nMov.exbits)
             return;
@@ -299,14 +299,14 @@ void AIGrenade::Tick(RunListEvent* ev)
 
                 D3PlayFX(StaticSound[kSound3], pActor);
 
-                pActor->spr.zvel = -(zVel >> 1);
+                pActor->set_int_zvel(-(zVel >> 1));
 
-                if (pActor->spr.zvel > -1280)
+                if (pActor->vel.Z > -5)
                 {
                     D3PlayFX(StaticSound[kSound5], pActor);
                     pActor->nCount = 0;
                     pActor->nHealth = 0;
-                    pActor->spr.zvel = 0;
+                    pActor->vel.Z = 0;
                     pActor->nIndex = 1;
                 }
             }

@@ -192,13 +192,13 @@ void RenderViewpoint(FRenderViewpoint& mainvp, IntRect* bounds, float fov, float
 //
 //===========================================================================
 
-FRenderViewpoint SetupViewpoint(DCoreActor* cam, const vec3_t& position, int sectnum, DAngle angle, fixedhoriz horizon, DAngle rollang, float fov = -1)
+FRenderViewpoint SetupViewpoint(DCoreActor* cam, const DVector3& position, int sectnum, DAngle angle, fixedhoriz horizon, DAngle rollang, float fov = -1)
 {
 	FRenderViewpoint r_viewpoint{};
 	r_viewpoint.CameraActor = cam;
 	r_viewpoint.SectNums = nullptr;
 	r_viewpoint.SectCount = sectnum;
-	r_viewpoint.Pos = { position.X / 16.f, position.Y / -16.f, position.Z / -256.f };
+	r_viewpoint.Pos = { position.X, -position.Y, -position.Z };
 	r_viewpoint.HWAngles.Yaw = FAngle::fromDeg(-90.f + (float)angle.Degrees());
 	r_viewpoint.HWAngles.Pitch = FAngle::fromDeg(-horizon.aspitch());
 	r_viewpoint.HWAngles.Roll = FAngle::fromDeg(-(float)rollang.Degrees());
@@ -305,11 +305,11 @@ static void CheckTimer(FRenderState &state, uint64_t ShaderStartTime)
 void animatecamsprite(double s);
 
 
-void render_drawrooms(DCoreActor* playersprite, const vec3_t& position, int sectnum, DAngle angle, fixedhoriz horizon, DAngle rollang, double smoothratio, float fov)
+void render_drawrooms(DCoreActor* playersprite, const DVector3& position, int sectnum, DAngle angle, fixedhoriz horizon, DAngle rollang, double interpfrac, float fov)
 {
 	checkRotatedWalls();
 
-	updatesector(position.X, position.Y, &sectnum);
+	updatesector(position, &sectnum);
 	if (sectnum < 0) return;
 
 	iter_dlightf = iter_dlight = draw_dlight = draw_dlightf = 0;
@@ -320,8 +320,7 @@ void render_drawrooms(DCoreActor* playersprite, const vec3_t& position, int sect
 
 	// Get this before everything else
 	FRenderViewpoint r_viewpoint = SetupViewpoint(playersprite, position, sectnum, angle, horizon, rollang, fov);
-	if (cl_capfps) r_viewpoint.TicFrac = 1.;
-	else r_viewpoint.TicFrac = smoothratio * (1/65536.);
+	r_viewpoint.TicFrac = !cl_capfps ? interpfrac : 1.;
 
 	screen->mLights->Clear();
 	screen->mViewpoints->Clear();
@@ -360,9 +359,9 @@ void render_drawrooms(DCoreActor* playersprite, const vec3_t& position, int sect
 	All.Unclock();
 }
 
-void render_camtex(DCoreActor* playersprite, const vec3_t& position, sectortype* sect, DAngle angle, fixedhoriz horizon, DAngle rollang, FGameTexture* camtex, IntRect& rect, double smoothratio)
+void render_camtex(DCoreActor* playersprite, const DVector3& position, sectortype* sect, DAngle angle, fixedhoriz horizon, DAngle rollang, FGameTexture* camtex, IntRect& rect, double interpfrac)
 {
-	updatesector(position.X, position.Y, &sect);
+	updatesector(position, &sect);
 	if (!sect) return;
 
 	screen->RenderState()->SetVertexBuffer(screen->mVertexData);
@@ -371,7 +370,7 @@ void render_camtex(DCoreActor* playersprite, const vec3_t& position, sectortype*
 	float ratio = camtex->GetDisplayWidth() / camtex->GetDisplayHeight();
 
 	FRenderViewpoint r_viewpoint = SetupViewpoint(playersprite, position, sectnum(sect), angle, horizon, rollang);
-	if (cl_capfps) r_viewpoint.TicFrac = smoothratio;
+	r_viewpoint.TicFrac = !cl_capfps ? interpfrac : 1.;
 
 	RenderViewpoint(r_viewpoint, &rect, r_viewpoint.FieldOfView.Degrees(), ratio, ratio, false, false);
 	All.Unclock();

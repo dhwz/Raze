@@ -52,10 +52,10 @@ DExhumedActor* BuildBubble(const DVector3& pos, sectortype* pSector)
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
     pActor->spr.picnum = 1;
-    pActor->set_int_ang(inita);
-    pActor->spr.xvel = 0;
-    pActor->spr.yvel = 0;
-    pActor->spr.zvel = -1200;
+    pActor->spr.angle = inita;
+    pActor->vel.X = 0;
+    pActor->vel.Y = 0;
+    pActor->set_int_zvel(-1200);
     pActor->spr.hitag = -1;
     pActor->spr.extra = -1;
     pActor->spr.lotag = runlist_HeadRun() + 1;
@@ -87,7 +87,7 @@ void AIBubble::Tick(RunListEvent* ev)
         pActor->nFrame = 0;
     }
 
-    pActor->add_int_z(pActor->spr.zvel);
+    pActor->spr.pos.Z = pActor->vel.Z;
 
     auto pSector = pActor->sector();
 

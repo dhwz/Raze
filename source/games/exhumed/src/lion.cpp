@@ -41,7 +41,7 @@ static actionSeq LionSeq[] = {
 };
 
 
-void BuildLion(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, int nAngle)
+void BuildLion(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, DAngle nAngle)
 {
     if (pActor == nullptr)
     {
@@ -52,7 +52,7 @@ void BuildLion(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, 
     {
         ChangeActorStat(pActor, 104);
         pActor->spr.pos.Z = pActor->sector()->floorz;
-        nAngle = pActor->int_ang();
+        nAngle = pActor->spr.angle;
     }
 
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
@@ -64,10 +64,10 @@ void BuildLion(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, 
     pActor->spr.pal = pActor->sector()->ceilingpal;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->set_int_ang(nAngle);
-    pActor->spr.xvel = 0;
-    pActor->spr.yvel = 0;
-    pActor->spr.zvel = 0;
+    pActor->spr.angle = nAngle;
+    pActor->vel.X = 0;
+    pActor->vel.Y = 0;
+    pActor->vel.Z = 0;
     pActor->spr.lotag = runlist_HeadRun() + 1;
     pActor->spr.hitag = 0;
     pActor->spr.extra = -1;
@@ -119,9 +119,9 @@ void AILion::Damage(RunListEvent* ev)
         if (pActor->nHealth <= 0)
         {
             // R.I.P.
-            pActor->spr.xvel = 0;
-            pActor->spr.yvel = 0;
-            pActor->spr.zvel = 0;
+            pActor->vel.X = 0;
+            pActor->vel.Y = 0;
+            pActor->vel.Z = 0;
             pActor->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
 
             pActor->nHealth = 0;
@@ -160,8 +160,8 @@ void AILion::Damage(RunListEvent* ev)
                     if (RandomSize(8) <= (pActor->nHealth >> 2))
                     {
                         pActor->nAction = 4;
-                        pActor->spr.xvel = 0;
-                        pActor->spr.yvel = 0;
+                        pActor->vel.X = 0;
+                        pActor->vel.Y = 0;
                     }
                     else if (RandomSize(1))
                     {
@@ -173,8 +173,8 @@ void AILion::Damage(RunListEvent* ev)
                     else
                     {
                         pActor->nAction = 8;
-                        pActor->spr.xvel = 0;
-                        pActor->spr.yvel = 0;
+                        pActor->vel.X = 0;
+                        pActor->vel.Y = 0;
                         pActor->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
                     }
 
@@ -236,8 +236,7 @@ void AILion::Tick(RunListEvent* ev)
                     pActor->nAction = 2;
                     pActor->nFrame = 0;
 
-                    pActor->spr.xvel = bcos(pActor->int_ang(), -1);
-                    pActor->spr.yvel = bsin(pActor->int_ang(), -1);
+                    pActor->VelFromAngle(-1);
                     pActor->pTarget = pTarget;
                     return;
                 }
@@ -252,13 +251,12 @@ void AILion::Tick(RunListEvent* ev)
                 if (RandomBit())
                 {
                     pActor->set_int_ang(RandomWord() & kAngleMask);
-                    pActor->spr.xvel = bcos(pActor->int_ang(), -1);
-                    pActor->spr.yvel = bsin(pActor->int_ang(), -1);
+                    pActor->VelFromAngle(-1);
                 }
                 else
                 {
-                    pActor->spr.xvel = 0;
-                    pActor->spr.yvel = 0;
+                    pActor->vel.X = 0;
+                    pActor->vel.Y = 0;
                 }
 
                 pActor->nCount = 100;
@@ -278,22 +276,21 @@ void AILion::Tick(RunListEvent* ev)
 
             if (pActor->spr.cstat & CSTAT_SPRITE_INVISIBLE)
             {
-                pActor->spr.xvel = bcos(nAng, 1);
-                pActor->spr.yvel = bsin(nAng, 1);
+                pActor->set_int_xvel(bcos(nAng, 1));
+                pActor->set_int_yvel(bsin(nAng, 1));
             }
             else
             {
-                pActor->spr.xvel = bcos(nAng, -1);
-                pActor->spr.yvel = bsin(nAng, -1);
+                pActor->set_int_xvel(bcos(nAng, -1));
+                pActor->set_int_yvel(bsin(nAng, -1));
             }
         }
 
         if (nMov.type == kHitWall)
         {
             // loc_378FA:
-            pActor->set_int_ang((pActor->int_ang() + 256) & kAngleMask);
-            pActor->spr.xvel = bcos(pActor->int_ang(), -1);
-            pActor->spr.yvel = bsin(pActor->int_ang(), -1);
+            pActor->spr.angle += DAngle45;
+            pActor->VelFromAngle(-1);
             break;
         }
         else if (nMov.type == kHitSprite)
@@ -304,8 +301,8 @@ void AILion::Tick(RunListEvent* ev)
                 {
                     pActor->nAction = 9;
                     pActor->spr.cstat &= ~CSTAT_SPRITE_INVISIBLE;
-                    pActor->spr.xvel = 0;
-                    pActor->spr.yvel = 0;
+                    pActor->vel.X = 0;
+                    pActor->vel.Y = 0;
                 }
                 else
                 {
@@ -322,9 +319,8 @@ void AILion::Tick(RunListEvent* ev)
             else
             {
                 // loc_378FA:
-                pActor->set_int_ang((pActor->int_ang() + 256) & kAngleMask);
-                pActor->spr.xvel = bcos(pActor->int_ang(), -1);
-                pActor->spr.yvel = bsin(pActor->int_ang(), -1);
+                pActor->spr.angle += DAngle45;
+                pActor->VelFromAngle(-1);
                 break;
             }
         }
@@ -364,8 +360,8 @@ void AILion::Tick(RunListEvent* ev)
 
         if (nMov.exbits & kHitAux2)
         {
-            pActor->spr.xvel >>= 1;
-            pActor->spr.yvel >>= 1;
+            pActor->vel.X *= 0.5;
+            pActor->vel.Y *= 0.5;
         }
 
         return;
@@ -376,7 +372,7 @@ void AILion::Tick(RunListEvent* ev)
         pActor->nCount--;
         if (pActor->nCount <= 0)
         {
-            pActor->spr.zvel = -4000;
+            pActor->set_int_zvel(-4000);
             pActor->nCount = 0;
 
             int nCheckDist = 0x7FFFFFFF;
@@ -409,8 +405,8 @@ void AILion::Tick(RunListEvent* ev)
             pActor->set_int_ang(nAngle);
 
             pActor->nAction = 6;
-            pActor->spr.xvel = bcos(pActor->int_ang()) - bcos(pActor->int_ang(), -3);
-            pActor->spr.yvel = bsin(pActor->int_ang()) - bsin(pActor->int_ang(), -3);
+            pActor->set_int_xvel(bcos(pActor->int_ang()) - bcos(pActor->int_ang(), -3));
+            pActor->set_int_yvel(bsin(pActor->int_ang()) - bsin(pActor->int_ang(), -3));
             D3PlayFX(StaticSound[kSound24], pActor);
         }
 
@@ -447,9 +443,8 @@ void AILion::Tick(RunListEvent* ev)
             else
             {
                 // loc_378FA:
-                pActor->set_int_ang((pActor->int_ang() + 256) & kAngleMask);
-                pActor->spr.xvel = bcos(pActor->int_ang(), -1);
-                pActor->spr.yvel = bsin(pActor->int_ang(), -1);
+                pActor->spr.angle += DAngle45;
+                pActor->VelFromAngle(-1);
                 break;
             }
         }
@@ -473,11 +468,11 @@ void AILion::Tick(RunListEvent* ev)
                 pActor->set_int_ang((RandomSize(9) + (pActor->int_ang() + 768)) & kAngleMask);
             }
 
-            pActor->spr.zvel = -1000;
+            pActor->set_int_zvel(-1000);
 
             pActor->nAction = 6;
-            pActor->spr.xvel = bcos(pActor->int_ang()) - bcos(pActor->int_ang(), -3);
-            pActor->spr.yvel = bsin(pActor->int_ang()) - bsin(pActor->int_ang(), -3);
+			pActor->set_int_xvel(bcos(pActor->int_ang()) - bcos(pActor->int_ang(), -3));
+            pActor->set_int_yvel(bsin(pActor->int_ang()) - bsin(pActor->int_ang(), -3));
             D3PlayFX(StaticSound[kSound24], pActor);
         }
 
@@ -528,8 +523,8 @@ void AILion::Tick(RunListEvent* ev)
             pActor->nFrame = 0;
             pActor->nCount = 100;
             pActor->pTarget = nullptr;
-            pActor->spr.xvel = 0;
-            pActor->spr.yvel = 0;
+            pActor->vel.X = 0;
+            pActor->vel.Y = 0;
         }
     }
 }

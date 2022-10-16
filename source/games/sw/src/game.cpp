@@ -193,8 +193,6 @@ int OrigCommPlayers=0;
 extern uint8_t CommPlayers;
 extern bool CommEnabled;
 
-bool CameraTestMode = false;
-
 char ds[645];                           // debug string
 
 extern short NormalVisibility;
@@ -312,7 +310,7 @@ void InitLevelGlobals(void)
     automapMode = am_off;
     PlayerGravity = 24;
     wait_active_check_offset = 0;
-    PlaxCeilGlobZadjust = PlaxFloorGlobZadjust = Z(500);
+    PlaxCeilGlobZadjust = PlaxFloorGlobZadjust = 500;
     FinishedLevel = false;
     AnimCnt = 0;
     left_foot = false;
@@ -366,6 +364,11 @@ void spawnactors(SpawnSpriteDef& sprites)
     leveltimer = sprites.sprites.Size();
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
 void InitLevel(MapRecord *maprec)
 {
@@ -709,18 +712,9 @@ void GameInterface::Ticker(void)
 
 void GameInterface::Render()
 {
-    if (paused)
-    {
-        smoothratio = MaxSmoothRatio;
-    }
-    else
-    {
-        smoothratio = !cl_interpolate || cl_capfps ? MaxSmoothRatio : I_GetTimeFrac() * MaxSmoothRatio;
-    }
-
     drawtime.Reset();
     drawtime.Clock();
-    drawscreen(Player + screenpeek, smoothratio, false);
+    drawscreen(Player + screenpeek, paused || !cl_interpolate || cl_capfps ? 1. : I_GetTimeFrac(), false);
     drawtime.Unclock();
 }
 

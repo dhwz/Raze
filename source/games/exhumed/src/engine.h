@@ -53,7 +53,7 @@ enum {
 };
 
 extern DVector3 initpos;
-extern int16_t inita;
+extern DAngle inita;
 extern sectortype* initsectp;
 
 extern int nCurChunkNum;
@@ -103,7 +103,7 @@ extern bool bShowTowers;
 
 void GrabMap();
 void UpdateMap();
-void DrawMap(double const smoothratio);
+void DrawMap(double const interpfrac);
 
 // random
 
