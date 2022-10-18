@@ -55,7 +55,7 @@ void BuildSet(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, D
 
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     pActor->spr.shade = -12;
-    pActor->spr.clipdist = 110;
+    pActor->set_const_clipdist(110);
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
     pActor->vel.Z = 0;
@@ -100,14 +100,14 @@ void BuildSoul(DExhumedActor* pSet)
     pActor->spr.xrepeat = 1;
     pActor->spr.yrepeat = 1;
     pActor->spr.pal = 0;
-    pActor->spr.clipdist = 5;
+    pActor->set_const_clipdist(5);
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
     pActor->spr.picnum = seq_GetSeqPicnum(kSeqSet, 75, 0);
     pActor->set_int_ang(RandomSize(11));
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
-    pActor->set_int_zvel((-256) - RandomSize(10));
+    pActor->vel.Z = -1 - RandomSize(10) / 256.;
     pActor->spr.pos = DVector3(pSet->spr.pos.XY(), RandomSize(8) + 32 + pActor->sector()->ceilingz - GetActorHeightF(pActor));
 
     //pActor->spr.hitag = nSet;
@@ -264,7 +264,7 @@ void AISet::Tick(RunListEvent* ev)
     auto nMov = MoveCreature(pActor);
 
 	auto sect = pActor->sector();
-    pushmove(pActor, &sect, pActor->spr.clipdist << 2, 5120, -5120, CLIPMASK0);
+    pushmove(pActor, &sect, pActor->int_clipdist(), 5120, -5120, CLIPMASK0);
     pActor->setsector(sect);
 
     if (pActor->vel.Z > 4000/256.)
@@ -387,9 +387,7 @@ void AISet::Tick(RunListEvent* ev)
             }
 
             // loc_338E2
-            int nAngle = pActor->int_ang() & 0xFFF8;
-            pActor->set_int_xvel(bcos(nAngle, -1));
-            pActor->set_int_yvel(bsin(nAngle, -1));
+			pActor->vel.XY() = pActor->spr.angle.ToVector() * 512;
 
             if (pActor->nIndex2)
             {
@@ -510,7 +508,7 @@ void AISet::Tick(RunListEvent* ev)
         {
             if (pActor->nIndex)
             {
-                pActor->set_int_zvel(-10000);
+                pActor->vel.Z = -10000 / 256.;
             }
             else
             {

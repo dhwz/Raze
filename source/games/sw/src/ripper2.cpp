@@ -903,7 +903,7 @@ int SetupRipper2(DSWActor* actor)
     DoActorSetSpeed(actor, NORM_SPEED);
     actor->user.StateEnd = s_Ripper2Die;
     actor->user.Rot = sg_Ripper2Run;
-    actor->spr.clipdist = 512 >> 2;  // This actor is bigger, needs bigger box.
+    actor->set_const_clipdist(512 >> 2);  // This actor is bigger, needs bigger box.
     actor->spr.xrepeat = actor->spr.yrepeat = 55;
 
     if (actor->spr.pal == PALETTE_BROWN_RIPPER)
@@ -940,9 +940,9 @@ int InitRipper2Hang(DSWActor* actor)
 
     bool Found = false;
 
-    for (int dang = 0; dang < 2048; dang += 128)
+    for (DAngle dang = nullAngle; dang < DAngle360; dang += DAngle22_5)
     {
-        auto tang = actor->spr.angle + DAngle::fromBuild(dang);
+        auto tang = actor->spr.angle + dang;
 
         FAFhitscan(actor->spr.pos.plusZ(-ActorSizeZ(actor)), actor->sector(), DVector3(tang.ToVector() * 1024, 0), hit, CLIPMASK_MISSILE);
 

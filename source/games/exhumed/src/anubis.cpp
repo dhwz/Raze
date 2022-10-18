@@ -64,7 +64,7 @@ void BuildAnubis(DExhumedActor* ap, const DVector3& pos, sectortype* pSector, DA
     ap->spr.yoffset = 0;
     ap->spr.picnum = 1;
     ap->spr.pal = ap->sector()->ceilingpal;
-    ap->spr.clipdist = 60;
+    ap->set_const_clipdist(60);
     ap->spr.angle = nAngle;
     ap->spr.xrepeat = 40;
     ap->spr.yrepeat = 40;
@@ -168,9 +168,7 @@ void AIAnubis::Tick(RunListEvent* ev)
         {
             PlotCourseToSprite(ap, pTarget);
 
-            int nAngle = ap->int_ang() & 0xFFF8;
-            ap->set_int_xvel(bcos(nAngle, -2));
-            ap->set_int_yvel(bsin(nAngle, -2));
+			ap->vel.XY() = ap->spr.angle.ToVector() * 256;
         }
 
         switch (move.type)
@@ -192,7 +190,7 @@ void AIAnubis::Tick(RunListEvent* ev)
         }
         case kHitWall:
         {
-            ap->set_int_ang((ap->int_ang() + 256) & kAngleMask);
+			ap->spr.angle += DAngle45;
             ap->VelFromAngle(-2);
             break;
         }
@@ -256,8 +254,7 @@ void AIAnubis::Tick(RunListEvent* ev)
         {
             ap->nAction = 1;
 
-            ap->set_int_xvel(bcos(ap->int_ang(), -2));
-            ap->set_int_yvel(bsin(ap->int_ang(), -2));
+			ap->vel.XY() = ap->spr.angle.ToVector() * 256;
             ap->nFrame = 0;
         }
         else

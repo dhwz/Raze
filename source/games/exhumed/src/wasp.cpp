@@ -56,7 +56,7 @@ DExhumedActor* BuildWasp(DExhumedActor* pActor, const DVector3& pos, sectortype*
     pActor->spr.shade = -12;
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     pActor->spr.pal = pActor->sector()->ceilingpal;
-    pActor->spr.clipdist = 70;
+    pActor->set_const_clipdist(70);
 
     if (bEggWasp)
     {
@@ -155,12 +155,12 @@ void AIWasp::Damage(RunListEvent* ev)
             }
 
             pActor->nAction = 1;
-            pActor->add_int_ang(RandomSize(9) + 768);
+			pActor->spr.angle += DAngle45 + DAngle90 + RandomAngle9();
             pActor->norm_ang();
 
             pActor->nVel = 3000;
 
-            pActor->set_int_zvel((-20) - RandomSize(6));
+            pActor->vel.Z = -1.25 - RandomSize(6) / 256.;
         }
         else
         {
@@ -304,9 +304,8 @@ void AIWasp::Tick(RunListEvent* ev)
     {
         if (bVal)
         {
-            pActor->add_int_ang(RandomSize(9) + 768);
-            pActor->norm_ang();
-            pActor->set_int_zvel((-20) - RandomSize(6));
+			pActor->spr.angle += DAngle45 + DAngle90 + RandomAngle9();
+            pActor->vel.Z = ((-20) - RandomSize(6)) / 256.;
 
             pActor->nAction = 1;
             pActor->nVel = 3000;

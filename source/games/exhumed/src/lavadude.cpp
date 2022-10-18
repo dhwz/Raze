@@ -45,9 +45,9 @@ DExhumedActor* BuildLavaLimb(DExhumedActor* pActor, int move, int ebx)
     pLimbActor->spr.cstat = 0;
     pLimbActor->spr.shade = -127;
     pLimbActor->spr.pal = 1;
-    pLimbActor->set_int_xvel((RandomSize(5) - 16) << 8);
-    pLimbActor->set_int_yvel((RandomSize(5) - 16) << 8);
-    pLimbActor->set_int_zvel(2560 - (RandomSize(5) << 8));
+    pLimbActor->vel.X = ((RandomSize(5) - 16) << 4);
+    pLimbActor->vel.Y = ((RandomSize(5) - 16) << 4);
+    pLimbActor->vel.Z = 10 - RandomSize(5);
     pLimbActor->spr.xoffset = 0;
     pLimbActor->spr.yoffset = 0;
     pLimbActor->spr.xrepeat = 90;
@@ -55,7 +55,7 @@ DExhumedActor* BuildLavaLimb(DExhumedActor* pActor, int move, int ebx)
     pLimbActor->spr.picnum = (move & 3) % 3;
     pLimbActor->spr.hitag = 0;
     pLimbActor->spr.lotag = runlist_HeadRun() + 1;
-    pLimbActor->spr.clipdist = 0;
+    pLimbActor->set_const_clipdist(0);
 
 //	GrabTimeSlot(3);
 
@@ -73,7 +73,7 @@ void AILavaDudeLimb::Tick(RunListEvent* ev)
 
     pActor->spr.shade += 3;
 
-    auto coll = movesprite(pActor, pActor->int_xvel() << 12, pActor->int_yvel() << 12, pActor->int_zvel(), 2560, -2560, CLIPMASK1);
+    auto coll = movesprite(pActor, pActor->vel, 4096., 2560, -2560, CLIPMASK1);
 
     if (coll.type || pActor->spr.shade > 100)
     {
@@ -118,7 +118,7 @@ void BuildLava(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, 
     pActor->spr.yrepeat = 200;
     pActor->spr.shade = -12;
     pActor->spr.pal = 0;
-    pActor->spr.clipdist = 127;
+    pActor->set_const_clipdist(127);
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
     pActor->spr.picnum = seq_GetSeqPicnum(kSeqLavag, LavadudeSeq[3].a, 0);
@@ -279,7 +279,7 @@ void AILavaDude::Tick(RunListEvent* ev)
 		auto pos = pActor->spr.pos;
         auto pSector =pActor->sector();
 
-        auto coll = movesprite(pActor, pActor->int_xvel() << 8, pActor->int_yvel() << 8, 0, 0, 0, CLIPMASK0);
+        auto coll = movesprite(pActor, DVector3(pActor->vel.XY(), 0), 256., 0, 0, CLIPMASK0);
 
         if (pSector != pActor->sector())
         {
@@ -344,10 +344,7 @@ void AILavaDude::Tick(RunListEvent* ev)
     {
         if ((nFlag & 0x80) && pTarget)
         {
-            int nHeight = GetActorHeight(pActor);
-            GetUpAngle(pActor, -64000, pTarget, (-(nHeight >> 1)));
-
-            BuildBullet(pActor, 10, -1, pActor->spr.angle, pTarget, 1);
+             BuildBullet(pActor, 10, -1, pActor->spr.angle, pTarget, 1);
         }
         else if (var_1C)
         {

@@ -277,7 +277,7 @@ static DBloodActor* nnExtSpawnDude(DBloodActor* sourceactor, DBloodActor* origin
 	pDudeActor->set_int_ang(angle);
 
 	pDudeActor->spr.cstat |= CSTAT_SPRITE_BLOOD_BIT1 | CSTAT_SPRITE_BLOCK_ALL;
-	pDudeActor->spr.clipdist = getDudeInfo(nType)->clipdist;
+	pDudeActor->set_native_clipdist(getDudeInfo(nType)->clipdist);
 
 	pDudeActor->xspr.respawn = 1;
 	pDudeActor->xspr.health = getDudeInfo(nType)->startHealth << 4;
@@ -1175,7 +1175,7 @@ void nnExtProcessSuperSprites()
 			if (!pProx->xspr.Proximity || (!pProx->xspr.Interrutable && pProx->xspr.state != pProx->xspr.restState) || pProx->xspr.locked == 1
 				|| pProx->xspr.isTriggered) continue;  // don't process locked or triggered sprites
 
-			int okDist = (pProx->IsDudeActor()) ? 96 : ClipLow(pProx->spr.clipdist * 3, 32);
+			int okDist = (pProx->IsDudeActor()) ? 96 : ClipLow(pProx->native_clipdist() * 3, 32);
 			auto pos = pProx->spr.pos;
 			auto pSect = pProx->sector();
 
@@ -1412,7 +1412,7 @@ void sfxPlayVectorSound(DBloodActor* actor, int vectorId)
 
 int getSpriteMassBySize(DBloodActor* actor)
 {
-	int mass = 0; int seqId = -1; int clipDist = actor->spr.clipdist;
+	int mass = 0; int seqId = -1; int clipDist = actor->native_clipdist();
 	if (!actor->hasX())
 	{
 		I_Error("getSpriteMassBySize: actor->spr.hasX == false");
@@ -1461,7 +1461,7 @@ int getSpriteMassBySize(DBloodActor* actor)
 			picnum = actor->spr.picnum;
 	}
 
-	clipDist = ClipLow(actor->spr.clipdist, 1);
+	clipDist = ClipLow(actor->native_clipdist(), 1);
 	int x = tileWidth(picnum);
 	int y = tileHeight(picnum);
 	int xrepeat = actor->spr.xrepeat;
@@ -1524,7 +1524,7 @@ int getSpriteMassBySize(DBloodActor* actor)
 	cached->yrepeat = actor->spr.yrepeat;
 	cached->picnum = actor->spr.picnum;
 	cached->seqId = seqId;
-	cached->clipdist = actor->spr.clipdist;
+	cached->clipdist = actor->native_clipdist();
 
 	return cached->mass;
 }
@@ -1655,7 +1655,7 @@ void debrisMove(int listIndex)
 	moveHit.setNone();
 	int floorDist = (bottom - actor->int_pos().Z) >> 2;
 	int ceilDist = (actor->int_pos().Z - top) >> 2;
-	int clipDist = actor->spr.clipdist << 2;
+	int clipDist = actor->int_clipdist();
 	int mass = actor->spriteMass.mass;
 
 	bool uwater = false;
@@ -4605,7 +4605,7 @@ bool condCheckSprite(DBloodActor* aCond, int cmpOp, bool PUSH)
 		case 5: return condCmp(objActor->spr.statnum, arg1, arg2, cmpOp);
 		case 6: return ((objActor->spr.flags & kHitagRespawn) || objActor->spr.statnum == kStatRespawn);
 		case 7: return condCmp(spriteGetSlope(objActor), arg1, arg2, cmpOp);
-		case 10: return condCmp(objActor->spr.clipdist, arg1, arg2, cmpOp);
+		case 10: return condCmp(objActor->native_clipdist(), arg1, arg2, cmpOp);
 		case 15:
 			if (!objActor->GetOwner()) return false;
 			else if (PUSH) condPush(aCond, objActor->GetOwner());
@@ -5597,13 +5597,13 @@ bool modernTypeOperateSector(sectortype* pSector, const EVENT& event)
 
 void useCustomDudeSpawn(DBloodActor* pSource, DBloodActor* pActor)
 {
-	genDudeSpawn(pSource, pActor, pActor->spr.clipdist << 1);
+	genDudeSpawn(pSource, pActor, pActor->native_clipdist() << 1);
 }
 
 void useDudeSpawn(DBloodActor* pSource, DBloodActor* pActor)
 {
-	if (randomSpawnDude(pSource, pActor, pActor->spr.clipdist << 1, 0) == nullptr)
-		nnExtSpawnDude(pSource, pActor, pActor->xspr.data1, pActor->spr.clipdist << 1, 0);
+	if (randomSpawnDude(pSource, pActor, pActor->native_clipdist() << 1, 0) == nullptr)
+		nnExtSpawnDude(pSource, pActor, pActor->xspr.data1, pActor->native_clipdist() << 1, 0);
 }
 
 //---------------------------------------------------------------------------
@@ -7705,7 +7705,7 @@ bool nnExtCanMove(DBloodActor* actor, DBloodActor* target, DAngle nAngle_, int n
 	auto pSector = actor->sector();
 	HitScan(actor, z, Cos(nAngle) >> 16, Sin(nAngle) >> 16, 0, CLIPMASK0, nRange);
 	int nDist = approxDist(actor->spr.pos.XY() - gHitInfo.hitpos.XY());
-	if (target != nullptr && nDist - (actor->spr.clipdist << 2) < nRange)
+	if (target != nullptr && nDist - (actor->int_clipdist()) < nRange)
 		return (target == gHitInfo.actor());
 
 	x += MulScale(nRange, Cos(nAngle), 30);
@@ -7897,7 +7897,7 @@ bool aiPatrolMarkerReached(DBloodActor* actor)
 	auto markeractor = actor->GetTarget();
 	if (markeractor && markeractor->spr.type == kMarkerPath)
 	{
-		int okDist = ClipLow(markeractor->spr.clipdist << 1, 4);
+		int okDist = ClipLow(markeractor->native_clipdist() << 1, 4);
 		int oX = abs(markeractor->int_pos().X - actor->int_pos().X) >> 4;
 		int oY = abs(markeractor->int_pos().Y - actor->int_pos().Y) >> 4;
 
@@ -7905,7 +7905,7 @@ bool aiPatrolMarkerReached(DBloodActor* actor)
 		{
 			if (spriteIsUnderwater(actor) || pExtra->flying)
 			{
-				okDist = markeractor->spr.clipdist << 4;
+				okDist = markeractor->native_clipdist() << 4;
 				int ztop, zbot, ztop2, zbot2;
 				GetActorExtents(actor, &ztop, &zbot);
 				GetActorExtents(markeractor, &ztop2, &zbot2);
@@ -9223,7 +9223,7 @@ void callbackUniMissileBurst(DBloodActor* actor, sectortype*) // 22
 		}
 
 		burstactor->spr.pal = actor->spr.pal;
-		burstactor->spr.clipdist = actor->spr.clipdist / 4;
+		burstactor->set_native_clipdist(actor->native_clipdist() / 4);
 		burstactor->spr.flags = actor->spr.flags;
 		burstactor->spr.xrepeat = actor->spr.xrepeat / 2;
 		burstactor->spr.yrepeat = actor->spr.yrepeat / 2;

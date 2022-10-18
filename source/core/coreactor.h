@@ -143,22 +143,6 @@ public:
 		vel.X += v * inttoworld;
 	}
 
-	// Only used this way by Exhumed.
-	int int_yvel() const
-	{
-		return vel.Y * worldtoint;
-	}
-
-	void set_int_yvel(int v)
-	{
-		vel.Y = v * inttoworld;
-	}
-
-	void add_int_yvel(int v)
-	{
-		vel.Y += v * inttoworld;
-	}
-
 	vec3_t int_vel() const
 	{
 		return vec3_t(FloatToFixed(vel.X), FloatToFixed(vel.Y), FloatToFixed(vel.Z));
@@ -264,6 +248,36 @@ public:
 	auto spriteset() const
 	{
 		return static_cast<PClassActor*>(GetClass())->ActorInfo()->SpriteSet;
+	}
+	
+	double fClipdist() const
+	{
+		return spr. clipdist * 0.25;
+	}
+	
+	int int_clipdist()
+	{
+		return spr. clipdist << 2;
+	}
+	
+	void set_native_clipdist(int val)
+	{
+		spr. clipdist = val;
+	}
+	
+	int native_clipdist()
+	{
+		return spr. clipdist;
+	}
+	
+	void set_const_clipdist(int val) // only for searching purposes
+	{
+		spr. clipdist = val;
+	}
+	
+	void copy_clipdist(DCoreActor* other)
+	{
+		spr. clipdist = other->spr. clipdist;
 	}
 
 };

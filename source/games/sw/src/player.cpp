@@ -1199,7 +1199,6 @@ DSWActor* DoPickTarget(DSWActor* actor, DAngle max_delta_ang, int skip_targets)
             DAngle angle2 = VecToAngle(itActor->spr.pos - actor->spr.pos);
 
             // Get the angle difference
-            // delta_ang = abs(pp->angle.ang.Buildang() - angle2);
 
             DAngle delta_ang = absangle(angle2, actor->spr.angle);
 
@@ -1753,7 +1752,7 @@ void DoPlayerRecoil(PLAYER* pp)
     // controls how fast you move through the sin table
     pp->recoil_ndx += pp->recoil_speed;
 
-    if (bsin(pp->recoil_ndx) < 0)
+    if (BobVal(pp->recoil_ndx) < 0)
     {
         pp->Flags &= ~(PF_RECOIL);
         pp->recoil_ohorizoff = pp->recoil_horizoff = 0;
@@ -1762,7 +1761,7 @@ void DoPlayerRecoil(PLAYER* pp)
 
     // move pp->q16horiz up and down
     pp->recoil_ohorizoff = pp->recoil_horizoff;
-    pp->recoil_horizoff = pp->recoil_amt * bsin(pp->recoil_ndx, 2);
+    pp->recoil_horizoff = pp->recoil_amt * BobVal(pp->recoil_ndx) * 4;
 }
 
 //---------------------------------------------------------------------------
@@ -1946,7 +1945,7 @@ void DoPlayerZrange(PLAYER* pp)
     auto bakcstat = actor->spr.cstat;
     actor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK);
 
-    FAFgetzrange(pp->pos.plusZ(8), pp->cursector, &pp->hiz, &ceilhit, &pp->loz, &florhit, ((int)actor->spr.clipdist<<2) - GETZRANGE_CLIP_ADJ, CLIPMASK_PLAYER);
+    FAFgetzrange(pp->pos.plusZ(8), pp->cursector, &pp->hiz, &ceilhit, &pp->loz, &florhit, ((int)actor->int_clipdist()) - GETZRANGE_CLIP_ADJ, CLIPMASK_PLAYER);
     actor->spr.cstat = bakcstat;
 
     Collision ceilColl(ceilhit);
@@ -2010,7 +2009,7 @@ void DoPlayerSlide(PLAYER* pp)
     if (abs(pp->slide_vect.X) < 0.05 && abs(pp->slide_vect.Y) < 0.05)
         pp->slide_vect.Zero();
 
-    push_ret = pushmove(pp->pos, &pp->cursector, ((int)actor->spr.clipdist<<2), pp->p_ceiling_dist, pp->p_floor_dist, CLIPMASK_PLAYER);
+    push_ret = pushmove(pp->pos, &pp->cursector, ((int)actor->int_clipdist()), pp->p_ceiling_dist, pp->p_floor_dist, CLIPMASK_PLAYER);
     if (push_ret < 0)
     {
         if (!(pp->Flags & PF_DEAD))
@@ -2024,10 +2023,10 @@ void DoPlayerSlide(PLAYER* pp)
         return;
     }
     Collision coll;
-    clipmove(pp->pos, &pp->cursector, FloatToFixed<18>(pp->slide_vect.X), FloatToFixed<18>(pp->slide_vect.Y), ((int)actor->spr.clipdist<<2), pp->p_ceiling_dist, pp->p_floor_dist, CLIPMASK_PLAYER, coll);
+    clipmove(pp->pos, &pp->cursector, FloatToFixed<18>(pp->slide_vect.X), FloatToFixed<18>(pp->slide_vect.Y), ((int)actor->int_clipdist()), pp->p_ceiling_dist, pp->p_floor_dist, CLIPMASK_PLAYER, coll);
 
     PlayerCheckValidMove(pp);
-    push_ret = pushmove(pp->pos, &pp->cursector, ((int)actor->spr.clipdist<<2), pp->p_ceiling_dist, pp->p_floor_dist, CLIPMASK_PLAYER);
+    push_ret = pushmove(pp->pos, &pp->cursector, ((int)actor->int_clipdist()), pp->p_ceiling_dist, pp->p_floor_dist, CLIPMASK_PLAYER);
     if (push_ret < 0)
     {
         if (!(pp->Flags & PF_DEAD))
@@ -2173,7 +2172,7 @@ void DoPlayerMove(PLAYER* pp)
     }
     else
     {
-        push_ret = pushmove(pp->pos, &pp->cursector, ((int)actor->spr.clipdist<<2), pp->p_ceiling_dist, pp->p_floor_dist - Z(16), CLIPMASK_PLAYER);
+        push_ret = pushmove(pp->pos, &pp->cursector, ((int)actor->int_clipdist()), pp->p_ceiling_dist, pp->p_floor_dist - Z(16), CLIPMASK_PLAYER);
 
         if (push_ret < 0)
         {
@@ -2196,12 +2195,12 @@ void DoPlayerMove(PLAYER* pp)
         actor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK);
         Collision coll;
         updatesector(pp->pos, &pp->cursector);
-        clipmove(pp->pos, &pp->cursector, FloatToFixed<18>(pp->vect.X), FloatToFixed<18>(pp->vect.Y), ((int)actor->spr.clipdist<<2), pp->p_ceiling_dist, pp->p_floor_dist, CLIPMASK_PLAYER, coll);
+        clipmove(pp->pos, &pp->cursector, FloatToFixed<18>(pp->vect.X), FloatToFixed<18>(pp->vect.Y), ((int)actor->int_clipdist()), pp->p_ceiling_dist, pp->p_floor_dist, CLIPMASK_PLAYER, coll);
 
         actor->spr.cstat = save_cstat;
         PlayerCheckValidMove(pp);
 
-        push_ret = pushmove(pp->pos, &pp->cursector, ((int)actor->spr.clipdist<<2), pp->p_ceiling_dist, pp->p_floor_dist - Z(16), CLIPMASK_PLAYER);
+        push_ret = pushmove(pp->pos, &pp->cursector, ((int)actor->int_clipdist()), pp->p_ceiling_dist, pp->p_floor_dist - Z(16), CLIPMASK_PLAYER);
         if (push_ret < 0)
         {
 
@@ -2593,7 +2592,7 @@ void DriveCrush(PLAYER* pp, DVector2* quad)
                 continue;
 
             damage = -(actor->user.Health + 100);
-            PlayerDamageSlide(actor->user.PlayerP, damage, pp->angle.ang.Buildang());
+            PlayerDamageSlide(actor->user.PlayerP, damage, pp->angle.ang);
             PlayerUpdateHealth(actor->user.PlayerP, damage);
             PlayerCheckDeath(actor->user.PlayerP, pp->actor);
         }
@@ -3560,7 +3559,7 @@ int DoPlayerWadeSuperJump(PLAYER* pp)
             if (hit.hitSector != nullptr && abs(hit.hitSector->floorz - pp->pos.Z) < 50)
             {
 				double dist = (pp->pos.XY() - hit.hitpos.XY()).Length();
-				double comp = ((((int)pp->actor->spr.clipdist)<<2) + 256) * inttoworld;
+				double comp = (pp->actor->fClipdist() + 16);
                 if (dist < comp)
                     return true;
             }
@@ -4833,7 +4832,7 @@ void DoPlayerCurrent(PLAYER* pp)
     xvect = sectu->speed * synctics * vect.X;
     yvect = sectu->speed * synctics * vect.Y;
 
-    push_ret = pushmove(pp->pos, &pp->cursector, ((int)pp->actor->spr.clipdist<<2), pp->p_ceiling_dist, pp->p_floor_dist, CLIPMASK_PLAYER);
+    push_ret = pushmove(pp->pos, &pp->cursector, ((int)pp->actor->int_clipdist()), pp->p_ceiling_dist, pp->p_floor_dist, CLIPMASK_PLAYER);
     if (push_ret < 0)
     {
         if (!(pp->Flags & PF_DEAD))
@@ -4849,10 +4848,10 @@ void DoPlayerCurrent(PLAYER* pp)
         return;
     }
     Collision coll;
-    clipmove(pp->pos, &pp->cursector, xvect, yvect, ((int)pp->actor->spr.clipdist<<2), pp->p_ceiling_dist, pp->p_floor_dist, CLIPMASK_PLAYER, coll);
+    clipmove(pp->pos, &pp->cursector, xvect, yvect, ((int)pp->actor->int_clipdist()), pp->p_ceiling_dist, pp->p_floor_dist, CLIPMASK_PLAYER, coll);
 
     PlayerCheckValidMove(pp);
-    pushmove(pp->pos, &pp->cursector, ((int)pp->actor->spr.clipdist<<2), pp->p_ceiling_dist, pp->p_floor_dist, CLIPMASK_PLAYER);
+    pushmove(pp->pos, &pp->cursector, ((int)pp->actor->int_clipdist()), pp->p_ceiling_dist, pp->p_floor_dist, CLIPMASK_PLAYER);
     if (push_ret < 0)
     {
         if (!(pp->Flags & PF_DEAD))
@@ -6232,7 +6231,7 @@ void DoPlayerDeathCheckKick(PLAYER* pp)
 
 			double dist = (itActor->spr.pos.XY() - plActor->spr.pos.XY()).Length();
 
-            if (dist < (itActor->user.Radius + 100) * inttoworld)
+            if (dist < itActor->user.fRadius() + 6.25)
             {
                 pp->KillerActor = itActor;
 

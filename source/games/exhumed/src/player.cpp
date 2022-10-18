@@ -108,7 +108,7 @@ void SetSavePoint(int nPlayer, const DVector3& pos, sectortype* pSector, DAngle 
     PlayerList[nPlayer].sPlayerSave.nAngle = nAngle;
 }
 
-void feebtag(int x, int y, int z, sectortype* pSector, DExhumedActor **nSprite, int nVal2, int nVal3)
+void feebtag(const DVector3& pos, sectortype* pSector, DExhumedActor **nSprite, int nVal2, double deflen)
 {
     *nSprite = nullptr;
 
@@ -130,25 +130,15 @@ void feebtag(int x, int y, int z, sectortype* pSector, DExhumedActor **nSprite, 
 
                 if (nStat >= 900 && !(pActor->spr.cstat & CSTAT_SPRITE_INVISIBLE))
                 {
-                    uint32_t xDiff = abs(pActor->int_pos().X - x);
-                    uint32_t yDiff = abs(pActor->int_pos().Y - y);
-                    int zDiff = pActor->int_pos().Z - z;
+					auto diff = pActor->spr.pos - pos;
 
-                    if (zDiff < 5120 && zDiff > -25600)
+                    if (diff.Z < 20 && diff.Z > -100)
                     {
-                        uint32_t diff = xDiff * xDiff + yDiff * yDiff;
+						double len = diff.XY().Length();
 
-                        if (diff > INT_MAX)
+                        if (len < deflen && ((nStat != 950 && nStat != 949) || !(var_14 & 1)) && ((nStat != 912 && nStat != 913) || !(var_20 & 2)))
                         {
-                            DPrintf(DMSG_WARNING, "%s %d: overflow\n", __func__, __LINE__);
-                            diff = INT_MAX;
-                        }
-
-                        int theSqrt = ksqrt(diff);
-
-                        if (theSqrt < nVal3 && ((nStat != 950 && nStat != 949) || !(var_14 & 1)) && ((nStat != 912 && nStat != 913) || !(var_20 & 2)))
-                        {
-                            nVal3 = theSqrt;
+                            deflen = len;
                             *nSprite = pActor;
                         }
                     }
@@ -291,7 +281,7 @@ void RestartPlayer(int nPlayer)
 
 	pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
 	pActor->spr.shade = -12;
-	pActor->spr.clipdist = 58;
+	pActor->set_const_clipdist(58);
 	pActor->spr.pal = 0;
 	pActor->spr.xrepeat = 40;
 	pActor->spr.yrepeat = 40;
@@ -747,8 +737,8 @@ void AIPlayer::Tick(RunListEvent* ev)
     PlayerList[nPlayer].horizon.resetadjustment();
     PlayerList[nPlayer].oeyelevel = PlayerList[nPlayer].eyelevel;
 
-    pPlayerActor->set_int_xvel(sPlayerInput[nPlayer].xVel >> 14);
-    pPlayerActor->set_int_yvel(sPlayerInput[nPlayer].yVel >> 14);
+    pPlayerActor->vel.X = FixedToFloat<18>(sPlayerInput[nPlayer].xVel);
+    pPlayerActor->vel.Y = FixedToFloat<18>(sPlayerInput[nPlayer].yVel);
 
     if (sPlayerInput[nPlayer].nItem > -1)
     {
@@ -830,11 +820,11 @@ void AIPlayer::Tick(RunListEvent* ev)
     }
 
     // player.zvel is modified within Gravity()
-    int zVel = pPlayerActor->int_zvel();
+	double zVel = pPlayerActor->vel.Z;
 
     Gravity(pPlayerActor);
 
-    if (pPlayerActor->vel.Z >= 6500/256. && zVel < 6500)
+    if (pPlayerActor->vel.Z >= 6500/256. && zVel < 6500 / 256.)
     {
         D3PlayFX(StaticSound[kSound17], pPlayerActor);
     }
@@ -851,7 +841,7 @@ void AIPlayer::Tick(RunListEvent* ev)
     int z = (pPlayerActor->int_zvel() * 4) >> 2;
 
     if (pPlayerActor->vel.Z > 32)
-        pPlayerActor->set_int_zvel(8192);
+        pPlayerActor->vel.Z = 32;
 
     if (PlayerList[nPlayer].bIsMummified)
     {
@@ -865,7 +855,7 @@ void AIPlayer::Tick(RunListEvent* ev)
     // TODO
     // nSectFlag & kSectUnderwater;
 
-    zVel = pPlayerActor->int_zvel();
+    zVel = pPlayerActor->vel.Z;
 
     Collision nMove;
     nMove.setNone();
@@ -882,7 +872,7 @@ void AIPlayer::Tick(RunListEvent* ev)
 
         auto pPlayerSect = pPlayerActor->sector();
 
-        pushmove(pPlayerActor, &pPlayerSect, pPlayerActor->spr.clipdist << 2, 5120, -5120, CLIPMASK0);
+        pushmove(pPlayerActor, &pPlayerSect, pPlayerActor->int_clipdist(), 5120, -5120, CLIPMASK0);
         if (pPlayerSect != pPlayerActor->sector()) {
             ChangeActorSect(pPlayerActor, pPlayerSect);
         }
@@ -895,8 +885,8 @@ void AIPlayer::Tick(RunListEvent* ev)
 
 		pPlayerActor->spr.pos.XY() = spr_pos.XY();
 
-        if (zVel < pPlayerActor->int_zvel()) {
-            pPlayerActor->set_int_zvel(zVel);
+        if (zVel < pPlayerActor->vel.Z) {
+            pPlayerActor->vel.Z = zVel;
         }
     }
 
@@ -956,22 +946,22 @@ void AIPlayer::Tick(RunListEvent* ev)
 
             if (nPlayer == nLocalPlayer)
             {
-                int zVelB = zVel;
+                double zVelB = zVel;
 
                 if (zVelB < 0) {
                     zVelB = -zVelB;
                 }
 
-                if (zVelB > 512 && !PlayerList[nPlayer].horizon.horiz.asq16() && cl_slopetilting) {
+                if (zVelB > 2 && !PlayerList[nPlayer].horizon.horiz.asq16() && cl_slopetilting) {
                     PlayerList[nPlayer].nDestVertPan = q16horiz(0);
                 }
             }
 
-            if (zVel >= 6500)
+            if (zVel >= 6500 / 256.)
             {
                 pPlayerActor->vel.XY() *= 0.25;
 
-                runlist_DamageEnemy(pPlayerActor, nullptr, ((zVel - 6500) >> 7) + 10);
+                runlist_DamageEnemy(pPlayerActor, nullptr, ((int(zVel * 256) - 6500) >> 7) + 10);
 
                 if (PlayerList[nPlayer].nHealth <= 0)
                 {
@@ -1275,7 +1265,7 @@ sectdone:
         neartag(pPlayerActor->int_pos(), pPlayerActor->sector(), pPlayerActor->int_ang(), near, 1024, 2);
 
         DExhumedActor* pActorB;
-        feebtag(pPlayerActor->int_pos().X, pPlayerActor->int_pos().Y, pPlayerActor->int_pos().Z, pPlayerActor->sector(), &pActorB, var_30, 768);
+        feebtag(pPlayerActor->spr.pos, pPlayerActor->sector(), &pActorB, var_30, 48);
 
         // Item pickup code
         if (pActorB != nullptr && pActorB->spr.statnum >= 900)
@@ -2251,14 +2241,14 @@ sectdone:
             {
                 if (bUnderwater)
                 {
-                    pPlayerActor->set_int_zvel(-2048);
+                    pPlayerActor->vel.Z = -8;
                     nActionB = 10;
                 }
                 else if (bTouchFloor)
                 {
                     if (nAction < 6 || nAction > 8)
                     {
-                        pPlayerActor->set_int_zvel(-3584);
+                        pPlayerActor->vel.Z = -14;
                         nActionB = 3;
                     }
                 }
@@ -2269,7 +2259,7 @@ sectdone:
             {
                 if (bUnderwater)
                 {
-                    pPlayerActor->set_int_zvel(2048);
+					pPlayerActor->vel.Z = 8;
                     nActionB = 10;
                 }
                 else

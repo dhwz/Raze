@@ -53,7 +53,7 @@ DExhumedActor* BuildSpider(DExhumedActor* spp, const DVector3& pos, sectortype* 
 
     spp->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     spp->spr.shade = -12;
-    spp->spr.clipdist = 15;
+    spp->set_const_clipdist(15);
     spp->vel.X = 0;
     spp->vel.Y = 0;
     spp->vel.Z = 0;
@@ -179,7 +179,7 @@ void AISpider::Tick(RunListEvent* ev)
                 if (pSector->ceilingstat & CSTAT_SECTOR_SKY)
                 {
                     spp->spr.cstat ^= CSTAT_SPRITE_YFLIP;
-                    spp->set_int_zvel(1);
+                    spp->vel.Z = 1./256.;
 
                     spp->nAction = 3;
                     spp->nFrame = 0;
@@ -205,12 +205,12 @@ void AISpider::Tick(RunListEvent* ev)
                     if (spp->spr.cstat & CSTAT_SPRITE_YFLIP)
                     {
                         spp->spr.cstat ^= CSTAT_SPRITE_YFLIP;
-                        spp->set_int_zvel(1);
+						spp->vel.Z = 1./256.;
 						spp->spr.pos.Z = spp->sector()->ceilingz+ GetActorHeightF(spp);
                     }
                     else
                     {
-                        spp->set_int_zvel(-5120);
+						spp->vel.Z = -20;
                     }
 
                     spp->nAction = 3;
@@ -273,7 +273,7 @@ void AISpider::Tick(RunListEvent* ev)
         spp->vel.Y = 0;
     }
 
-    auto nMov = movesprite(spp, spp->int_xvel() << nVel, spp->int_yvel() << nVel, spp->int_zvel(), 1280, -1280, CLIPMASK0);
+    auto nMov = movesprite(spp, spp->vel, 1 << nVel, 1280, -1280, CLIPMASK0);
 
     if (nMov.type == kHitNone && nMov.exbits == 0)
         return;

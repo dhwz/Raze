@@ -207,7 +207,6 @@ extern Collision hiHit;
 extern TObjPtr<DExhumedActor*> nChunkSprite[];
 extern TObjPtr<DExhumedActor*> nBodySprite[];
 
-signed int lsqrt(int a1);
 void MoveThings();
 void ResetMoveFifo();
 void InitChunks();
@@ -233,7 +232,6 @@ int PlotCourseToSprite(DExhumedActor* nSprite1, DExhumedActor* nSprite2);
 void CheckSectorFloor(sectortype* pSector, int z, int *x, int *y);
 int GetAngleToSprite(DExhumedActor* nSprite1, DExhumedActor* nSprite2);
 int GetWallNormal(walltype* nWall);
-int GetUpAngle(DExhumedActor* nSprite1, int nVal, DExhumedActor* nSprite2, int ecx);
 void MoveSector(sectortype* pSector, int nAngle, int *nXVel, int *nYVel);
 Collision AngleChase(DExhumedActor* nSprite, DExhumedActor* nSprite2, int ebx, int ecx, int push1);
 void SetQuake(DExhumedActor* nSprite, int nVal);
@@ -379,7 +377,7 @@ struct RunListEvent
     int nDamage, nRun;
 
     int nRadialDamage;          // Radial damage needs a bit more info.
-    int nDamageRadius;
+    double nDamageRadius;
     DExhumedActor* pRadialActor;
 
     bool isRadialEvent() const { return nMessage == 1; }

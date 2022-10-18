@@ -96,7 +96,7 @@ void FlareBurst(DBloodActor* actor, sectortype*) // 2
 		spawnedactor->spr.shade = -128;
 		spawnedactor->spr.xrepeat = spawnedactor->spr.yrepeat = 32;
 		spawnedactor->spr.type = kMissileFlareAlt;
-		spawnedactor->spr.clipdist = 2;
+		spawnedactor->set_const_clipdist(2);
 		spawnedactor->SetOwner(actor);
 		int nAngle2 = (i << 11) / 8;
 		int dx = 0;
@@ -198,7 +198,7 @@ void fxBloodSpurt(DBloodActor* actor, sectortype*) // 6
 	auto pFX = gFX.fxSpawnActor(FX_27, actor->sector(), actor->spr.pos, 0);
 	if (pFX)
 	{
-		pFX->set_int_ang(0);
+		pFX->spr.angle = nullAngle;
 		pFX->vel = actor->vel * (1./256);
 	}
 	evPostActor(actor, 6, kCallbackFXBloodSpurt);
@@ -302,7 +302,7 @@ void Respawn(DBloodActor* actor, sectortype*) // 9
 
 			switch (actor->spr.type) {
 			default:
-				actor->spr.clipdist = getDudeInfo(nType + kDudeBase)->clipdist;
+				actor->set_native_clipdist(getDudeInfo(nType + kDudeBase)->clipdist);
 				if (getSequence(getDudeInfo(nType + kDudeBase)->seqStartID))
 					seqSpawn(getDudeInfo(nType + kDudeBase)->seqStartID, actor, -1);
 				break;
@@ -317,7 +317,7 @@ void Respawn(DBloodActor* actor, sectortype*) // 9
 				actor->SetTarget(nullptr);
 			}
 #else
-			actor->spr.clipdist = getDudeInfo(nType + kDudeBase)->clipdist;
+			actor->set_native_clipdist(getDudeInfo(nType + kDudeBase)->clipdist);
 			actor->xspr.health = getDudeInfo(nType + kDudeBase)->startHealth << 4;
 			if (getSequence(getDudeInfo(nType + kDudeBase)->seqStartID))
 				seqSpawn(getDudeInfo(nType + kDudeBase)->seqStartID, actor, -1);
@@ -454,7 +454,7 @@ void fxBloodBits(DBloodActor* actor, sectortype*) // 14
 	if (!actor) return;
 	int ceilZ, floorZ;
 	Collision floorColl, ceilColl;
-	GetZRange(actor, &ceilZ, &ceilColl, &floorZ, &floorColl, actor->spr.clipdist, CLIPMASK0);
+	GetZRange(actor, &ceilZ, &ceilColl, &floorZ, &floorColl, actor->native_clipdist(), CLIPMASK0);
 	int top, bottom;
 	GetActorExtents(actor, &top, &bottom);
 	actor->add_int_z(floorZ - bottom);
@@ -513,7 +513,7 @@ void fxBouncingSleeve(DBloodActor* actor, sectortype*) // 16
 	int ceilZ, floorZ;
 	Collision floorColl, ceilColl;
 
-	GetZRange(actor, &ceilZ, &ceilColl, &floorZ, &floorColl, actor->spr.clipdist, CLIPMASK0);
+	GetZRange(actor, &ceilZ, &ceilColl, &floorZ, &floorColl, actor->native_clipdist(), CLIPMASK0);
 	int top, bottom; GetActorExtents(actor, &top, &bottom);
 	actor->add_int_z(floorZ - bottom);
 
@@ -623,7 +623,7 @@ void fxPodBloodSpray(DBloodActor* actor, sectortype*) // 18
 		pFX = gFX.fxSpawnActor(FX_54, actor->sector(), actor->spr.pos, 0);
 	if (pFX)
 	{
-		pFX->set_int_ang(0);
+		pFX->spr.angle = nullAngle;
 		pFX->vel = actor->vel * (1./256);
 	}
 	evPostActor(actor, 6, kCallbackFXPodBloodSpray);
@@ -641,7 +641,7 @@ void fxPodBloodSplat(DBloodActor* actor, sectortype*) // 19
 	int ceilZ, floorZ;
 	Collision floorColl, ceilColl;
 
-	GetZRange(actor, &ceilZ, &ceilColl, &floorZ, &floorColl, actor->spr.clipdist, CLIPMASK0);
+	GetZRange(actor, &ceilZ, &ceilColl, &floorZ, &floorColl, actor->native_clipdist(), CLIPMASK0);
 	int top, bottom;
 	GetActorExtents(actor, &top, &bottom);
 	actor->add_int_z(floorZ - bottom);

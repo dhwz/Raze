@@ -179,7 +179,7 @@ enum
 
 constexpr double CIRCLE_CAMERA_DIST_MINF = 12000. / 65536.;
 
-inline int32_t FIXED(int32_t msw, int32_t lsw)
+constexpr int32_t FIXED(int32_t msw, int32_t lsw)
 {
     return IntToFixed(msw) | lsw;
 }
@@ -201,31 +201,6 @@ constexpr int NORM_ANGLE(int ang) { return ((ang) & 2047); }
 
 int StdRandomRange(int range);
 
-
-inline DVector2 MOVExy(int vel, DAngle ang)
-{
-	return ang.ToVector() * vel * inttoworld;
-}
-
-inline int SQ(int val)
-{
-    return val * val;
-}
-
-inline int DIST(int x1, int y1, int x2, int y2)
-{
-    return ksqrt(SQ((x1)-(x2)) + SQ((y1)-(y2)));
-}
-
-// Distance macro - tx, ty, tmin are holding vars that must be declared in the routine
-// that uses this macro
-inline void DISTANCE(const DVector2& p1, const DVector2& p2, int& dist, int& tx, int& ty, int& tmin)
-{
-    tx = int(abs(p2.X - p1.X) * worldtoint);
-    ty = int(abs(p2.Y - p1.Y) * worldtoint);
-    tmin = min(tx, ty);
-    dist = tx + ty - (tmin >> 1);
-}
 
 inline double GetSpriteSizeZ(const spritetypebase* sp)
 {
@@ -259,13 +234,6 @@ constexpr int PIXZ(int value)
     return value >> 8;
 }
 
-
-// two vectors
-// can determin direction
-constexpr int DOT_PRODUCT_2D(int x1, int y1, int x2, int y2)
-{
-    return (MulScale((x1), (x2), 16) + MulScale((y1), (y2), 16));
-}
 
 constexpr int SEC(int value)
 {
@@ -893,12 +861,8 @@ struct USER
         memset(&WallP, 0, sizeof(USER) - myoffsetof(USER, WallP));
     }
 
-	void set_int_change_x(int x) { change.X = x * inttoworld; }
-	void set_int_change_y(int x) { change.Y = x * inttoworld; }
-	void set_int_change_z(int x) { change.Z = x * zinttoworld; }
-
 	// frequently repeated patterns
-	void addCounterToChange() { change.Z += Counter * zinttoworld; }
+	void addCounterToChange() { change.Z += Counter * zmaptoworld; }
 	
 
     //
@@ -987,6 +951,7 @@ struct USER
     int16_t BladeDamageTics;
 
     unsigned int Radius;    // for distance checking
+    double fRadius() const { return Radius * inttoworld; }
     double  OverlapZ;  // for z overlap variable
 
     //
@@ -1598,29 +1563,6 @@ extern SECTOR_OBJECT SectorObject[MAX_SECTOR_OBJECTS];
 
 ANIMATOR NullAnimator;
 
-inline int Distance(int x1, int y1, int x2, int y2)
-{
-    int min;
-
-    if ((x2 = x2 - x1) < 0)
-        x2 = -x2;
-
-    if ((y2 = y2 - y1) < 0)
-        y2 = -y2;
-
-    if (x2 > y2)
-        min = y2;
-    else
-        min = x2;
-
-    return x2 + y2 - (min >> 1);
-}
-
-inline int DistanceI(const DVector2& pos1, const DVector2& pos2)
-{
-	return Distance(int(pos1.X * worldtoint), int(pos1.Y * worldtoint), int(pos2.X * worldtoint), int(pos2.Y * worldtoint));
-}
-
 int NewStateGroup(DSWActor* actor, STATE* SpriteGroup[]);
 DVector3 SectorMidPoint(sectortype* sectp);
 void SpawnUser(DSWActor* actor, short id, STATE* state);
@@ -1709,6 +1651,7 @@ Collision move_missile(DSWActor* actor, const DVector3& change, double ceildist,
 
 DSWActor* DoPickTarget(DSWActor*, DAngle max_delta_ang, int skip_targets);
 
+[[deprecated]]
 DSWActor* DoPickTarget(DSWActor* a, uint32_t max_delta_ang, int skip_targets)
 {
     return DoPickTarget(a, DAngle::fromBuild(max_delta_ang), skip_targets);
@@ -1990,14 +1933,14 @@ inline bool SectorIsUnderwaterArea(sectortype* sect)
     return sect ? sect->extra & (SECTFX_UNDERWATER | SECTFX_UNDERWATER2) : false;
 }
 
-inline bool PlayerFacingRange(PLAYER* pp, DSWActor* a, int range)
+inline bool PlayerFacingRange(PLAYER* pp, DSWActor* a, DAngle range)
 {
-    return (abs(getincangle(getangle(a->spr.pos - pp->pos), (pp)->angle.ang.Buildang())) < (range));
+    return absangle(VecToAngle(a->spr.pos - pp->pos), pp->angle.ang) < range;
 }
 
-inline bool FacingRange(DSWActor* a1, DSWActor* a2, int range)
+inline bool FacingRange(DSWActor* a1, DSWActor* a2, DAngle range)
 {
-    return (abs(getincangle(getangle(a1->spr.pos - a2->spr.pos), a2->int_ang())) < (range));
+    return absangle(VecToAngle(a1->spr.pos - a2->spr.pos), a2->spr.angle) < range;
 }
 inline void SET_BOOL1(DSWActor* sp) { sp->spr.extra |= SPRX_BOOL1; }
 inline void SET_BOOL2(DSWActor* sp) { sp->spr.extra |= SPRX_BOOL2; }
@@ -2108,14 +2051,9 @@ inline double ActorSizeToTop(DSWActor* a)
     return (ActorSizeZ(a) + tileTopOffset(a->spr.picnum)) * 0.5;
 }
 
-inline int ActorSizeX(DSWActor* sp)
+inline void SetActorSizeX(DSWActor* sp)
 {
-    return MulScale(tileWidth(sp->spr.picnum), sp->spr.xrepeat, 6);
-}
-
-inline int ActorSizeY(DSWActor* sp)
-{
-    return MulScale(tileHeight(sp->spr.picnum), sp->spr.yrepeat, 6);
+    sp->set_native_clipdist(MulScale(tileWidth(sp->spr.picnum), sp->spr.xrepeat, 6));
 }
 
 inline bool Facing(DSWActor* actor1, DSWActor* actor2)

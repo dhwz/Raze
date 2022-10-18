@@ -574,7 +574,7 @@ static void shootstuff(DDukeActor* actor, int p, int sx, int sy, int sz, int sa,
 		if (!j) return;
 		j->spr.extra += (krand() & 7);
 		j->spr.cstat = CSTAT_SPRITE_YCENTER;
-		j->spr.clipdist = 4;
+		j->set_const_clipdist(4);
 
 		sa = actor->int_ang() + 32 - (krand() & 63);
 		zvel = oldzvel + 512 - (krand() & 1023);
@@ -732,9 +732,9 @@ static void shootrpg(DDukeActor* actor, int p, int sx, int sy, int sz, int sa, i
 
 	spawned->spr.cstat = CSTAT_SPRITE_YCENTER;
 	if (atwith == RPG || (atwith == RPG2 && isRRRA()))
-		spawned->spr.clipdist = 4;
+		spawned->set_const_clipdist(4);
 	else
-		spawned->spr.clipdist = 40;
+		spawned->set_const_clipdist(40);
 
 
 }
@@ -805,7 +805,7 @@ static void shootwhip(DDukeActor* actor, int p, int sx, int sy, int sz, int sa, 
 		if (!j) return;
 		j->spr.extra += (krand() & 7);
 		j->spr.cstat = CSTAT_SPRITE_YCENTER;
-		j->spr.clipdist = 4;
+		j->set_const_clipdist(4);
 
 		sa = actor->int_ang() + 32 - (krand() & 63);
 		zvel = oldzvel + 512 - (krand() & 1023);
@@ -3390,15 +3390,15 @@ void processinput_r(int snum)
 		psectlotag = 1;
 
 	if (psectlotag == 857)
-		pact->spr.clipdist = 1;
+		pact->set_const_clipdist(1);
 	else
-		pact->spr.clipdist = 64;
+		pact->set_const_clipdist(64);
 
 	p->spritebridge = 0;
 
 	shrunk = (pact->spr.yrepeat < 8);
 	int tempfz;
-	if (pact->spr.clipdist == 64)
+	if (pact->native_clipdist() == 64)
 	{
 		getzrange(p->player_int_pos(), psectp, &cz, chz, &fz, clz, 163L, CLIPMASK0);
 		tempfz = getflorzofslopeptr(psectp, p->player_int_pos().X, p->player_int_pos().Y);
@@ -3932,7 +3932,7 @@ HORIZONLY:
 	while (ud.clipping == 0)
 	{
 		int blocked;
-		if (pact->spr.clipdist == 64)
+		if (pact->native_clipdist() == 64)
 			blocked = (pushmove(p->pos, &p->cursector, 128, (4 << 8), (4 << 8), CLIPMASK0) < 0 && furthestangle(p->GetActor(), 8) < 512);
 		else
 			blocked = (pushmove(p->pos, &p->cursector, 16, (4 << 8), (4 << 8), CLIPMASK0) < 0 && furthestangle(p->GetActor(), 8) < 512);

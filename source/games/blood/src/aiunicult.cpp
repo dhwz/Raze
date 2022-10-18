@@ -243,7 +243,7 @@ void genDudeAttack1(int, DBloodActor* actor)
 	else if (pExtra->weaponType == kGenDudeWeaponSummon)
 	{
 		DBloodActor* spawned = nullptr;
-		int dist = actor->spr.clipdist << 4;
+		int dist = actor->native_clipdist() << 4;
 		if (pExtra->slaveCount <= gGameOptions.nDifficulty)
 		{
 			if ((spawned = actSpawnDude(actor, pExtra->curWeapon, dist + Random(dist), 0)) != NULL)
@@ -374,7 +374,7 @@ static void ThrowThing(DBloodActor* actor, bool impact)
 		spawned->xspr.data3 = 512 / (gGameOptions.nDifficulty + 1);
 		spawned->spr.cstat &= ~CSTAT_SPRITE_BLOCK;
 		spawned->spr.pal = 6;
-		spawned->spr.clipdist = 0;
+		spawned->set_const_clipdist(0);
 		spawned->SetTarget(actor->GetTarget());
 		spawned->xspr.Proximity = true;
 		spawned->xspr.stateTimer = 1;
@@ -489,7 +489,7 @@ static void unicultThinkChase(DBloodActor* actor)
 	// so i use fake velocity with fixed value and pass it as argument.
 	auto velocity = actor->vel;
 	if (inAttack(actor->xspr.aiState))
-		velocity.X = velocity.Y = FixedToFloat(ClipLow(actor->spr.clipdist >> 1, 1));
+		velocity.X = velocity.Y = FixedToFloat(ClipLow(actor->native_clipdist() >> 1, 1));
 
 	//aiChooseDirection(actor,getangle(dx, dy));
 	aiGenDudeChooseDirection(actor, VecToAngle(dx, dy), velocity);
@@ -749,7 +749,7 @@ static void unicultThinkChase(DBloodActor* actor)
 
 					if (hit >= 0)
 					{
-						targetDist = dist - (target->spr.clipdist << 2);
+						targetDist = dist - (target->int_clipdist());
 						objDist = approxDist(gHitInfo.hitpos.XY() - actor->spr.pos.XY());
 					}
 
@@ -1881,7 +1881,7 @@ DBloodActor* genDudeSpawn(DBloodActor* source, DBloodActor* actor, int nDist)
 	spawned->spr.angle = actor->spr.angle;
 	SetActor(spawned, pos);
 	spawned->spr.cstat |= CSTAT_SPRITE_BLOCK_ALL | CSTAT_SPRITE_BLOOD_BIT1;
-	spawned->spr.clipdist = dudeInfo[nType - kDudeBase].clipdist;
+	spawned->set_native_clipdist(dudeInfo[nType - kDudeBase].clipdist);
 
 	// inherit weapon, seq and sound settings.
 	spawned->xspr.data1 = source->xspr.data1;
@@ -1896,8 +1896,8 @@ DBloodActor* genDudeSpawn(DBloodActor* source, DBloodActor* actor, int nDist)
 	spawned->xspr.busyTime = source->xspr.busyTime;
 
 	// inherit clipdist?
-	if (source->spr.clipdist > 0)
-		spawned->spr.clipdist = source->spr.clipdist;
+	if (source->native_clipdist() > 0)
+		spawned->copy_clipdist(source);
 
 	// inherit custom hp settings
 	if (source->xspr.data4 <= 0) spawned->xspr.health = dudeInfo[nType - kDudeBase].startHealth << 4;
@@ -1980,7 +1980,7 @@ void genDudeTransform(DBloodActor* actor)
 	actor->spr.flags = actIncarnation->spr.flags;
 	actor->spr.pal = actIncarnation->spr.pal;
 	actor->spr.shade = actIncarnation->spr.shade;
-	actor->spr.clipdist = actIncarnation->spr.clipdist;
+	actor->copy_clipdist(actIncarnation);
 	actor->spr.xrepeat = actIncarnation->spr.xrepeat;
 	actor->spr.yrepeat = actIncarnation->spr.yrepeat;
 
@@ -2262,7 +2262,7 @@ bool genDudePrepare(DBloodActor* actor, int propId)
 		pExtra->moveSpeed = getGenDudeMoveSpeed(actor, 0, true, false);
 		pExtra->initVals[0] = actor->spr.xrepeat;
 		pExtra->initVals[1] = actor->spr.yrepeat;
-		pExtra->initVals[2] = actor->spr.clipdist;
+		pExtra->initVals[2] = actor->native_clipdist();
 		if (propId) break;
 		[[fallthrough]];
 
@@ -2476,7 +2476,7 @@ bool genDudePrepare(DBloodActor* actor, int propId)
 		if (!(actor->sector()->floorstat & CSTAT_SECTOR_SKY))
 			actor->add_int_z(ClipHigh(actor->sector()->int_floorz() - zBot, 0));
 
-		actor->spr.clipdist = ClipRange((actor->spr.xrepeat + actor->spr.yrepeat) >> 1, 4, 120);
+		actor->set_native_clipdist(ClipRange((actor->spr.xrepeat + actor->spr.yrepeat) >> 1, 4, 120));
 		if (propId) break;
 	}
 	}

@@ -1190,7 +1190,7 @@ int SpawnRadiationCloud(DSWActor* actor)
     actorNew->spr.shade = -40;
     actorNew->spr.xrepeat = 32;
     actorNew->spr.yrepeat = 32;
-    actorNew->spr.clipdist = actor->spr.clipdist;
+    actorNew->copy_clipdist(actor);
     actorNew->spr.cstat |= (CSTAT_SPRITE_YCENTER);
     actorNew->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
     actorNew->user.spal = actorNew->spr.pal = PALETTE_PLAYER6;
@@ -1291,14 +1291,14 @@ int PlayerInitChemBomb(PLAYER* pp)
 
     actorNew->vel.Z -= pp->horizon.horiz.asbuildf() * HORIZ_MULTF;
 
-    oclipdist = plActor->spr.clipdist;
-    plActor->spr.clipdist = 0;
-    actorNew->spr.clipdist = 0;
+    oclipdist = plActor->native_clipdist();
+    plActor->set_const_clipdist(0);
+    actorNew->set_const_clipdist(0);
 
     MissileSetPos(actorNew, DoChemBomb, 1000);
 
-    plActor->spr.clipdist = uint8_t(oclipdist);
-    actorNew->spr.clipdist = 80 >> 2;
+    plActor->set_native_clipdist(oclipdist);
+    actorNew->set_const_clipdist(80 >> 2);
 
 	UpdateChange(actorNew, 0.5);
 
@@ -1342,7 +1342,7 @@ int InitSpriteChemBomb(DSWActor* actor)
 
 	actorNew->vel.Z = (-100 - RandomRange(100)) * HORIZ_MULTF;
 
-    actorNew->spr.clipdist = 80 >> 2;
+    actorNew->set_const_clipdist(80 >> 2);
 
 	UpdateChange(actorNew, 0.5);
 
@@ -1382,7 +1382,7 @@ int InitChemBomb(DSWActor* actor)
         actorNew->user.Flags |= (SPR_UNDERWATER);
 
 	actorNew->vel.Z = (-100 - RandomRange(100)) * HORIZ_MULTF;
-    actorNew->spr.clipdist = 0;
+    actorNew->set_const_clipdist(0);
 
     if (actor->user.ID == MUSHROOM_CLOUD || actor->user.ID == 3121 || actor->user.ID == SUMO_RUN_R0) // 3121 == GRENADE_EXP
     {
@@ -1655,14 +1655,14 @@ int PlayerInitCaltrops(PLAYER* pp)
 
     actorNew->vel.Z -= pp->horizon.horiz.asbuildf() * 0.5;
 
-    oclipdist = plActor->spr.clipdist;
-    plActor->spr.clipdist = 0;
-    actorNew->spr.clipdist = 0;
+    oclipdist = plActor->native_clipdist();
+    plActor->set_const_clipdist(0);
+    actorNew->set_const_clipdist(0);
 
     MissileSetPos(actorNew, DoCaltrops, 1000);
 
-    plActor->spr.clipdist = uint8_t(oclipdist);
-    actorNew->spr.clipdist = 80L >> 2;
+    plActor->set_native_clipdist(oclipdist);
+    actorNew->set_const_clipdist(80 >> 2);
 
 	UpdateChange(actorNew, 0.5);
 
@@ -1695,7 +1695,7 @@ int InitCaltrops(DSWActor* actor)
     actorNew->spr.xrepeat = 64;
     actorNew->spr.shade = -15;
     // !FRANK - clipbox must be <= weapon otherwise can clip thru walls
-    actorNew->spr.clipdist = actor->spr.clipdist;
+    actorNew->copy_clipdist(actor);
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = 200;
     actorNew->user.ceiling_dist = 3;
@@ -1735,10 +1735,10 @@ int InitPhosphorus(DSWActor* actor)
     actorNew->spr.xrepeat = 64;
     actorNew->spr.shade = -15;
     // !FRANK - clipbox must be <= weapon otherwise can clip thru walls
-    if (actor->spr.clipdist > 0)
-        actorNew->spr.clipdist = actor->spr.clipdist-1;
+    if (actor->native_clipdist() > 0)
+        actorNew->set_native_clipdist(actor->native_clipdist() - 1);
     else
-        actorNew->spr.clipdist = actor->spr.clipdist;
+        actorNew->copy_clipdist(actor);
     actorNew->user.WeaponNum = actor->user.WeaponNum;
     actorNew->user.Radius = 600;
     actorNew->user.ceiling_dist = 3;
@@ -1808,7 +1808,7 @@ int InitBloodSpray(DSWActor* actor, bool dogib, short velocity)
         actorNew->spr.yrepeat = 64-RandomRange(35);
         actorNew->spr.xrepeat = 64-RandomRange(35);
         actorNew->spr.shade = -15;
-        actorNew->spr.clipdist = actor->spr.clipdist;
+        actorNew->copy_clipdist(actor);
         actorNew->user.WeaponNum = actor->user.WeaponNum;
         actorNew->user.Radius = 600;
         actorNew->user.ceiling_dist = 3;

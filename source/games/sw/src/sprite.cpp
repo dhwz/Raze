@@ -1682,7 +1682,7 @@ void SpriteSetup(void)
             case BREAKABLE:
                 // need something that tells missiles to hit them
                 // but allows actors to move through them
-                actor->spr.clipdist = ActorSizeX(actor);
+                SetActorSizeX(actor);
                 actor->spr.extra |= (SPRX_BREAKABLE);
                 actor->spr.cstat |= (CSTAT_SPRITE_BREAKABLE);
                 break;
@@ -1843,7 +1843,7 @@ void SpriteSetup(void)
                 {
                     sectp->u_defined = true;
                     sectp->number = actor->spr.lotag;
-                    if (actor->spr.clipdist == 1)
+                    if (actor->native_clipdist() == 1)
                         sectp->flags |= (SECTFU_CANT_SURFACE);
                     change_actor_stat(actor, STAT_UNDERWATER2);
                 }
@@ -3466,7 +3466,7 @@ NUKE_REPLACEMENT:
 
             SpawnUser(actor, actor->spr.picnum, nullptr);
 
-            actor->spr.clipdist = ActorSizeX(actor);
+            SetActorSizeX(actor);
             actor->spr.cstat |= (CSTAT_SPRITE_BREAKABLE);
             actor->spr.extra |= (SPRX_BREAKABLE);
             break;
@@ -4353,7 +4353,7 @@ bool SpriteOverlap(DSWActor* actor_a, DSWActor* actor_b)
 {
     if (!actor_a->hasU() || !actor_b->hasU()) return false;
 	double dist = (actor_a->spr.pos.XY() - actor_b->spr.pos.XY()).Length();
-    if (dist > (actor_a->user.Radius + actor_b->user.Radius) * inttoworld)
+    if (dist > (actor_a->user.fRadius() + actor_b->user.fRadius()))
     {
         return false;
     }
@@ -4555,7 +4555,7 @@ void DoActorZrange(DSWActor* actor)
     actor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK);
     DVector3 pos = actor->spr.pos.plusZ(-ActorSizeZ(actor) * 0.5);
 
-    FAFgetzrange(pos, actor->sector(), &actor->user.hiz, &ceilhit, &actor->user.loz, &florhit, (((int) actor->spr.clipdist) << 2) - GETZRANGE_CLIP_ADJ, CLIPMASK_ACTOR);
+    FAFgetzrange(pos, actor->sector(), &actor->user.hiz, &ceilhit, &actor->user.loz, &florhit, actor->int_clipdist() - GETZRANGE_CLIP_ADJ, CLIPMASK_ACTOR);
     actor->spr.cstat |= save_cstat;
 
     actor->user.lo_sectp = actor->user.hi_sectp = nullptr;
@@ -5200,7 +5200,7 @@ int DoGet(DSWActor* actor)
             continue;
 
         double dist = (pp->pos.XY() - actor->spr.pos).Length();
-        if ((unsigned)dist > (plActor->user.Radius * 2 * inttoworld))
+        if ((unsigned)dist > (plActor->user.fRadius() * 2))
         {
             continue;
         }
@@ -6402,7 +6402,7 @@ void SpriteControl(void)
 
 */
 
-inline Collision move_sprite(DSWActor* actor, const DVector3& change, double ceildist, double flordist, uint32_t cliptype, int numtics)
+Collision move_sprite(DSWActor* actor, const DVector3& change, double ceildist, double flordist, uint32_t cliptype, int numtics)
 {
     Collision retval{};
     double zH;
@@ -6433,7 +6433,7 @@ inline Collision move_sprite(DSWActor* actor, const DVector3& change, double cei
 	int xchange = change.X * worldtoint, ychange = change.Y * worldtoint;
     clipmove(clip_pos, &dasect,
                       ((xchange * numtics) << 11), ((ychange * numtics) << 11),
-                      (((int) actor->spr.clipdist) << 2), ceildist, flordist, cliptype, retval, 1);
+                      actor->int_clipdist(), ceildist, flordist, cliptype, retval, 1);
 
 
     actor->spr.pos.XY() = clip_pos.XY();
@@ -6458,7 +6458,7 @@ inline Collision move_sprite(DSWActor* actor, const DVector3& change, double cei
     auto pos = actor->spr.pos.plusZ(-zH - maptoworld);
     FAFgetzrange(pos, actor->sector(),
                  &globhiz, &globhihit, &globloz, &globlohit,
-                 (((int) actor->spr.clipdist) << 2) - GETZRANGE_CLIP_ADJ, cliptype);
+                 actor->int_clipdist() - GETZRANGE_CLIP_ADJ, cliptype);
 
     actor->spr.cstat = tempstat;
 
@@ -6655,7 +6655,7 @@ Collision move_missile(DSWActor* actor, const DVector3& change, double ceil_dist
 	int xchange = change.X * worldtoint, ychange = change.Y * worldtoint;
     clipmove(clip_pos, &dasect,
                       ((xchange * numtics) << 11), ((ychange * numtics) << 11),
-                      (((int) actor->spr.clipdist) << 2), ceil_dist, flor_dist, cliptype, retval, 1);
+                      actor->int_clipdist(), ceil_dist, flor_dist, cliptype, retval, 1);
     actor->spr.pos.XY() = clip_pos.XY();
 
     if (dasect == nullptr)
@@ -6760,7 +6760,6 @@ Collision move_missile(DSWActor* actor, const DVector3& change, double ceil_dist
 
 Collision move_ground_missile(DSWActor* actor, const DVector2& change, double ceildist, double flordist, uint32_t cliptype, int numtics)
 {
-	int xchange = change.X * worldtoint, ychange = change.Y * worldtoint;
     Collision retval{};
     int ox,oy;
 
@@ -6805,9 +6804,10 @@ Collision move_ground_missile(DSWActor* actor, const DVector2& change, double ce
         lastsect = dasect;
         opos = actor->spr.pos;
         opos.Z = daz;
+        int xchange = change.X * worldtoint, ychange = change.Y * worldtoint;
         clipmove(opos, &dasect,
                           ((xchange * numtics) << 11), ((ychange * numtics) << 11),
-                          (((int) actor->spr.clipdist) << 2), ceildist, flordist, cliptype, retval, 1);
+                          actor->int_clipdist(), ceildist, flordist, cliptype, retval, 1);
 		actor->spr.pos.XY() = opos.XY();
     }
 

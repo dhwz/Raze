@@ -46,7 +46,7 @@ DExhumedActor* BuildBubble(const DVector3& pos, sectortype* pSector)
     pActor->spr.cstat = 0;
     pActor->spr.shade = -32;
     pActor->spr.pal = 0;
-    pActor->spr.clipdist = 5;
+    pActor->set_const_clipdist(5);
     pActor->spr.xrepeat = 40;
     pActor->spr.yrepeat = 40;
     pActor->spr.xoffset = 0;
@@ -55,7 +55,7 @@ DExhumedActor* BuildBubble(const DVector3& pos, sectortype* pSector)
     pActor->spr.angle = inita;
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
-    pActor->set_int_zvel(-1200);
+    pActor->vel.Z = -1200 / 256.;
     pActor->spr.hitag = -1;
     pActor->spr.extra = -1;
     pActor->spr.lotag = runlist_HeadRun() + 1;

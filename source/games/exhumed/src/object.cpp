@@ -499,7 +499,7 @@ int BuildElevF(int nChannel, sectortype* pSector, DExhumedActor* nWallSprite, in
 
         Elevator[ElevCount].nCountZOffsets++;
 
-        Elevator[ElevCount].zOffsets[nVal] = va_arg(zlist, int);
+        Elevator[ElevCount].zOffsets[nVal] = va_arg(zlist, double) * zworldtoint;
     }
     va_end(zlist);
 
@@ -546,7 +546,7 @@ int BuildElevC(int arg1, int nChannel, sectortype* pSector, DExhumedActor* nWall
 
         Elevator[ElevCount].nCountZOffsets++;
 
-        Elevator[ElevCount].zOffsets[nVal] = va_arg(zlist, int);
+        Elevator[ElevCount].zOffsets[nVal] = va_arg(zlist, double) * zworldtoint;
     }
     va_end(zlist);
 
@@ -1318,7 +1318,7 @@ void AITrap::Tick(RunListEvent* ev)
                 }
                 else
                 {
-                    pBullet->spr.clipdist = 50;
+                    pBullet->set_const_clipdist(50);
 
                     auto pWall = sTrap[nTrap].pWall1;
                     if (pWall)
@@ -1380,26 +1380,24 @@ DExhumedActor* BuildSpark(DExhumedActor* pActor, int nVal)
     }
     else
     {
-        int nAngle = (pActor->int_ang() + 256) - RandomSize(9);
+        auto nAngle = pActor->spr.angle + DAngle22_5 - RandomAngle9();
 
         if (nVal)
         {
-            pSpark->set_int_xvel(bcos(nAngle, -5));
-            pSpark->set_int_yvel(bsin(nAngle, -5));
+			pSpark->vel.XY() = nAngle.ToVector() * 32;
         }
         else
         {
-            pSpark->set_int_xvel(bcos(nAngle, -6));
-            pSpark->set_int_yvel(bsin(nAngle, -6));
+			pSpark->vel.XY() = nAngle.ToVector() * 16;
         }
 
-        pSpark->set_int_zvel(-(RandomSize(4) << 7));
+        pSpark->vel.Z = -RandomSize(4) * 0.5;
         pSpark->spr.picnum = kTile985 + nVal;
     }
 
     pSpark->spr.pos.Z = pActor->spr.pos.Z;
     pSpark->spr.lotag = runlist_HeadRun() + 1;
-    pSpark->spr.clipdist = 1;
+    pSpark->set_const_clipdist(1);
     pSpark->spr.hitag = 0;
     pSpark->backuppos();
 
@@ -1434,9 +1432,9 @@ void AISpark::Tick(RunListEvent* ev)
             return;
         }
 
-        pActor->add_int_zvel( 128);
+        pActor->vel.Z += 0.5;
 
-        auto nMov = movesprite(pActor, pActor->int_xvel() << 12, pActor->int_yvel() << 12, pActor->int_zvel(), 2560, -2560, CLIPMASK1);
+        auto nMov = movesprite(pActor, pActor->vel, 4096, 2560, -2560, CLIPMASK1);
         if (!nMov.type && !nMov.exbits) {
             return;
         }
@@ -1888,7 +1886,7 @@ void AIObject::Tick(RunListEvent* ev)
     FUNCOBJECT_GOTO:
         if (nStat != kStatExplodeTarget)
         {
-            auto nMov = movesprite(pActor, pActor->int_xvel() << 6, pActor->int_yvel() << 6, pActor->int_zvel(), 0, 0, CLIPMASK0);
+            auto nMov = movesprite(pActor, pActor->vel, 64., 0, 0, CLIPMASK0);
 
             if (pActor->spr.statnum == kStatExplodeTrigger) {
                 pActor->spr.pal = 1;

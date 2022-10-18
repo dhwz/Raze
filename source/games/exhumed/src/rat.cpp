@@ -92,7 +92,7 @@ void BuildRat(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, D
     pActor->spr.yoffset = 0;
     pActor->spr.picnum = 1;
     pActor->spr.pal = pActor->sector()->ceilingpal;
-    pActor->spr.clipdist = 30;
+    pActor->set_const_clipdist(30);
     pActor->spr.angle = nAngle;
     pActor->spr.xrepeat = 50;
     pActor->spr.yrepeat = 50;
@@ -189,6 +189,7 @@ void AIRat::Draw(RunListEvent* ev)
 
 void AIRat::Tick(RunListEvent* ev)
 {
+	constexpr double CHECK_DIST = 50/16.;
     auto pActor = ev->pObjActor;
     if (!pActor) return;
 
@@ -224,10 +225,9 @@ void AIRat::Tick(RunListEvent* ev)
             return;
         }
 
-        int xVal = abs(pActor->int_pos().X - pTarget->int_pos().X);
-        int yVal = abs(pActor->int_pos().Y - pTarget->int_pos().Y);
+		auto delta = pActor->spr.pos.XY() - pTarget->spr.pos.XY();
 
-        if (xVal > 50 || yVal > 50)
+        if (abs(delta.X) > CHECK_DIST || abs(delta.Y) >= CHECK_DIST)
         {
             pActor->nAction = 2;
             pActor->nFrame = 0;
@@ -277,10 +277,9 @@ void AIRat::Tick(RunListEvent* ev)
 
         MoveCreature(pActor);
 
-        int xVal = abs(pActor->int_pos().X - pTarget->int_pos().X);
-        int yVal = abs(pActor->int_pos().Y - pTarget->int_pos().Y);
+		auto delta = pActor->spr.pos.XY() - pTarget->spr.pos.XY();
 
-        if (xVal >= 50 || yVal >= 50)
+		if (abs(delta.X) > CHECK_DIST || abs(delta.Y) >= CHECK_DIST)
         {
             pActor->nCount--;
             if (pActor->nCount < 0)

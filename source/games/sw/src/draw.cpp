@@ -322,8 +322,6 @@ void DoShadows(tspriteArray& tsprites, tspritetype* tsp, double viewz)
 
     // need to find the ground here
 
-    int iloz = loz * zworldtoint;
-
     // if below or close to sprites z don't bother to draw it
     if ((viewz - loz) > -8)
     {
@@ -992,7 +990,7 @@ void PrintSpriteInfo(PLAYER* pp)
 
     //if (SpriteInfo && !LocationInfo)
     {
-        auto actor = DoPickTarget(pp->actor, 32, 2);
+        auto actor = DoPickTarget(pp->actor, DAngle22_5/4, 2);
 
         actor->spr.hitag = 9997; // Special tag to make the actor glow red for one frame
 
@@ -1319,7 +1317,7 @@ void drawscreen(PLAYER* pp, double interpfrac, bool sceneonly)
     if (automapMode != am_full)
     {
         // Cameras must be done before the main loop.
-        JS_CameraParms(pp, tpos.X * worldtoint, tpos.Y * worldtoint, tpos.Z * zworldtoint);  
+        JS_CameraParms(pp, tpos);  
     }
 
     if (!sceneonly)

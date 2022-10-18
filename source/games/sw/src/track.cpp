@@ -1048,7 +1048,7 @@ void SetupSectorObject(sectortype* sectp, short tag)
                     break;
 
                 case SPAWN_SPOT:
-                    if (actor->spr.clipdist == 3)
+                    if (actor->native_clipdist() == 3)
                     {
                         change_actor_stat(actor, STAT_NO_STATE);
                         SpawnUser(actor, 0, nullptr);
@@ -1118,7 +1118,7 @@ void SetupSectorObject(sectortype* sectp, short tag)
                     else
                         sop->max_damage = actorNew->user.MaxHealth;
 
-                    switch (actor->spr.clipdist)
+                    switch (actor->native_clipdist()) // notreallyclipdist
                     {
                     case 0:
                         break;
@@ -2445,7 +2445,7 @@ DVector2 DoTrack(SECTOR_OBJECT* sop, short locktics)
 
             // (velocity * difference between the target and the object)
             // take absolute value
-            sop->z_rate = (int)abs((sop->vel * zinttoworld * (sop->pmid.Z - pos.Z)) / dist);
+            sop->z_rate = (int)abs((sop->vel * zmaptoworld * (sop->pmid.Z - pos.Z)) / dist);
 
             if ((sop->flags & SOBJ_SPRITE_OBJ))
             {
@@ -2562,7 +2562,7 @@ void VehicleSetSmoke(SECTOR_OBJECT* sop, ANIMATOR* animator)
             {
 
             case SPAWN_SPOT:
-                if (actor->spr.clipdist == 3)
+                if (actor->native_clipdist() == 3)
                 {
                     if (animator)
                     {
@@ -2634,7 +2634,7 @@ void DoTornadoObject(SECTOR_OBJECT* sop)
     auto vect = ang.ToVector() * sop->vel; // vel is still in Build coordinates.
     int xvect = vect.X * 16384;
     int yvect = vect.Y * 16384;
-    clipmove(pos, &cursect, xvect, yvect, (int)sop->clipdist, Z(0), int(floor_dist * zworldtoint), CLIPMASK_ACTOR, coll);
+    clipmove(pos, &cursect, xvect, yvect, (int)sop->clipdist, 0., floor_dist, CLIPMASK_ACTOR, coll);
 
     if (coll.type != kHitNone)
     {
@@ -3022,7 +3022,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
         {
             neartag(DVector3(actor->spr.pos.XY(), zz), actor->sector(), actor->spr.angle, near, 1024, NTAG_SEARCH_LO_HI);
 
-            if (near.actor() != nullptr && near.int_hitpos().X < 1024)
+            if (near.actor() != nullptr && near.hitpos.X < 64)
             {
                 if (OperateSprite(near.actor(), false))
                 {
@@ -3036,7 +3036,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
             }
         }
 
-        if (near.hitSector != nullptr && near.int_hitpos().X < 1024)
+        if (near.hitSector != nullptr && near.hitpos.X < 64)
         {
             if (OperateSector(near.hitSector, false))
             {
@@ -3278,7 +3278,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
             actor->user.Flags |= (SPR_CLIMBING);
             NewStateGroup(actor, actor->user.ActorActionSet->Climb);
 
-            actor->set_int_zvel(-Z(1));
+            actor->vel.Z -= 1;
         }
 
         break;

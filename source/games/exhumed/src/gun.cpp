@@ -635,8 +635,8 @@ loc_flag:
             DAngle nAngle = pPlayerActor->spr.angle;
 			auto thePos = pPlayerActor->spr.pos;
 
-            int ebp = nAngle.Cos() * (1 << 14) * (pPlayerActor->spr.clipdist << 3);
-            int ebx = nAngle.Sin() * (1 << 14) * (pPlayerActor->spr.clipdist << 3);
+            int ebp = nAngle.Cos() * (1 << 14) * (pPlayerActor->native_clipdist() << 3);
+            int ebx = nAngle.Sin() * (1 << 14) * (pPlayerActor->native_clipdist() << 3);
 
             if (WeaponInfo[nWeapon].c)
             {
@@ -791,9 +791,9 @@ loc_flag:
                         DExhumedActor* t = sPlayerInput[nPlayer].pTarget;
                         // only autoaim if target is in front of the player.
 						assert(t->sector());
-                        int angletotarget = VecToAngle(t->int_pos().X - pPlayerActor->int_pos().X, t->int_pos().Y - pPlayerActor->int_pos().Y).Buildang();
-                        int anglediff = (pPlayerActor->int_ang() - angletotarget) & 2047;
-                        if (anglediff < 512 || anglediff > 1536)
+                        DAngle angletotarget = VecToAngle(t->spr.pos - pPlayerActor->spr.pos);
+                        DAngle anglediff = absangle(pPlayerActor->spr.angle, angletotarget);
+                        if (anglediff < DAngle90)
                         {
                             target = t;
                             h = 0;

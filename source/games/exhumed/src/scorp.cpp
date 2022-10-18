@@ -53,7 +53,7 @@ void BuildScorp(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector,
 	}
 
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
-    pActor->spr.clipdist = 70;
+    pActor->set_const_clipdist(70);
     pActor->spr.shade = -12;
     pActor->spr.xrepeat = 80;
     pActor->spr.yrepeat = 80;
@@ -369,9 +369,8 @@ void AIScorp::Tick(RunListEvent* ev)
 
             int nVel = RandomSize(5) + 1;
 
-            pSpiderActor->set_int_xvel(bcos(pSpiderActor->int_ang(), -8) * nVel);
-            pSpiderActor->set_int_yvel(bsin(pSpiderActor->int_ang(), -8) * nVel);
-            pSpiderActor->set_int_zvel((-(RandomSize(5) + 3)) << 8);
+			pSpiderActor->vel.XY() = pSpiderActor->spr.angle.ToVector() * 4 * nVel;
+            pSpiderActor->vel.Z = -(RandomSize(5) + 3);
         }
 
         return;
@@ -405,7 +404,7 @@ void AIScorp::Effect(RunListEvent* ev, DExhumedActor* pTarget, int mode)
     if (mode == 0)
     {
         PlotCourseToSprite(pActor, pTarget);
-        pActor->add_int_ang(RandomSize(7) - 63);
+        pActor->spr.angle += DAngle::fromBuild(RandomSize(7) - 63);
         pActor->norm_ang();
 
         pActor->VelFromAngle();

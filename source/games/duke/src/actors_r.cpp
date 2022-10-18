@@ -578,25 +578,25 @@ void respawn_rrra(DDukeActor* oldact, DDukeActor* newact)
 		{
 			newact->spr.xrepeat = 26;
 			newact->spr.yrepeat = 26;
-			newact->spr.clipdist = 75;
+			newact->set_const_clipdist(75);
 		}
 		else if (newact->spr.pal == 31)
 		{
 			newact->spr.xrepeat = 36;
 			newact->spr.yrepeat = 36;
-			newact->spr.clipdist = 100;
+			newact->set_const_clipdist(100);
 		}
 		else if (newact->spr.pal == 32)
 		{
 			newact->spr.xrepeat = 50;
 			newact->spr.yrepeat = 50;
-			newact->spr.clipdist = 100;
+			newact->set_const_clipdist(100);
 		}
 		else
 		{
 			newact->spr.xrepeat = 50;
 			newact->spr.yrepeat = 50;
-			newact->spr.clipdist = 100;
+			newact->set_const_clipdist(100);
 		}
 	}
 
@@ -1097,7 +1097,7 @@ static bool weaponhitwall(DDukeActor *proj, walltype* wal, const DVector3& oldpo
 						j->spr.yrepeat = 8;
 						j->spr.cstat = CSTAT_SPRITE_ALIGNMENT_WALL;
 						j->set_int_ang((j->int_ang() + 512) & 2047);
-						j->spr.clipdist = MulScale(proj->spr.xrepeat, tileWidth(proj->spr.picnum), 7);
+						j->set_native_clipdist(MulScale(proj->spr.xrepeat, tileWidth(proj->spr.picnum), 7));
 					}
 				}
 				deletesprite(proj);
@@ -1872,13 +1872,13 @@ static void rrra_specialstats()
 				{
 					act->spr.xrepeat <<= 1;
 					act->spr.yrepeat <<= 1;
-					act->spr.clipdist = MulScale(act->spr.xrepeat, tileWidth(act->spr.picnum), 7);
+					act->setClipDistFromTile();
 				}
 				else if (enemysizecheat == 2)
 				{
 					act->spr.xrepeat >>= 1;
 					act->spr.yrepeat >>= 1;
-					act->spr.clipdist = MulScale(act->spr.xrepeat, tileHeight(act->spr.picnum), 7);
+					act->set_native_clipdist(MulScale(act->spr.xrepeat, tileHeight(act->spr.picnum), 7));
 				}
 				break;
 			}

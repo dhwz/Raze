@@ -76,7 +76,7 @@ DDukeActor* CreateActor(sectortype* whatsectp, const DVector3& pos, int s_pn, in
 	act->spr.xoffset = 0;
 	act->spr.yoffset = 0;
 	act->spr.yint = 0;
-	act->spr.clipdist = 0;
+	act->set_const_clipdist(0);
 	act->spr.pal = 0;
 	act->spr.lotag = 0;
 	act->backuploc();
@@ -270,7 +270,7 @@ void spawninitdefault(DDukeActor* actj, DDukeActor *act)
 			if (!isRR() || actorflag(act, SFLAG_KILLCOUNT))	// Duke is just like Doom - Bad guys always count as kill.
 				ps[myconnectindex].max_actors_killed++;
 
-			act->spr.clipdist = 80;
+			act->set_const_clipdist(80);
 			if (actj)
 			{
 				if (actj->spr.picnum == RESPAWN)
@@ -281,7 +281,7 @@ void spawninitdefault(DDukeActor* actj, DDukeActor *act)
 		}
 		else
 		{
-			act->spr.clipdist = 40;
+			act->set_const_clipdist(40);
 			act->SetOwner(act);
 			ChangeActorStat(act, STAT_ACTOR);
 		}
@@ -834,9 +834,10 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 			break;
 
 		case SE_31_FLOOR_RISE_FALL:
-			actor->temp_data[1] = sectp->int_floorz();
+			actor->temp_pos.Z = actor->spr.yint * zmaptoworld;
+			actor->temp_pos.Y = sectp->floorz;
 			//	actor->temp_data[2] = actor->spr.hitag;
-			if (actor->int_ang() != 1536) sectp->setfloorz(actor->spr.pos.Z);
+			if (actor->spr.intangle != 1536) sectp->setfloorz(actor->spr.pos.Z);
 
 			for (auto& wal : wallsofsector(sectp))
 				if (wal.hitag == 0) wal.hitag = 9999;
@@ -919,8 +920,8 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 			{
 				if (sectp->lotag == SE_30_TWO_WAY_TRAIN)
 				{
-					if (actor->spr.pal) actor->spr.clipdist = 1;
-					else actor->spr.clipdist = 0;
+					if (actor->spr.pal) actor->set_const_clipdist(1);
+					else actor->set_const_clipdist(0);
 					actor->temp_data[3] = sectp->int_floorz();
 					sectp->hitagactor = actor;
 				}

@@ -136,7 +136,7 @@ bool CanMove(DBloodActor* actor, DBloodActor* target, int nAngle, int nRange)
 	int z = actor->int_pos().Z;
 	HitScan(actor, z, bcos(nAngle), bsin(nAngle), 0, CLIPMASK0, nRange);
 	int nDist = approxDist(actor->spr.pos.XY() - gHitInfo.hitpos.XY());
-	if (nDist - (actor->spr.clipdist << 2) < nRange)
+	if (nDist - (actor->int_clipdist()) < nRange)
 	{
 		if (gHitInfo.actor() == nullptr || target == nullptr || target != gHitInfo.actor())
 			return false;
@@ -179,7 +179,7 @@ bool CanMove(DBloodActor* actor, DBloodActor* target, int nAngle, int nRange)
 	case kDudeGargoyleFlesh:
 	case kDudeGargoyleStone:
 	case kDudeBat:
-		if (actor->spr.clipdist > nDist)
+		if (actor->native_clipdist() > nDist)
 			return 0;
 		if (Depth)
 		{

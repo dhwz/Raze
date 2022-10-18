@@ -56,7 +56,7 @@ void BuildLion(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, 
     }
 
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
-    pActor->spr.clipdist = 60;
+    pActor->set_const_clipdist(60);
     pActor->spr.shade = -12;
     pActor->spr.xrepeat = 40;
     pActor->spr.yrepeat = 40;
@@ -276,13 +276,11 @@ void AILion::Tick(RunListEvent* ev)
 
             if (pActor->spr.cstat & CSTAT_SPRITE_INVISIBLE)
             {
-                pActor->set_int_xvel(bcos(nAng, 1));
-                pActor->set_int_yvel(bsin(nAng, 1));
+				pActor->vel.XY() = pActor->spr.angle.ToVector() * 2048;
             }
             else
             {
-                pActor->set_int_xvel(bcos(nAng, -1));
-                pActor->set_int_yvel(bsin(nAng, -1));
+				pActor->vel.XY() = pActor->spr.angle.ToVector() * 512;
             }
         }
 
@@ -372,10 +370,10 @@ void AILion::Tick(RunListEvent* ev)
         pActor->nCount--;
         if (pActor->nCount <= 0)
         {
-            pActor->set_int_zvel(-4000);
+            pActor->vel.Z = -4000 / 256.;
             pActor->nCount = 0;
 
-            int nCheckDist = 0x7FFFFFFF;
+            double nCheckDist = 0x7FFFFFFF;
 
             int nAngle = pActor->int_ang();
             int nScanAngle = (nAngle - 512) & kAngleMask;
@@ -388,8 +386,8 @@ void AILion::Tick(RunListEvent* ev)
 
                 if (hit.hitWall)
                 {
-                    int theX = abs(hit.int_hitpos().X - pActor->int_pos().X);
-                    int theY = abs(hit.int_hitpos().Y - pActor->int_pos().Y);
+                    double theX = abs(hit.hitpos.X - pActor->spr.pos.X);
+                    double theY = abs(hit.hitpos.Y - pActor->spr.pos.Y);
 
                     if ((theX + theY) < nCheckDist)
                     {
@@ -405,9 +403,8 @@ void AILion::Tick(RunListEvent* ev)
             pActor->set_int_ang(nAngle);
 
             pActor->nAction = 6;
-            pActor->set_int_xvel(bcos(pActor->int_ang()) - bcos(pActor->int_ang(), -3));
-            pActor->set_int_yvel(bsin(pActor->int_ang()) - bsin(pActor->int_ang(), -3));
-            D3PlayFX(StaticSound[kSound24], pActor);
+			pActor->vel.XY() = pActor->spr.angle.ToVector() * (1024 - 128);
+			D3PlayFX(StaticSound[kSound24], pActor);
         }
 
         return;
@@ -465,14 +462,13 @@ void AILion::Tick(RunListEvent* ev)
             }
             else
             {
-                pActor->set_int_ang((RandomSize(9) + (pActor->int_ang() + 768)) & kAngleMask);
+                pActor->spr.angle += RandomAngle9() + DAngle45 + DAngle90;
             }
 
-            pActor->set_int_zvel(-1000);
+            pActor->vel.Z = -1000 / 256.;
 
             pActor->nAction = 6;
-			pActor->set_int_xvel(bcos(pActor->int_ang()) - bcos(pActor->int_ang(), -3));
-            pActor->set_int_yvel(bsin(pActor->int_ang()) - bsin(pActor->int_ang(), -3));
+			pActor->vel.XY() = pActor->spr.angle.ToVector() * (1024 - 128);
             D3PlayFX(StaticSound[kSound24], pActor);
         }
 
