@@ -16,6 +16,7 @@ public:
 	USER user;
 	walltype* tempwall;	// transient, to replace a hack using a 16 bit sprite field.
 	TObjPtr<DSWActor*> ownerActor;
+	FTextureID texparam, texparam2;	// some special variants of ST1 need this...
 
 	DSWActor() = default;
 
@@ -38,7 +39,7 @@ public:
 
 inline void UpdateChangeXY(DSWActor* actor)
 {
-	actor->user.change.XY() = actor->spr.angle.ToVector() * actor->vel.X;
+	actor->user.change.XY() = actor->spr.Angles.Yaw.ToVector() * actor->vel.X;
 }
 
 inline void UpdateChange(DSWActor* actor, double zfactor = 1.0)

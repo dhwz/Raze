@@ -25,8 +25,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "intvec.h"
 #include "coreactor.h"
 #include "interpolate.h"
+#include "texturemanager.h"
+#include "hw_voxels.h"
+#include "texinfo.h"
+#include "buildtiles.h"
 
 IntRect viewport3d;
+constexpr double MAXCLIPDISTF = 64;
 
 //---------------------------------------------------------------------------
 //
@@ -36,78 +41,59 @@ IntRect viewport3d;
 
 double cameradist, cameraclock;
 
-bool calcChaseCamPos(DVector3& ppos, DCoreActor* act, sectortype** psect, DAngle ang, fixedhoriz horiz, double const interpfrac)
+bool calcChaseCamPos(DVector3& ppos, DCoreActor* act, sectortype** psect, const DRotator& angles, double const interpfrac, double const backamp)
 {
-	HitInfoBase hitinfo;
-	DAngle daang;
-	double newdist;
-
 	if (!*psect) return false;
 
 	// Calculate new pos to shoot backwards
-	DVector3 npos = gi->chaseCamPos(ang, horiz);
+	DVector3 npos = -DVector3(angles) * backamp;
 
+	HitInfoBase hitinfo;
 	auto bakcstat = act->spr.cstat;
 	act->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
 	updatesectorz(ppos, psect);
 	hitscan(ppos, *psect, npos, hitinfo, CLIPMASK1);
 	act->spr.cstat = bakcstat;
-	auto hpos = hitinfo.hitpos.XY() - ppos.XY();
+	auto hpos = hitinfo.hitpos - ppos;
 
 	if (!*psect) return false;
 
 	// If something is in the way, make cameradist lower if necessary
-	if (fabs(npos.X) + fabs(npos.Y) > fabs(hpos.X) + fabs(hpos.Y))
+	if (npos.XY().Sum() > hpos.XY().Sum())
 	{
+		double DVector3::* c = fabs(npos.X) > fabs(npos.Y) ? &DVector3::X : &DVector3::Y;
+
 		if (hitinfo.hitWall != nullptr)
 		{
 			// Push you a little bit off the wall
 			*psect = hitinfo.hitSector;
-			daang = hitinfo.hitWall->delta().Angle();
-			newdist = (npos.X * daang.Sin() + npos.Y * -daang.Cos()) * (1. / 1024.);
-
-			if (fabs(npos.X) > fabs(npos.Y))
-				hpos.X -= npos.X * newdist;
-			else
-				hpos.Y -= npos.Y * newdist;
+			hpos.*c -= npos.*c * npos.XY().dot(hitinfo.hitWall->delta().Angle().ToVector().Rotated90CW()) * (1. / 1024.);
 		}
 		else if (hitinfo.hitActor == nullptr)		
 		{
 			// Push you off the ceiling/floor
 			*psect = hitinfo.hitSector;
-
-			if (fabs(npos.X) > fabs(npos.Y))
-				hpos.X -= npos.X * (1. / 32.);
-			else
-				hpos.Y -= npos.Y * (1. / 32.);
+			hpos.*c -= npos.*c * (1. / 32.);
 		}
 		else
 		{
 			// If you hit a sprite that's not a wall sprite - try again.
-			auto hit = hitinfo.hitActor;
-
-			if (!(hit->spr.cstat & CSTAT_SPRITE_ALIGNMENT_WALL))
+			if (!(hitinfo.hitActor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_WALL))
 			{
-				bakcstat = hit->spr.cstat;
-				hit->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
-				calcChaseCamPos(ppos, act, psect, ang, horiz, interpfrac);
-				hit->spr.cstat = bakcstat;
+				bakcstat = hitinfo.hitActor->spr.cstat;
+				hitinfo.hitActor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
+				calcChaseCamPos(ppos, act, psect, angles, interpfrac, backamp);
+				hitinfo.hitActor->spr.cstat = bakcstat;
 				return false;
 			}
 			else
 			{
 				// same as wall calculation.
-				daang = act->spr.angle - DAngle90;
-				newdist = (npos.X * daang.Sin() + npos.Y * -daang.Cos()) * (1. / 1024.);
-
-				if (fabs(npos.X) > fabs(npos.Y))
-					hpos.X -= npos.X * newdist;
-				else
-					hpos.Y -= npos.Y * newdist;
+				hpos.*c -= npos.*c * npos.XY().dot((act->spr.Angles.Yaw - DAngle90).ToVector().Rotated90CW()) * (1. / 1024.);
 			}
 		}
 
-		newdist = fabs(npos.X) > fabs(npos.Y) ? hpos.X / npos.X : hpos.Y / npos.Y;
+		double newdist = hpos.*c / npos.*c;
 		if (newdist < cameradist) cameradist = newdist;
 	}
 
@@ -138,27 +124,28 @@ bool calcChaseCamPos(DVector3& ppos, DCoreActor* act, sectortype** psect, DAngle
 //
 //==========================================================================
 
-void calcSlope(const sectortype* sec, float xpos, float ypos, float* pceilz, float* pflorz)
+void calcSlope(const sectortype* sec, double xpos, double ypos, double* pceilz, double* pflorz)
 {
 	int bits = 0;
 	if (pceilz)
 	{
 		bits |= sec->ceilingstat;
-		*pceilz = float(sec->int_ceilingz());
+		*pceilz = sec->ceilingz;
 	}
 	if (pflorz)
 	{
 		bits |= sec->floorstat;
-		*pflorz = float(sec->int_floorz());
+		*pflorz = sec->floorz;
 	}
 
 	if ((bits & CSTAT_SECTOR_SLOPE) == CSTAT_SECTOR_SLOPE)
 	{
-		auto wal = sec->firstWall();
-		int len = wal->Length();
+		auto wal = sec->walls.Data();
+		double len = wal->Length();
 		if (len != 0)
 		{
-			float fac = (wal->int_delta().X * (float(ypos - wal->wall_int_pos().Y)) - wal->int_delta().Y * (float(xpos - wal->wall_int_pos().X))) * (1.f / 256.f) / len;
+			DVector2 wd = DVector2(xpos, ypos) - wal->pos;
+			double fac = wal->delta().dot(wd.Rotated90CW()) / len * (1. / SLOPEVAL_FACTOR);
 			if (pceilz && sec->ceilingstat & CSTAT_SECTOR_SLOPE) *pceilz += (sec->ceilingheinum * fac);
 			if (pflorz && sec->floorstat & CSTAT_SECTOR_SLOPE) *pflorz += (sec->floorheinum * fac);
 		}
@@ -167,75 +154,15 @@ void calcSlope(const sectortype* sec, float xpos, float ypos, float* pceilz, flo
 
 //==========================================================================
 //
-// for the renderer
-//
-//==========================================================================
-
-void PlanesAtPoint(const sectortype* sec, float dax, float day, float* pceilz, float* pflorz)
-{
-	calcSlope(sec, dax * worldtoint, day * worldtoint, pceilz, pflorz);
-	if (pceilz) *pceilz *= -(1 / 256.f);
-	if (pflorz) *pflorz *= -(1 / 256.f);
-}
-
-//==========================================================================
-//
-// for the games (these are not inlined so that they can inline calcSlope)
-//
-//==========================================================================
-
-int getceilzofslopeptr(const sectortype* sec, int dax, int day)
-{
-	float z;
-	calcSlope(sec, dax, day, &z, nullptr);
-	return int(z);
-}
-
-int getflorzofslopeptr(const sectortype* sec, int dax, int day)
-{
-	float z;
-	calcSlope(sec, dax, day, nullptr, &z);
-	return int(z);
-}
-
-void getzsofslopeptr(const sectortype* sec, int dax, int day, int* ceilz, int* florz)
-{
-	float c, f;
-	calcSlope(sec, dax, day, &c, &f);
-	*ceilz = int(c);
-	*florz = int(f);
-}
-
-void getzsofslopeptr(const sectortype* sec, double dax, double day, double* ceilz, double* florz)
-{
-	float c, f;
-	calcSlope(sec, dax * worldtoint, day * worldtoint, &c, &f);
-	*ceilz = c * zinttoworld;
-	*florz = f * zinttoworld;
-}
-
-void getcorrectzsofslope(int sectnum, int dax, int day, int* ceilz, int* florz)
-{
-	DVector2 closestv;
-	SquareDistToSector(dax * inttoworld, day * inttoworld, &sector[sectnum], &closestv);
-	float ffloorz, fceilz;
-	calcSlope(&sector[sectnum], closestv.X * worldtoint, closestv.Y * worldtoint, &fceilz, &ffloorz);
-	if (ceilz) *ceilz = int(fceilz);
-	if (florz) *florz = int(ffloorz);
-}
-
-//==========================================================================
-//
 // 
 //
 //==========================================================================
 
-int getslopeval(sectortype* sect, int x, int y, int z, int basez)
+int getslopeval(sectortype* sect, const DVector3& pos, double basez)
 {
-	auto wal = sect->firstWall();
-	auto delta = wal->int_delta();
-	int i = (y - wal->wall_int_pos().Y) * delta.X - (x - wal->wall_int_pos().X) * delta.Y;
-	return i == 0? 0 : Scale((z - basez) << 8, wal->Length(), i);
+	auto wal = sect->walls.Data();
+	double i = (pos.XY() - wal->pos).dot(wal->delta().Rotated90CCW());
+	return i == 0? 0 : int(SLOPEVAL_FACTOR * (pos.Z - basez) * wal->Length() / i);
 }
 
 //==========================================================================
@@ -255,7 +182,7 @@ double SquareDistToSector(double px, double py, const sectortype* sect, DVector2
 
 	double bestdist = DBL_MAX;
 	DVector2 bestpt = { px, py };
-	for (auto& wal : wallsofsector(sect))
+	for (auto& wal : sect->walls)
 	{
 		DVector2 pt;
 		auto dist = SquareDistToWall(px, py, &wal, &pt);
@@ -277,13 +204,14 @@ double SquareDistToSector(double px, double py, const sectortype* sect, DVector2
 
 void GetWallSpritePosition(const spritetypebase* spr, const DVector2& pos, DVector2* out, bool render)
 {
-	auto tex = tileGetTexture(spr->picnum);
+	auto tex = TexMan.GetGameTexture(spr->spritetexture());
 
 	double width, xoffset;
-	if (render && hw_hightile && TileFiles.tiledata[spr->picnum].hiofs.xsize)
+	const TileOffs* tofs;
+	if (render && hw_hightile && (tofs = GetHiresOffset(spr->spritetexture())))
 	{
-		width = TileFiles.tiledata[spr->picnum].hiofs.xsize;
-		xoffset = (TileFiles.tiledata[spr->picnum].hiofs.xoffs + spr->xoffset);
+		width = tofs->xsize;
+		xoffset = (tofs->xoffs + spr->xoffset);
 	}
 	else
 	{
@@ -291,43 +219,41 @@ void GetWallSpritePosition(const spritetypebase* spr, const DVector2& pos, DVect
 		xoffset = tex->GetDisplayLeftOffset() + spr->xoffset;
 	}
 
-	double x = spr->angle.Sin() * spr->xrepeat * (1. / 64.);
-	double y = -spr->angle.Cos() * spr->xrepeat * (1. / 64.);
+	auto p = spr->Angles.Yaw.ToVector().Rotated90CW() * spr->scale.X;
 
 	if (spr->cstat & CSTAT_SPRITE_XFLIP) xoffset = -xoffset;
 	double origin = (width * 0.5) + xoffset;
 
-	out[0].X = pos.X - x * origin;
-	out[0].Y = pos.Y - y * origin;
-	out[1].X = out[0].X + x * width;
-	out[1].Y = out[0].Y + y * width;
+	out[0] = pos - p * origin;
+	out[1] = out[0] + p * width;
 }
 
 
 //==========================================================================
 //
-// Calculate the position of a wall sprite in the world
+// Calculate the position of a floor sprite in the world
 //
 //==========================================================================
 
 void TGetFlatSpritePosition(const spritetypebase* spr, const DVector2& pos, DVector2* out, double* outz, int heinum, bool render)
 {
-	auto tex = tileGetTexture(spr->picnum);
+	auto tex = TexMan.GetGameTexture(spr->spritetexture());
 
 	double width, height, leftofs, topofs;
-	double sloperatio = sqrt(heinum * heinum + 4096 * 4096) * (1. / 4096.);
-	double xrepeat = spr->xrepeat * (1. / 64.);
-	double yrepeat = spr->yrepeat * (1. / 64.);
+	double sloperatio = sqrt(heinum * heinum + SLOPEVAL_FACTOR * SLOPEVAL_FACTOR) * (1. / SLOPEVAL_FACTOR);
+	double xrepeat = spr->scale.X;
+	double yrepeat = spr->scale.Y;
 
 	int xo = heinum ? 0 : spr->xoffset;
 	int yo = heinum ? 0 : spr->yoffset;
 
-	if (render && hw_hightile && TileFiles.tiledata[spr->picnum].hiofs.xsize)
+	const TileOffs* tofs;
+	if (render && hw_hightile && (tofs = GetHiresOffset(spr->spritetexture())))
 	{
-		width = TileFiles.tiledata[spr->picnum].hiofs.xsize * xrepeat;
-		height = TileFiles.tiledata[spr->picnum].hiofs.ysize * yrepeat;
-		leftofs = (TileFiles.tiledata[spr->picnum].hiofs.xoffs + xo) * xrepeat;
-		topofs = (TileFiles.tiledata[spr->picnum].hiofs.yoffs + yo) * yrepeat;
+		width = tofs->xsize * xrepeat;
+		height = tofs->ysize * yrepeat;
+		leftofs = (tofs->xoffs + xo) * xrepeat;
+		topofs = (tofs->yoffs + yo) * yrepeat;
 	}
 	else
 	{
@@ -343,8 +269,8 @@ void TGetFlatSpritePosition(const spritetypebase* spr, const DVector2& pos, DVec
 	double sprcenterx = (width * 0.5) + leftofs;
 	double sprcentery = (height * 0.5) + topofs;
 
-	double cosang = spr->angle.Cos();
-	double sinang = spr->angle.Sin();
+	double cosang = spr->Angles.Yaw.Cos();
+	double sinang = spr->Angles.Yaw.Sin();
 	double cosangslope = cosang / sloperatio;
 	double sinangslope = sinang / sloperatio;
 
@@ -364,16 +290,16 @@ void TGetFlatSpritePosition(const spritetypebase* spr, const DVector2& pos, DVec
 		{
 			for (int i = 0; i < 4; i++)
 			{
-				outz[i] = (sinang * (out[i].Y - pos.Y) + cosang * (out[i].X - pos.X)) * heinum * (1. / 4096);
+				outz[i] = (sinang * (out[i].Y - pos.Y) + cosang * (out[i].X - pos.X)) * heinum * (1. / SLOPEVAL_FACTOR);
 			}
 		}
 	}
 }
 
 
-void GetFlatSpritePosition(DCoreActor* actor, const DVector2& pos, DVector2* out, bool render)
+void GetFlatSpritePosition(DCoreActor* actor, const DVector2& pos, DVector2* out, double* outz, bool render)
 {
-	TGetFlatSpritePosition(&actor->spr, pos, out, nullptr, spriteGetSlope(actor), render);
+	TGetFlatSpritePosition(&actor->spr, pos, out, outz, spriteGetSlope(actor), render);
 }
 
 void GetFlatSpritePosition(const tspritetype* spr, const DVector2& pos, DVector2* out, double* outz, bool render)
@@ -425,43 +351,13 @@ EClose IsCloseToWall(const DVector2& point, walltype* wal, double maxdist)
 
 //==========================================================================
 //
-// Check if some walls are set to use rotated textures.
-// Ideally this should just have been done with texture rotation,
-// but the effects on the render code would be too severe due to the alignment mess.
-//
-//==========================================================================
-
-void checkRotatedWalls()
-{
-	for (auto& w : wall)
-	{
-		if (w.cstat & CSTAT_WALL_ROTATE_90)
-		{
-			int picnum = w.picnum;
-			tileUpdatePicnum(&picnum);
-			auto& tile = RotTile(picnum);
-
-			if (tile.newtile == -1 && tile.owner == -1)
-			{
-				tile.newtile = TileFiles.tileCreateRotated(picnum);
-				assert(tile.newtile != -1);
-
-				RotTile(tile.newtile).owner = picnum;
-
-			}
-		}
-	}
-}
-
-//==========================================================================
-//
 // check if two sectors share a wall connection
 //
 //==========================================================================
 
 bool sectorsConnected(int sect1, int sect2)
 {
-	for (auto& wal : wallsofsector(sect1))
+	for (auto& wal : sector[sect1].walls)
 	{
 		if (wal.nextsector == sect2) return true;
 	}
@@ -470,26 +366,29 @@ bool sectorsConnected(int sect1, int sect2)
 
 //==========================================================================
 //
-// 
+//
 //
 //==========================================================================
 
-void dragpoint(walltype* startwall, int newx, int newy)
+int64_t checkforinside(double x, double y, const DVector2& pt1, const DVector2& pt2)
 {
-	vertexscan(startwall, [&](walltype* wal)
-	{
-		wal->movexy(newx, newy);
-		wal->sectorp()->exflags |= SECTOREX_DRAGGED;
-	});
-}
+	// Perform the checks here in 48.16 fixed point.
+	// Doing it directly with floats and multiplications does not work reliably due to underflows.
+	// Unfortunately, due to the conversions, this is a bit slower. :(
+	int64_t xs = int64_t(0x10000 * (pt1.X - x));
+	int64_t ys = int64_t(0x10000 * (pt1.Y - y));
+	int64_t xe = int64_t(0x10000 * (pt2.X - x));
+	int64_t ye = int64_t(0x10000 * (pt2.Y - y));
 
-void dragpoint(walltype* startwall, const DVector2& pos)
-{
-	vertexscan(startwall, [&](walltype* wal)
-		{
-			wal->move(pos);
-			wal->sectorp()->exflags |= SECTOREX_DRAGGED;
-		});
+	if ((ys ^ ye) < 0)
+	{
+		int64_t val;
+
+		if ((xs ^ xe) >= 0) val = xs;
+		else val = ((xs * ye) - xe * ys) ^ ye;
+		return val;
+	}
+	return 0;
 }
 
 //==========================================================================
@@ -503,29 +402,30 @@ int inside(double x, double y, const sectortype* sect)
 	if (sect)
 	{
 		int64_t acc = 1;
-		for (auto& wal : wallsofsector(sect))
+		for (auto& wal : sect->walls)
 		{
-			// Perform the checks here in 48.16 fixed point.
-			// Doing it directly with floats and multiplications does not work reliably.
-			// Unfortunately, due to the conversions, this is a bit slower. :(
-			int64_t xs = int64_t(0x10000 * (wal.pos.X - x));
-			int64_t ys = int64_t(0x10000 * (wal.pos.Y - y));
-			auto wal2 = wal.point2Wall();
-			int64_t xe = int64_t(0x10000 * (wal2->pos.X - x));
-			int64_t ye = int64_t(0x10000 * (wal2->pos.Y - y));
-
-			if ((ys ^ ye) < 0)
-			{
-				int64_t val;
-
-				if ((xs ^ xe) >= 0) val = xs;
-				else val = ((xs * ye) - xe * ys) ^ ye;
-				acc ^= val;
-			}
+			acc ^= checkforinside(x, y, wal.pos, wal.point2Wall()->pos);
 		}
 		return acc < 0;
 	}
 	return -1;
+}
+
+//==========================================================================
+//
+//
+//
+//==========================================================================
+
+int insidePoly(double x, double y, const DVector2* points, int count)
+{
+	int64_t acc = 1;
+	for (int i = 0; i < count; i++)
+	{
+		int j = (i + 1) % count;
+		acc ^= checkforinside(x, y, points[i], points[j]);
+	}
+	return acc < 0;	
 }
 
 //==========================================================================
@@ -543,7 +443,7 @@ sectortype* nextsectorneighborzptr(sectortype* sectp, double startz, int flags)
 	const auto planez = (flags & Find_Ceiling)? &sectortype::ceilingz : &sectortype::floorz;
 
 	startz *= factor;
-	for(auto& wal : wallsofsector(sectp))
+	for(auto& wal : sectp->walls)
 	{
 		if (wal.twoSided())
 		{
@@ -558,6 +458,854 @@ sectortype* nextsectorneighborzptr(sectortype* sectp, double startz, int flags)
 		}
 	}
 	return bestsec;
+}
+
+
+//==========================================================================
+//
+//
+//
+//==========================================================================
+
+bool cansee(const DVector3& start, sectortype* sect1, const DVector3& end, sectortype* sect2)
+{
+	if (!sect1 || !sect2) return false;
+
+	auto delta = end - start;
+
+	if (delta.XY().isZero())
+		return (sect1 == sect2);
+
+	BFSSectorSearch search(sect1);
+
+	while (auto sec = search.GetNext())
+	{
+		for (auto& wal : sec->walls)
+		{
+			double factor = InterceptLineSegments(start.X, start.Y, delta.X, delta.Y, wal.pos.X, wal.pos.Y, wal.delta().X, wal.delta().Y, nullptr, true);
+			if (factor < 0 || factor >= 1) continue;
+
+			if (!wal.twoSided() || wal.cstat & CSTAT_WALL_1WAY)
+				return false;
+
+			auto spot = start + delta * factor;
+			double floorz, ceilz;
+
+			for (auto isec : { sec, wal.nextSector() })
+			{
+				calcSlope(isec, spot, &ceilz, &floorz);
+
+				if (spot.Z <= ceilz || spot.Z >= floorz)
+					return false;
+			}
+			search.Add(wal.nextSector());
+		}
+	}
+	return search.Check(sect2);
+}
+
+//---------------------------------------------------------------------------
+//
+// taken out of SW.
+//
+//---------------------------------------------------------------------------
+
+int testpointinquad(const DVector2& pt, const DVector2* quad)
+{
+	for (int i = 0; i < 4; i++)
+	{
+		double dist = PointOnLineSide(pt.X, pt.Y, quad[i].X, quad[i].Y, quad[(i + 1) & 3].X - quad[i].X, quad[(i + 1) & 3].Y - quad[i].Y);
+		if (dist > 0) return false;
+	}
+	return true;
+}
+
+//==========================================================================
+//
+// 
+//
+//==========================================================================
+
+double intersectSprite(DCoreActor* actor, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor)
+{
+	auto end = start + direction;
+	if (direction.XY().isZero()) return false;
+
+	// get point on trace that is closest to the sprite
+	double factor = NearestPointOnLineFast(actor->spr.pos.X, actor->spr.pos.Y, start.X, start.Y, end.X, end.Y);
+	if (factor < 0 || factor > maxfactor) return -1;
+
+
+	auto tex = TexMan.GetGameTexture(actor->spr.spritetexture());
+	auto sprwidth = tex->GetDisplayWidth() * actor->spr.scale.X * 0.5;
+	auto point = start + direction * factor;
+
+	// Using proper distance here, Build originally used the sum of x- and y-distance
+	if ((point.XY() - actor->spr.pos.XY()).LengthSquared() > sprwidth * sprwidth * 0.5) return -1; // too far away
+
+	double siz, hitz = actor->spr.pos.Z + actor->GetOffsetAndHeight(siz);
+
+	if (point.Z < hitz - siz || point.Z > hitz)
+		return -1;
+
+	result = point;
+	return factor;
+}
+
+//==========================================================================
+//
+// 
+//
+//==========================================================================
+
+double intersectWallSprite(DCoreActor* actor, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor, bool checktex)
+{
+	DVector2 points[2];
+
+	GetWallSpritePosition(&actor->spr, actor->spr.pos, points, false);
+
+	points[1] -= points[0];
+	if ((actor->spr.cstat & CSTAT_SPRITE_ONE_SIDE))   //check for back side of one way sprite
+	{
+		if (PointOnLineSide(start.X, start.Y, points[0].X, points[0].Y, points[1].X, points[1].Y) > 0)
+			return -1;
+	}
+
+	// the wall factor is needed for doing a texture check.
+	double factor2, factor = InterceptLineSegments(start.X, start.Y, direction.X, direction.Y, points[0].X, points[0].Y, points[1].X, points[1].Y, &factor2);
+	if (factor < 0 || factor > maxfactor) return -1;
+
+	result = start + factor * direction;
+
+	double height, position = actor->spr.pos.Z + actor->GetOffsetAndHeight(height);
+	if (result.Z <= position - height || result.Z >= position) return -1;
+
+	if (checktex)
+	{
+		auto tiletexid = actor->spr.spritetexture();
+		auto tiletex = TexMan.GetGameTexture(tiletexid, true);
+		auto pixels = GetRawPixels(tiletex->GetID());
+
+		if (pixels && tiletex->GetScaleX() == 1 && tiletex->GetScaleY() == 1)	// does not work with scaled textures.
+		{
+			double zfactor = 1. - (position - result.Z) / height;
+
+			// all other flags have been taken care of already by GetWallSpritePosition and GetOffsetAndHeight
+			// - but we have to handle the flip flags here to fetch the correct texel.
+			if (actor->spr.cstat & CSTAT_SPRITE_XFLIP) factor2 = 1 - factor2;
+			if (actor->spr.cstat & CSTAT_SPRITE_YFLIP) zfactor = 1 - zfactor;
+
+			int xtex = int(factor2 * tiletex->GetTexelWidth());
+			int ytex = int(zfactor * tiletex->GetTexelHeight());
+
+			auto texel = (pixels + tiletex->GetTexelHeight() * xtex + ytex);
+			if (*texel == TRANSPARENT_INDEX)
+				return -1;
+		}
+	}
+	return factor;
+}
+
+//==========================================================================
+//
+// 
+//
+//==========================================================================
+
+double intersectFloorSprite(DCoreActor* actor, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor)
+{
+	if (actor->spr.cstat & CSTAT_SPRITE_ONE_SIDE)
+	{
+		if ((start.Z > actor->spr.pos.Z) == ((actor->spr.cstat & CSTAT_SPRITE_YFLIP) == 0)) return -1;
+	}
+
+	DVector2 points[4];
+	GetFlatSpritePosition(actor, actor->spr.pos, points, nullptr, false);
+	double factor = (actor->spr.pos.Z - start.Z) / direction.Z;
+	if (factor <= 0 || factor > maxfactor) return -1;
+	result = start + factor * direction;
+	if (!testpointinquad(result.XY(), points)) return -1;
+	return factor;
+}
+
+//==========================================================================
+//
+// 
+//
+//==========================================================================
+
+double intersectSlopeSprite(DCoreActor* actor, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor)
+{
+	DVector2 points[4];
+	double ptz[4];
+	GetFlatSpritePosition(actor, actor->spr.pos, points, ptz, false);
+	DVector3 pt1(points[0], ptz[0]);
+	DVector3 pt2(points[1], ptz[1]);
+	DVector3 pt3(points[2], ptz[2]);
+	double factor = LinePlaneIntersect(start, direction, pt1, pt2 - pt1, pt3 - pt1);
+	if (factor <= 0 || factor > maxfactor) return -1;
+	result = start + factor * direction;
+
+	// we can only do this after calculating the actual intersection spot...
+	if (actor->spr.cstat & CSTAT_SPRITE_ONE_SIDE)
+	{
+		double checkz = spriteGetZOfSlopef(&actor->spr, start.XY(), spriteGetSlope(actor));
+		if ((start.Z > checkz) == ((actor->spr.cstat & CSTAT_SPRITE_YFLIP) == 0)) return -1;
+	}
+	if (!testpointinquad(result.XY(), points)) return -1;
+	return factor;
+}
+
+//==========================================================================
+//
+// 
+//
+//==========================================================================
+
+double checkWallHit(walltype* wal, EWallFlags flagmask, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor)
+{
+	if (PointOnLineSide(start.XY(), wal) > 0) return -1;
+
+	double factor = InterceptLineSegments(start.X, start.Y, direction.X, direction.Y, wal->pos.X, wal->pos.Y, wal->delta().X, wal->delta().Y);
+	if (factor < 0 || factor > maxfactor) return -1;	// did not connect.
+
+	result = start + factor * direction;
+	if (wal->twoSided() && !(wal->cstat & flagmask))
+	{
+		// check if the trace passes this wall or hits the upper or lower tier.
+		double cz, fz;
+		calcSlope(wal->nextSector(), result, &cz, &fz);
+		if (result.Z > cz && result.Z < fz) return -2; // trace will pass this wall, i.e. no hit. Return -2 to tell the caller to go on.
+	}
+	return factor;
+}
+
+//==========================================================================
+//
+// 
+//
+//==========================================================================
+
+double checkSectorPlaneHit(sectortype* sec, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor)
+{
+	if (sec->walls.Size() < 3) return -1;
+	auto wal = sec->walls.Data();
+	double len = wal->Length();
+
+	DVector3 pt1, pt2, pt3;
+	double startcz, startfz;
+	double p3cz, p3fz;
+
+	pt1.XY() = wal->pos;
+	pt2.XY() = wal->point2Wall()->pos;
+	pt3.X = pt1.X + pt2.Y - pt1.Y;
+	pt3.Y = pt1.Y + pt2.X - pt1.X; // somewhere off the first line.
+
+	calcSlope(sec, start.X, start.Y, &startcz, &startfz);
+	calcSlope(sec, pt3.X, pt3.Y, &p3cz, &p3fz);
+	double factor;
+
+	for (int i = 0; i < 2; i++)
+	{
+		bool sloped;
+
+		if (i == 0)
+		{
+			if (start.Z <= startcz) continue;
+			sloped = (sec->ceilingstat & CSTAT_SECTOR_SLOPE) && len > 0;
+			pt1.Z = pt2.Z = sec->ceilingz;
+			pt3.Z = p3cz;
+		}
+		else
+		{
+			if (start.Z >= startfz) continue;
+			sloped = (sec->floorstat & CSTAT_SECTOR_SLOPE && len > 0);
+			pt1.Z = pt2.Z = sec->floorz;
+			pt3.Z = p3fz;
+		}
+
+		if (sloped)
+		{
+			factor = LinePlaneIntersect(start, direction, pt1, pt2 - pt1, pt3 - pt1);
+		}
+		else
+		{
+			factor = (pt1.Z - start.Z) / direction.Z;
+		}
+		if (factor > 0 && factor <= maxfactor)
+		{
+			result = start + factor * direction;
+			return inside(result.X, result.Y, sec) ? factor : -1;
+		}
+	}
+
+	return -1;
+}
+
+//==========================================================================
+//
+// 
+// 
+//==========================================================================
+
+int hitscan(const DVector3& start, const sectortype* startsect, const DVector3& vect, HitInfoBase& hitinfo, unsigned cliptype, double maxrange)
+{
+	double hitfactor = DBL_MAX;
+
+	const auto wallflags = EWallFlags::FromInt(cliptype & 65535);
+	const auto spriteflags = ESpriteFlags::FromInt(cliptype >> 16);
+
+	hitinfo.clearObj();
+	if (startsect == nullptr)
+		return -1;
+
+	if (maxrange > 0)
+	{
+		hitfactor = maxrange / vect.Length();
+		hitinfo.hitpos = start + hitfactor * vect;
+	}
+	else hitinfo.hitpos.X = hitinfo.hitpos.Y = DBL_MAX;
+
+	BFSSectorSearch search(startsect);
+	while (auto sec = search.GetNext())
+	{
+		DVector3 v;
+		double hit = checkSectorPlaneHit(sec, start, vect, v, hitfactor);
+		if (hit > 0)
+		{
+			hitfactor = hit;
+			hitinfo.set(sec, nullptr, nullptr, v);
+		}
+
+		// check all walls in this sector
+		for (auto& w : sec->walls)
+		{
+			hit = checkWallHit(&w, EWallFlags::FromInt(wallflags), start, vect, v, hitfactor);
+			if (hit > 0)
+			{
+				hitfactor = hit;
+				hitinfo.set(sec, &w, nullptr, v);
+			}
+			else if (hit == -2)
+				search.Add(w.nextSector());
+		}
+
+		if (!spriteflags)
+			continue;
+
+		//Check all sprites in this sector
+		TSectIterator<DCoreActor> it(sec);
+		while (auto actor = it.Next())
+		{
+			if (actor->spr.cstat2 & CSTAT2_SPRITE_NOFIND)
+				continue;
+
+			if (!(actor->spr.cstat & spriteflags))
+				continue;
+
+			hit = -1;
+			// we pass hitfactor to the workers because it can shortcut their calculations a lot.
+			switch (actor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK)
+			{
+			case CSTAT_SPRITE_ALIGNMENT_FACING:
+				hit = intersectSprite(actor, start, vect, v, hitfactor);
+				break;
+
+			case CSTAT_SPRITE_ALIGNMENT_WALL:
+				hit = intersectWallSprite(actor, start, vect, v, hitfactor, GetExtInfo(actor->spr.spritetexture()).picanm.sf & PICANM_TEXHITSCAN_BIT);
+				break;
+
+			case CSTAT_SPRITE_ALIGNMENT_FLOOR:
+				hit = intersectFloorSprite(actor, start, vect, v, hitfactor);
+				break;
+
+			case CSTAT_SPRITE_ALIGNMENT_SLOPE:
+				hit = intersectSlopeSprite(actor, start, vect, v, hitfactor);
+				break;
+			}
+			if (hit > 0)
+			{
+				hitfactor = hit;
+				hitinfo.set(sec, nullptr, actor, v);
+			}
+		}
+	}
+
+	return 0;
+}
+
+
+//==========================================================================
+//
+// 
+// 
+//==========================================================================
+
+bool checkRangeOfWall(walltype* wal, EWallFlags flagmask, const DVector3& pos, double maxdist, double* theZs)
+{
+	if (!wal->twoSided()) return false;
+	if (wal->cstat & flagmask) return false;
+	if (PointOnLineSide(pos.XY(), wal) > 0) return false;
+
+	auto nextsect = wal->nextSector();
+
+	// Rather pointless sky check that needs to be kept...
+	if (((nextsect->ceilingstat & CSTAT_SECTOR_SKY) == 0) && (pos.Z <= nextsect->ceilingz + 3)) return false;
+	if (((nextsect->floorstat & CSTAT_SECTOR_SKY) == 0) && (pos.Z >= nextsect->floorz - 3)) return false;
+
+	auto pos1 = wal->pos;
+	auto pos2 = wal->point2Wall()->pos;
+
+	// Checks borrowed from GZDoom.
+	DVector2 boxtl = pos - DVector2(maxdist, maxdist);
+	DVector2 boxbr = pos + DVector2(maxdist, maxdist);
+	if (!BoxInRange(boxtl, boxbr, pos1, pos2)) return false;
+	if (BoxOnLineSide(boxtl, boxbr, pos1, pos2 - pos1) != -1) return false;
+
+	auto closest = pos.XY();
+	if (enginecompatibility_mode == ENGINECOMPATIBILITY_NONE)	// todo: need to check if it makes sense to have this always on.
+		SquareDistToSector(closest.X, closest.Y, nextsect, &closest);
+
+	calcSlope(nextsect, closest.X, closest.Y, &theZs[0], &theZs[1]);
+	return true;
+}
+
+//==========================================================================
+//
+// 
+// 
+//==========================================================================
+
+bool checkRangeOfFaceSprite(DCoreActor* itActor, const DVector3& pos, double maxdist, double* theZs)
+{
+	double dist = maxdist + itActor->clipdist;
+	if (abs(pos.X - itActor->spr.pos.X) > dist || abs(pos.Y - itActor->spr.pos.Y) > dist) return false; // Just like Doom: actors are square...
+	double h;
+	theZs[0] = itActor->spr.pos.Z + itActor->GetOffsetAndHeight(h);
+	theZs[1] = theZs[0] - h;
+	return true;
+}
+
+//==========================================================================
+//
+// 
+// 
+//==========================================================================
+
+bool checkRangeOfWallSprite(DCoreActor* itActor, const DVector3& pos, double maxdist, double* theZs)
+{
+	int t = itActor->time;
+	if ((t >= 485 && t <= 487) || t == 315)
+	{
+		int a = 0;
+	}
+	DVector2 verts[2];
+	GetWallSpritePosition(&itActor->spr, itActor->spr.pos.XY(), verts);
+	if (IsCloseToLine(pos.XY(), verts[0], verts[1], maxdist) == EClose::Outside) return false;
+	double h;
+	theZs[0] = itActor->spr.pos.Z + itActor->GetOffsetAndHeight(h);
+	theZs[1] = theZs[0] - h;
+	return true;
+}
+
+//==========================================================================
+//
+// 
+// 
+//==========================================================================
+
+bool checkRangeOfFloorSprite(DCoreActor* itActor, const DVector3& pos, double maxdist, double& theZ)
+{
+	int cstat = itActor->spr.cstat;
+	if ((cstat & (CSTAT_SPRITE_ALIGNMENT_MASK)) < (CSTAT_SPRITE_ALIGNMENT_FLOOR))
+		return false;
+
+	double fdaz = spriteGetZOfSlopef(&itActor->spr, pos.XY(), spriteGetSlope(itActor));
+
+	// Only check if sprite's 2-sided or your on the 1-sided side
+	if (((cstat & CSTAT_SPRITE_ONE_SIDE) != 0) && ((pos.Z > fdaz) == ((cstat & CSTAT_SPRITE_YFLIP) == 0)))
+		return false;
+
+	DVector2 out[4];
+	GetFlatSpritePosition(itActor, itActor->spr.pos.XY(), out);
+
+	// expand the area to cover 'maxdist' units more on each side. (i.e. move the edges out)
+	auto expand = (itActor->spr.Angles.Yaw - DAngle45).ToVector() * (maxdist + 0.25);	// that's surely not accurate but here we must match Build's original value.
+	out[0] += expand; 
+	out[1] += expand.Rotated90CCW();
+	out[2] -= expand;
+	out[3] += expand.Rotated90CW();
+
+	if (!insidePoly(pos.X, pos.Y, out, 4)) return false;
+
+	theZ = fdaz;
+	return true;
+}
+
+//==========================================================================
+//
+// 
+// 
+//==========================================================================
+
+void getzrange(const DVector3& pos, sectortype* sect, double* ceilz, CollisionBase& ceilhit, double* florz, CollisionBase& florhit, double maxdist, uint32_t cliptype)
+{
+	if (sect == nullptr)
+	{
+		*ceilz = -FLT_MAX; ceilhit.setVoid();
+		*florz = FLT_MAX; florhit.setVoid();
+		return;
+	}
+
+	const EWallFlags dawalclipmask = EWallFlags::FromInt(cliptype & 65535);
+	const ESpriteFlags dasprclipmask = ESpriteFlags::FromInt(cliptype >> 16);
+
+	auto closest = pos.XY();
+	if (enginecompatibility_mode == ENGINECOMPATIBILITY_NONE)
+		SquareDistToSector(closest.X, closest.Y, sect, &closest);
+
+	calcSlope(sect, closest, ceilz, florz);
+	ceilhit.setSector(sect);
+	florhit.setSector(sect);
+
+	double theZs[2];
+
+	BFSSectorSearch search(sect);
+	while (auto sec = search.GetNext())
+	{
+		for (auto& wal : sec->walls)
+		{
+			if (checkRangeOfWall(&wal, EWallFlags::FromInt(dawalclipmask), pos, maxdist + 1 / 16., theZs))
+			{
+				auto nsec = wal.nextSector();
+				search.Add(nsec);
+				if (/*(pos.Z > theZs[0]) &&*/ (theZs[0] > *ceilz))
+				{
+					*ceilz = theZs[0];
+					ceilhit.setSector(nsec);
+				}
+
+				if (/*(pos.Z < theZs[1]) &&*/ (theZs[1] < *florz))
+				{
+					*florz = theZs[1];
+					florhit.setSector(nsec);
+				}
+			}
+			else if (checkRangeOfWall(&wal, EWallFlags::FromInt(dawalclipmask), pos, maxdist + 64., theZs))
+			{
+				// extend the search distance for neighboring sectors a bit further so that we can find sprites outside the search range extending to our position.
+				auto nsec = wal.nextSector();
+				search.Add(nsec);
+			}
+		}
+	}
+
+	if (dasprclipmask)
+	{
+		search.Rewind();
+		while (auto sec = search.GetNext())
+		{
+			TSectIterator<DCoreActor> it(sec);
+			while (auto actor = it.Next())
+			{
+				const int32_t cstat = actor->spr.cstat;
+
+				if (actor->spr.cstat2 & CSTAT2_SPRITE_NOFIND) continue;
+				if (cstat & dasprclipmask)
+				{
+					switch (cstat & CSTAT_SPRITE_ALIGNMENT_MASK)
+					{
+					case CSTAT_SPRITE_ALIGNMENT_FACING:
+						if (!checkRangeOfFaceSprite(actor, pos, maxdist + 1 / 16., theZs)) continue;
+						break;
+
+					case CSTAT_SPRITE_ALIGNMENT_WALL:
+						if (!checkRangeOfWallSprite(actor, pos, maxdist + 1 / 16., theZs)) continue;
+						break;
+
+					case CSTAT_SPRITE_ALIGNMENT_FLOOR:
+					case CSTAT_SPRITE_ALIGNMENT_SLOPE:
+						if (!checkRangeOfFloorSprite(actor, pos, maxdist, theZs[0])) continue;
+						theZs[1] = theZs[0];
+						break;
+					}
+
+					// Clipping time!
+					if ((pos.Z > theZs[0]) && (theZs[0] > *ceilz))
+					{
+						*ceilz = theZs[0];
+						ceilhit.setSprite(actor);
+					}
+
+					if ((pos.Z < theZs[1]) && (theZs[1] < *florz))
+					{
+						*florz = theZs[1];
+						florhit.setSprite(actor);
+					}
+				}
+			}
+		}
+	}
+}
+
+
+//==========================================================================
+//
+// 
+// 
+//==========================================================================
+
+void neartag(const DVector3& pos, sectortype* startsect, DAngle angle, HitInfoBase& result, double range, int flags)
+{
+	auto checkTag = [=](const auto* object)
+	{
+		return (((flags & NT_Lotag) && object->lotag) || ((flags & NT_Hitag) && object->hitag));
+	};
+
+	auto v = DVector3(angle.ToVector() * range * 1.000001, 0); // extend the range a tiny bit so that we really find everything we need.
+
+	result.clearObj();
+	result.hitpos.X = result.hitpos.Y = 0;
+
+	if (!startsect || (flags & (NT_Lotag | NT_Hitag)) == 0)
+		return;
+
+	BFSSectorSearch search(startsect);
+
+	while (auto sect = search.GetNext())
+	{
+		for (auto& wal : sect->walls)
+		{
+			const auto nextsect = wal.nextSector();
+
+			if (PointOnLineSide(pos.XY(), &wal) > 0) continue;
+
+			double factor = InterceptLineSegments(pos.X, pos.Y, v.X, v.Y, wal.pos.X, wal.pos.Y, wal.delta().X, wal.delta().Y);
+			if (factor > 0 && factor < 1)
+			{
+				bool foundsector = (wal.twoSided() && checkTag(nextsect));
+				bool foundwall = checkTag(&wal);
+#if 0	// does not work if the trace goes right through the vertex between two walls.
+				if (!wal.twoSided() && !foundwall && !foundsector)
+				{
+					// this case was not handled by Build:
+					// If we hit an untagged one-sided wall it should both shorten the scan trace and clear all hits beyond.
+					// Otherwise this may cause problems with some weirdly shaped sectors.
+					result.hitSector = nullptr;
+					result.hitWall = nullptr;
+					result.hitpos.X = 0;
+					v *= factor;
+					continue;
+				}
+#endif
+				if (foundsector) result.hitSector = nextsect;
+				if (foundwall) result.hitWall = &wal;
+
+				if (foundwall || foundsector)
+				{
+					v *= factor;
+					result.hitpos.X = v.XY().Length();
+				}
+
+				if (wal.twoSided())
+				{
+					search.Add(nextsect);
+				}
+			}
+		}
+
+		if (!(flags & NT_NoSpriteCheck))
+		{
+			double factor = 1;
+			TSectIterator<DCoreActor> it(sect);
+			while (auto actor = it.Next())
+			{
+				if (actor->spr.cstat2 & CSTAT2_SPRITE_NOFIND)
+					continue;
+
+				if (checkTag(&actor->spr))
+				{
+					DVector3 spot;
+					double newfactor = intersectSprite(actor, pos, v, spot, factor - 1. / 65536.);
+					if (newfactor > 0)
+					{
+						factor = newfactor;
+						result.hitActor = actor;
+						v = spot - pos;
+						// return distance to sprite in a separate variable because there is 
+						// no means to determine what it is for if both a sprite and wall are found.
+						// Only SW's NearTagList actually uses it.
+						result.hitpos.Y = v.XY().Length();
+					}
+				}
+			}
+		}
+	}
+}
+
+//==========================================================================
+//
+// 
+// 
+//==========================================================================
+
+bool checkOpening(const DVector2& inpos, double z, const sectortype* sec, const sectortype* nextsec, double ceilingdist, double floordist, bool precise)
+{
+	DVector2 pos;
+	if (precise) SquareDistToSector(inpos.X, inpos.Y, nextsec, &pos);
+	else pos = inpos;
+
+	double c1, c2, f1, f2;
+	calcSlope(sec, pos.X, pos.Y, &c1, &f1);
+	calcSlope(nextsec, pos.X, pos.Y, &c2, &f2);
+
+	if (precise)
+	{
+		double sech = abs(f1 - c1);
+		double nextsech = abs(f2 - c2);
+		if (sech > nextsech && nextsech < ceilingdist + 2) return 1;
+	}
+
+	return ((f2 < f1 - 1 && (nextsec->floorstat & CSTAT_SECTOR_SKY) == 0 && z >= f2 - (floordist - zmaptoworld)) ||
+		(c2 > c1 + 1 && (nextsec->ceilingstat & CSTAT_SECTOR_SKY) == 0 && z <= c2 + (ceilingdist - zmaptoworld)));
+}
+
+//==========================================================================
+//
+//
+//
+//==========================================================================
+
+int pushmove(DVector3& pos, sectortype** pSect, double walldist, double ceildist, double floordist, unsigned cliptype)
+{
+	auto wallflags = EWallFlags::FromInt(cliptype & 65535);
+	int maxhitwalls = 0;
+	bool pushed = true;
+
+	for(int direction = 1; pushed; direction = -direction)
+	{
+		pushed = false;
+
+		if (*pSect == nullptr)
+			return -1;
+
+		BFSSectorSearch search(*pSect);
+
+		while (auto sec = search.GetNext())
+		{
+			// this must go both forward and backward so we cannot use iterators. Pity
+			for (unsigned i = 0; i < sec->walls.Size(); i++)
+			{
+				auto wal = direction > 0 ? &sec->walls[i] : &sec->walls[sec->walls.Size() - 1 - i];
+
+				if (IsCloseToWall(pos.XY(), wal, walldist - 0.25) == EClose::InFront)
+				{
+					bool blocked = false;
+					if (!wal->twoSided() || wal->cstat & wallflags) blocked = true;
+					else
+					{
+						auto pvect = NearestPointOnWall(pos.X, pos.Y, wal);
+						blocked = checkOpening(pvect, pos.Z, sec, wal->nextSector(), ceildist, floordist);
+					}
+
+					if (blocked)
+					{
+						auto dv = wal->delta().Rotated90CCW().Unit() * 0.5;
+						for (int t = 0; t < 16; t++)
+						{
+							pos += dv;
+							if (IsCloseToWall(pos, wal, (walldist - 0.25)) == EClose::Outside) break;
+						}
+						pushed = true;
+
+						updatesector(pos, pSect);
+						if (++maxhitwalls >= 32) return -1;
+						if (*pSect == nullptr) return -1;
+					}
+					else
+						search.Add(wal->nextSector());
+				}
+			}
+		}
+		if (!pushed) return 0;
+	}
+	return -1;
+}
+
+//==========================================================================
+//
+//
+//
+//==========================================================================
+
+int FindBestSector(const DVector3& pos)
+{
+	int bestnum = -1;
+	double bestdist = FLT_MAX;
+	for (int secnum = (int)sector.Size() - 1; secnum >= 0; secnum--)
+	{
+		auto sect = &sector[secnum];
+		if (inside(pos.X, pos.Y, sect))
+		{
+			double ceilz, floorz;
+			calcSlope(sect, pos.X, pos.Y, &ceilz, &floorz);
+
+			if (pos.Z < ceilz)
+			{
+				// above ceiling
+				double dist = ceilz - pos.Z;
+				if (dist < bestdist)
+				{
+					bestnum = secnum;
+					bestdist = dist;
+				}
+			}
+			else if (pos.Z > floorz)
+			{
+				// below floor
+				double dist = pos.Z - floorz;
+				if (dist < bestdist)
+				{
+					bestnum = secnum;
+					bestdist = dist;
+				}
+			}
+			else
+			{
+				// inside sector
+				return secnum;
+			}
+		}
+	}
+	return bestnum;
+}
+
+//==========================================================================
+//
+//
+//
+//==========================================================================
+
+int isAwayFromWall(DCoreActor* ac, double delta)
+{
+	sectortype* s1;
+
+	updatesector(ac->spr.pos + DVector2(delta, delta), &s1);
+	if (s1 == ac->sector())
+	{
+		updatesector(ac->spr.pos - DVector2(delta, delta), &s1);
+		if (s1 == ac->sector())
+		{
+			updatesector(ac->spr.pos + DVector2(delta, -delta), &s1);
+			if (s1 == ac->sector())
+			{
+				updatesector(ac->spr.pos + DVector2(-delta, delta), &s1);
+				if (s1 == ac->sector())
+					return true;
+			}
+		}
+	}
+	return false;
 }
 
 //==========================================================================
@@ -577,13 +1325,12 @@ tspritetype* renderAddTsprite(tspriteArray& tsprites, DCoreActor* actor)
 	tspr->pal = actor->spr.pal;
 	tspr->clipdist = 0;
 	tspr->blend = actor->spr.blend;
-	tspr->xrepeat = actor->spr.xrepeat;
-	tspr->yrepeat = actor->spr.yrepeat;
+	tspr->scale = actor->spr.scale;
 	tspr->xoffset = actor->spr.xoffset;
 	tspr->yoffset = actor->spr.yoffset;
 	tspr->sectp = actor->spr.sectp;
 	tspr->statnum = actor->spr.statnum;
-	tspr->angle = actor->spr.angle;
+	tspr->Angles.Yaw = actor->spr.Angles.Yaw;
 	tspr->xint = actor->spr.xint;
 	tspr->yint = actor->spr.yint;
 	tspr->inittype = actor->spr.inittype; // not used by tsprites.
@@ -603,7 +1350,6 @@ tspritetype* renderAddTsprite(tspriteArray& tsprites, DCoreActor* actor)
 
 	return tspr;
 }
-
 
 //==========================================================================
 //

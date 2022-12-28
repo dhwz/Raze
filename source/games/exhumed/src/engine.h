@@ -32,15 +32,11 @@ enum
 	kAngleMask	= 0x7FF
 };
 
+Collision movesprite(DExhumedActor* spritenum, DVector2 vect, double dz, double flordist, unsigned int clipmask);
 
-Collision movesprite(DExhumedActor* spritenum, int dx, int dy, int dz, int ceildist, int flordist, unsigned int clipmask);
-Collision movesprite(DExhumedActor* spritenum, const DVector3& pos, int ceildist, int flordist, unsigned int clipmask)
+inline Collision movespritevel(DExhumedActor* spritenum, const DVector3& pos, double xyfactor, int flordist, unsigned int clipmask)
 {
-	return movesprite(spritenum, int(pos.X * worldtoint), int(pos.Y * worldtoint), int(pos.Z * zworldtoint), ceildist, flordist, clipmask);
-}
-Collision movesprite(DExhumedActor* spritenum, const DVector3& pos, double xyfactor, int ceildist, int flordist, unsigned int clipmask)
-{
-	return movesprite(spritenum, int(pos.X * xyfactor * worldtoint), int(pos.Y * xyfactor * worldtoint), int(pos.Z * zworldtoint), ceildist, flordist, clipmask);
+	return movesprite(spritenum, pos.XY() * xyfactor / 64, pos.Z, flordist, clipmask);
 }
 
 void precache();
@@ -65,8 +61,6 @@ extern DAngle inita;
 extern sectortype* initsectp;
 
 extern int nCurChunkNum;
-extern int movefifoend;
-extern int movefifopos;
 
 // all static counters combined in an array for easier maintenance.
 enum ECounter
@@ -122,16 +116,8 @@ uint16_t RandomWord();
 int RandomLong();
 int RandomSize(int nSize);
 DAngle RandomAngle9();
-
-// record
-
-// save
-
-// trigdat
-
-
-int AngleDiff(DAngle a, DAngle b);
-int AngleDelta(int a, int b, int c);
+DAngle RandomAngle();
+double RandomFloat(double range);
 
 END_PS_NS
 

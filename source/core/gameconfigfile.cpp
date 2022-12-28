@@ -45,7 +45,7 @@
 #include "gamecontrol.h"
 #include "version.h"
 
-#define LASTRUNVERSION "2"
+#define LASTRUNVERSION "4"
 
 #if !defined _MSC_VER && !defined __APPLE__
 #include "i_system.h"  // for SHARE_DIR
@@ -83,15 +83,15 @@ FGameConfigFile::FGameConfigFile ()
 		SetValueForKey ("Path", user_app_support + "/EDuke32", true);
 		SetValueForKey ("Path", user_app_support + "/JFDuke32", true);
 		SetValueForKey ("Path", user_app_support + "/NBlood", true);
-		SetValueForKey("Path", user_app_support + "/Raze/*", true);
+		SetValueForKey ("Path", user_app_support + "/Raze/*", true);
 		SetValueForKey ("Path", "$PROGDIR", true);
 		SetValueForKey ("Path", "$PROGDIR/*", true);
 		SetValueForKey ("Path", local_app_support + "/EDuke32", true);
 		SetValueForKey ("Path", local_app_support + "/JFDuke32", true);
 		SetValueForKey ("Path", local_app_support + "/NBlood", true);
-		SetValueForKey("Path", local_app_support + "/JFSW", true);
-		SetValueForKey("Path", local_app_support + "/VoidSW", true);
-		SetValueForKey("Path", local_app_support + "/Raze/*", true);
+		SetValueForKey ("Path", local_app_support + "/JFSW", true);
+		SetValueForKey ("Path", local_app_support + "/VoidSW", true);
+		SetValueForKey ("Path", local_app_support + "/Raze/*", true);
 
 #elif !defined(__unix__)
 		SetValueForKey ("Path", "$PROGDIR", true);
@@ -102,19 +102,25 @@ FGameConfigFile::FGameConfigFile ()
 		// Arch Linux likes them in /usr/share/raze
 		// Debian likes them in /usr/share/games/raze
 		// I assume other distributions don't do anything radically different
-		SetValueForKey ("Path", "/opt/raze", true);
-		SetValueForKey ("Path", "/usr/share/games/raze", true);
-		SetValueForKey ("Path", "/usr/local/share/games/raze", true);
+		SetValueForKey ("Path", "/opt/" GAMENAMELOWERCASE, true);
+		SetValueForKey ("Path", "/usr/share/" GAMENAMELOWERCASE, true);
+		SetValueForKey ("Path", "/usr/share/" GAMENAMELOWERCASE "/*", true);
+		SetValueForKey ("Path", "/usr/share/games/" GAMENAMELOWERCASE, true);
+		SetValueForKey ("Path", "/usr/share/games/" GAMENAMELOWERCASE "/*", true);
+		SetValueForKey ("Path", "/usr/local/share/" GAMENAMELOWERCASE, true);
+		SetValueForKey ("Path", "/usr/local/share/" GAMENAMELOWERCASE "/*", true);
+		SetValueForKey ("Path", "/usr/local/share/games/" GAMENAMELOWERCASE, true);
+		SetValueForKey ("Path", "/usr/local/share/games/" GAMENAMELOWERCASE "/*", true);
 		SetValueForKey ("Path", "/usr/share/games/jfduke3d", true);
-		SetValueForKey ("Path", "/usr/local/share/games/jfduke3d", true);
 		SetValueForKey ("Path", "/usr/share/games/eduke32", true);
-		SetValueForKey ("Path", "/usr/local/share/games/eduke32", true);
 		SetValueForKey ("Path", "/usr/share/games/nblood", true);
+		SetValueForKey ("Path", "/usr/share/games/jfsw", true);
+		SetValueForKey ("Path", "/usr/share/games/voidsw", true);
+		SetValueForKey ("Path", "/usr/local/share/games/eduke32", true);
+		SetValueForKey ("Path", "/usr/local/share/games/jfduke3d", true);
 		SetValueForKey ("Path", "/usr/local/share/games/nblood", true);
-		SetValueForKey("Path", "/usr/share/games/jfsw", true);
-		SetValueForKey("Path", "/usr/local/share/games/jfsw", true);
-		SetValueForKey("Path", "/usr/share/games/voidsw", true);
-		SetValueForKey("Path", "/usr/local/share/games/voidsw", true);
+		SetValueForKey ("Path", "/usr/local/share/games/jfsw", true);
+		SetValueForKey ("Path", "/usr/local/share/games/voidsw", true);
 
 #endif
 		SetValueForKey ("Path", "$STEAM", true); // also covers GOG.
@@ -134,12 +140,19 @@ FGameConfigFile::FGameConfigFile ()
 		SetValueForKey ("Path", "$GAMEDIR", true);
 #else
 		SetValueForKey ("Path", "$HOME/" GAME_DIR, true);
-		SetValueForKey ("Path", SHARE_DIR, true);
+		SetValueForKey ("Path", "/usr/share/" GAMENAMELOWERCASE, true);
+		SetValueForKey ("Path", "/usr/share/" GAMENAMELOWERCASE "/*", true);
+		SetValueForKey ("Path", "/usr/share/games/" GAMENAMELOWERCASE, true);
+		SetValueForKey ("Path", "/usr/share/games/" GAMENAMELOWERCASE "/*", true);
+		SetValueForKey ("Path", "/usr/local/share/" GAMENAMELOWERCASE, true);
+		SetValueForKey ("Path", "/usr/local/share/" GAMENAMELOWERCASE "/*", true);
+		SetValueForKey ("Path", "/usr/local/share/games/" GAMENAMELOWERCASE, true);
+		SetValueForKey ("Path", "/usr/local/share/games/" GAMENAMELOWERCASE "/*", true);
 		SetValueForKey ("Path", "/usr/share/games/jfduke3d", true);
-		SetValueForKey ("Path", "/usr/local/share/games/jfduke3d", true);
 		SetValueForKey ("Path", "/usr/share/games/eduke32", true);
-		SetValueForKey ("Path", "/usr/local/share/games/eduke32", true);
 		SetValueForKey ("Path", "/usr/share/games/nblood", true);
+		SetValueForKey ("Path", "/usr/local/share/games/jfduke3d", true);
+		SetValueForKey ("Path", "/usr/local/share/games/eduke32", true);
 		SetValueForKey ("Path", "/usr/local/share/games/nblood", true);
 #endif
 	}
@@ -157,10 +170,10 @@ FGameConfigFile::FGameConfigFile ()
 		SetValueForKey("Path", "$PROGDIR/soundfonts", true);
 #else
 		SetValueForKey("Path", "$HOME/" GAME_DIR "/soundfonts", true);
-		SetValueForKey("Path", "/usr/local/share/" GAME_DIR "/soundfonts", true);
-		SetValueForKey("Path", "/usr/local/share/games/" GAME_DIR "/soundfonts", true);
-		SetValueForKey("Path", "/usr/share/" GAME_DIR "/soundfonts", true);
-		SetValueForKey("Path", "/usr/share/games/" GAME_DIR "/soundfonts", true);
+		SetValueForKey("Path", "/usr/share/" GAMENAMELOWERCASE "/soundfonts", true);
+		SetValueForKey("Path", "/usr/share/games/" GAMENAMELOWERCASE "/soundfonts", true);
+		SetValueForKey("Path", "/usr/local/share/" GAMENAMELOWERCASE "/soundfonts", true);
+		SetValueForKey("Path", "/usr/local/share/games/" GAMENAMELOWERCASE "/soundfonts", true);
 #endif
 	}
 
@@ -278,12 +291,37 @@ void FGameConfigFile::DoGlobalSetup ()
 			double last = atof (lastver);
 			if (last < 2)
 			{
-				auto var = FindCVar("mod_dumb_mastervolume", NULL);
-				if (var != NULL)
+				auto var = FindCVar("mod_dumb_mastervolume", nullptr);
+				if (var != nullptr)
 				{
 					UCVarValue v = var->GetGenericRep(CVAR_Float);
 					v.Float /= 4.f;
 					if (v.Float < 1.f) v.Float = 1.f;
+					var->SetGenericRep(v, CVAR_Float);
+				}
+			}
+			if (last < 3)
+			{
+				auto var = FindCVar("hud_size", nullptr);
+				if (var != nullptr)
+				{
+					UCVarValue v = var->GetGenericRep(CVAR_Int);
+					if(v.Int == Hud_Althud) v.Int = Hud_Nothing;
+					var->SetGenericRep(v, CVAR_Int);
+				}
+			}
+			if (last < 4)
+			{
+				auto var = FindCVar("cl_savedir", nullptr);
+				auto var2 = FindCVar("save_dir", nullptr);
+				if (var != nullptr && var2 != nullptr)
+				{
+					UCVarValue v = var->GetGenericRep(CVAR_String);
+					UCVarValue v2 = var2->GetGenericRep(CVAR_String);
+					if (*v.String != 0 && *v2.String == 0)
+					{
+						var2->SetGenericRep(v, CVAR_String);
+					}
 				}
 			}
 		}

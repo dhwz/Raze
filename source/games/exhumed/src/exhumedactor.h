@@ -32,12 +32,11 @@ public:
 	union { int16_t nIndex2; int16_t nAngle2; }; // index2 is for scorpion, angle2 is for wasp.
 	union { int16_t nChannel; int16_t nVel; };	// channel is for scorpion, vel is for wasp.
 	union { int16_t nDamage; int16_t nAction2; }; // nAction2 is for the queen.
-	int/*DAngle*/ angle2;	// used by the queen
+	DAngle pitch;	// used by AngleChase
 
 	// for the grenade.
 	int nTurn;
-	int x;
-	int y;
+	DVector2 vec;
 
 
 	DExhumedActor() = default;
@@ -45,7 +44,7 @@ public:
 	void Serialize(FSerializer& arc) override;
 	void VelFromAngle(int shift = 0)
 	{
-		vel.XY() = spr.angle.ToVector() * (1 << (10 + shift));
+		vel.XY() = spr.Angles.Yaw.ToVector() * (1 << (10 + shift));
 	}
 
 

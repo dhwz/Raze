@@ -42,8 +42,6 @@ BEGIN_PS_NS
 
 extern int nStatusSeqOffset;
 
-int lPlayerXVel = 0;
-int lPlayerYVel = 0;
 int obobangle = 0, bobangle  = 0;
 
 static actionSeq PlayerSeq[] = {
@@ -79,7 +77,7 @@ Player PlayerList[kMaxPlayers];
 
 TObjPtr<DExhumedActor*> nNetStartSprite[kMaxPlayers] = { };
 
-int nStandHeight;
+double nStandHeight;
 
 
 
@@ -87,6 +85,12 @@ int PlayerCount;
 int nNetStartSprites;
 int nCurStartSprite;
 
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 size_t MarkPlayers()
 {
@@ -101,6 +105,12 @@ size_t MarkPlayers()
     return 5 * kMaxPlayers;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void SetSavePoint(int nPlayer, const DVector3& pos, sectortype* pSector, DAngle nAngle)
 {
     PlayerList[nPlayer].sPlayerSave.pos = pos;
@@ -108,13 +118,19 @@ void SetSavePoint(int nPlayer, const DVector3& pos, sectortype* pSector, DAngle 
     PlayerList[nPlayer].sPlayerSave.nAngle = nAngle;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void feebtag(const DVector3& pos, sectortype* pSector, DExhumedActor **nSprite, int nVal2, double deflen)
 {
     *nSprite = nullptr;
 
-    int startwall = pSector->wallptr;
+    auto startwall = pSector->walls.Data();
 
-    int nWalls = pSector->wallnum;
+    int nWalls = pSector->walls.Size();
 
     int var_20 = nVal2 & 2;
     int var_14 = nVal2 & 1;
@@ -147,18 +163,25 @@ void feebtag(const DVector3& pos, sectortype* pSector, DExhumedActor **nSprite, 
         }
 
         nWalls--;
-        if (nWalls < -1)
+        if (nWalls < 0)
             return;
 
-        pSector = wall[startwall].nextSector();
+        pSector = startwall->nextSector();
         startwall++;
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void InitPlayer()
 {
     for (int i = 0; i < kMaxPlayers; i++) {
         PlayerList[i].pActor = nullptr;
+        PlayerList[i].Angles = {};
         PlayerList[i].pPlayerPushSect = nullptr;
         PlayerList[i].pPlayerViewSect = nullptr;
     }
@@ -168,6 +191,12 @@ void InitPlayerKeys(int nPlayer)
 {
     PlayerList[nPlayer].keys = 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void InitPlayerInventory(int nPlayer)
 {
@@ -181,6 +210,7 @@ void InitPlayerInventory(int nPlayer)
     PlayerList[nPlayer].nLives = kDefaultLives;
 
     PlayerList[nPlayer].pActor = nullptr;
+    PlayerList[nPlayer].Angles = {};
     PlayerList[nPlayer].nRun = -1;
 
     PlayerList[nPlayer].nPistolClip = 6;
@@ -194,15 +224,27 @@ void InitPlayerInventory(int nPlayer)
 
     PlayerList[nPlayer].nPlayerScore = 0;
 
-    auto pixels = tilePtr(kTile3571 + nPlayer);
+    auto pixels = GetRawPixels(tileGetTextureID(kTile3571 + nPlayer));
 
     PlayerList[nPlayer].nPlayerColor = pixels[tileWidth(nPlayer + kTile3571) * tileHeight(nPlayer + kTile3571) / 2];
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int GetPlayerFromActor(DExhumedActor* pActor)
 {
     return RunData[pActor->spr.intowner].nObjIndex;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void RestartPlayer(int nPlayer)
 {
@@ -220,6 +262,7 @@ void RestartPlayer(int nPlayer)
 		ChangeActorStat(pActor, 0);
 
         plr->pActor = nullptr;
+        plr->Angles = {};
 
 		DExhumedActor* pFloorSprite = plr->pPlayerFloorSprite;
 		if (pFloorSprite != nullptr) {
@@ -253,14 +296,12 @@ void RestartPlayer(int nPlayer)
 
 		pActor->spr.pos = nNStartSprite->spr.pos;
 		ChangeActorSect(pActor, nNStartSprite->sector());
-		plr->angle.ang = nNStartSprite->spr.angle;
-		pActor->spr.angle = plr->angle.ang;
+        pActor->spr.Angles.Yaw = nNStartSprite->spr.Angles.Yaw;
 
 		floorsprt = insertActor(pActor->sector(), 0);
 
 		floorsprt->spr.pos = pActor->spr.pos;
-		floorsprt->spr.yrepeat = 64;
-		floorsprt->spr.xrepeat = 64;
+		floorsprt->spr.scale = DVector2(1, 1);
 		floorsprt->spr.cstat = CSTAT_SPRITE_ALIGNMENT_FLOOR;
 		floorsprt->spr.picnum = nPlayer + kTile3571;
 	}
@@ -268,45 +309,40 @@ void RestartPlayer(int nPlayer)
 	{
         pActor->spr.pos.XY() = plr->sPlayerSave.pos.XY();
 		pActor->spr.pos.Z = plr->sPlayerSave.pSector->floorz;
-		plr->angle.ang = plr->sPlayerSave.nAngle;
-		pActor->spr.angle = plr->angle.ang;
+		pActor->spr.Angles.Yaw = plr->sPlayerSave.nAngle;
 
 		floorsprt = nullptr;
 	}
 
-	plr->angle.backup();
-	plr->horizon.backup();
+    pActor->backuploc();
 
 	plr->pPlayerFloorSprite = floorsprt;
 
 	pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
 	pActor->spr.shade = -12;
-	pActor->set_const_clipdist(58);
+	pActor->clipdist = 14.5;
 	pActor->spr.pal = 0;
-	pActor->spr.xrepeat = 40;
-	pActor->spr.yrepeat = 40;
+	pActor->spr.scale = DVector2(0.625, 0.625);
 	pActor->spr.xoffset = 0;
 	pActor->spr.yoffset = 0;
 	pActor->spr.picnum = seq_GetSeqPicnum(kSeqJoe, 18, 0);
 
-	int nHeight = GetActorHeight(pActor);
 	pActor->vel.X = 0;
 	pActor->vel.Y = 0;
 	pActor->vel.Z = 0;
 
-	nStandHeight = nHeight;
+	nStandHeight = GetActorHeight(pActor);
 
 	pActor->spr.hitag = 0;
 	pActor->spr.extra = -1;
 	pActor->spr.lotag = runlist_HeadRun() + 1;
 
     pDActor->spr.pos = pActor->spr.pos;
-	pDActor->spr.xrepeat = pActor->spr.xrepeat;
-	pDActor->spr.yrepeat = pActor->spr.yrepeat;
+	pDActor->spr.scale = pActor->spr.scale;
 	pDActor->spr.xoffset = 0;
 	pDActor->spr.yoffset = 0;
 	pDActor->spr.shade = pActor->spr.shade;
-	pDActor->spr.angle = pActor->spr.angle;
+	pDActor->spr.Angles.Yaw = pActor->spr.Angles.Yaw;
 	pDActor->spr.cstat = pActor->spr.cstat;
 
 	pDActor->spr.lotag = runlist_HeadRun() + 1;
@@ -320,6 +356,8 @@ void RestartPlayer(int nPlayer)
 
 	plr->nSeqSize = 0;
 	plr->pActor = pActor;
+    plr->Angles = {};
+    plr->Angles.initialize(plr->pActor);
 	plr->bIsMummified = false;
 
 	if (plr->invincibility >= 0) {
@@ -364,15 +402,14 @@ void RestartPlayer(int nPlayer)
 	}
 
 	plr->pPlayerGrenade = nullptr;
-	plr->oeyelevel = plr->eyelevel = -55.;
+	pActor->oviewzoffset = pActor->viewzoffset = -55.;
 	dVertPan[nPlayer] = 0;
 
 	nTemperature[nPlayer] = 0;
 
-	plr->nDamage.Y = 0;
-	plr->nDamage.X = 0;
+    plr->nThrust.Zero();
 
-	plr->nDestVertPan = plr->horizon.ohoriz = plr->horizon.horiz = q16horiz(0);
+	plr->nDestVertPan = plr->pActor->PrevAngles.Pitch = plr->pActor->spr.Angles.Pitch = nullAngle;
 	plr->nBreathTimer = 90;
 
 	plr->nTauntTimer = RandomSize(3) + 3;
@@ -401,6 +438,12 @@ void RestartPlayer(int nPlayer)
 	nQuake[nPlayer] = 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int GrabPlayer()
 {
     if (PlayerCount >= kMaxPlayers) {
@@ -409,6 +452,12 @@ int GrabPlayer()
 
     return PlayerCount++;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void StartDeathSeq(int nPlayer, int nVal)
 {
@@ -425,7 +474,7 @@ void StartDeathSeq(int nPlayer, int nVal)
 
     if (PlayerList[nPlayer].pPlayerGrenade)
     {
-        ThrowGrenade(nPlayer, 0, 0, 0, -10000);
+        ThrowGrenade(nPlayer, 0, -10000);
     }
     else
     {
@@ -456,8 +505,8 @@ void StartDeathSeq(int nPlayer, int nVal)
 
     StopFiringWeapon(nPlayer);
 
-    PlayerList[nPlayer].horizon.ohoriz = PlayerList[nPlayer].horizon.horiz = q16horiz(0);
-    PlayerList[nPlayer].oeyelevel = PlayerList[nPlayer].eyelevel = -55;
+    PlayerList[nPlayer].pActor->PrevAngles.Pitch = PlayerList[nPlayer].pActor->spr.Angles.Pitch = nullAngle;
+    pActor->oviewzoffset = pActor->viewzoffset = -55;
     PlayerList[nPlayer].nInvisible = 0;
     dVertPan[nPlayer] = 15;
 
@@ -502,6 +551,12 @@ void StartDeathSeq(int nPlayer, int nVal)
     PlayerList[nPlayer].ototalvel = PlayerList[nPlayer].totalvel = 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int AddAmmo(int nPlayer, int nWeapon, int nAmmoAmount)
 {
     if (!nAmmoAmount) {
@@ -531,6 +586,12 @@ int AddAmmo(int nPlayer, int nWeapon, int nAmmoAmount)
     return 1;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void SetPlayerMummified(int nPlayer, int bIsMummified)
 {
     DExhumedActor* pActor = PlayerList[nPlayer].pActor;
@@ -554,6 +615,12 @@ void SetPlayerMummified(int nPlayer, int bIsMummified)
     PlayerList[nPlayer].nSeqSize = 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void ShootStaff(int nPlayer)
 {
     PlayerList[nPlayer].nAction = 15;
@@ -561,12 +628,24 @@ void ShootStaff(int nPlayer)
     PlayerList[nPlayer].nSeq = kSeqJoe;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void PlayAlert(const char *str)
 {
     StatusMessage(300, str);
     PlayLocalSound(StaticSound[kSound63], 0);
 }
 
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 static void pickupMessage(int no)
 {
@@ -579,11 +658,22 @@ static void pickupMessage(int no)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void UpdatePlayerSpriteAngle(Player* pPlayer)
 {
-    inita = pPlayer->angle.ang;
-    if (pPlayer->pActor) pPlayer->pActor->spr.angle = inita;
+    if (pPlayer->pActor) inita = pPlayer->pActor->spr.Angles.Yaw;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIPlayer::Draw(RunListEvent* ev)
 {
@@ -593,6 +683,12 @@ void AIPlayer::Draw(RunListEvent* ev)
 
     seq_PlotSequence(ev->nParam, SeqOffsets[PlayerList[nPlayer].nSeq] + PlayerSeq[nAction].a, PlayerList[nPlayer].nSeqSize, PlayerSeq[nAction].b);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIPlayer::RadialDamage(RunListEvent* ev)
 {
@@ -609,6 +705,12 @@ void AIPlayer::RadialDamage(RunListEvent* ev)
     ev->nDamage = runlist_CheckRadialDamage(pPlayerActor);
     Damage(ev);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIPlayer::Damage(RunListEvent* ev)
 {
@@ -714,6 +816,78 @@ void AIPlayer::Damage(RunListEvent* ev)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+bool CheckMovingBlocks(int nPlayer, Collision& nMove, DVector3& spr_pos, sectortype* spr_sect)
+{
+    auto pPlayerActor = PlayerList[nPlayer].pActor;
+    double const zz = pPlayerActor->vel.Z;
+
+    if (nMove.type == kHitSector || nMove.type == kHitWall)
+    {
+        sectortype* sect;
+        DAngle nNormal = nullAngle;
+
+        if (nMove.type == kHitSector)
+        {
+            sect = nMove.hitSector;
+            // Hm... Normal calculation here was broken.
+        }
+        else //if (nMove.type == kHitWall)
+        {
+            sect = nMove.hitWall->nextSector();
+            nNormal = GetWallNormal(nMove.hitWall);
+        }
+
+        // moving blocks - move this to a separate function!
+        if (sect != nullptr)
+        {
+            if ((sect->hitag == 45) && bTouchFloor)
+            {
+                auto nDiff = absangle(nNormal, pPlayerActor->spr.Angles.Yaw + DAngle180);
+
+                if (nDiff <= DAngle45)
+                {
+                    PlayerList[nPlayer].pPlayerPushSect = sect;
+
+                    DVector2 vel = sPlayerInput[nPlayer].vel;
+                    auto nMyAngle = vel.Angle().Normalized360();
+
+                    setsectinterpolate(sect);
+                    MoveSector(sect, nMyAngle, vel);
+
+                    if (PlayerList[nPlayer].nPlayerPushSound <= -1)
+                    {
+                        PlayerList[nPlayer].nPlayerPushSound = 1;
+                        int nBlock = PlayerList[nPlayer].pPlayerPushSect->extra;
+                        DExhumedActor* pBlockActor = sBlockInfo[nBlock].pActor;
+
+                        D3PlayFX(StaticSound[kSound23], pBlockActor, 0x4000);
+                    }
+                    else
+                    {
+                        pPlayerActor->spr.pos = spr_pos;
+                        ChangeActorSect(pPlayerActor, spr_sect);
+                    }
+
+                    movesprite(pPlayerActor, vel, zz, -20, CLIPMASK0);
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+//---------------------------------------------------------------------------
+//
+// this function is pure spaghetti madness... :(
+//
+//---------------------------------------------------------------------------
 
 void AIPlayer::Tick(RunListEvent* ev)
 {
@@ -731,14 +905,7 @@ void AIPlayer::Tick(RunListEvent* ev)
     int nAction = PlayerList[nPlayer].nAction;
     int nActionB = PlayerList[nPlayer].nAction;
 
-    PlayerList[nPlayer].angle.backup();
-    PlayerList[nPlayer].horizon.backup();
-    PlayerList[nPlayer].angle.resetadjustment();
-    PlayerList[nPlayer].horizon.resetadjustment();
-    PlayerList[nPlayer].oeyelevel = PlayerList[nPlayer].eyelevel;
-
-    pPlayerActor->vel.X = FixedToFloat<18>(sPlayerInput[nPlayer].xVel);
-    pPlayerActor->vel.Y = FixedToFloat<18>(sPlayerInput[nPlayer].yVel);
+    pPlayerActor->vel.XY() = sPlayerInput[nPlayer].vel;
 
     if (sPlayerInput[nPlayer].nItem > -1)
     {
@@ -811,13 +978,16 @@ void AIPlayer::Tick(RunListEvent* ev)
         }
     }
 
+    PlayerList[nPlayer].Angles.doViewYaw(sPlayerInput[nLocalPlayer].actions);
+
     // loc_1A494:
     if (SyncInput())
     {
-        Player* pPlayer = &PlayerList[nPlayer];
-        pPlayer->angle.applyinput(sPlayerInput[nPlayer].nAngle, &sPlayerInput[nLocalPlayer].actions);
-        UpdatePlayerSpriteAngle(pPlayer);
+        PlayerList[nPlayer].pActor->spr.Angles.Yaw += DAngle::fromDeg(sPlayerInput[nPlayer].nAngle);
     }
+
+    PlayerList[nPlayer].Angles.doYawKeys(&sPlayerInput[nLocalPlayer].actions);
+    UpdatePlayerSpriteAngle(&PlayerList[nPlayer]);
 
     // player.zvel is modified within Gravity()
 	double zVel = pPlayerActor->vel.Z;
@@ -833,20 +1003,17 @@ void AIPlayer::Tick(RunListEvent* ev)
     auto pSector = pPlayerActor->sector();
     int nSectFlag = PlayerList[nPlayer].pPlayerViewSect->Flag;
 
-    int playerX = pPlayerActor->int_pos().X;
-    int playerY = pPlayerActor->int_pos().Y;
+    auto playerPos = pPlayerActor->spr.pos.XY();
 
-    int x = (sPlayerInput[nPlayer].xVel * 4) >> 2;
-    int y = (sPlayerInput[nPlayer].yVel * 4) >> 2;
-    int z = (pPlayerActor->int_zvel() * 4) >> 2;
+    DVector2 vect = sPlayerInput[nPlayer].vel;
+    double zz = pPlayerActor->vel.Z;
 
     if (pPlayerActor->vel.Z > 32)
         pPlayerActor->vel.Z = 32;
 
     if (PlayerList[nPlayer].bIsMummified)
     {
-        x /= 2;
-        y /= 2;
+        vect *= 0.5;
     }
 
 	auto spr_pos = pPlayerActor->spr.pos;
@@ -861,25 +1028,25 @@ void AIPlayer::Tick(RunListEvent* ev)
     nMove.setNone();
     if (bSlipMode)
     {
-        pPlayerActor->add_int_pos({ (x >> 14), (y >> 14), 0 });
+        pPlayerActor->spr.pos += vect;
 
         SetActor(pPlayerActor, pPlayerActor->spr.pos);
         pPlayerActor->spr.pos.Z = pPlayerActor->sector()->floorz;
     }
     else
     {
-        nMove = movesprite(pPlayerActor, x, y, z, 5120, -5120, CLIPMASK0);
+        nMove = movesprite(pPlayerActor, vect, zz, -20, CLIPMASK0);
 
         auto pPlayerSect = pPlayerActor->sector();
 
-        pushmove(pPlayerActor, &pPlayerSect, pPlayerActor->int_clipdist(), 5120, -5120, CLIPMASK0);
+        pushmove(pPlayerActor->spr.pos, &pPlayerSect, pPlayerActor->clipdist, 20, -20, CLIPMASK0);
         if (pPlayerSect != pPlayerActor->sector()) {
             ChangeActorSect(pPlayerActor, pPlayerSect);
         }
     }
 
     // loc_1A6E4
-    if (inside(pPlayerActor->int_pos().X, pPlayerActor->int_pos().Y, pPlayerActor->sector()) != 1)
+    if (inside(pPlayerActor->spr.pos.X, pPlayerActor->spr.pos.Y, pPlayerActor->sector()) != 1)
     {
         ChangeActorSect(pPlayerActor, spr_sect);
 
@@ -895,8 +1062,7 @@ void AIPlayer::Tick(RunListEvent* ev)
 
     if (bUnderwater)
     {
-        PlayerList[nPlayer].nDamage.X /= 2;
-        PlayerList[nPlayer].nDamage.Y /= 2;
+        PlayerList[nPlayer].nThrust /= 2;
     }
 
     // Trigger Ramses?
@@ -904,18 +1070,11 @@ void AIPlayer::Tick(RunListEvent* ev)
     {
         if (nTotalPlayers <= 1)
         {
-            auto ang = GetAngleToSprite(pPlayerActor, pSpiritSprite) & kAngleMask;
-            PlayerList[nPlayer].angle.settarget(DAngle::fromBuild(ang), true);
-            pPlayerActor->set_int_ang(ang);
+            pPlayerActor->spr.Angles = DRotator(nullAngle, GetAngleToSprite(pPlayerActor, pSpiritSprite), nullAngle);
+            pPlayerActor->backupang();
 
-            PlayerList[nPlayer].horizon.settarget(buildhoriz(0), true);
-
-            lPlayerXVel = 0;
-            lPlayerYVel = 0;
-
-            pPlayerActor->vel.X = 0;
-            pPlayerActor->vel.Y = 0;
-            pPlayerActor->vel.Z = 0;
+            sPlayerInput[nPlayer].vel.Zero();
+            pPlayerActor->vel.Zero();
 
             if (nFreeze < 1)
             {
@@ -924,8 +1083,8 @@ void AIPlayer::Tick(RunListEvent* ev)
                 StopLocalSound();
                 InitSpiritHead();
 
-                PlayerList[nPlayer].nDestVertPan = q16horiz(0);
-                PlayerList[nPlayer].horizon.settarget(buildhoriz(currentLevel->ex_ramses_horiz));
+                PlayerList[nPlayer].nDestVertPan = nullAngle;
+                pPlayerActor->spr.Angles.Pitch = currentLevel->ex_ramses_horiz;
             }
         }
         else
@@ -941,8 +1100,7 @@ void AIPlayer::Tick(RunListEvent* ev)
         if (bTouchFloor)
         {
             // Damage stuff..
-            PlayerList[nPlayer].nDamage.X /= 2;
-            PlayerList[nPlayer].nDamage.Y /= 2;
+            PlayerList[nPlayer].nThrust /= 2;
 
             if (nPlayer == nLocalPlayer)
             {
@@ -952,8 +1110,8 @@ void AIPlayer::Tick(RunListEvent* ev)
                     zVelB = -zVelB;
                 }
 
-                if (zVelB > 2 && !PlayerList[nPlayer].horizon.horiz.asq16() && cl_slopetilting) {
-                    PlayerList[nPlayer].nDestVertPan = q16horiz(0);
+                if (zVelB > 2 && !PlayerList[nPlayer].pActor->spr.Angles.Pitch.Sgn() && cl_slopetilting) {
+                    PlayerList[nPlayer].nDestVertPan = nullAngle;
                 }
             }
 
@@ -978,63 +1136,8 @@ void AIPlayer::Tick(RunListEvent* ev)
             }
         }
 
-        if (nMove.type == kHitSector || nMove.type == kHitWall)
-        {
-            sectortype* sect;
-            int nNormal = 0;
-
-            if (nMove.type == kHitSector)
-            {
-                sect = nMove.hitSector;
-                // Hm... Normal calculation here was broken.
-            }
-            else //if (nMove.type == kHitWall)
-            {
-                sect = nMove.hitWall->nextSector();
-                nNormal = GetWallNormal(nMove.hitWall);
-            }
-
-            if (sect != nullptr)
-            {
-                if ((sect->hitag == 45) && bTouchFloor)
-                {
-                    int nDiff = AngleDiff(DAngle::fromBuild(nNormal), DAngle::fromBuild((pPlayerActor->int_ang() + 1024) & kAngleMask));
-
-                    if (nDiff < 0) {
-                        nDiff = -nDiff;
-                    }
-
-                    if (nDiff <= 256)
-                    {
-                        PlayerList[nPlayer].pPlayerPushSect = sect;
-
-                        int xvel = sPlayerInput[nPlayer].xVel;
-                        int yvel = sPlayerInput[nPlayer].yVel;
-                        int nMyAngle = getangle(xvel, yvel);
-
-                        setsectinterpolate(sect);
-                        MoveSector(sect, nMyAngle, &xvel, &yvel);
-
-                        if (PlayerList[nPlayer].nPlayerPushSound <= -1)
-                        {
-                            PlayerList[nPlayer].nPlayerPushSound = 1;
-                            int nBlock = PlayerList[nPlayer].pPlayerPushSect->extra;
-                            DExhumedActor* pBlockActor = sBlockInfo[nBlock].pActor;
-
-                            D3PlayFX(StaticSound[kSound23], pBlockActor, 0x4000);
-                        }
-                        else
-                        {
-                            pPlayerActor->spr.pos = spr_pos;
-                            ChangeActorSect(pPlayerActor, spr_sect);
-                        }
-
-                        movesprite(pPlayerActor, xvel, yvel, z, 5120, -5120, CLIPMASK0);
-                        goto sectdone;
-                    }
-                }
-            }
-        }
+        if (CheckMovingBlocks(nPlayer, nMove, spr_pos, spr_sect))
+            goto sectdone;
     }
 
     // loc_1AB46:
@@ -1051,26 +1154,18 @@ void AIPlayer::Tick(RunListEvent* ev)
 sectdone:
     if (!PlayerList[nPlayer].bPlayerPan && !PlayerList[nPlayer].bLockPan)
     {
-        PlayerList[nPlayer].nDestVertPan = q16horiz(clamp((int(spr_pos.Z * zworldtoint) - pPlayerActor->int_pos().Z) << 9, gi->playerHorizMin(), gi->playerHorizMax()));
+        PlayerList[nPlayer].nDestVertPan = maphoriz((pPlayerActor->spr.pos.Z - spr_pos.Z) * 2.);
     }
 
-    playerX -= pPlayerActor->int_pos().X;
-    playerY -= pPlayerActor->int_pos().Y;
+    playerPos -= pPlayerActor->spr.pos.XY();
 
-    uint32_t sqrtNum = playerX * playerX + playerY * playerY;
-
-    if (sqrtNum > INT_MAX)
-    {
-        DPrintf(DMSG_WARNING, "%s %d: overflow\n", __func__, __LINE__);
-        sqrtNum = INT_MAX;
-    }
 
     PlayerList[nPlayer].ototalvel = PlayerList[nPlayer].totalvel;
-    PlayerList[nPlayer].totalvel = ksqrt(sqrtNum);
+    PlayerList[nPlayer].totalvel = int(playerPos.Length() * worldtoint);
 
     auto pViewSect = pPlayerActor->sector();
 
-    double EyeZ = PlayerList[nPlayer].eyelevel + pPlayerActor->spr.pos.Z + nQuake[nPlayer];
+    double EyeZ = pPlayerActor->getOffsetZ() + nQuake[nPlayer];
 
     while (1)
     {
@@ -1100,7 +1195,7 @@ sectdone:
                 double fz = pViewSect->floorz - 20;
                 pPlayerActor->spr.pos = DVector3(spr_pos.XY(), fz);
 
-                auto coll = movesprite(pPlayerActor, x, y, 0, 5120, 0, CLIPMASK0);
+                auto coll = movesprite(pPlayerActor, vect, 0, 0, CLIPMASK0);
                 if (coll.type == kHitWall)
                 {
                     ChangeActorSect(pPlayerActor, pPlayerActor->sector());
@@ -1118,8 +1213,7 @@ sectdone:
     // loc_1ADAF
     PlayerList[nPlayer].pPlayerViewSect = pViewSect;
 
-    PlayerList[nPlayer].nPlayerD.X = int((pPlayerActor->spr.pos.X - spr_pos.X) * worldtoint);
-    PlayerList[nPlayer].nPlayerD.Y = int((pPlayerActor->spr.pos.Y - spr_pos.Y) * worldtoint);
+    PlayerList[nPlayer].nPlayerD = (pPlayerActor->spr.pos - spr_pos);
 
     int var_5C = pViewSect->Flag & kSectUnderwater;
 
@@ -1262,7 +1356,7 @@ sectdone:
         HitInfo near;
 
         // neartag finds the nearest sector, wall, and sprite which has its hitag and/or lotag set to a value.
-        neartag(pPlayerActor->int_pos(), pPlayerActor->sector(), pPlayerActor->int_ang(), near, 1024, 2);
+        neartag(pPlayerActor->spr.pos, pPlayerActor->sector(), pPlayerActor->spr.Angles.Yaw, near, 128., NT_Hitag | NT_NoSpriteCheck);
 
         DExhumedActor* pActorB;
         feebtag(pPlayerActor->spr.pos, pPlayerActor->sector(), &pActorB, var_30, 48);
@@ -2160,7 +2254,7 @@ sectdone:
                         ChangeActorStat(pActorB, 899);
                     }
 
-                    SetSavePoint(nPlayer, pPlayerActor->spr.pos, pPlayerActor->sector(), pPlayerActor->spr.angle);
+                    SetSavePoint(nPlayer, pPlayerActor->spr.pos, pPlayerActor->sector(), pPlayerActor->spr.Angles.Yaw);
                     break;
                 }
 
@@ -2232,7 +2326,7 @@ sectdone:
             // loc_1BC57:
 
             // CHECKME - are we finished with 'nSector' variable at this point? if so, maybe set it to pPlayerActor->spr.sector so we can make this code a bit neater. Don't assume pPlayerActor->spr.sector == nSector here!!
-            if (nStandHeight > (pPlayerActor->sector()->int_floorz() - pPlayerActor->sector()->int_ceilingz())) {
+            if (nStandHeight > (pPlayerActor->sector()->floorz - pPlayerActor->sector()->ceilingz)) {
                 var_48 = 1;
             }
 
@@ -2264,8 +2358,8 @@ sectdone:
                 }
                 else
                 {
-                    if (PlayerList[nPlayer].eyelevel < -32.5) {
-                        PlayerList[nPlayer].eyelevel += ((-32.5 - PlayerList[nPlayer].eyelevel) * 0.5);
+                    if (pPlayerActor->viewzoffset < -32.5) {
+                        pPlayerActor->viewzoffset += ((-32.5 - pPlayerActor->viewzoffset) * 0.5);
                     }
 
                 loc_1BD2E:
@@ -2283,7 +2377,7 @@ sectdone:
             {
                 if (PlayerList[nPlayer].nHealth > 0)
                 {
-                    PlayerList[nPlayer].eyelevel += (nActionEyeLevel[nAction] - PlayerList[nPlayer].eyelevel) * 0.5;
+                    pPlayerActor->viewzoffset += (nActionEyeLevel[nAction] - pPlayerActor->viewzoffset) * 0.5;
 
                     if (bUnderwater)
                     {
@@ -2377,17 +2471,19 @@ sectdone:
 
         if (SyncInput())
         {
-            pPlayer->horizon.applyinput(sPlayerInput[nPlayer].pan, &sPlayerInput[nLocalPlayer].actions);
+            pPlayer->pActor->spr.Angles.Pitch += DAngle::fromDeg(sPlayerInput[nPlayer].pan);
         }
+
+        pPlayer->Angles.doPitchKeys(&sPlayerInput[nLocalPlayer].actions, sPlayerInput[nPlayer].pan);
 
         if (actions & (SB_AIM_UP | SB_AIM_DOWN) || sPlayerInput[nPlayer].pan)
         {
-            pPlayer->nDestVertPan = pPlayer->horizon.horiz;
+            pPlayer->nDestVertPan = pPlayer->pActor->spr.Angles.Pitch;
             pPlayer->bPlayerPan = pPlayer->bLockPan = true;
         }
         else if (actions & (SB_LOOK_UP | SB_LOOK_DOWN | SB_CENTERVIEW))
         {
-            pPlayer->nDestVertPan = pPlayer->horizon.horiz;
+            pPlayer->nDestVertPan = pPlayer->pActor->spr.Angles.Pitch;
             pPlayer->bPlayerPan = pPlayer->bLockPan = false;
         }
 
@@ -2398,10 +2494,9 @@ sectdone:
 
         if (cl_slopetilting && !pPlayer->bPlayerPan && !pPlayer->bLockPan)
         {
-            double nVertPan = (pPlayer->nDestVertPan - pPlayer->horizon.horiz).asbuildf() * 0.25;
-            if (nVertPan != 0)
+            if (double nVertPan = deltaangle(pPlayer->pActor->spr.Angles.Pitch, pPlayer->nDestVertPan).Tan() * 32.)
             {
-                pPlayer->horizon.addadjustment(buildfhoriz(abs(nVertPan) >= 4 ? clamp(nVertPan, -4., 4.) : nVertPan * 2.));
+                pPlayer->pActor->spr.Angles.Pitch += maphoriz(abs(nVertPan) >= 4 ? clamp(nVertPan, -4., 4.) : nVertPan * 2.);
             }
         }
     }
@@ -2487,7 +2582,7 @@ sectdone:
                 sectortype* mouthSect;
                 auto pos = WheresMyMouth(nPlayer, &mouthSect);
 
-                BuildAnim(nullptr, 71, 0, DVector3(pos.XY(), pPlayerActor->spr.pos.Z + 15), mouthSect, 75, 128);
+                BuildAnim(nullptr, 71, 0, DVector3(pos.XY(), pPlayerActor->spr.pos.Z + 15), mouthSect, 1.171875, 128);
             }
             break;
         case 17:
@@ -2505,35 +2600,34 @@ sectdone:
     {
         initpos = pPlayerActor->spr.pos;
         initsectp = pPlayerActor->sector();
-        inita = pPlayerActor->spr.angle;
+        inita = pPlayerActor->spr.Angles.Yaw;
     }
 
     if (!PlayerList[nPlayer].nHealth)
     {
-        PlayerList[nPlayer].nDamage.Y = 0;
-        PlayerList[nPlayer].nDamage.X = 0;
+        PlayerList[nPlayer].nThrust.Zero();
 
-        if (PlayerList[nPlayer].eyelevel >= -11)
+        if (pPlayerActor->viewzoffset >= -11)
         {
-            PlayerList[nPlayer].eyelevel = -11;
+            pPlayerActor->viewzoffset = -11;
             dVertPan[nPlayer] = 0;
         }
         else
         {
-            if (PlayerList[nPlayer].horizon.horiz.asq16() < 0)
+            if (PlayerList[nPlayer].pActor->spr.Angles.Pitch.Sgn() > 0)
             {
-                PlayerList[nPlayer].horizon.settarget(buildhoriz(0));
-                PlayerList[nPlayer].eyelevel -= dVertPan[nPlayer];
+                pPlayerActor->spr.Angles.Pitch = nullAngle;
+                pPlayerActor->viewzoffset -= dVertPan[nPlayer];
             }
             else
             {
-                PlayerList[nPlayer].horizon.addadjustment(buildhoriz(dVertPan[nPlayer]));
+                PlayerList[nPlayer].pActor->spr.Angles.Pitch -= maphoriz(dVertPan[nPlayer]);
 
-                if (PlayerList[nPlayer].horizon.horiz.asq16() > gi->playerHorizMax())
+                if (PlayerList[nPlayer].pActor->spr.Angles.Pitch.Degrees() <= 38)
                 {
-                    PlayerList[nPlayer].horizon.settarget(q16horiz(gi->playerHorizMax()));
+                    PlayerList[nPlayer].pActor->spr.Angles.Pitch = DAngle::fromDeg(-37.72);
                 }
-                else if (PlayerList[nPlayer].horizon.horiz.asq16() <= 0)
+                else if (PlayerList[nPlayer].pActor->spr.Angles.Pitch.Sgn() >= 0)
                 {
                     if (!(pPlayerActor->sector()->Flag & kSectUnderwater))
                     {
@@ -2551,7 +2645,7 @@ sectdone:
 
     if (pPlayerActor->sector()->pAbove != nullptr)
     {
-        pDopple->spr.angle = pPlayerActor->spr.angle;
+        pDopple->spr.Angles.Yaw = pPlayerActor->spr.Angles.Yaw;
         ChangeActorSect(pDopple, pPlayerActor->sector()->pAbove);
         pDopple->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     }
@@ -2563,6 +2657,11 @@ sectdone:
     MoveWeapons(nPlayer);
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 FSerializer& Serialize(FSerializer& arc, const char* keyname, Player& w, Player* def)
 {
@@ -2589,8 +2688,8 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, Player& w, Player*
             ("field3a", w.nState)
             ("field3c", w.nLastWeapon)
             ("seq", w.nSeq)
-            ("horizon", w.horizon)
-            ("angle", w.angle)
+            ("horizon", w.Angles)
+            ("angle", w.Angles)
             ("lives", w.nLives)
             ("double", w.nDouble)
             ("invisible", w.nInvisible)
@@ -2604,8 +2703,8 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, Player& w, Player*
             ("dx", w.nPlayerD.X)
             ("dy", w.nPlayerD.Y)
             ("pistolclip", w.nPistolClip)
-            ("xdamage", w.nDamage.X)
-            ("ydamage", w.nDamage.Y)
+            ("thrustx", w.nThrust.X)
+            ("thrusty", w.nThrust.Y)
             ("dopplesprite", w.pDoppleSprite)
             ("oldweapon", w.nPlayerOldWeapon)
             ("clip", w.nPlayerClip)
@@ -2616,7 +2715,6 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, Player& w, Player*
             ("floorspr", w.pPlayerFloorSprite)
             ("save", w.sPlayerSave)
             ("totalvel", w.totalvel)
-            ("eyelevel", w.eyelevel)
             ("grenade", w.pPlayerGrenade)
 
             .EndObject();
@@ -2640,9 +2738,7 @@ void SerializePlayer(FSerializer& arc)
 {
     if (arc.BeginObject("player"))
     {
-        arc("lxvel", lPlayerXVel)
-            ("lyvel", lPlayerYVel)
-            ("bobangle", bobangle)
+        arc ("bobangle", bobangle)
             ("standheight", nStandHeight)
             ("playercount", PlayerCount)
             ("netstartsprites", nNetStartSprites)
@@ -2655,6 +2751,11 @@ void SerializePlayer(FSerializer& arc)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 DEFINE_FIELD_X(ExhumedPlayer, Player, nHealth);
 DEFINE_FIELD_X(ExhumedPlayer, Player, nLives);
@@ -2673,7 +2774,8 @@ DEFINE_FIELD_X(ExhumedPlayer, Player, keys);
 DEFINE_FIELD_X(ExhumedPlayer, Player, nMagic);
 DEFINE_FIELD_X(ExhumedPlayer, Player, nItem);
 DEFINE_FIELD_X(ExhumedPlayer, Player, items);
-DEFINE_FIELD_X(ExhumedPlayer, Player, nAmmo); // TODO - kMaxWeapons?
+DEFINE_FIELD_X(ExhumedPlayer, Player, nAmmo); // TODO - kMaxWeapons? 
+DEFINE_FIELD_X(ExhumedPlayer, Player, nPlayerWeapons);
 
 DEFINE_FIELD_X(ExhumedPlayer, Player, nCurrentWeapon);
 DEFINE_FIELD_X(ExhumedPlayer, Player, nSeqSize2);
@@ -2710,7 +2812,7 @@ DEFINE_ACTION_FUNCTION(_ExhumedPlayer, IsUnderwater)
 DEFINE_ACTION_FUNCTION(_ExhumedPlayer, GetAngle)
 {
     PARAM_SELF_STRUCT_PROLOGUE(Player);
-    ACTION_RETURN_INT(self->pActor->int_ang());
+    ACTION_RETURN_INT(self->pActor->spr.Angles.Yaw.Buildang());
 }
 
 

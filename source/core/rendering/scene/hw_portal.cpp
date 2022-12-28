@@ -428,15 +428,14 @@ void HWScenePortalBase::ClearClipper(HWDrawInfo *di, Clipper *clipper)
 
 inline int P_GetLineSide(const DVector2& pos, const walltype* line)
 {
-	auto delta = WallDelta(line);
-	double v = (pos.Y - WallStartY(line) * delta.X + WallStartX(line) - pos.X) * delta.Y;
+	auto v = PointOnLineSide(pos, line);
 	return v < -1. / 65536. ? -1 : v > 1. / 65536 ? 1 : 0;
 }
 
 bool P_ClipLineToPortal(walltype* line, walltype* portal, DVector2 view)
 {
-	int behind1 = P_GetLineSide(WallStart(line), portal);
-	int behind2 = P_GetLineSide(WallEnd(line), portal);
+	int behind1 = P_GetLineSide(line->pos, portal);
+	int behind2 = P_GetLineSide(line->point2Wall()->pos, portal);
 
 	if (behind1 == 0 && behind2 == 0)
 	{
@@ -461,8 +460,8 @@ bool P_ClipLineToPortal(walltype* line, walltype* portal, DVector2 view)
 	{
 		// The line intersects with the portal straight, so we need to do another check to see how both ends of the portal lie in relation to the viewer.
 		int viewside = P_GetLineSide(view, line);
-		int p1side = P_GetLineSide(WallStart(portal), line);
-		int p2side = P_GetLineSide(WallEnd(portal), line);
+		int p1side = P_GetLineSide(portal->pos, line);
+		int p2side = P_GetLineSide(portal->point2Wall()->pos, line);
 		// Do the same handling of points on the portal straight as above.
 		if (p1side == 0) p1side = p2side;
 		else if (p2side == 0) p2side = p1side;
@@ -479,9 +478,9 @@ int HWLinePortal::ClipSeg(walltype *seg, const DVector3 &viewpos)
 int HWLinePortal::ClipSector(sectortype *sub)
 {
 	// this seg is completely behind the mirror
-	for (int i = 0; i<sub->wallnum; i++)
+	for (unsigned i = 0; i<sub->walls.Size(); i++)
 	{
-		if (PointOnLineSide(WallStart(sub->firstWall()), line) == 0) return PClip_Inside;
+		if (PointOnLineSide(sub->walls[0].pos, line) == 0) return PClip_Inside;
 	}
 	return PClip_InFront;
 }
@@ -603,8 +602,11 @@ bool HWLineToLinePortal::Setup(HWDrawInfo *di, FRenderState &rstate, Clipper *cl
 	auto &vp = di->Viewpoint;
 	di->mClipPortal = this;
 
-	auto srccenter = (WallStart(origin) + WallEnd(origin)) / 2;
-	auto destcenter = (WallStart(line) + WallEnd(line)) / 2;
+	auto srccenter = origin->center();
+	srccenter.Y = -srccenter.Y;
+	auto destcenter = line->center();
+	destcenter.Y = -destcenter.Y;
+
 	DVector2 npos = vp.Pos - srccenter + destcenter;
 
 #if 0 // Blood does not rotate these. Needs map checking to make sure it can be added.
@@ -621,8 +623,8 @@ bool HWLineToLinePortal::Setup(HWDrawInfo *di, FRenderState &rstate, Clipper *cl
 
 	// Nothing in the entire setup mandates that both lines have the same length.
 	// So we need to calculate the clip range from the origin line, not the destination, because that is what determines the visible part of the scene.
-	int origx = vp.Pos.X * 16;
-	int origy = vp.Pos.Y * -16;
+	auto oldvp = vp.Pos;
+
 
 	vp.SectNums = nullptr;
 	vp.SectCount = line->sector;
@@ -634,8 +636,8 @@ bool HWLineToLinePortal::Setup(HWDrawInfo *di, FRenderState &rstate, Clipper *cl
 
 	ClearClipper(di, clipper);
 
-	auto startan = RAD2BAM(atan2(origin->wall_int_pos().Y - origy, origin->wall_int_pos().X - origx));
-	auto endan = RAD2BAM(atan2(origin->point2Wall()->wall_int_pos().Y - origy, origin->point2Wall()->wall_int_pos().X - origx));
+	auto startan = RAD2BAM(atan2(origin->pos.Y + oldvp.Y, origin->pos.X - oldvp.X));
+	auto endan = RAD2BAM(atan2(origin->point2Wall()->pos.Y + oldvp.Y, origin->point2Wall()->pos.X - oldvp.X));
 	clipper->RestrictVisibleRange(startan, endan);
 	return true;
 }
@@ -669,7 +671,8 @@ bool HWLineToSpritePortal::Setup(HWDrawInfo* di, FRenderState& rstate, Clipper* 
 	auto& vp = di->Viewpoint;
 	di->mClipPortal = this;
 
-	auto srccenter = (WallStart(origin) + WallEnd(origin)) / 2;
+	auto srccenter = origin->center();
+	srccenter.Y = -srccenter.Y;
 	DVector2 destcenter = { camera->spr.pos.X, -camera->spr.pos.Y };
 	DVector2 npos = vp.Pos - srccenter + destcenter;
 
@@ -793,7 +796,7 @@ bool HWSectorStackPortal::Setup(HWDrawInfo *di, FRenderState &rstate, Clipper *c
 	auto portal = origin;
 	auto &vp = di->Viewpoint;
 
-	vp.Pos += DVector3(portal->dx / 16., portal->dy / -16., portal->dz / -256.);
+	vp.Pos += DVector3(portal->delta.X, -portal->delta.Y, -portal->delta.Z);
 	vp.SectNums = portal->targets.Data();
 	vp.SectCount = portal->targets.Size();
 	type = origin->type;

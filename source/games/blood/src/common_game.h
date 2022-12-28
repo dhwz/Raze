@@ -42,7 +42,6 @@ enum
 	kMaxTiles = MAXTILES,
 	kMaxStatus = MAXSTATUS,
 	kMaxPlayers = 8,
-	kMaxVoxels = MAXVOXELS,
 
 	kTicRate = 120,
 	kTicsPerFrame = 4,
@@ -503,10 +502,6 @@ struct VECTOR2D {
 	int dx, dy;
 };
 
-struct Aim {
-	int dx, dy, dz;
-};
-
 #pragma pack(pop)
 
 inline int ClipLow(int a, int b)
@@ -537,9 +532,20 @@ inline uint8_t Chance(int a1)
 	return wrand() < (a1 >> 1);
 }
 
+// ------------------------------------------------
 inline unsigned int Random(int a1)
 {
 	return MulScale(wrand(), a1, 15);
+}
+
+inline double RandomF(int a1, int scale = 16)
+{
+	return FixedToFloat(Random(a1), scale);
+}
+
+inline double RandomD(double val, int scale = 16)
+{
+	return FixedToFloat(Random(FloatToFixed(val, scale)), scale);
 }
 
 inline DAngle RandomAngle(int base = 2048)
@@ -547,20 +553,38 @@ inline DAngle RandomAngle(int base = 2048)
 	return DAngle::fromBuild(MulScale(wrand(), base, 15));
 }
 
+// ------------------------------------------------
 inline int Random2(int a1)
 {
 	return MulScale(wrand(), a1, 14) - a1;
 }
 
-inline double Random2F(int a1)
+inline double Random2F(int a1, int scale = 16)
 {
-	return FixedToFloat(MulScale(wrand(), a1, 14) - a1);
+	return FixedToFloat(Random2(a1), scale);
 }
 
+inline double Random2D(double val, int scale)
+{
+	return FixedToFloat(Random2(FloatToFixed(val, scale)), scale);
+}
+
+inline DAngle Random2A(int a1)
+{
+	return DAngle::fromBuild(MulScale(wrand(), a1, 14) - a1);
+}
+
+// ------------------------------------------------
 inline int Random3(int a1)
 {
 	return MulScale(wrand() + wrand(), a1, 15) - a1;
 }
+
+inline double Random3F(int a1, int scale = 16)
+{
+	return FixedToFloat(Random3(a1), scale);
+}
+
 
 inline unsigned int QRandom(int a1)
 {
@@ -572,50 +596,22 @@ inline int QRandom2(int a1)
 	return MulScale(qrand(), a1, 14) - a1;
 }
 
+inline double QRandom2F(double a1)
+{
+	return (qrand() * (1. / 16384.) * a1) - a1;
+}
+
 inline int scale(int a1, int a2, int a3, int a4, int a5)
 {
 	return a4 + (a5 - a4) * (a1 - a2) / (a3 - a2);
 }
 
-inline int mulscale16r(int a, int b)
+inline int mulscale16r(int a, int b) // do not delete!
 {
 	int64_t acc = 1 << (16 - 1);
 	acc += ((int64_t)a) * b;
 	return (int)(acc >> 16);
 }
-
-inline int mulscale30r(int a, int b)
-{
-	int64_t acc = 1 << (30 - 1);
-	acc += ((int64_t)a) * b;
-	return (int)(acc >> 30);
-}
-
-inline int dmulscale30r(int a, int b, int c, int d)
-{
-	int64_t acc = 1 << (30 - 1);
-	acc += ((int64_t)a) * b;
-	acc += ((int64_t)c) * d;
-	return (int)(acc >> 30);
-}
-
-inline int approxDist(int dx, int dy)
-{
-	dx = abs(dx);
-	dy = abs(dy);
-	if (dx > dy)
-		dy = (3 * dy) >> 3;
-	else
-		dx = (3 * dx) >> 3;
-	return dx + dy;
-}
-
-// this is merely a refactoring aid to allow partial upgrading of certain functions.
-inline int approxDist(const DVector2& vect)
-{
-	return int(vect.Length() * worldtoint);
-}
-
 class Rect {
 public:
 	int x0, y0, x1, y1;

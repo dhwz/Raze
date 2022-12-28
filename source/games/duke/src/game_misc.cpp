@@ -57,7 +57,9 @@ BEGIN_DUKE_NS
 
 std::pair<DVector3, DAngle> GameInterface::GetCoordinates()
 {
-	return std::make_pair(ps[screenpeek].pos, ps[screenpeek].angle.ang);
+	auto pActor = ps[screenpeek].GetActor();
+	if (!pActor) return std::make_pair(DVector3(DBL_MAX, 0, 0), nullAngle);
+	return std::make_pair(pActor->spr.pos, pActor->spr.Angles.Yaw);
 }
 
 GameStats GameInterface::getStats()
@@ -149,7 +151,8 @@ void FTA(int q, player_struct* p)
 void GameInterface::DrawBackground()
 {
 	twod->ClearScreen();
-	auto tex = tileGetTexture(TILE_MENUSCREEN);
+	auto tex = TexMan.FindGameTexture("MENUSCREEN");
+	if (!tex) return;
 	PalEntry color = 0xff808080;
 	if (!hud_bgstretch)
 		DrawTexture(twod, tex, 0, 0, DTA_FullscreenEx, FSMode_ScaleToFit43, DTA_Color, color, TAG_DONE);
@@ -271,14 +274,14 @@ void drawoverlays(double interpfrac)
 				}
 				else
 				{
-					cposxy = interpolatedvalue(pp->opos, pp->pos, interpfrac).XY();
-					cang = !SyncInput() ? pp->angle.ang : interpolatedvalue(pp->angle.oang, pp->angle.ang, interpfrac);
+					cposxy = pp->GetActor()->interpolatedpos(interpfrac).XY();
+					cang = pp->Angles.getRenderAngles(interpfrac).Yaw;
 				}
 			}
 			else
 			{
-				cposxy = pp->opos.XY();
-				cang = pp->angle.oang;
+				cposxy = pp->GetActor()->opos.XY();
+				cang = pp->GetActor()->PrevAngles.Yaw;
 			}
 			DrawOverheadMap(cposxy, cang, interpfrac);
 			RestoreInterpolations();
@@ -289,7 +292,8 @@ void drawoverlays(double interpfrac)
 
 	if (ps[myconnectindex].newOwner == nullptr && ud.cameraactor == nullptr)
 	{
-		DrawCrosshair(TILE_CROSSHAIR, ps[screenpeek].last_extra, -pp->angle.look_anghalf(interpfrac), pp->over_shoulder_on ? 2.5 : 0, isRR() ? 0.5 : 1);
+		auto offsets = pp->Angles.getCrosshairOffsets(interpfrac);
+		DrawCrosshair(TILE_CROSSHAIR, ps[screenpeek].last_extra, offsets.first.X, offsets.first.Y + (pp->over_shoulder_on ? 2.5 : 0), isRR() ? 0.5 : 1, offsets.second);
 	}
 
 	if (paused == 2)
@@ -349,26 +353,15 @@ int startrts(int lumpNum, int localPlayer)
 		RTS_IsInitialized() && rtsplaying == 0 && (snd_speech & (localPlayer ? 1 : 4)))
 	{
 		auto sid = RTS_GetSoundID(lumpNum - 1);
-		if (sid != -1)
+		if (sid.isvalid())
 		{
-			S_PlaySound(sid, CHAN_AUTO, CHANF_UI);
+			S_PlaySound(sid.index() - 1, CHAN_AUTO, CHANF_UI);
 			rtsplaying = 7;
 			return 1;
 		}
 	}
 
 	return 0;
-}
-
-ReservedSpace GameInterface::GetReservedScreenSpace(int viewsize)
-{
-	// todo: factor in the frag bar: tileHeight(TILE_FRAGBAR)
-	int sbar = tileHeight(TILE_BOTTOMSTATUSBAR);
-	if (isRR())
-	{
-		sbar >>= 1;
-	}
-	return { 0, sbar };
 }
 
 ::GameInterface* CreateInterface()
@@ -396,7 +389,7 @@ bool GameInterface::DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos,
 			DukeSectIterator it(ii);
 			while (auto act = it.Next())
 			{
-				if (act == ps[screenpeek].actor || (act->spr.cstat & CSTAT_SPRITE_INVISIBLE) || act->spr.cstat == CSTAT_SPRITE_BLOCK_ALL || act->spr.xrepeat == 0) continue;
+				if (act == ps[screenpeek].actor || (act->spr.cstat & CSTAT_SPRITE_INVISIBLE) || act->spr.cstat == CSTAT_SPRITE_BLOCK_ALL || act->spr.scale.X == 0) continue;
 
 				if ((act->spr.cstat & CSTAT_SPRITE_BLOCK_ALL) != 0)
 				{
@@ -429,11 +422,11 @@ bool GameInterface::DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos,
 		{
 			auto& pp = ps[p];
 			auto act = pp.GetActor();
-			int i = TILE_APLAYERTOP + (act->int_xvel() > 16 && pp.on_ground ? (PlayClock >> 4) & 3 : 0);
-			double j = clamp(czoom * act->spr.yrepeat + abs(pp.truefz - pp.pos.Z), 21.5, 128.) * REPEAT_SCALE;
+			int i = TILE_APLAYERTOP + (act->vel.X > 1 && pp.on_ground ? (PlayClock >> 4) & 3 : 0);
+			double j = clamp(czoom * act->spr.scale.Y + abs(pp.truefz - pp.GetActor()->getOffsetZ()) * REPEAT_SCALE, 0.333, 2.);
 
 			auto const vec = OutAutomapVector(mxy - cpos, cangvect, czoom, xydim);
-			auto const daang = -((!SyncInput() ? act->spr.angle : act->interpolatedangle(interpfrac)) - cang).Normalized360().Degrees();
+			auto const daang = -((!SyncInput() ? act->spr.Angles.Yaw : act->interpolatedyaw(interpfrac)) - cang).Normalized360().Degrees();
 
 			DrawTexture(twod, tileGetTexture(i), vec.X, vec.Y, DTA_TranslationIndex, TRANSLATION(Translation_Remap + setpal(&pp), act->spr.pal), DTA_CenterOffset, true,
 				DTA_Rotate, daang, DTA_Color, shadeToLight(act->spr.shade), DTA_ScaleX, j, DTA_ScaleY, j, TAG_DONE);

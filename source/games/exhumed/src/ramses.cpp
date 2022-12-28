@@ -55,8 +55,7 @@ int word_964E8 = 0;
 int word_964EA = 0;
 int word_964EC = 10;
 
-int nSpiritRepeatX;
-int nSpiritRepeatY;
+DVector2 nSpiritScale;
 TObjPtr<DExhumedActor*> pSpiritSprite;
 int nPixelsToShow;
 int nTalkTime = 0;
@@ -67,10 +66,7 @@ void InitSpiritHead()
     nPixels = 0;
     auto pSpiritSpr = pSpiritSprite;
 
-    nSpiritRepeatX = pSpiritSpr->spr.xrepeat;
-    nSpiritRepeatY = pSpiritSpr->spr.yrepeat;
-
-    tileLoad(kTileRamsesNormal); // Ramses Normal Head
+	nSpiritScale = pSpiritSpr->spr.scale;
 
     ExhumedSpriteIterator it;
     while (auto act = it.Next())
@@ -81,8 +77,8 @@ void InitSpiritHead()
         }
     }
 
-	auto pTile = tilePtr(kTileRamsesNormal); // Ramses Normal Head
-	auto pGold = tilePtr(kTileRamsesGold);
+	auto pTile = GetRawPixels(tileGetTextureID(kTileRamsesNormal)); // Ramses Normal Head
+	auto pGold = GetRawPixels(tileGetTextureID(kTileRamsesGold));
     for (int x = 0; x < 97; x++)
     {
         for (int y = 0; y < 106; y++)
@@ -117,21 +113,19 @@ void InitSpiritHead()
     }
 
 
-    pSpiritSpr->spr.yrepeat = 140;
-    pSpiritSpr->spr.xrepeat = 140;
+	pSpiritSpr->spr.scale = DVector2(2.1875, 2.1875);
     pSpiritSpr->spr.picnum = kTileRamsesWorkTile;
 
     nHeadStage = 0;
 
     // work tile is twice as big as the normal head size
-	Worktile = TileFiles.tileCreate(kTileRamsesWorkTile, kSpiritY * 2, kSpiritX * 2);
+	Worktile = GetWritablePixels(tileGetTextureID(kTileRamsesWorkTile));
 
     pSpiritSpr->spr.cstat &= ~CSTAT_SPRITE_INVISIBLE;
 
     nHeadTimeStart = PlayClock;
 
     memset(Worktile, TRANSPARENT_INDEX, WorktileSize);
-    TileFiles.InvalidateTile(kTileRamsesWorkTile);
 
     nPixelsToShow = 0;
 
@@ -161,7 +155,7 @@ void InitSpiritHead()
 
 void DimSector(sectortype* pSector)
 {
-	for(auto& wal : wallsofsector(pSector))
+	for(auto& wal : pSector->walls)
     {
         if (wal.shade < 40) {
             wal.shade++;
@@ -179,7 +173,7 @@ void DimSector(sectortype* pSector)
 
 void CopyHeadToWorkTile(int nTile)
 {
-	const uint8_t* pSrc = tilePtr(nTile);
+	const uint8_t* pSrc = GetRawPixels(tileGetTextureID(nTile));
     uint8_t *pDest = &Worktile[212 * 49 + 53];
 
     for (unsigned i = 0; i < kSpiritY; i++)
@@ -191,14 +185,18 @@ void CopyHeadToWorkTile(int nTile)
     }
 }
 
+//---------------------------------------------------------------------------
+//
 // This is based on BuildGDX's version of this function which was a lot less cryptic than PCExhumed's.
-void DoSpiritHead() 
+//
+//---------------------------------------------------------------------------
+
+void DoSpiritHead()
 {
     static int dimSectCount = 0;
     auto pSpiritSpr = pSpiritSprite;
 
     sPlayerInput[0].actions |= SB_CENTERVIEW;
-    TileFiles.InvalidateTile(kTileRamsesWorkTile);
 
     switch (nHeadStage) 
     {
@@ -260,10 +258,11 @@ void DoSpiritHead()
 
         if (nMouthTile != 0) 
         {
-            int srctile = nMouthTile + 598;
-            auto src = tilePtr(srctile);
-            int sizx = tileWidth(srctile);
-            int sizy = tileHeight(srctile);
+            FTextureID srctile = tileGetTextureID(nMouthTile + 598);
+            auto src = GetRawPixels(srctile);
+            auto tex = TexMan.GetGameTexture(srctile);
+            int sizx = tex->GetTexelWidth();
+            int sizy = tex->GetTexelHeight();
             int workptr = 212 * (97 - sizx / 2) + 159 - sizy;
             int srcptr = 0;
             while (sizx > 0) 
@@ -379,18 +378,18 @@ void DoSpiritHead()
 
         if (nHeadStage == 1) 
         {
-            if (pSpiritSpr->spr.xrepeat > nSpiritRepeatX) 
+            if (pSpiritSpr->spr.scale.X > nSpiritScale.X)
             {
-                pSpiritSpr->spr.xrepeat -= 2;
-                if (pSpiritSpr->spr.xrepeat < nSpiritRepeatX)
-                    pSpiritSpr->spr.xrepeat = (uint8_t)nSpiritRepeatX;
+                pSpiritSpr->spr.scale.X += (-0.03125);
+                if (pSpiritSpr->spr.scale.X < nSpiritScale.X)
+                    pSpiritSpr->spr.scale.X = (nSpiritScale.X);
             }
-            if (pSpiritSpr->spr.yrepeat > nSpiritRepeatY) 
-            {
-                pSpiritSpr->spr.yrepeat -= 2;
-                if (pSpiritSpr->spr.yrepeat < nSpiritRepeatY)
-                    pSpiritSpr->spr.yrepeat = (uint8_t)nSpiritRepeatY;
-            }
+			if (pSpiritSpr->spr.scale.Y > nSpiritScale.Y)
+			{
+				pSpiritSpr->spr.scale.Y += (-0.03125);
+				if (pSpiritSpr->spr.scale.Y < nSpiritScale.Y)
+					pSpiritSpr->spr.scale.Y = (nSpiritScale.Y);
+			}
 
             int nCount = 0;
             for (int i = 0; i < nPixels; i++) 

@@ -7,7 +7,7 @@ bool System_WantGuiCapture();	// During playing this tells us whether the game m
 #include "engineerrors.h"
 #include "stats.h"
 #include "packet.h"
-#include "fixedhorizon.h"
+#include "serializer.h"
 #include "inputstate.h"
 #include "maptypes.h"
 
@@ -41,14 +41,9 @@ struct FSavegameInfo
 	int currentsavever;
 };
 
-struct ReservedSpace
-{
-	int top;
-	int statusbar;
-};
-
 enum EMenuSounds : int;
 struct MapRecord;
+struct TilesetBuildInfo;
 
 extern cycle_t drawtime, actortime, thinktime, gameupdatetime;
 
@@ -71,7 +66,8 @@ struct GameInterface
 	virtual ~GameInterface() {}
 	virtual bool GenerateSavePic() { return false; }
 	virtual void app_init() = 0;
-	virtual void LoadGameTextures() {}
+	virtual void LoadTextureInfo(TilesetBuildInfo& info) {}
+	virtual void SetupSpecialTextures(TilesetBuildInfo&) {}
 	virtual void loadPalette();
 	virtual void clearlocalinputstate() {}
 	virtual void UpdateScreenSize() {}
@@ -93,7 +89,6 @@ struct GameInterface
 	virtual void SetAmbience(bool on) {}
 	virtual std::pair<DVector3, DAngle> GetCoordinates() { return {}; }
 	virtual void ExitFromMenu() { throw CExitEvent(0); }
-	virtual ReservedSpace GetReservedScreenSpace(int viewsize) { return { 0, 0 }; }
 	virtual void GetInput(ControlInfo* const hidInput, double const scaleAdjust, InputPacket* packet = nullptr) {}
 	virtual void UpdateSounds() {}
 	virtual void ErrorCleanup() {}
@@ -108,16 +103,13 @@ struct GameInterface
 	virtual void NewGame(MapRecord* map, int skill, bool special = false) {}
 	virtual void LevelCompleted(MapRecord* map, int skill) {}
 	virtual bool DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac) { return false; }
-	virtual void SetTileProps(int tile, int surf, int vox, int shade) {}
-	virtual fixed_t playerHorizMin() { return IntToFixed(-200); }
-	virtual fixed_t playerHorizMax() { return IntToFixed(200); }
-	virtual int playerKeyMove() { return 0; }
-	virtual void WarpToCoords(double x, double y, double z, DAngle a, int h) {}
+	virtual DAngle playerPitchMin() { return DAngle::fromDeg(57.375); }
+	virtual DAngle playerPitchMax() { return DAngle::fromDeg(-57.375); }
+	virtual void WarpToCoords(double x, double y, double z, DAngle a) {}
 	virtual void ToggleThirdPerson() { }
 	virtual void SwitchCoopView() { Printf("Unsupported command\n"); }
 	virtual void ToggleShowWeapon() { Printf("Unsupported command\n"); }
-	virtual DVector3 chaseCamPos(DAngle ang, fixedhoriz horiz) { return DVector3(0,0,0); }
-	virtual void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double interpfrac) = 0;
+	virtual void processSprites(tspriteArray& tsprites, const DVector3& view, DAngle viewang, double interpfrac) = 0;
 	virtual void UpdateCameras(double smoothratio) {}
 	virtual void EnterPortal(DCoreActor* viewer, int type) {}
 	virtual void LeavePortal(DCoreActor* viewer, int type) {}
@@ -128,6 +120,8 @@ struct GameInterface
 	virtual bool IsQAVInterpTypeValid(const FString& type) { return false; }
 	virtual void AddQAVInterpProps(const int res_id, const FString& interptype, const bool loopable, const TMap<int, TArray<int>>&& ignoredata) { }
 	virtual void RemoveQAVInterpProps(const int res_id) { }
+	virtual bool WantEscape() { return false; }
+	virtual void StartSoundEngine() = 0;
 
 	virtual FString statFPS()
 	{

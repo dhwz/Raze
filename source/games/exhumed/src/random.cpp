@@ -25,6 +25,12 @@ int randA = 0;
 int randB = 0x11111111;
 int randC = 0x1010101;
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void SerializeRand(FSerializer& arc)
 {
     if (arc.BeginObject("rand"))
@@ -35,6 +41,12 @@ void SerializeRand(FSerializer& arc)
             .EndObject();
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void InitRandom()
 {
@@ -52,6 +64,12 @@ int RandomBit()
     return (((randA == 0) & randC) | (randB & randA)) & 1;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 uint8_t RandomByte()
 {
     uint8_t randByte = RandomBit() << 7;
@@ -65,6 +83,12 @@ uint8_t RandomByte()
     return randByte;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 uint16_t RandomWord()
 {
     uint16_t randWord = RandomByte() << 8;
@@ -77,6 +101,11 @@ int RandomLong()
     int randLong = IntToFixed(RandomWord());
     randLong |= RandomWord();
     return randLong;
+}
+
+double RandomFloat(double range)
+{
+    return RandomWord() * range / 0xffff;
 }
 
 int RandomSize(int nSize)
@@ -94,6 +123,11 @@ int RandomSize(int nSize)
 
 DAngle RandomAngle9()
 {
-	return DAngle::fromBuild(RandomSize(9));
+	return mapangle(RandomSize(9));
+}
+
+DAngle RandomAngle()
+{
+    return mapangle(RandomSize(11));
 }
 END_PS_NS

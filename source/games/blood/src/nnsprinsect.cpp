@@ -29,7 +29,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_BLD_NS
 
-TArray<DBloodActor*> getSpritesNearWalls(sectortype* pSrcSect, int nDist);
+TArray<DBloodActor*> getSpritesNearWalls(sectortype* pSrcSect, double nDist);
 
 // - CLASSES ------------------------------------------------------------------
 
@@ -41,20 +41,23 @@ class SPRINSECT
 {
 public:
     static const int kMaxSprNear = 256;
-    static const int kWallDist = 16;
 
     struct SPRITES
     {
         unsigned int nSector;
-        TArray<TObjPtr<DBloodActor*>> pActors;  // this is a weak reference!
+        TArray<TObjPtr<DBloodActor*>> pActors;
     };
 private:
     TArray<SPRITES> db;
 public:
     void Free() { db.Clear(); }
-    void Init(int nDist = kWallDist); // used in trInit to collect the sprites before translation
+    void Init(double nDist = 1); // used in trInit to collect the sprites before translation
     void Serialize(FSerializer& pSave);
     TArray<TObjPtr<DBloodActor*>>* GetSprPtr(int nSector);
+	void Mark()
+	{
+		for (auto& entry : db) GC::MarkArray(entry.pActors);
+	}
 
 };
 
@@ -65,7 +68,12 @@ public:
 // --------------------------------------------------------------------------
 SPRINSECT gSprNSect;
 
-void SPRINSECT::Init(int nDist)
+void MarkSprInSect()
+{
+	gSprNSect.Mark();
+}
+
+void SPRINSECT::Init(double nDist)
 {
     Free();
 
@@ -121,7 +129,7 @@ void SPRINSECT::Init(int nDist)
             pEntry.pActors.Resize(collected.Size());
             for (unsigned ii = 0; ii < collected.Size(); ii++)
                 pEntry.pActors[ii] = collected[ii];
-            pEntry.nSector = sectnum(&sect);
+            pEntry.nSector = sectindex(&sect);
         }
     }
 }
@@ -169,46 +177,36 @@ bool isMovableSector(sectortype* pSect)
     return false;
 }
 
-TArray<DBloodActor*> getSpritesNearWalls(sectortype* pSrcSect, int nDist)
+TArray<DBloodActor*> getSpritesNearWalls(sectortype* pSrcSect, double nDist)
 {
-    int i, c = 0, nWall, nSect, swal, ewal;
-    int xi, yi, wx, wy, lx, ly, sx, sy, qx, qy, num, den;
-    TArray<DBloodActor*> skip;
     TArray<DBloodActor*> out;
 
-    swal = pSrcSect->wallptr;
-    ewal = swal + pSrcSect->wallnum - 1;
-
-    for (i = swal; i <= ewal; i++)
+    for(auto& wal : pSrcSect->walls)
     {
-        nSect = wall[i].nextsector;
-        if (nSect < 0)
+        if (!wal.twoSided())
             continue;
 
-        nWall = i;
-        wx = wall[nWall].wall_int_pos().X;	
-        wy = wall[nWall].wall_int_pos().Y;
-        lx = wall[wall[nWall].point2].wall_int_pos().X - wx;
-        ly = wall[wall[nWall].point2].wall_int_pos().Y - wy;
-
-        BloodSectIterator it(nSect);
+		auto wpos = wal.pos;
+		auto wlen = wal.delta();
+ 
+        BloodSectIterator it(wal.nextsector);
         while(auto ac = it.Next())
         {
-            if (skip.Find(ac))
+            if (out.Find(ac))
                 continue;
 
-            sx = ac->int_pos().X;	qx = sx - wx;
-            sy = ac->int_pos().Y;	qy = sy - wy;
-            num = DMulScale(qx, lx, qy, ly, 4);
-            den = DMulScale(lx, lx, ly, ly, 4);
+			auto spos = ac->spr.pos.XY();
+			auto qpos = spos - wpos;
+			
+			double num = qpos.dot(wlen);
+			double den = wal.Length();
 
             if (num > 0 && num < den)
             {
-                xi = wx + Scale(lx, num, den);
-                yi = wy + Scale(ly, num, den);
-                if (approxDist(xi - sx, yi - sy) <= nDist)
+				auto vi = wpos + wlen * num / den;
+
+                if ((vi - spos).LengthSquared() <= nDist * nDist)
                 {
-                    skip.Push(ac);
                     out.Push(ac);
                 }
             }

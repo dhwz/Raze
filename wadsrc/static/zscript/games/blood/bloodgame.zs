@@ -23,6 +23,26 @@ struct Blood native
 		kMaxPowerUps = 51,
 	};
 
+	enum EWeapon
+	{
+		kWeapNone = 0,
+		kWeapPitchFork = 1,
+		kWeapFlareGun = 2,
+		kWeapShotgun = 3,
+		kWeapTommyGun = 4,
+		kWeapNapalm = 5,
+		kWeapDynamite = 6,
+		kWeapSpraycan = 7,
+		kWeapTeslaCannon = 8,
+		kWeapLifeLeech = 9,
+		kWeapVoodooDoll = 10,
+		kWeapProximity = 11,
+		kWeapRemote = 12,
+		kWeapBeast = 13,
+		kWeapMax = 14,
+	};
+
+
 	native static void PlayIntroMusic();
 	native static bool OriginalLoadScreen(); // doing it generically would necessitate exporting the tile manage which we do not want.
 	native static void sndStartSample(int resid, int volume, int channel, bool loop = false, int chanflags = 0);
@@ -62,22 +82,22 @@ struct BloodPlayer native
 	native bool       isRunning;
 	native int        posture;   // stand, crouch, swim
 	native int        sceneQav;  // by NoOne: used to keep qav id
-	native int        bobPhase;
+	native double     bobPhase;
 	native int        bobAmp;
-	native int        bobHeight;
-	native int        bobWidth;
+	native double     bobHeight;
+	native double     bobWidth;
 	native int        swayPhase;
 	native int        swayAmp;
-	native int        swayHeight;
-	native int        swayWidth;
+	native double     swayHeight;
+	native double     swayWidth;
 	native int        nPlayer;  // Connect id
 	//native int        nSprite;
 	native int        lifeMode;
-	native int        zView;
-	native int        zViewVel;
-	native int        zWeapon;
-	native int        zWeaponVel;
-	native int        slope;
+	native double     zView;
+	native double     zViewVel;
+	native double     zWeapon;
+	native double     zWeaponVel;
+	native double     slope;
 	native bool       isUnderwater;
 	native bool       hasKey[8];
 	native int8       hasFlag;
@@ -94,7 +114,7 @@ struct BloodPlayer native
 	native bool       qavLoop;
 	native int        fuseTime;
 	native int        throwTime;
-	native int        throwPower;
+	native double        throwPower;
 	//native Aim        aim;  // world
 	//native int        aimTarget;  // aim target sprite
 	native int        aimTargetsCount;

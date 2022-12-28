@@ -1,0 +1,12 @@
+// Global constants for SW
+
+constants
+{
+	// texture flags
+	TFLAG_BUNNYFRIENDLY			= 1
+
+	// surface types
+    TSURF_WATER         = 1
+    TSURF_LAVA          = 2
+}
+

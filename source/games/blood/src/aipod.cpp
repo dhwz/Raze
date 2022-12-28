@@ -66,35 +66,32 @@ void podAttack(int, DBloodActor* actor)
 	auto target = actor->GetTarget();
 
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	int x = target->int_pos().X - actor->int_pos().X;
-	int y = target->int_pos().Y - actor->int_pos().Y;
-	int dz = target->int_pos().Z - actor->int_pos().Z;
-	x += Random2(1000);
-	y += Random2(1000);
-	int nDist = approxDist(x, y);
-	int nDist2 = nDist / 540;
+	auto dv = target->spr.pos - actor->spr.pos;
+	dv.X += Random2F(1000, 4);
+	dv.Y += Random2F(1000, 4);
+	double nDist = dv.XY().Length();
 	DBloodActor* pMissile = nullptr;
 	switch (actor->spr.type)
 	{
 	case kDudePodGreen:
-		dz += 8000;
-		if (pDudeInfo->seeDist * 0.1 < nDist)
+		dv.Z += 31.25;
+		if (pDudeInfo->SeeDist() * 1.6 < nDist)
 		{
 			if (Chance(0x8000))
 				sfxPlay3DSound(actor, 2474, -1, 0);
 			else
 				sfxPlay3DSound(actor, 2475, -1, 0);
-			pMissile = actFireThing(actor, 0, -8000, dz / 128 - 14500, kThingPodGreenBall, (nDist2 << 23) / 120);
+			pMissile = actFireThing(actor, 0., -500., dv.Z / 32768 - 0.22125, kThingPodGreenBall, nDist * (2048. / 64800));
 		}
 		if (pMissile)
 			seqSpawn(68, pMissile, -1);
 		break;
 	case kDudePodFire:
-		dz += 8000;
-		if (pDudeInfo->seeDist * 0.1 < nDist)
+		dv.Z += 31.25;
+		if (pDudeInfo->SeeDist() * 1.6 < nDist)
 		{
 			sfxPlay3DSound(actor, 2454, -1, 0);
-			pMissile = actFireThing(actor, 0, -8000, dz / 128 - 14500, kThingPodFireBall, (nDist2 << 23) / 120);
+			pMissile = actFireThing(actor, 0., -500., dv.Z / 32768 - 0.22125, kThingPodFireBall, nDist * (2048. / 64800));
 		}
 		if (pMissile)
 			seqSpawn(22, pMissile, -1);
@@ -140,10 +137,11 @@ static void aiPodMove(DBloodActor* actor)
 
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
-	int nAngle = getangle(dvec);
-	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
-	if (nDist < 512 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery) {
+	DAngle nAngle = dvec.Angle();
+	double nDist = dvec.Length();
+	aiChooseDirection(actor, nAngle);
+	if (nDist < 32 && absangle(actor->spr.Angles.Yaw, nAngle) < pDudeInfo->Periphery())
+	{
 		switch (actor->spr.type) {
 		case kDudePodGreen:
 		case kDudePodFire:
@@ -181,9 +179,9 @@ static void aiPodChase(DBloodActor* actor)
 	auto target = actor->GetTarget();
 
 	auto dvec = target->spr.pos.XY() - actor->spr.pos.XY();
-	int nAngle = getangle(dvec);
-	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
+	DAngle nAngle = dvec.Angle();
+	double nDist = dvec.Length();
+	aiChooseDirection(actor, nAngle);
 	if (target->xspr.health == 0) {
 
 		switch (actor->spr.type) {
@@ -198,16 +196,16 @@ static void aiPodChase(DBloodActor* actor)
 		}
 		return;
 	}
-	if (nDist <= pDudeInfo->seeDist)
+	if (nDist <= pDudeInfo->SeeDist())
 	{
-		int nDeltaAngle = getincangle(actor->int_ang(), nAngle);
-		double height = (pDudeInfo->eyeHeight * actor->spr.yrepeat) * REPEAT_SCALE;
+		DAngle nDeltaAngle = absangle(actor->spr.Angles.Yaw, nAngle);
+		double height = (pDudeInfo->eyeHeight * actor->spr.scale.Y);
 		if (cansee(target->spr.pos, target->sector(), actor->spr.pos.plusZ(-height), actor->sector()))
 		{
-			if (nDist < pDudeInfo->seeDist && abs(nDeltaAngle) <= pDudeInfo->periphery)
+			if (nDist < pDudeInfo->SeeDist() && abs(nDeltaAngle) <= pDudeInfo->Periphery())
 			{
 				aiSetTarget(actor, actor->GetTarget());
-				if (abs(nDeltaAngle) < 85 && target->spr.type != kDudePodGreen && target->spr.type != kDudePodFire) {
+				if (nDeltaAngle < DAngle15 && target->spr.type != kDudePodGreen && target->spr.type != kDudePodFire) {
 					switch (actor->spr.type) {
 					case kDudePodGreen:
 					case kDudePodFire:

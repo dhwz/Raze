@@ -728,8 +728,7 @@ int SetupGirlNinja(DSWActor* actor)
 
     actor->user.StateEnd = s_GirlNinjaDie;
     actor->user.Rot = sg_GirlNinjaRun;
-    actor->spr.xrepeat = 51;
-    actor->spr.yrepeat = 43;
+	actor->spr.scale = DVector2(0.796875, 0.671875);
 
     actor->user.Attrib = &GirlNinjaAttrib;
     actor->spr.pal = actor->user.spal = 26;
@@ -794,7 +793,7 @@ int DoGirlNinjaMove(DSWActor* actor)
 int GirlNinjaJumpActionFunc(DSWActor* actor)
 {
     // if cannot move the sprite
-    if (!move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0)))
+    if (!move_actor(actor, DVector3(actor->spr.Angles.Yaw.ToVector() * actor->vel.X, 0)))
     {
         return 0;
     }

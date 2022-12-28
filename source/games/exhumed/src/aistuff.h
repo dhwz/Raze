@@ -29,7 +29,7 @@ BEGIN_PS_NS
 
 void InitAnims();
 void DestroyAnim(DExhumedActor* nAnim);
-DExhumedActor* BuildAnim(DExhumedActor* actor, int val, int val2, const DVector3& pos, sectortype* pSector, int nRepeat, int nFlag);
+DExhumedActor* BuildAnim(DExhumedActor* actor, int val, int val2, const DVector3& pos, sectortype* pSector, double nScale, int nFlag);
 
 void FuncAnim(int, int, int, int);
 void BuildExplosion(DExhumedActor* actor);
@@ -76,11 +76,10 @@ int GrabBullet();
 void DestroyBullet(int nRun);
 int MoveBullet(int nBullet);
 void SetBulletEnemy(int nBullet, DExhumedActor* nEnemy);
-DExhumedActor* BuildBullet(DExhumedActor* pActor, int nType, int val1, DAngle nAngle, DExhumedActor* pTarget, int val3, int horiz = 0);
+DExhumedActor* BuildBullet(DExhumedActor* pActor, int nType, double zofs, DAngle nAngle, DExhumedActor* pTarget, int val3, int horiz = 0);
 
 void IgniteSprite(DExhumedActor* nSprite);
 void FuncBullet(int, int, int, int);
-void BackUpBullet(int *x, int *y, int nAngle);
 
 // fish
 
@@ -93,7 +92,7 @@ void FuncFishLimb(int a, int b, int c);
 enum { kMaxGrenades = 50 };
 
 void BuildGrenade(int nPlayer);
-void ThrowGrenade(int nPlayer, int edx, int ebx, int ecx, int push1);
+void ThrowGrenade(int nPlayer, double ecx, double push1);
 void FuncGrenade(int, int, int, int);
 
 // gun
@@ -167,7 +166,7 @@ void DoRegenerates();
 // lavadude
 
 void BuildLava(DExhumedActor* nSprite, const DVector3& pos, sectortype* pSector, DAngle nAngle, int nChannel);
-DExhumedActor* BuildLavaLimb(DExhumedActor* nSprite, int edx, int ebx);
+DExhumedActor* BuildLavaLimb(DExhumedActor* nSprite, int edx, double ebx);
 void FuncLavaLimb(int, int, int, int);
 void FuncLava(int, int, int, int);
 
@@ -179,8 +178,8 @@ void AddFlash(sectortype* pSector, const DVector3& pos, int val);
 void SetTorch(int nPlayer, int bTorchOnOff);
 void UndoFlashes();
 void DoLights();
-void AddFlow(sectortype* pSect, int nSpeed, int b, int ang = -1);
-void AddFlow(walltype* pWall, int nSpeed, int b, int ang = -1);
+void AddFlow(sectortype* pSect, int nSpeed, int b, DAngle ang = -minAngle);
+void AddFlow(walltype* pWall, int nSpeed, int b);
 void BuildFlash(int nPlayer, int nVal);
 void AddGlow(sectortype* pSector, int nVal);
 void AddFlicker(sectortype* pSector, int nVal);
@@ -197,9 +196,8 @@ void FuncLion(int, int, int, int);
 struct BlockInfo
 {
     TObjPtr<DExhumedActor*> pActor;
-    int x;
-    int y;
-    int field_8;
+    DVector2 pos;
+    double mindist;
 };
 extern BlockInfo sBlockInfo[];
 
@@ -208,7 +206,6 @@ extern TObjPtr<DExhumedActor*> nChunkSprite[];
 extern TObjPtr<DExhumedActor*> nBodySprite[];
 
 void MoveThings();
-void ResetMoveFifo();
 void InitChunks();
 void InitPushBlocks();
 void Gravity(DExhumedActor* actor);
@@ -216,11 +213,7 @@ DExhumedActor* UpdateEnemy(DExhumedActor** ppEnemy);
 Collision MoveCreature(DExhumedActor* nSprite);
 Collision MoveCreatureWithCaution(DExhumedActor* actor);
 DVector3 WheresMyMouth(int nPlayer, sectortype** sectnum);
-int GetActorHeight(DExhumedActor* nSprite);
-double GetActorHeightF(DExhumedActor* nSprite)
-{
-	return GetActorHeight(nSprite) * zinttoworld;
-}
+double GetActorHeight(DExhumedActor* nSprite);
 DExhumedActor* insertActor(sectortype* s, int st);
 DExhumedActor* GrabBody();
 DExhumedActor* GrabBodyGunSprite();
@@ -228,12 +221,12 @@ void FuncCreatureChunk(int a, int, int nRun);
 DExhumedActor* FindPlayer(DExhumedActor* nSprite, int nDistance, bool dontengage = false);
 
 DExhumedActor* BuildCreatureChunk(DExhumedActor* pSrc, int nPic, bool bSpecial = false);
-int PlotCourseToSprite(DExhumedActor* nSprite1, DExhumedActor* nSprite2);
-void CheckSectorFloor(sectortype* pSector, int z, int *x, int *y);
-int GetAngleToSprite(DExhumedActor* nSprite1, DExhumedActor* nSprite2);
-int GetWallNormal(walltype* nWall);
-void MoveSector(sectortype* pSector, int nAngle, int *nXVel, int *nYVel);
-Collision AngleChase(DExhumedActor* nSprite, DExhumedActor* nSprite2, int ebx, int ecx, int push1);
+double PlotCourseToSprite(DExhumedActor* nSprite1, DExhumedActor* nSprite2);
+void CheckSectorFloor(sectortype* pSector, double z, DVector2& xy);
+DAngle GetAngleToSprite(DExhumedActor* nSprite1, DExhumedActor* nSprite2);
+DAngle GetWallNormal(walltype* nWall);
+void MoveSector(sectortype* pSector, DAngle nAngle, DVector2& vel);
+Collision AngleChase(DExhumedActor* nSprite, DExhumedActor* nSprite2, int ebx, int ecx, DAngle push1);
 void SetQuake(DExhumedActor* nSprite, int nVal);
 
 // mummy
@@ -290,7 +283,7 @@ void BuildDrip(DExhumedActor* nSprite);
 DExhumedActor* BuildEnergyBlock(sectortype* pSector);
 int BuildElevC(int arg1, int nChannel, sectortype* pSector, DExhumedActor* nWallSprite, int arg5, int arg6, int nCount, ...);
 int BuildElevF(int nChannel, sectortype* pSector, DExhumedActor* nWallSprite, int arg_4, int arg_5, int nCount, ...);
-int BuildWallFace(int nChannel, walltype* pWall, int nCount, ...);
+int BuildWallFace(int nChannel, walltype* pWall, FTextureID pic);
 int BuildSlide(int nChannel, walltype* edx, walltype* ebx, walltype* ecx, walltype* arg1, walltype* arg2, walltype* arg3);
 
 // queen
@@ -732,7 +725,7 @@ extern FreeListArray<Snake, kMaxSnakes> SnakeList;
 
 void InitSnakes();
 int GrabSnake();
-void BuildSnake(int nPlayer, int zVal);
+void BuildSnake(int nPlayer, double zVal);
 void FuncSnake(int, int, int, int);
 
 // spider

@@ -123,6 +123,12 @@ sectortype* MoveQS[25];
 DAngle MoveQA[25];
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 size_t MarkQueen()
 {
     GC::Mark(QueenList[0].pActor);
@@ -136,6 +142,12 @@ size_t MarkQueen()
     }
     return 4 + 2 * kMaxEggs;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 FSerializer& Serialize(FSerializer& arc, const char* keyname, Queen& w, Queen* def)
 {
@@ -213,6 +225,12 @@ void SerializeQueen(FSerializer& arc)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void InitQueens()
 {
     QueenCount = 1;
@@ -238,6 +256,12 @@ void BlowChunks(DExhumedActor* pActor)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void DestroyEgg(int nEgg)
 {
     DExhumedActor* pActor = QueenEgg[nEgg].pActor;
@@ -245,7 +269,7 @@ void DestroyEgg(int nEgg)
 
     if (QueenEgg[nEgg].nAction != 4)
     {
-        BuildAnim(nullptr, 34, 0, pActor->spr.pos, pActor->sector(), pActor->spr.xrepeat, 4);
+        BuildAnim(nullptr, 34, 0, pActor->spr.pos, pActor->sector(), pActor->spr.scale.X, 4);
     }
     else
     {
@@ -265,6 +289,12 @@ void DestroyEgg(int nEgg)
     QueenEgg.Release(nEgg);
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void DestroyAllEggs()
 {
     for (int i = 0; i < kMaxEggs; i++)
@@ -278,76 +308,74 @@ void DestroyAllEggs()
 
 void SetHeadVel(DExhumedActor* pActor)
 {
-	pActor->vel.XY() = pActor->spr.angle.ToVector() * 1024 * (1 << nVelShift);
+	pActor->vel.XY() = pActor->spr.Angles.Yaw.ToVector() * 1024 * (1 << nVelShift);
 }
 
-Collision QueenAngleChase(DExhumedActor* pActor, DExhumedActor* pActor2, int val1, int val2)
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+Collision QueenAngleChase(DExhumedActor* pActor, DExhumedActor* pActor2, int threshold, DAngle val2)
 {
-    int nAngle;
+    DAngle nAngle;
 
     if (pActor2 == nullptr)
     {
-        pActor->angle2 = 0;
-        nAngle = pActor->int_ang();
+        pActor->pitch = nullAngle;
+        nAngle = pActor->spr.Angles.Yaw;
     }
     else
     {
-        int nTileY = (tileHeight(pActor2->spr.picnum) * pActor2->spr.yrepeat) * 2;
-
 		auto vect = pActor2->spr.pos.XY() - pActor->spr.pos.XY();
-        int nMyAngle = getangle(vect);
 
-        int edx = ((pActor2->int_pos().Z - nTileY) - pActor->int_pos().Z) >> 8;
+        double nTileY = GetActorHeight(pActor2) / 2;
+        double edx = ((pActor2->spr.pos.Z - nTileY) - pActor->spr.pos.Z);
+        double nSqrt = vect.Length();
 
-        int nSqrt = int(vect.Length() * worldtoint);
+        DAngle nMyAngle = vect.Angle();
+        DAngle nPitch = VecToAngle(nSqrt * 16, edx);
+        DAngle nAngDelta = deltaangle(pActor->spr.Angles.Yaw, nMyAngle);
 
-        int var_14 = getangle(nSqrt, edx);
-
-        int nAngDelta = AngleDelta(pActor->int_ang(), nMyAngle, 1024);
-
-        if (abs(nAngDelta) > 127)
+        if (abs(nAngDelta) >= DAngle22_5)
         {
-            val1 /= abs(nAngDelta >> 7);
-            if (val1 < 256)
-                val1 = 256;
+            threshold /= abs(nAngDelta.Buildang() >> 7);
+            if (threshold < 256)
+                threshold = 256;
         }
 
         if (abs(nAngDelta) > val2)
         {
-            if (nAngDelta < 0)
+            if (nAngDelta < nullAngle)
                 nAngDelta = -val2;
             else
                 nAngDelta = val2;
         }
 
-        nAngle = (nAngDelta + pActor->int_ang()) & kAngleMask;
+        nAngle = (nAngDelta + pActor->spr.Angles.Yaw).Normalized360();
 
-        pActor->angle2 = (AngleDelta(pActor->angle2, var_14, 24) + pActor->angle2) & kAngleMask;
+        auto nPitchDelta = clamp(deltaangle(pActor->pitch, nPitch), -DAngle22_5 / 5, DAngle22_5 / 5);
+        pActor->pitch = (pActor->pitch + nPitchDelta).Normalized180();
     }
 
-    pActor->set_int_ang(nAngle);
+    pActor->spr.Angles.Yaw = nAngle;
 
-    int da = pActor->angle2;
-    int x = abs(bcos(da));
+    auto cospitch = pActor->pitch.Cos();
 
-    int v26 = x * ((val1 * bcos(nAngle)) >> 14);
-    int v27 = x * ((val1 * bsin(nAngle)) >> 14);
+    auto vec = nAngle.ToVector() * threshold * (1 / 64.) * cospitch;
+    auto veclen = vec.Length();
 
-    uint32_t xDiff = abs((int32_t)(v26 >> 8));
-    uint32_t yDiff = abs((int32_t)(v27 >> 8));
+    double zz = pActor->pitch.Sin() * veclen;
 
-    uint32_t sqrtNum = xDiff * xDiff + yDiff * yDiff;
-
-    if (sqrtNum > INT_MAX)
-    {
-        DPrintf(DMSG_WARNING, "%s %d: overflow\n", __func__, __LINE__);
-        sqrtNum = INT_MAX;
-    }
-
-    int nSqrt = ksqrt(sqrtNum) * bsin(da);
-
-    return movesprite(pActor, v26 >> 2, v27 >> 2, bsin(bobangle, -5) + (nSqrt >> 13), 0, 0, CLIPMASK1);
+    return movesprite(pActor, vec, zz * 16 + BobVal(bobangle) * 2, 0, CLIPMASK1);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int DestroyTailPart()
 {
@@ -363,13 +391,19 @@ int DestroyTailPart()
 
     for (int i = 0; i < 5; i++)
     {
-        int nHeight = GetActorHeight(pActor);
+        double nHeight = GetActorHeight(pActor);
         BuildLavaLimb(pActor, i, nHeight);
     }
 
     DeleteActor(pActor);
     return 1;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void BuildTail()
 {
@@ -390,9 +424,8 @@ void BuildTail()
         pTailActor->spr.shade = -12;
         pTailActor->spr.hitag = 0;
         pTailActor->spr.cstat = 0;
-        pTailActor->set_const_clipdist(100);
-        pTailActor->spr.xrepeat = 80;
-        pTailActor->spr.yrepeat = 80;
+        pTailActor->clipdist = 25;
+		pTailActor->spr.scale = DVector2(1.25, 1.25);
         pTailActor->spr.picnum = 1;
         pTailActor->spr.pal = pTailActor->sector()->ceilingpal;
         pTailActor->spr.xoffset = 0;
@@ -412,6 +445,12 @@ void BuildTail()
     QueenHead.nIndex2 = 7;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void BuildQueenEgg(int nQueen, int nVal)
 {
     int nEgg = GrabEgg();
@@ -428,26 +467,24 @@ void BuildQueenEgg(int nQueen, int nVal)
 
 	pActor2->spr.pos = DVector3(pActor->spr.pos.XY(), pSector->floorz);
     pActor2->spr.pal = 0;
-    pActor2->set_const_clipdist(50);
+	pActor2->clipdist = 12.5;
     pActor2->spr.xoffset = 0;
     pActor2->spr.yoffset = 0;
     pActor2->spr.shade = -12;
     pActor2->spr.picnum = 1;
-	pActor2->spr.angle = pActor->spr.angle + RandomAngle9() - DAngle45;
+	pActor2->spr.Angles.Yaw = pActor->spr.Angles.Yaw + RandomAngle9() - DAngle45;
     pActor2->backuppos();
 
     if (!nVal)
     {
-        pActor2->spr.xrepeat = 30;
-        pActor2->spr.yrepeat = 30;
-		pActor2->vel.XY() = pActor2->spr.angle.ToVector() * 1024;
+		pActor2->spr.scale = DVector2(0.46875, 0.46875);
+		pActor2->vel.XY() = pActor2->spr.Angles.Yaw.ToVector() * 1024;
         pActor2->vel.Z = -6000 / 256.;
         pActor2->spr.cstat = 0;
     }
     else
     {
-        pActor2->spr.xrepeat = 60;
-        pActor2->spr.yrepeat = 60;
+		pActor2->spr.scale = DVector2(0.9375, 0.9375);
         pActor2->vel.X = 0;
         pActor2->vel.Y = 0;
         pActor2->vel.Z = -2000 / 256.;
@@ -476,6 +513,12 @@ void BuildQueenEgg(int nQueen, int nVal)
     pActor2->spr.intowner = runlist_AddRunRec(pActor2->spr.lotag - 1, nEgg, 0x1D0000);
     QueenEgg[nEgg].nRun = runlist_AddRunRec(NewRun, nEgg, 0x1D0000);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIQueenEgg::Tick(RunListEvent* ev)
 {
@@ -551,7 +594,7 @@ void AIQueenEgg::Tick(RunListEvent* ev)
         }
         else
         {
-            int nAngle;
+            DAngle nAngle;
 
             switch (nMov.type)
             {
@@ -561,12 +604,12 @@ void AIQueenEgg::Tick(RunListEvent* ev)
                 nAngle = GetWallNormal(nMov.hitWall);
                 break;
             case kHitSprite:
-                nAngle = nMov.actor()->int_ang();
+                nAngle = nMov.actor()->spr.Angles.Yaw;
                 break;
             }
 
-            pActor->set_int_ang(nAngle);
-			pActor->vel.XY() = pActor->spr.angle.ToVector() * 512;
+            pActor->spr.Angles.Yaw = nAngle;
+			pActor->vel.XY() = pActor->spr.Angles.Yaw.ToVector() * 512;
         }
 
         break;
@@ -585,7 +628,7 @@ void AIQueenEgg::Tick(RunListEvent* ev)
     case 2:
     case 3:
     {
-        auto nMov = QueenAngleChase(pActor, pTarget, nHeadVel, 64);
+        auto nMov = QueenAngleChase(pActor, pTarget, nHeadVel, DAngle22_5/2);
 
         switch (nMov.type)
         {
@@ -596,7 +639,7 @@ void AIQueenEgg::Tick(RunListEvent* ev)
             }
             [[fallthrough]];
         case kHitWall:
-            pActor->spr.angle = DAngle45 + DAngle90 + RandomAngle9();
+            pActor->spr.Angles.Yaw = DAngle45 + DAngle90 + RandomAngle9();
             pActor->VelFromAngle(-3);
             pActor->vel.Z = (-RandomSize(5)) / 256.;
             break;
@@ -621,7 +664,7 @@ void AIQueenEgg::Tick(RunListEvent* ev)
         pEgg->nCounter--;
         if (pEgg->nCounter <= 0)
         {
-            auto pWaspSprite = BuildWasp(nullptr, pActor->spr.pos, pActor->sector(), pActor->spr.angle, true);
+            auto pWaspSprite = BuildWasp(nullptr, pActor->spr.pos, pActor->sector(), pActor->spr.Angles.Yaw, true);
             pActor->spr.pos.Z = pWaspSprite->spr.pos.Z;
 
             DestroyEgg(nEgg);
@@ -630,6 +673,12 @@ void AIQueenEgg::Tick(RunListEvent* ev)
     }
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIQueenEgg::RadialDamage(RunListEvent* ev)
 {
@@ -646,6 +695,12 @@ void AIQueenEgg::RadialDamage(RunListEvent* ev)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AIQueenEgg::Damage(RunListEvent* ev)
 {
     int nEgg = RunData[ev->nRun].nObjIndex;
@@ -660,6 +715,12 @@ void AIQueenEgg::Damage(RunListEvent* ev)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AIQueenEgg::Draw(RunListEvent* ev)
 {
     int nEgg = RunData[ev->nRun].nObjIndex;
@@ -667,28 +728,32 @@ void AIQueenEgg::Draw(RunListEvent* ev)
     seq_PlotSequence(ev->nParam, SeqOffsets[kSeqQueenEgg] + EggSeq[pEgg->nAction].a, pEgg->nFrame, EggSeq[pEgg->nAction].b);
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void BuildQueenHead(int nQueen)
 {
     DExhumedActor* pActor = QueenList[nQueen].pActor;
     if (!pActor) return;
 
-    int nAngle = pActor->int_ang();
     auto pSector = pActor->sector();
 
     auto pActor2 = insertActor(pSector, 121);
 
 	pActor2->spr.pos.XY() = pActor->spr.pos.XY();
 	pActor2->spr.pos.Z = pSector->floorz;
-    pActor2->set_const_clipdist(70);
-    pActor2->spr.xrepeat = 80;
-    pActor2->spr.yrepeat = 80;
+	pActor2->clipdist = 17.5;
+	pActor2->spr.scale = DVector2(1.25, 1.25);
     pActor2->spr.cstat = 0;
     pActor2->spr.picnum = 1;
     pActor2->spr.shade = -12;
     pActor2->spr.pal = 0;
     pActor2->spr.xoffset = 0;
     pActor2->spr.yoffset = 0;
-    pActor2->set_int_ang(nAngle);
+    pActor2->spr.Angles.Yaw = pActor->spr.Angles.Yaw;
 
     nVelShift = 2;
     SetHeadVel(pActor2);
@@ -713,6 +778,12 @@ void BuildQueenHead(int nQueen)
     QueenHead.nRun = runlist_AddRunRec(NewRun, 0, 0x1B0000);
     QueenHead.nIndex2 = 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIQueenHead::Tick(RunListEvent* ev)
 {
@@ -780,11 +851,11 @@ void AIQueenHead::Tick(RunListEvent* ev)
             auto nMov = MoveCreature(pActor);
 
             // original BUG - this line doesn't exist in original code?
-            int nNewAng = pActor->int_ang();
+            DAngle nNewAng = pActor->spr.Angles.Yaw;
 
             if (nMov.exbits == 0)
             {
-                if (nMov.type == kHitSprite) nNewAng = nMov.actor()->int_ang();
+                if (nMov.type == kHitSprite) nNewAng = nMov.actor()->spr.Angles.Yaw;
                 else if (nMov.type == kHitWall) nNewAng = GetWallNormal(nMov.hitWall);
             }
             else if (nMov.exbits == kHitAux2)
@@ -799,7 +870,7 @@ void AIQueenHead::Tick(RunListEvent* ev)
             }
 
             // original BUG - var_18 isn't being set if the check above == 0x20000 ?
-            pActor->set_int_ang(nNewAng);
+            pActor->spr.Angles.Yaw = nNewAng;
             nVelShift++;
 
             if (nVelShift < 5)
@@ -865,7 +936,7 @@ void AIQueenHead::Tick(RunListEvent* ev)
 
         if (pTarget)
         {
-            auto nMov = QueenAngleChase(pActor, pTarget, nHeadVel, 64);
+            auto nMov = QueenAngleChase(pActor, pTarget, nHeadVel, DAngle22_5/2);
 
             if (nMov.type == kHitSprite)
             {
@@ -874,7 +945,7 @@ void AIQueenHead::Tick(RunListEvent* ev)
                     runlist_DamageEnemy(pTarget, pActor, 10);
                     D3PlayFX(StaticSound[kSoundQTail] | 0x2000, pActor);
 
-					pActor->spr.angle += DAngle45 + DAngle90 + RandomAngle9();
+					pActor->spr.Angles.Yaw += DAngle45 + DAngle90 + RandomAngle9();
                     pActor->norm_ang();
 
                     pActor->vel.Z = ((-20) - RandomSize(6)) / 256.;
@@ -889,7 +960,7 @@ void AIQueenHead::Tick(RunListEvent* ev)
         MoveQP[nQHead] = pActor->spr.pos;
         assert(pActor->sector());
         MoveQS[nQHead] = pActor->sector();
-        MoveQA[nQHead] = pActor->spr.angle;
+        MoveQA[nQHead] = pActor->spr.Angles.Yaw;
 
         nHd = nQHead;
 
@@ -912,7 +983,7 @@ void AIQueenHead::Tick(RunListEvent* ev)
                 }
 
                 pTActor->spr.pos = MoveQP[nHd];
-                pTActor->spr.angle = MoveQA[nHd];
+                pTActor->spr.Angles.Yaw = MoveQA[nHd];
             }
         }
 
@@ -936,20 +1007,19 @@ void AIQueenHead::Tick(RunListEvent* ev)
                 {
 					auto pos = pActor->spr.pos;
                     auto pSector =pActor->sector();
-                    int nAngle = RandomSize(11) & kAngleMask;
+                    auto nAngle = RandomAngle();
 
-                    pActor->spr.xrepeat = 127 - QueenHead.nIndex2;
-                    pActor->spr.yrepeat = 127 - QueenHead.nIndex2;
+					double s = (127 - QueenHead.nIndex2) * REPEAT_SCALE;
+					pActor->spr.scale = DVector2(s, s);
 
                     pActor->spr.cstat = CSTAT_SPRITE_INVISIBLE;
 
                     // DEMO-TODO: in disassembly angle was used without masking and thus causing OOB issue.
                     // This behavior probably would be needed emulated for demo compatibility
-                    int dx = bcos(nAngle, 10);
-                    int dy = bsin(nAngle, 10);
-                    int dz = (RandomSize(5) - RandomSize(5)) << 7;
+                    auto dv = nAngle.ToVector() * 64;
+                    double dz = (RandomSize(5) - RandomSize(5)) * 0.5;
 
-                    movesprite(pActor, dx, dy, dz, 0, 0, CLIPMASK1);
+                    movesprite(pActor, dv, dz, 0, CLIPMASK1);
 
                     BlowChunks(pActor);
                     BuildExplosion(pActor);
@@ -992,6 +1062,12 @@ void AIQueenHead::Tick(RunListEvent* ev)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AIQueenHead::RadialDamage(RunListEvent* ev)
 {
     if (ev->pRadialActor->spr.statnum != 121 && (QueenHead.pActor->spr.cstat & CSTAT_SPRITE_BLOCK_ALL) != 0)
@@ -1000,6 +1076,12 @@ void AIQueenHead::RadialDamage(RunListEvent* ev)
         if (ev->nDamage) Damage(ev);
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIQueenHead::Damage(RunListEvent* ev)
 {
@@ -1036,6 +1118,12 @@ void AIQueenHead::Damage(RunListEvent* ev)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AIQueenHead::Draw(RunListEvent* ev)
 {
     int nHead = RunData[ev->nRun].nObjIndex;
@@ -1059,6 +1147,12 @@ void AIQueenHead::Draw(RunListEvent* ev)
     seq_PlotSequence(ev->nParam, nSeq, QueenHead.nFrame, edx);
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void BuildQueen(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, DAngle nAngle, int nChannel)
 {
     QueenCount--;
@@ -1077,19 +1171,18 @@ void BuildQueen(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector,
 	{
 		ChangeActorStat(pActor, 121);
 		pActor->spr.pos.Z = pActor->sector()->floorz;
-        nAngle = pActor->spr.angle;
+        nAngle = pActor->spr.Angles.Yaw;
     }
 
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     pActor->spr.pal = 0;
     pActor->spr.shade = -12;
-    pActor->set_const_clipdist(100);
-    pActor->spr.xrepeat = 80;
-    pActor->spr.yrepeat = 80;
+    pActor->clipdist = 25;
+	pActor->spr.scale = DVector2(1.25, 1.25);
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
     pActor->spr.picnum = 1;
-    pActor->spr.angle = nAngle;
+    pActor->spr.Angles.Yaw = nAngle;
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
     pActor->vel.Z = 0;
@@ -1122,6 +1215,12 @@ void SetQueenSpeed(DExhumedActor* pActor, int nSpeed)
 {
     pActor->VelFromAngle(-(2 - nSpeed));
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIQueen::Tick(RunListEvent* ev)
 {
@@ -1264,7 +1363,7 @@ void AIQueen::Tick(RunListEvent* ev)
             }
             [[fallthrough]];
         case 0x8000:
-			pActor->spr.angle += DAngle45;
+			pActor->spr.Angles.Yaw += DAngle45;
             pActor->norm_ang();
 
             SetQueenSpeed(pActor, si);
@@ -1307,7 +1406,7 @@ void AIQueen::Tick(RunListEvent* ev)
 
                 if (!si)
                 {
-                    BuildBullet(pActor, 12, -1, pActor->spr.angle, pTarget, 1);
+                    BuildBullet(pActor, 12, INT_MAX, pActor->spr.Angles.Yaw, pTarget, 1);
                 }
                 else
                 {
@@ -1347,15 +1446,13 @@ void AIQueen::Tick(RunListEvent* ev)
                         auto pChunkActor = BuildCreatureChunk(pActor, seq_GetSeqPicnum(kSeqQueen, 57, 0));
 
                         pChunkActor->spr.picnum = kQueenChunk + (i % 3);
-                        pChunkActor->spr.xrepeat = 100;
-                        pChunkActor->spr.yrepeat = 100;
+						pChunkActor->spr.scale = DVector2(1.5625, 1.5625);
                     }
 
                     auto pChunkActor = BuildCreatureChunk(pActor, seq_GetSeqPicnum(kSeqQueen, 57, 0));
 
                     pChunkActor->spr.picnum = kTile3126;
-                    pChunkActor->spr.yrepeat = 100;
-                    pChunkActor->spr.xrepeat = 100;
+					pChunkActor->spr.scale = DVector2(1.5625, 1.5625);
 
                     PlayFXAtXYZ(
                         StaticSound[kSound40],
@@ -1381,6 +1478,12 @@ void AIQueen::Tick(RunListEvent* ev)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AIQueen::RadialDamage(RunListEvent* ev)
 {
     int nQueen = RunData[ev->nRun].nObjIndex;
@@ -1394,6 +1497,12 @@ void AIQueen::RadialDamage(RunListEvent* ev)
         if (ev->nDamage) Damage(ev);
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIQueen::Damage(RunListEvent* ev)
 {
@@ -1422,7 +1531,7 @@ void AIQueen::Damage(RunListEvent* ev)
                 QueenList[nQueen].nHealth = 4000;
                 QueenList[nQueen].nAction = 7;
 
-                BuildAnim(nullptr, 36, 0, pActor->spr.pos.plusZ(-30), pActor->sector(), pActor->spr.xrepeat, 4);
+                BuildAnim(nullptr, 36, 0, pActor->spr.pos.plusZ(-30), pActor->sector(), pActor->spr.scale.X, 4);
                 break;
             case 2:
                 QueenList[nQueen].nHealth = 4000;
@@ -1451,6 +1560,12 @@ void AIQueen::Damage(RunListEvent* ev)
         }
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIQueen::Draw(RunListEvent* ev)
 {

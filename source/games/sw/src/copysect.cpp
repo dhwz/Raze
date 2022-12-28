@@ -51,18 +51,18 @@ void CopySectorWalls(sectortype* dest_sect, sectortype* src_sect)
     SECTOR_OBJECT* sop;
     sectortype* *sectp;
 
-    auto dwall = dest_sect->firstWall();
-    auto swall = src_sect->firstWall();
+    auto dwall = dest_sect->walls.Data();
+    auto swall = src_sect->walls.Data();
     auto firstwall = dwall;
 
     // this looks broken.
     do
     {
-        dwall->picnum = swall->picnum;
+        dwall->setwalltexture(swall->walltexture());
+        dwall->setovertexture(swall->overtexture());
 
         dwall->xrepeat =       swall->xrepeat;
         dwall->yrepeat =       swall->yrepeat;
-        dwall->overpicnum =    swall->overpicnum;
         dwall->pal =           swall->pal;
         dwall->cstat =         swall->cstat;
         dwall->shade =         swall->shade;
@@ -76,10 +76,10 @@ void CopySectorWalls(sectortype* dest_sect, sectortype* src_sect)
         {
             auto const dest_nextwall = dwall->nextWall();
             auto const src_nextwall = swall->nextWall();
-            dest_nextwall->picnum = src_nextwall->picnum;
+            dest_nextwall->setwalltexture(src_nextwall->walltexture());
             dest_nextwall->xrepeat = src_nextwall->xrepeat;
             dest_nextwall->yrepeat = src_nextwall->yrepeat;
-            dest_nextwall->overpicnum = src_nextwall->overpicnum;
+            dest_nextwall->setovertexture(src_nextwall->overtexture());
             dest_nextwall->pal = src_nextwall->pal;
             dest_nextwall->cstat = src_nextwall->cstat;
             dest_nextwall->shade = src_nextwall->shade;
@@ -226,8 +226,8 @@ void CopySectorMatch(int match)
                 dsectp->floorshade = ssectp->floorshade;
                 dsectp->ceilingshade = ssectp->ceilingshade;
 
-                dsectp->floorpicnum = ssectp->floorpicnum;
-                dsectp->ceilingpicnum = ssectp->ceilingpicnum;
+                dsectp->setfloortexture(ssectp->floortexture);
+                dsectp->setceilingtexture(ssectp->ceilingtexture);
 
                 dsectp->floorheinum = ssectp->floorheinum;
                 dsectp->ceilingheinum = ssectp->ceilingheinum;
@@ -247,7 +247,7 @@ void CopySectorMatch(int match)
                 dsectp->extra = ssectp->extra;
                 dsectp->visibility = ssectp->visibility;
 
-                if (ssectp->floorpicnum == FAF_MIRROR_PIC || ssectp->ceilingpicnum == FAF_MIRROR_PIC)
+                if (ssectp->floortexture == FAFMirrorPic[0] || ssectp->ceilingtexture == FAFMirrorPic[0])
                 {
                     CollectPortals(); // unavoidable. Since these portals are not static we have to reinitialize all of them.
                 }

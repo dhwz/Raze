@@ -30,6 +30,12 @@ int nPreMagicSeq  = -1;
 int nSavePointSeq = -1;
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void SerializeAnim(FSerializer& arc)
 {
     if (arc.BeginObject("anims"))
@@ -60,7 +66,13 @@ void DestroyAnim(DExhumedActor* pActor)
     }
 }
 
-DExhumedActor* BuildAnim(DExhumedActor* pActor, int val, int val2, const DVector3& pos, sectortype* pSector, int nRepeat, int nFlag)
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+DExhumedActor* BuildAnim(DExhumedActor* pActor, int val, int val2, const DVector3& pos, sectortype* pSector, double nScale, int nFlag)
 {
     if (pActor == nullptr) {
         pActor = insertActor(pSector, 500);
@@ -79,11 +91,10 @@ DExhumedActor* BuildAnim(DExhumedActor* pActor, int val, int val2, const DVector
         pActor->spr.shade = -12;
     }
 
-    pActor->set_const_clipdist(10);
-    pActor->spr.xrepeat = nRepeat;
-    pActor->spr.yrepeat = nRepeat;
+    pActor->clipdist = 2.5;
+	pActor->spr.scale = DVector2(nScale, nScale);
     pActor->spr.picnum = 1;
-    pActor->spr.angle = nullAngle;
+    pActor->spr.Angles.Yaw = nullAngle;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
     pActor->vel.X = 0;
@@ -114,6 +125,12 @@ DExhumedActor* BuildAnim(DExhumedActor* pActor, int val, int val2, const DVector
 
     return pActor;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIAnim::Tick(RunListEvent* ev)
 {
@@ -214,6 +231,12 @@ void AIAnim::Tick(RunListEvent* ev)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AIAnim::Draw(RunListEvent* ev)
 {
     auto pActor = ev->pObjActor;
@@ -223,6 +246,12 @@ void AIAnim::Draw(RunListEvent* ev)
     seq_PlotSequence(ev->nParam, nIndex2, pActor->nIndex, 0x101);
     ev->pTSprite->ownerActor = nullptr;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void BuildExplosion(DExhumedActor* pActor)
 {
@@ -239,21 +268,29 @@ void BuildExplosion(DExhumedActor* pActor)
         edx = 34;
     }
 
-    BuildAnim(nullptr, edx, 0, pActor->spr.pos, pActor->sector(), pActor->spr.xrepeat, 4);
+    BuildAnim(nullptr, edx, 0, pActor->spr.pos, pActor->sector(), pActor->spr.scale.X, 4);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void BuildSplash(DExhumedActor* pActor, sectortype* pSector)
 {
-    int nRepeat, nSound;
+    int nSound;
+	double nScale;
 
     if (pActor->spr.statnum != 200)
     {
-        nRepeat = pActor->spr.xrepeat + (RandomWord() % pActor->spr.xrepeat);
+		double rep = pActor->spr.scale.X;
+        nScale = rep + RandomFloat(rep);
         nSound = kSound0;
     }
     else
     {
-        nRepeat = 20;
+        nScale = 0.3125;
         nSound = kSound1;
     }
 
@@ -272,7 +309,7 @@ void BuildSplash(DExhumedActor* pActor, sectortype* pSector)
         nFlag = 0;
     }
 
-	auto pSpawned = BuildAnim(nullptr, edx, 0, DVector3(pActor->spr.pos.XY(), pSector->floorz), pSector, nRepeat, nFlag);
+	auto pSpawned = BuildAnim(nullptr, edx, 0, DVector3(pActor->spr.pos.XY(), pSector->floorz), pSector, nScale, nFlag);
 
     if (!bIsLava)
     {

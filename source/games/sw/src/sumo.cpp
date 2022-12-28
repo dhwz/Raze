@@ -624,19 +624,17 @@ int SetupSumo(DSWActor* actor)
 
     EnemyDefaults(actor, &SumoActionSet, &SumoPersonality);
 
-    actor->set_const_clipdist((512) >> 2);
+    actor->clipdist = 32;
     if (actor->spr.pal == 16)
     {
         // Mini Sumo
-        actor->spr.xrepeat = 43;
-        actor->spr.yrepeat = 29;
+        actor->spr.scale = DVector2(0.671875, 0.453125);
         actor->user.ActorActionSet = &MiniSumoActionSet;
         actor->user.Health = 500;
     }
     else
     {
-        actor->spr.xrepeat = 115;
-        actor->spr.yrepeat = 75;
+        actor->spr.scale = DVector2(1.796875, 1.171875);
     }
 
     //actor->user.Flags |= (SPR_XFLIP_TOGGLE);
@@ -799,7 +797,7 @@ void BossHealthMeter(void)
         DSWActor* actor = BossSpriteNum[i];
         if (actor != nullptr && !bosswasseen[i])
         {
-            if (cansee(DVector3(actor->spr.pos.XY(), ActorZOfTop(actor)), actor->sector(), pp->pos.plusZ(-40), pp->cursector))
+            if (cansee(ActorVectOfTop(actor), actor->sector(), pp->actor->getPosWithOffsetZ().plusZ(-40), pp->cursector))
             {
                 if (i == 0 && !bosswasseen[0])
                 {

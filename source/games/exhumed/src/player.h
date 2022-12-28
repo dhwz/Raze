@@ -40,9 +40,6 @@ enum
 
 extern int nLocalPlayer;
 
-extern int lPlayerXVel;
-extern int lPlayerYVel;
-
 struct PlayerSave
 {
     sectortype* pSector;
@@ -79,10 +76,9 @@ struct Player
     int16_t nLastWeapon;
     int16_t nRun;
     bool bPlayerPan, bLockPan;
-    fixedhoriz nDestVertPan;
+    DAngle nDestVertPan;
 
-    PlayerHorizon horizon;
-    PlayerAngle angle;
+    PlayerAngles Angles;
     sectortype* pPlayerPushSect;
     sectortype* pPlayerViewSect;
 
@@ -92,7 +88,8 @@ struct Player
     int16_t nPlayerScore;
     int16_t nPlayerColor;
     int16_t nPistolClip;
-    vec2_t nPlayerD, nDamage;
+    DVector2 nPlayerD;
+    DVector2 nThrust;
     int16_t nPlayerOldWeapon;
     int16_t nPlayerClip;
     int16_t nPlayerPushSound;
@@ -101,7 +98,6 @@ struct Player
     PlayerSave sPlayerSave;
     int ototalvel;
     int totalvel;
-    double eyelevel, oeyelevel;
     TObjPtr<DExhumedActor*> pPlayerGrenade;
     TObjPtr<DExhumedActor*> pPlayerFloorSprite;
     TObjPtr<DExhumedActor*> pDoppleSprite;

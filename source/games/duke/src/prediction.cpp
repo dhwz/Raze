@@ -40,7 +40,7 @@ DVector3 omypos, mypos;
 int myxvel, myyvel, myzvel;
 int globalskillsound;
 DAngle myang, omyang;
-fixedhoriz myhoriz, omyhoriz, myhorizoff, omyhorizoff;
+DAngle myhoriz, omyhoriz, myhorizoff, omyhorizoff;
 int mycursectnum, myjumpingcounter;
 uint8_t myjumpingtoggle, myonground, myhardlanding,myreturntocenter;
 int fakemovefifoplc;
@@ -51,12 +51,12 @@ short myangbak[MOVEFIFOSIZ];
 
 void resetmys()
 {
-	mypos = omypos = ps[myconnectindex].pos;
+	mypos = omypos = ps[myconnectindex].GetActor()->getPosWithOffsetZ();
 	myxvel = myyvel = myzvel = 0;
-	myang = ps[myconnectindex].angle.ang;
-	myhoriz = omyhoriz = ps[myconnectindex].horizon.horiz;
-	myhorizoff = omyhorizoff = ps[myconnectindex].horizon.horizoff;
-	mycursectnum = sectnum(ps[myconnectindex].cursector);
+	myang = ps[myconnectindex].GetActor()->spr.Angles.Yaw;
+	myhoriz = omyhoriz = ps[myconnectindex].GetActor()->spr.Angles.Pitch;
+	myhorizoff = omyhorizoff = ps[myconnectindex].Angles.ViewAngles.Pitch;
+	mycursectnum = sectindex(ps[myconnectindex].cursector);
 	myjumpingcounter = ps[myconnectindex].jumping_counter;
 	myjumpingtoggle = ps[myconnectindex].jumping_toggle;
 	myonground = ps[myconnectindex].on_ground;
@@ -121,9 +121,9 @@ void fakedomovethings(void)
 		psectlotag = psect->lotag;
 		spritebridge = 0;
 
-		shrunk = (p->GetActor()->s.yrepeat < (isRR()? 8 : 32));
+		shrunk = (p->GetActor()->s.y_repeat < (isRR()? 8 : 32));
 
-		if( ud.clipping == 0 && ( psect->floorpicnum == MIRROR || psect == nullptr) )
+		if( ud.clipping == 0 && ( psect->floortexture == mirrortex || psect == nullptr) )
 		{
 			mypos.XY() = omypos.XY();
 		}
@@ -146,8 +146,8 @@ void fakedomovethings(void)
 
 		if( p->aim_mode == 0 && myonground && psectlotag != 2 && (psect->floorstat&2) )
 		{
-				x = myx + bcos(myang, -5);
-				y = myy + bsin(myang, -5);
+				x = myx + b cos(myang, -5);
+				y = myy + b sin(myang, -5);
 				tempsect = psect;
 				updatesector(x,y,&tempsect);
 				if (tempsect >= 0)
@@ -178,11 +178,11 @@ void fakedomovethings(void)
 						psectlotag = 0;
 						spritebridge = 1;
 				 }
-				 if(badguy(chz.actor) && chz.actor()->s.xrepeat > 24 && abs(p->GetActor()->s.z- chz.actor()->s.z) < (84<<8) )
+				 if(badguy(chz.actor) && chz.actor()->s.ScaleX() > 0.375 && abs(p->GetActor()->s.z- chz.actor()->s.z) < (84<<8) )
 				 {
-					j = getangle(chz.actor()->s.x-myx, chz.actor()->s.y-myy);
-					myxvel -= bcos(j, 4);
-					myyvel -= bsin(j, 4);
+					j = g etangle(chz.actor()->s.x-myx, chz.actor()->s.y-myy);
+					myxvel -= b cos(j, 4);
+					myyvel -= b sin(j, 4);
 				}
 		}
 
@@ -366,7 +366,7 @@ void fakedomovethings(void)
 									 }
 									 else
 									 {
-											 myzvel -= bsin(128 + myjumpingcounter) / 12;
+											 myzvel -= b sin(128 + myjumpingcounter) / 12;
 											 myjumpingcounter += 180;
 
 											 myonground = 0;

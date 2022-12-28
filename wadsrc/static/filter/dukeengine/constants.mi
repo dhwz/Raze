@@ -1,0 +1,31 @@
+// Global constants for all Duke based games.
+
+constants
+{
+	// texture flags
+	TFLAG_WALLSWITCH			= 1
+	TFLAG_ADULT					= 2
+	TFLAG_CLEARINVENTORY		= 4	// really dumb Duke stuff...
+	TFLAG_DOORWALL				= 8
+	TFLAG_BLOCKDOOR				= 16
+	TFLAG_NOBLOODSPLAT			= 32
+	TFLAG_NOCIRCLEREFLECT		= 64
+	TFLAG_INTERPOLATEWALL		= 128
+
+	// surface (terrain/environment) types
+	TSURF_NONE					= 0
+	TSURF_ELECTRIC				= 1
+	TSURF_SLIME					= 2
+	TSURF_OUTERSPACE			= 3
+	TSURF_MUDDY					= 4
+	TSURF_PURPLELAVA			= 5	// very special kind of terrain type.
+	TSURF_SCROLLSKY				= 6
+	TSURF_THUNDERSKY			= 7
+	TSURF_PLASMA				= 8
+	TSURF_MAGMA					= 9
+	TSURF_METALDUCTS			= 10
+	TSURF_OIL					= 11
+	TSURF_DEEPMUD				= 12	// also affects motorcycle
+	TSURF_SPECIALWATER			= 13
+}
+

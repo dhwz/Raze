@@ -20,6 +20,8 @@ inline int player_struct::GetPlayerNum()
 }
 
 DDukeActor* spawn(DDukeActor* spawner, int type);
+DDukeActor* spawn(DDukeActor* actj, PClassActor* pname);
+
 
 inline int badguy(DDukeActor* pSprite)
 {
@@ -33,19 +35,13 @@ inline int bossguy(DDukeActor* pSprite)
 
 // old interface versions of already changed functions
 
-int movesprite_ex_d(DDukeActor* actor, int xchange, int ychange, int zchange, unsigned int cliptype, Collision& result);
-int movesprite_ex_r(DDukeActor* actor, int xchange, int ychange, int zchange, unsigned int cliptype, Collision& result);
-
-inline int movesprite_ex(DDukeActor* actor, int xchange, int ychange, int zchange, unsigned int cliptype, Collision& result)
-{
-	auto f = isRR() ? movesprite_ex_r : movesprite_ex_d;
-	return f(actor, xchange, ychange, zchange, cliptype, result);
-}
+int movesprite_ex_d(DDukeActor* actor, const DVector3& change, unsigned int cliptype, Collision& result);
+int movesprite_ex_r(DDukeActor* actor, const DVector3& change, unsigned int cliptype, Collision& result);
 
 inline int movesprite_ex(DDukeActor* actor, const DVector3& change, unsigned int cliptype, Collision& result)
 {
 	auto f = isRR() ? movesprite_ex_r : movesprite_ex_d;
-	return f(actor, change.X * worldtoint, change.Y * worldtoint, change.Z * zworldtoint, cliptype, result);
+	return f(actor, change, cliptype, result);
 }
 
 

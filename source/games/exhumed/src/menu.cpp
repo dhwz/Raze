@@ -55,6 +55,12 @@ int word_9AB5B = 0;
 int keytimer = 0;
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 unsigned int menu_RandomBit2()
 {
     unsigned int result = nRandom & 1;
@@ -71,6 +77,12 @@ unsigned int menu_RandomBit2()
     return result;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void InitEnergyTile()
 {
     word_9AB5B = 0;
@@ -81,8 +93,8 @@ void DoEnergyTile()
 {
     nButtonColor += nButtonColor < 0 ? 8 : 0;
 
-    auto energy1 = TileFiles.tileMakeWritable(kEnergy1);
-    auto energy2 = TileFiles.tileMakeWritable(kEnergy2);
+    auto energy1 = GetWritablePixels(tileGetTextureID(kEnergy1));
+    auto energy2 = GetWritablePixels(tileGetTextureID(kEnergy2));
     uint8_t* ptr1 = energy1 + 1984;
     uint8_t* ptr2 = energy1 + 2048;
 
@@ -104,8 +116,6 @@ void DoEnergyTile()
             nColor = 160;
         }
     }
-
-    TileFiles.InvalidateTile(kEnergy1);
 
     if (nSmokeSparks)
     {
@@ -233,7 +243,6 @@ void DoEnergyTile()
             energytile[val] = 175;
             word_9AB5B = 1;
         }
-        TileFiles.InvalidateTile(kEnergy2);
     }
 }
 

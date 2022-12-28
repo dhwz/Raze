@@ -24,6 +24,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "m_fixed.h"
 #include "filesystem.h"
+#include "texinfo.h"
+
+#include "buildtiles.h"
 
 BEGIN_BLD_NS
 
@@ -35,6 +38,7 @@ void playlogos();
 unsigned int qrand(void);
 int wrand(void);
 void wsrand(int);
+
 void FireInit(void);
 void FireProcess(void);
 void UpdateNetworkMenus(void);
@@ -48,7 +52,7 @@ struct PLAYER;
 
 bool checkLitSprayOrTNT(PLAYER* pPlayer);
 void WeaponInit(void);
-void WeaponDraw(PLAYER* pPlayer, int a2, double a3, double a4, int a5);
+void WeaponDraw(PLAYER* pPlayer, int shade, double xpos, double ypos, int palnum, DAngle angle);
 void WeaponRaise(PLAYER* pPlayer);
 void WeaponLower(PLAYER* pPlayer);
 int WeaponUpgrade(PLAYER* pPlayer, int newWeapon);
@@ -60,27 +64,15 @@ void WeaponPrecache();
 struct ZONE {
 	DVector3 pos;
 	sectortype* sector;
-	short ang;
+	DAngle angle;
 };
 extern ZONE gStartZone[8];
 
 void warpInit(TArray<DBloodActor*>& actors);
 int CheckLink(DBloodActor* pSprite);
-int CheckLink(int* x, int* y, int* z, sectortype** pSector);
-
-void RotateVector(int* dx, int* dy, int nAngle);
+int CheckLink(DVector3& cPos, sectortype** pSector);
 
 #include "m_fixed.h"
-
-inline int Sin(int ang)
-{
-	return sintable[ang & 2047];
-}
-
-inline int Cos(int ang)
-{
-	return sintable[(ang + 512) & 2047];
-}
 
 enum SurfaceType {
 	kSurfNone = 0,
@@ -101,15 +93,12 @@ enum SurfaceType {
 	kSurfMax
 };
 
-extern uint8_t surfType[MAXTILES];
-extern int8_t tileShade[MAXTILES];
-extern short voxelIndex[MAXTILES];
-
 extern int nPrecacheCount;
+inline FTextureID mirrortile;
 
 void tilePrecacheTile(int nTile, int nType, int palette);
+void tilePrecacheTile(FTextureID nTile, int nType, int palette);
 
-int tileGetSurfType(int hit);
 int tileGetSurfType(CollisionBase& hit);
 
 END_BLD_NS

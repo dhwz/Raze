@@ -365,15 +365,14 @@ int DoEelMatchPlayerZ(DSWActor* actor);
 
 void EelCommon(DSWActor* actor)
 {
-    actor->set_const_clipdist((100) >> 2);
+    actor->clipdist = 6.25;
     actor->user.floor_dist = (16);
     actor->user.floor_dist = (16);
     actor->user.ceiling_dist = (20);
 
     actor->user.pos.Z = actor->spr.pos.Z;
 
-    actor->spr.xrepeat = 35;
-    actor->spr.yrepeat = 27;
+	actor->spr.scale = DVector2(0.546875, 0.421875);
     actor->user.Radius = 400;
 }
 
@@ -552,7 +551,7 @@ int DoEelDeath(DSWActor* actor)
         DoActorSlide(actor);
 
     // slide while falling
-	auto vec = actor->spr.angle.ToVector() * actor->vel.X;
+	auto vec = actor->spr.Angles.Yaw.ToVector() * actor->vel.X;
 
     actor->user.coll = move_sprite(actor, DVector3(vec, 0), actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, ACTORMOVETICS);
     DoFindGroundPoint(actor);

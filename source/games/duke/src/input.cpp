@@ -284,10 +284,7 @@ void hud_input(int plnum)
 							p->inven_icon = 3;
 
 							auto pactor =
-								EGS(p->cursector,
-									p->player_int_pos().X,
-									p->player_int_pos().Y,
-									p->player_int_pos().Z + (30 << 8), TILE_APLAYER, -64, 0, 0, p->angle.ang.Buildang(), 0, 0, nullptr, 10);
+								CreateActor(p->cursector, p->GetActor()->getPosWithOffsetZ().plusZ(30), TILE_APLAYER, -64, DVector2(0, 0), p->GetActor()->spr.Angles.Yaw, 0., 0., nullptr, 10);
 							pactor->temp_data[3] = pactor->temp_data[4] = 0;
 							p->holoduke_on = pactor;
 							pactor->spr.yint = plnum;
@@ -336,7 +333,7 @@ void hud_input(int plnum)
 				{
 					p->yehaa_timer = 126;
 					S_PlayActorSound(390, pact);
-					p->noise_radius = 16384;
+					p->noise_radius = 1024;
 					madenoise(plnum);
 					if (p->cursector->lotag == 857)
 					{
@@ -479,7 +476,7 @@ void hud_input(int plnum)
 			}
 		}
 
-		if (PlayerInput(plnum, SB_TURNAROUND) && p->angle.spin == nullAngle && p->on_crane == nullptr)
+		if (PlayerInput(plnum, SB_TURNAROUND) && p->Angles.YawSpin == nullAngle && p->on_crane == nullptr)
 		{
 			SetGameVarID(g_iReturnVarID, 0, nullptr, plnum);
 			OnEvent(EVENT_TURNAROUND, plnum, nullptr, -1);
@@ -558,7 +555,7 @@ static void processInputBits(player_struct *p, ControlInfo* const hidInput)
 //
 //---------------------------------------------------------------------------
 
-static double motoApplyTurn(player_struct* p, ControlInfo* const hidInput, bool const kbdLeft, bool const kbdRight, double const factor)
+static FAngle motoApplyTurn(player_struct* p, ControlInfo* const hidInput, bool const kbdLeft, bool const kbdRight, double const factor)
 {
 	double turnvel = 0;
 	p->oTiltStatus = p->TiltStatus;
@@ -598,7 +595,7 @@ static double motoApplyTurn(player_struct* p, ControlInfo* const hidInput, bool 
 					turnvel -= isTurboTurnTime() && p->MotoSpeed > 0 ? baseVel : baseVel * velScale;
 
 				if (hidInput->mouseturnx < 0)
-					turnvel -= sqrt((p->MotoSpeed > 0 ? baseVel : baseVel * velScale) * -(hidInput->mouseturnx / factor) * 2.);
+					turnvel -= Sgn(baseVel) * sqrt((p->MotoSpeed > 0 ? abs(baseVel) : abs(baseVel) * velScale) * -(hidInput->mouseturnx / factor) * 2.);
 
 				if (hidInput->dyaw < 0)
 					turnvel += (p->MotoSpeed > 0 ? baseVel : baseVel * velScale) * hidInput->dyaw;
@@ -617,7 +614,7 @@ static double motoApplyTurn(player_struct* p, ControlInfo* const hidInput, bool 
 					turnvel += isTurboTurnTime() && p->MotoSpeed > 0 ? baseVel : baseVel * velScale;
 
 				if (hidInput->mouseturnx > 0)
-					turnvel += sqrt((p->MotoSpeed > 0 ? baseVel : baseVel * velScale) * (hidInput->mouseturnx / factor) * 2.);
+					turnvel += Sgn(baseVel) * sqrt((p->MotoSpeed > 0 ? abs(baseVel) : abs(baseVel) * velScale) * (hidInput->mouseturnx / factor) * 2.);
 
 				if (hidInput->dyaw > 0)
 					turnvel += (p->MotoSpeed > 0 ? baseVel : baseVel * velScale) * hidInput->dyaw;
@@ -639,7 +636,7 @@ static double motoApplyTurn(player_struct* p, ControlInfo* const hidInput, bool 
 	if (fabs(p->TiltStatus) < factor)
 		p->TiltStatus = 0;
 
-	return turnvel * factor;
+	return FAngle::fromBuild(turnvel * factor);
 }
 
 //---------------------------------------------------------------------------
@@ -648,7 +645,7 @@ static double motoApplyTurn(player_struct* p, ControlInfo* const hidInput, bool 
 //
 //---------------------------------------------------------------------------
 
-static double boatApplyTurn(player_struct *p, ControlInfo* const hidInput, bool const kbdLeft, bool const kbdRight, double const factor)
+static FAngle boatApplyTurn(player_struct *p, ControlInfo* const hidInput, bool const kbdLeft, bool const kbdRight, double const factor)
 {
 	double turnvel = 0;
 	p->oTiltStatus = p->TiltStatus;
@@ -673,7 +670,7 @@ static double boatApplyTurn(player_struct *p, ControlInfo* const hidInput, bool 
 					turnvel -= isTurboTurnTime() ? baseVel : baseVel * velScale;
 
 				if (hidInput->mouseturnx < 0)
-					turnvel -= sqrt(baseVel * -(hidInput->mouseturnx / factor) * 2.);
+					turnvel -= Sgn(baseVel) * sqrt(abs(baseVel) * -(hidInput->mouseturnx / factor) * 2.);
 
 				if (hidInput->dyaw < 0)
 					turnvel += baseVel * hidInput->dyaw;
@@ -694,7 +691,7 @@ static double boatApplyTurn(player_struct *p, ControlInfo* const hidInput, bool 
 					turnvel += isTurboTurnTime() ? baseVel : baseVel * velScale;
 
 				if (hidInput->mouseturnx > 0)
-					turnvel += sqrt(baseVel * (hidInput->mouseturnx / factor) * 2.);
+					turnvel += Sgn(baseVel) * sqrt(abs(baseVel) * (hidInput->mouseturnx / factor) * 2.);
 
 				if (hidInput->dyaw > 0)
 					turnvel += baseVel * hidInput->dyaw;
@@ -725,7 +722,7 @@ static double boatApplyTurn(player_struct *p, ControlInfo* const hidInput, bool 
 	if (fabs(p->TiltStatus) < factor)
 		p->TiltStatus = 0;
 
-	return turnvel * factor;
+	return FAngle::fromBuild(turnvel * factor);
 }
 
 //---------------------------------------------------------------------------
@@ -754,16 +751,15 @@ static void processVehicleInput(player_struct *p, ControlInfo* const hidInput, I
 
 	if (p->OnMotorcycle)
 	{
-		input.avel = (float)motoApplyTurn(p, hidInput, kbdLeft, kbdRight, scaleAdjust);
+		input.avel = motoApplyTurn(p, hidInput, kbdLeft, kbdRight, scaleAdjust).Degrees();
 		if (p->moto_underwater) p->MotoSpeed = 0;
 	}
 	else
 	{
-		input.avel = (float)boatApplyTurn(p, hidInput, kbdLeft, kbdRight, scaleAdjust);
+		input.avel = boatApplyTurn(p, hidInput, kbdLeft, kbdRight, scaleAdjust).Degrees();
 	}
 
-	loc.fvel = clamp<int16_t>(p->MotoSpeed, -(MAXVELMOTO >> 3), MAXVELMOTO);
-	input.avel *= BAngToDegree;
+	loc.fvel = clamp<float>((float)p->MotoSpeed, -(MAXVELMOTO >> 3), MAXVELMOTO) * (1.f / 40.f);
 	loc.avel += input.avel;
 }
 
@@ -795,7 +791,7 @@ static void FinalizeInput(player_struct *p, InputPacket& input)
 			loc.avel = input.avel = 0;
 		}
 
-		if (p->newOwner != nullptr || (p->sync.actions & SB_CENTERVIEW && abs(p->horizon.horiz.asbuild()) > 5))
+		if (p->newOwner != nullptr || (p->sync.actions & SB_CENTERVIEW && abs(p->GetActor()->spr.Angles.Pitch.Degrees()) > 2.2370))
 		{
 			loc.horz = input.horz = 0;
 		}
@@ -838,22 +834,14 @@ void GameInterface::GetInput(ControlInfo* const hidInput, double const scaleAdju
 		if (p->GetActor()->spr.extra > 0)
 		{
 			// Do these in the same order as the old code.
-			doslopetilting(p, scaleAdjust);
-			p->angle.applyinput(p->adjustavel(input.avel), &p->sync.actions, scaleAdjust);
-			p->apply_seasick(scaleAdjust);
-			p->horizon.applyinput(input.horz, &p->sync.actions, scaleAdjust);
+			p->Angles.RenderAngles.Yaw += p->adjustavel(input.avel);
+			p->Angles.RenderAngles.Pitch += DAngle::fromDeg(input.horz);
 		}
-
-		p->angle.processhelpers(scaleAdjust);
-		p->horizon.processhelpers(scaleAdjust);
-		p->GetActor()->spr.angle = p->angle.ang;
 	}
 
 	if (packet)
 	{
 		*packet = loc;
-		packet->fvel = MulScale(loc.fvel, p->angle.ang.Cos() * (1 << 14), 9) + MulScale(loc.svel, p->angle.ang.Sin() * (1 << 14), 9) + p->fric.X;
-		packet->svel = MulScale(loc.fvel, p->angle.ang.Sin() * (1 << 14), 9) - MulScale(loc.svel, p->angle.ang.Cos() * (1 << 14), 9) + p->fric.Y;
 		loc = {};
 	}
 }

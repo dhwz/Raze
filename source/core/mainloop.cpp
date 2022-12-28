@@ -89,6 +89,8 @@
 #include "gamehud.h"
 #include "wipe.h"
 #include "i_interface.h"
+#include "texinfo.h"
+#include "texturemanager.h"
 
 CVAR(Bool, vid_activeinbackground, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 CVAR(Bool, r_ticstability, true, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
@@ -134,7 +136,7 @@ void G_BuildTiccmd(ticcmd_t* cmd)
 	cmd->ucmd = {};
 	I_GetEvent();
 	auto input = CONTROL_GetInput();
-	gi->GetInput(&input, I_GetInputFrac(SyncInput()), &cmd->ucmd);
+	gi->GetInput(&input, inputScale, &cmd->ucmd);
 	cmd->consistency = consistency[myconnectindex][(maketic / ticdup) % BACKUPTICS];
 }
 
@@ -347,7 +349,6 @@ static void GameTicker()
 	{
 	default:
 	case GS_STARTUP:
-		artClearMapArt();
 		gi->Startup();
 		break;
 
@@ -396,6 +397,7 @@ void DrawOverlays()
 // Display
 //
 //==========================================================================
+CVAR(String, drawtile, "", 0)	// debug stuff. Draws the tile with the given number on top of thze HUD
 
 void Display()
 {
@@ -438,7 +440,7 @@ void Display()
 			screen->FrameTime = I_msTimeFS();
 			screen->BeginFrame();
 			screen->SetSceneRenderTarget(gl_ssao != 0);
-			updateModelInterpolation();
+			//updateModelInterpolation();
 			gi->Render();
 			DrawFullscreenBlends();
 			drawMapTitle();
@@ -452,12 +454,41 @@ void Display()
 	}
 	
 	if (nextwipe == wipe_None)
+	{
 		DrawOverlays();
+		if (drawtile[0])
+		{
+			auto tex = TexMan.CheckForTexture(drawtile, ETextureType::Any);
+			if (!tex.isValid()) tex = tileGetTextureID(atoi(drawtile));
+			if (tex.isValid())
+			{
+				auto tx = TexMan.GetGameTexture(tex);
+				if (tx)
+				{
+					int width = (int)tx->GetDisplayWidth();
+					int height = (int)tx->GetDisplayHeight();
+					int dwidth, dheight;
+					if (width > height)
+					{
+						dwidth = screen->GetWidth() / 4;
+						dheight = height * dwidth / width;
+					}
+					else
+					{
+						dheight = screen->GetHeight() / 4;
+						dwidth = width * dheight / height;
+					}
+					DrawTexture(twod, tx, 0, 0, DTA_DestWidth, dwidth, DTA_DestHeight, dheight, TAG_DONE);
+				}
+			}
+		}
+	}
 	else
 	{
 		PerformWipe(wipestart, screen->WipeEndScreen(), nextwipe, true, DrawOverlays);
 		nextwipe = wipe_None;
 	}
+
 	screen->Update();
 }
 
@@ -532,6 +563,9 @@ void TryRunTics (void)
 	realtics = entertic - oldentertics;
 	oldentertics = entertic;
 
+	// update the scale factor for unsynchronised input here.
+	inputScale = I_GetInputFrac(SyncInput());
+
 	// get available tics
 	NetUpdate ();
 
@@ -581,7 +615,7 @@ void TryRunTics (void)
 		{
 			I_GetEvent();
 			auto input = CONTROL_GetInput();
-			gi->GetInput(&input, I_GetInputFrac(SyncInput()));
+			gi->GetInput(&input, inputScale);
 		}
 		return;
 	}

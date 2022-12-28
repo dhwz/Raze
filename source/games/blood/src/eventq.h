@@ -44,8 +44,8 @@ public:
 	EventObject() = default;
 	explicit EventObject(std::nullptr_t) { index = -1; }
 	explicit EventObject(DBloodActor* actor_) { ActorP = actor_; assert(isActor()); }
-	explicit EventObject(sectortype* sect) { index = (sectnum(sect) << 8) | Sector; }
-	explicit EventObject(walltype* wall) { index = (wallnum(wall) << 8) | Wall; }
+	explicit EventObject(sectortype* sect) { index = (sectindex(sect) << 8) | Sector; }
+	explicit EventObject(walltype* wall) { index = (wallindex(wall) << 8) | Wall; }
 
 	bool isActor() const { return (index & 7) == Actor; }
 	bool isSector() const { return (index & 7) == Sector; }
@@ -54,7 +54,7 @@ public:
 	DBloodActor* actor() { assert(isActor()); return GC::ReadBarrier(ActorP); }
 	sectortype* sector() { assert(isSector()); return &::sector[index >> 8]; }
 	walltype* wall() { assert(isWall()); return &::wall[index >> 8]; }
-	int rawindex() { return index >> 8; }
+	int rawindex() { return int(index >> 8); }
 
 	bool operator==(const EventObject& other) const { return index == other.index; }
 	bool operator!=(const EventObject& other) const { return index != other.index; }
@@ -100,7 +100,8 @@ enum {
 	// channel of event causer
 	kChannelEventCauser = 50,
 	// map requires modern features to work properly
-	kChannelMapModernize = 60,
+	kChannelMapModernRev1 = 60,
+	kChannelMapModernRev2 = 61,
 	/////////////////////////////
 	kChannelTeamAFlagCaptured = 80,
 	kChannelTeamBFlagCaptured,
@@ -117,7 +118,7 @@ enum {
 	kChannelMax = 4096,
 };
 
-extern EventObject rxBucket[];
+extern EventObject rxBucket[kChannelMax];
 extern unsigned short bucketHead[];
 
 enum COMMAND_ID {

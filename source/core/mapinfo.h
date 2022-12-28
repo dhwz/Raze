@@ -6,6 +6,7 @@
 #include "palentry.h"
 #include "vectors.h"
 #include "screenjob.h"
+#include "maptypes.h"
 
 #ifdef GetMessage
 #undef GetMessage	// Windows strikes...
@@ -148,7 +149,7 @@ struct MapRecord
 	// game specific stuff
 	int rr_startsound = 0;
 	int rr_mamaspawn = 15;
-	int ex_ramses_horiz = 11;
+	DAngle ex_ramses_horiz = DAngle::fromDeg(-4.912);
 	int ex_ramses_cdtrack = -1; // this is not music, it is the actual dialogue!
 	FString ex_ramses_pup;
 	FString ex_ramses_text;
@@ -196,6 +197,7 @@ struct SummaryInfo
 	int maxsecrets;
 	int supersecrets;
 	int time;
+	int totaltime;
 	int playercount;
 	bool cheated;
 	bool endofgame;

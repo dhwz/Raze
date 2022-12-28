@@ -43,13 +43,14 @@ AISTATE ratBite = { kAiStateChase, 6, nRatBiteClient, 120, NULL, NULL, NULL, &ra
 
 void ratBiteSeqCallback(int, DBloodActor* actor)
 {
-	int dx = bcos(actor->int_ang());
-	int dy = bsin(actor->int_ang());
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	if (!actor->ValidateTarget(__FUNCTION__)) return;
 	auto target = actor->GetTarget();
 	if (target->IsPlayerActor())
-		actFireVector(actor, 0, 0, dx, dy, target->int_pos().Z - actor->int_pos().Z, kVectorRatBite);
+	{
+		DVector3 vec(actor->spr.Angles.Yaw.ToVector() * 64, target->spr.pos.Z - actor->spr.pos.Z);
+		actFireVector(actor, 0, 0, vec, kVectorRatBite);
+	}
 }
 
 static void ratThinkSearch(DBloodActor* actor)
@@ -63,10 +64,10 @@ static void ratThinkGoto(DBloodActor* actor)
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
-	int nAngle = getangle(dvec);
-	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
-	if (nDist < 512 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
+	DAngle nAngle = dvec.Angle();
+	double nDist = dvec.Length();
+	aiChooseDirection(actor, nAngle);
+	if (nDist < 32 && absangle(actor->spr.Angles.Yaw, nAngle) < pDudeInfo->Periphery())
 		aiNewState(actor, &ratSearch);
 	aiThinkTarget(actor);
 }
@@ -83,9 +84,9 @@ static void ratThinkChase(DBloodActor* actor)
 	auto target = actor->GetTarget();
 
 	auto dvec = target->spr.pos.XY() - actor->spr.pos.XY();
-	int nAngle = getangle(dvec);
-	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
+	DAngle nAngle = dvec.Angle();
+	double nDist = dvec.Length();
+	aiChooseDirection(actor, nAngle);
 	if (target->xspr.health == 0)
 	{
 		aiNewState(actor, &ratSearch);
@@ -97,16 +98,16 @@ static void ratThinkChase(DBloodActor* actor)
 		return;
 	}
 
-	if (nDist <= pDudeInfo->seeDist)
+	if (nDist <= pDudeInfo->SeeDist())
 	{
-		int nDeltaAngle = getincangle(actor->int_ang(), nAngle);
-		double height = (pDudeInfo->eyeHeight * actor->spr.yrepeat) * REPEAT_SCALE;
+		DAngle nDeltaAngle = absangle(actor->spr.Angles.Yaw, nAngle);
+		double height = (pDudeInfo->eyeHeight * actor->spr.scale.Y);
 		if (cansee(target->spr.pos, target->sector(), actor->spr.pos.plusZ(-height), actor->sector()))
 		{
-			if (nDist < pDudeInfo->seeDist && abs(nDeltaAngle) <= pDudeInfo->periphery)
+			if (nDist < pDudeInfo->SeeDist() && abs(nDeltaAngle) <= pDudeInfo->Periphery())
 			{
 				aiSetTarget(actor, actor->GetTarget());
-				if (nDist < 0x399 && abs(nDeltaAngle) < 85)
+				if (nDist < 57.5625 && nDeltaAngle < DAngle15)
 					aiNewState(actor, &ratBite);
 				return;
 			}

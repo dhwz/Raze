@@ -20,7 +20,7 @@ int32_t CONFIG_ReadSetup(void);
 
 bool WarpSectorInfo(sectortype* sect, DSWActor** sp_warp);
 DSWActor* Warp(DVector3& pos, sectortype** sect);
-DSWActor* WarpPlane(DVector3& pos, sectortype** sect);
+DSWActor* WarpPlane(DVector3& pos, sectortype** sect, double testz = DBL_MAX);
 
 
 
@@ -71,8 +71,8 @@ int DoActorSectorDamage(DSWActor* actor);
 int DoScaleSprite(DSWActor* actor);
 int DoActorStopFall(DSWActor* actor);
 
-void InitPlayerSprite(PLAYER* pp);
-void InitAllPlayerSprites(void);
+void InitPlayerSprite(PLAYER* pp, const DVector3& spawnpos, const DAngle startang);
+void InitAllPlayerSprites(const DVector3& spawnpos, const DAngle startang);
 void PlayerPanelSetup(void);
 void PlayerDeathReset(PLAYER* pp);
 void SpawnPlayerUnderSprite(PLAYER* pp);

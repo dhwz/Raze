@@ -127,6 +127,12 @@ bulletInfo BulletInfo[] = {
 };
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void InitBullets()
 {
     BulletList.Clear();
@@ -140,6 +146,12 @@ int GrabBullet()
     BulletList[grabbed].pEnemy = nullptr;
     return grabbed;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void DestroyBullet(int nBullet)
 {
@@ -155,19 +167,32 @@ void DestroyBullet(int nBullet)
     BulletList.Release(nBullet);
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void IgniteSprite(DExhumedActor* pActor)
 {
     pActor->spr.hitag += 2;
 
-    auto pAnimActor = BuildAnim(nullptr, 38, 0, pActor->spr.pos, pActor->sector(), 40, 20);
+    auto pAnimActor = BuildAnim(nullptr, 38, 0, pActor->spr.pos, pActor->sector(), 0.625, 20);
 
     if (pAnimActor)
     {
         pAnimActor->pTarget = pActor;
         ChangeActorStat(pAnimActor, kStatIgnited);
-        pAnimActor->spr.yrepeat = (uint8_t)max(1, (tileHeight(pAnimActor->spr.picnum) * 32) / nFlameHeight);
+        auto tex = TexMan.GetGameTexture(pAnimActor->spr.spritetexture());
+        pAnimActor->spr.scale.Y = (max(1.f, (tex->GetDisplayHeight() * 32) / nFlameHeight) * REPEAT_SCALE);
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void BulletHitsSprite(Bullet *pBullet, DExhumedActor* pBulletActor, DExhumedActor* pHitActor, const DVector3& pos, sectortype* pSector)
 {
@@ -192,7 +217,7 @@ void BulletHitsSprite(Bullet *pBullet, DExhumedActor* pBulletActor, DExhumedActo
             }
 
             if (!RandomSize(2)) {
-                BuildAnim(nullptr, pBulletInfo->field_C, 0, pos, pSector, 40, pBulletInfo->nFlags);
+                BuildAnim(nullptr, pBulletInfo->field_C, 0, pos, pSector, 0.625, pBulletInfo->nFlags);
             }
 
             return;
@@ -223,7 +248,7 @@ void BulletHitsSprite(Bullet *pBullet, DExhumedActor* pBulletActor, DExhumedActo
 
             if (nStat == kStatAnubisDrum)
             {
-                auto nAngle = (pActor->spr.angle + DAngle22_5) - RandomAngle9();
+                auto nAngle = (pActor->spr.Angles.Yaw + DAngle22_5) - RandomAngle9();
 
 				pHitActor->vel.XY() = nAngle.ToVector() * 2048;
                 pHitActor->vel.Z = -(RandomSize(3) + 1);
@@ -255,7 +280,7 @@ void BulletHitsSprite(Bullet *pBullet, DExhumedActor* pBulletActor, DExhumedActo
 
     if (nStat <= 90 || nStat >= 199)
     {
-        BuildAnim(nullptr, pBulletInfo->field_C, 0, pos, pSector, 40, pBulletInfo->nFlags);
+        BuildAnim(nullptr, pBulletInfo->field_C, 0, pos, pSector, 0.625, pBulletInfo->nFlags);
         return;
     }
 
@@ -267,24 +292,23 @@ void BulletHitsSprite(Bullet *pBullet, DExhumedActor* pBulletActor, DExhumedActo
         case 102:
         case kStatExplodeTrigger:
         case kStatExplodeTarget:
-            BuildAnim(nullptr, 12, 0, pos, pSector, 40, 0);
+            BuildAnim(nullptr, 12, 0, pos, pSector, 0.625, 0);
             break;
         default:
-            BuildAnim(nullptr, 39, 0, pos, pSector, 40, 0);
+            BuildAnim(nullptr, 39, 0, pos, pSector, 0.625, 0);
             if (pBullet->nType > 2)
             {
-                BuildAnim(nullptr, pBulletInfo->field_C, 0, pos, pSector, 40, pBulletInfo->nFlags);
+                BuildAnim(nullptr, pBulletInfo->field_C, 0, pos, pSector, 0.625, pBulletInfo->nFlags);
             }
             break;
     }
 }
 
-
-void BackUpBullet(int *x, int *y, int nAngle)
-{
-    *x -= bcos(nAngle, -11);
-    *y -= bsin(nAngle, -11);
-}
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int MoveBullet(int nBullet)
 {
@@ -316,7 +340,7 @@ int MoveBullet(int nBullet)
                 BulletList[nBullet].pEnemy = nullptr;
             else
             {
-                coll = AngleChase(pActor, pEnemyActor, pBullet->field_10, 0, 16);
+                coll = AngleChase(pActor, pEnemyActor, pBullet->field_10, 0, DAngle22_5 / 8);
                 goto MOVEEND;
             }
         }
@@ -324,8 +348,8 @@ int MoveBullet(int nBullet)
         {
             if (pBullet->field_E < 8)
             {
-                pActor->spr.xrepeat -= 1;
-                pActor->spr.yrepeat += 8;
+                pActor->spr.scale.X -= REPEAT_SCALE;
+				pActor->spr.scale.Y += (0.125);
 
                 pBullet->vect.Z -= 200/256.;
 
@@ -337,20 +361,19 @@ int MoveBullet(int nBullet)
                 {
                     pBullet->nSeq = 45;
                     pBullet->nFrame = 0;
-                    pActor->spr.xrepeat = 40;
-                    pActor->spr.yrepeat = 40;
+                    pActor->spr.scale = DVector2(0.625, 0.625);
                     pActor->spr.shade = 0;
 					pActor->spr.pos.Z += 2;
                 }
             }
             else
             {
-                pActor->spr.xrepeat += 4;
-                pActor->spr.yrepeat += 4;
+				pActor->spr.scale.X += (0.0625);
+				pActor->spr.scale.Y += (0.0625);
             }
         }
 
-        coll = movesprite(pActor, pBullet->vect, pActor->native_clipdist() >> 1, pActor->native_clipdist() >> 1, CLIPMASK1);
+        coll = movesprite(pActor, pBullet->vect.XY(), pBullet->vect.Z, pActor->clipdist / 128., CLIPMASK1);
 
 MOVEEND:
         if (coll.type || coll.exbits)
@@ -404,7 +427,7 @@ MOVEEND:
         if (BulletList[nBullet].pEnemy)
         {
             hitactor = BulletList[nBullet].pEnemy;
-            pos = hitactor->spr.pos.plusZ(-GetActorHeightF(hitactor) * 0.5);
+            pos = hitactor->spr.pos.plusZ(-GetActorHeight(hitactor) * 0.5);
             pHitSect = hitactor->sector();
         }
         else
@@ -412,7 +435,7 @@ MOVEEND:
 
             HitInfo hit{};
             double dz = -pBullet->nPitch *2;
-			hitscan(apos, pActor->sector(), DVector3(pActor->spr.angle.ToVector() * 1024, dz), hit, CLIPMASK1);
+			hitscan(apos, pActor->sector(), DVector3(pActor->spr.Angles.Yaw.ToVector() * 1024, dz), hit, CLIPMASK1);
             pos = hit.hitpos;
             hitactor = hit.actor();
             pHitSect = hit.hitSector;
@@ -442,7 +465,7 @@ HITSPRITE:
         else if (pHitWall != nullptr)
         {
         HITWALL:
-            if (pHitWall->picnum == kEnergy1)
+            if (pHitWall->walltexture() == tileGetTextureID(kEnergy1))
             {
                 if (pHitWall->twoSided())
                 {
@@ -469,15 +492,15 @@ HITSPRITE:
                 }
                 else
                 {
-                    BuildAnim(nullptr, pBulletInfo->field_C, 0, pos, pHitSect, 40, pBulletInfo->nFlags);
+                    BuildAnim(nullptr, pBulletInfo->field_C, 0, pos, pHitSect, 0.625, pBulletInfo->nFlags);
                 }
             }
             else
             {
                 if (pHitWall != nullptr)
                 {
-					pos.X -= pActor->spr.angle.Cos() * 0.5;
-					pos.Y -= pActor->spr.angle.Sin() * 0.5;
+					pos.X -= pActor->spr.Angles.Yaw.Cos() * 0.5;
+					pos.Y -= pActor->spr.Angles.Yaw.Sin() * 0.5;
 
                     if (nType != 3 || RandomSize(2) == 0)
                     {
@@ -488,7 +511,7 @@ HITSPRITE:
                         }
 
                         // draws bullet puff on walls when they're shot
-                        BuildAnim(nullptr, pBulletInfo->field_C, 0, pos.plusZ(zOffset - 16), pHitSect, 40, pBulletInfo->nFlags);
+                        BuildAnim(nullptr, pBulletInfo->field_C, 0, pos.plusZ(zOffset - 16), pHitSect, 0.625, pBulletInfo->nFlags);
                     }
                 }
                 else
@@ -517,6 +540,12 @@ HITSPRITE:
     return nVal;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void SetBulletEnemy(int nBullet, DExhumedActor* pEnemy)
 {
     if (nBullet >= 0) {
@@ -524,7 +553,13 @@ void SetBulletEnemy(int nBullet, DExhumedActor* pEnemy)
     }
 }
 
-DExhumedActor* BuildBullet(DExhumedActor* pActor, int nType, int nZOffset, DAngle nAngle, DExhumedActor* pTarget, int nDoubleDamage, int nPitch)
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+DExhumedActor* BuildBullet(DExhumedActor* pActor, int nType, double fZOffset, DAngle nAngle, DExhumedActor* pTarget, int nDoubleDamage, int nPitch)
 {
     Bullet sBullet;
     bulletInfo *pBulletInfo = &BulletInfo[nType];
@@ -539,9 +574,9 @@ DExhumedActor* BuildBullet(DExhumedActor* pActor, int nType, int nZOffset, DAngl
                 sBullet.nDoubleDamage = nDoubleDamage;
 
                 sBullet.pActor = insertActor(pActor->sector(), 200);
-                sBullet.pActor->spr.angle = nAngle;
+                sBullet.pActor->spr.Angles.Yaw = nAngle;
 
-                double nHeight = GetActorHeightF(pTarget);
+                double nHeight = GetActorHeight(pTarget);
 
 				assert(pTarget->sector());
 
@@ -573,11 +608,10 @@ DExhumedActor* BuildBullet(DExhumedActor* pActor, int nType, int nZOffset, DAngl
     }
 
     auto pBulletActor = insertActor(pSector, 200);
-	int nHeight = GetActorHeight(pActor);
-    nHeight = nHeight - (nHeight >> 2);
+	double fHeight = GetActorHeight(pActor) * 0.75;
 
-    if (nZOffset == -1) {
-        nZOffset = -nHeight;
+    if (fZOffset == INT_MAX) {
+        fZOffset = -fHeight;
     }
 
     pBulletActor->spr.pos = pActor->spr.pos;
@@ -596,18 +630,17 @@ DExhumedActor* BuildBullet(DExhumedActor* pActor, int nType, int nZOffset, DAngl
         pBulletActor->spr.pal = 0;
     }
 
-    pBulletActor->set_const_clipdist(25);
+	pBulletActor->clipdist = 6.25;
 
     int nRepeat = pBulletInfo->xyRepeat;
     if (nRepeat < 0) {
         nRepeat = 30;
     }
 
-    pBulletActor->spr.xrepeat = (uint8_t)nRepeat;
-    pBulletActor->spr.yrepeat = (uint8_t)nRepeat;
+    pBulletActor->spr.scale = DVector2(nRepeat * REPEAT_SCALE, nRepeat * REPEAT_SCALE);
     pBulletActor->spr.xoffset = 0;
     pBulletActor->spr.yoffset = 0;
-    pBulletActor->spr.angle = nAngle;
+    pBulletActor->spr.Angles.Yaw = nAngle;
     pBulletActor->vel.X = 0;
     pBulletActor->vel.Y = 0;
     pBulletActor->vel.Z = 0;
@@ -650,10 +683,10 @@ DExhumedActor* BuildBullet(DExhumedActor* pActor, int nType, int nZOffset, DAngl
     pBullet->nRunRec = runlist_AddRunRec(pBulletActor->spr.lotag - 1, nBullet, 0xB0000);
     pBullet->nRunRec2 = runlist_AddRunRec(NewRun, nBullet, 0xB0000);
     pBullet->nDoubleDamage = nDoubleDamage;
-    pBulletActor->add_int_z(nZOffset);
+    pBulletActor->spr.pos.Z += fZOffset;
     pBulletActor->backuppos();
 
-    int var_18 = 0;
+    double nVertVel = 0;
 
     pSector = pBulletActor->sector();
 
@@ -671,7 +704,7 @@ DExhumedActor* BuildBullet(DExhumedActor* pActor, int nType, int nZOffset, DAngl
 
     if (pTarget == nullptr)
     {
-        var_18 = (-bsin(nPitch) * pBulletInfo->field_4) >> 11;
+        nVertVel = (-DAngle::fromBuild(nPitch).Sin() * (1. / 32) * pBulletInfo->field_4);
     }
     else
     {
@@ -681,18 +714,18 @@ DExhumedActor* BuildBullet(DExhumedActor* pActor, int nType, int nZOffset, DAngl
         }
         else
         {
-            nHeight = GetActorHeight(pTarget);
+            fHeight = GetActorHeight(pTarget);
 
             if (pTarget->spr.statnum == 100)
             {
-                nHeight -= nHeight >> 2;
+                fHeight *= 0.75;
             }
             else
             {
-                nHeight -= nHeight >> 1;
+                fHeight *= 0.5;
             }
 
-            int var_20 = pTarget->int_pos().Z - nHeight;
+            double fTop = pTarget->spr.pos.Z - fHeight;
 
             DVector2 xy;
 
@@ -709,15 +742,14 @@ DExhumedActor* BuildBullet(DExhumedActor* pActor, int nType, int nZOffset, DAngl
                     int nPlayer = GetPlayerFromActor(pTarget);
                     if (nPlayer > -1)
                     {
-                        xy.X += PlayerList[nPlayer].nPlayerD.X * (15. / 16.);
-                        xy.Y += PlayerList[nPlayer].nPlayerD.Y * (15. / 16.);
+                        xy += PlayerList[nPlayer].nPlayerD * (15. / 16.);
                     }
                 }
 
                 xy -= pBulletActor->spr.pos.XY();
 
                 nAngle = xy.Angle();
-                pActor->spr.angle = nAngle;
+                pActor->spr.Angles.Yaw = nAngle;
             }
             else
             {
@@ -725,20 +757,20 @@ DExhumedActor* BuildBullet(DExhumedActor* pActor, int nType, int nZOffset, DAngl
                 xy = pTarget->spr.pos.XY() - pBulletActor->spr.pos.XY();
             }
 
-            int nSqrt = (xy * worldtoint).Length();
+            double nSqrt = xy.Length();
             if (nSqrt > 0)
             {
-                var_18 = ((var_20 - pBulletActor->int_pos().Z) * pBulletInfo->field_4) / nSqrt;
+                nVertVel = ((fTop - pBulletActor->spr.pos.Z) * pBulletInfo->field_4) / (nSqrt * 16);
             }
             else
             {
-                var_18 = 0;
+                nVertVel = 0;
             }
         }
     }
 
     pBullet->vect.Z = 0;
-    pBullet->vect.XY() = nAngle.ToVector() * (1 << 14) * pActor->fClipdist();
+    pBullet->vect.XY() = nAngle.ToVector() * pActor->clipdist;
     BulletList[nBullet].pEnemy = nullptr;
 
 
@@ -749,12 +781,18 @@ DExhumedActor* BuildBullet(DExhumedActor* pActor, int nType, int nZOffset, DAngl
     else
     {
         pBullet->field_10 = pBulletInfo->field_4;
-		pBullet->vect.XY() = nAngle.ToVector() * pBulletInfo->field_4 * 128;
-        pBullet->vect.Z = (var_18 >> 3) * zinttoworld;
+		pBullet->vect.XY() = nAngle.ToVector() * pBulletInfo->field_4 / 128.;
+        pBullet->vect.Z = nVertVel * 0.125;
     }
 
     return pBulletActor;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIBullet::Tick(RunListEvent* ev)
 {
@@ -770,7 +808,7 @@ void AIBullet::Tick(RunListEvent* ev)
 
     if (nFlag & 0x80)
     {
-        BuildAnim(nullptr, 45, 0, pActor->spr.pos, pActor->sector(), pActor->spr.xrepeat, 0);
+        BuildAnim(nullptr, 45, 0, pActor->spr.pos, pActor->sector(), pActor->spr.scale.X, 0);
     }
 
     BulletList[nBullet].nFrame++;
@@ -794,6 +832,12 @@ void AIBullet::Tick(RunListEvent* ev)
         MoveBullet(nBullet);
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIBullet::Draw(RunListEvent* ev)
 {

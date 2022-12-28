@@ -60,15 +60,15 @@ bool dudeIsPlayingSeq(DBloodActor* actor, int nSeq)
 //
 //---------------------------------------------------------------------------
 
-void aiPlay3DSound(DBloodActor* actor, int a2, AI_SFX_PRIORITY a3, int a4)
+void aiPlay3DSound(DBloodActor* actor, int soundid, AI_SFX_PRIORITY a3, int playchannel)
 {
 	DUDEEXTRA* pDudeExtra = &actor->dudeExtra;
 	if (a3 == AI_SFX_PRIORITY_0)
-		sfxPlay3DSound(actor, a2, a4, 2);
+		sfxPlay3DSound(actor, soundid, playchannel, 2);
 	else if (a3 > pDudeExtra->prio || pDudeExtra->time <= PlayClock)
 	{
 		sfxKill3DSound(actor, -1, -1);
-		sfxPlay3DSound(actor, a2, a4, 0);
+		sfxPlay3DSound(actor, soundid, playchannel, 0);
 		pDudeExtra->prio = a3;
 		pDudeExtra->time = PlayClock + 120;
 	}
@@ -127,28 +127,27 @@ static bool isImmune(DBloodActor* actor, int dmgType, int minScale)
 //
 //---------------------------------------------------------------------------
 
-bool CanMove(DBloodActor* actor, DBloodActor* target, int nAngle, int nRange)
+bool CanMove(DBloodActor* actor, DBloodActor* target, DAngle nAngle, double nRange)
 {
-	int top, bottom;
+	double top, bottom;
 	GetActorExtents(actor, &top, &bottom);
-	int x = actor->int_pos().X;
-	int y = actor->int_pos().Y;
-	int z = actor->int_pos().Z;
-	HitScan(actor, z, bcos(nAngle), bsin(nAngle), 0, CLIPMASK0, nRange);
-	int nDist = approxDist(actor->spr.pos.XY() - gHitInfo.hitpos.XY());
-	if (nDist - (actor->int_clipdist()) < nRange)
+	DVector3 pos = actor->spr.pos;
+	DVector2 nAngVect = nAngle.ToVector();
+	HitScan(actor, pos.Z, DVector3(nAngVect, 0) * 1024, CLIPMASK0, nRange);
+	double nDist = (actor->spr.pos.XY() - gHitInfo.hitpos.XY()).Length();
+	if (nDist - (actor->clipdist) < nRange / 16.) // this was actually comparing a Build unit value with a texel unit value!
 	{
 		if (gHitInfo.actor() == nullptr || target == nullptr || target != gHitInfo.actor())
 			return false;
 		return true;
 	}
-	x += MulScale(nRange, Cos(nAngle), 30);
-	y += MulScale(nRange, Sin(nAngle), 30);
+	pos.XY() += nRange / 16 * nAngVect; // see above - same weird mixup.
 	auto pSector = actor->sector();
 	assert(pSector);
-	updatesectorz(x, y, z, &pSector);
+	auto ps2 = pSector;
+	updatesectorz(pos, &pSector);
 	if (!pSector) return false;
-	int floorZ = getflorzofslopeptr(pSector, x, y);
+	double floorZ = getflorzofslopeptr(pSector, pos);
 	auto pXSector = pSector->hasX()? &pSector->xs() : nullptr;
 	bool Underwater = 0; 
 	bool Water = 0; 
@@ -179,7 +178,7 @@ bool CanMove(DBloodActor* actor, DBloodActor* target, int nAngle, int nRange)
 	case kDudeGargoyleFlesh:
 	case kDudeGargoyleStone:
 	case kDudeBat:
-		if (actor->native_clipdist() > nDist)
+		if (actor->clipdist > nDist * 4)
 			return 0;
 		if (Depth)
 		{
@@ -218,7 +217,7 @@ bool CanMove(DBloodActor* actor, DBloodActor* target, int nAngle, int nRange)
 			return false;
 		if (Depth || Underwater)
 			return false;
-		if (floorZ - bottom > 0x2000)
+		if (floorZ - bottom > 32)
 			return false;
 		break;
 #ifdef NOONE_EXTENSIONS
@@ -234,7 +233,7 @@ bool CanMove(DBloodActor* actor, DBloodActor* target, int nAngle, int nRange)
 	default:
 		if (Crusher)
 			return false;
-		if ((pXSector == nullptr || (!pXSector->Underwater && !pXSector->Depth)) && floorZ - bottom > 0x2000)
+		if ((pXSector == nullptr || (!pXSector->Underwater && !pXSector->Depth)) && floorZ - bottom > 32)
 			return false;
 		break;
 	}
@@ -250,41 +249,38 @@ bool CanMove(DBloodActor* actor, DBloodActor* target, int nAngle, int nRange)
 void aiChooseDirection(DBloodActor* actor, DAngle direction)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
-	DAngle vc = deltaangle(actor->spr.angle, direction);
-	double nCos = actor->spr.angle.Cos();
-	double nSin = actor->spr.angle.Sin();
-	double t1 = actor->vel.X * nCos + actor->vel.Y * nSin;
+	DAngle vc = deltaangle(actor->spr.Angles.Yaw, direction);
 	auto almost60deg = DAngle::fromBuild(341); // 60° does not work correctly - this is a little bit less, actually.
-
-	int range = FloatToFixed(t1 * (15 / 8192.));
 	DAngle v8 = vc.Sgn() == -1 ? -almost60deg : almost60deg;
 
-	if (CanMove(actor, actor->GetTarget(), actor->spr.angle + vc, range))
-		actor->xspr.goalAng = actor->spr.angle + vc;
-	else if (CanMove(actor, actor->GetTarget(), actor->spr.angle + vc / 2, range))
-		actor->xspr.goalAng = actor->spr.angle + vc / 2;
-	else if (CanMove(actor, actor->GetTarget(), actor->spr.angle - vc / 2, range))
-		actor->xspr.goalAng = actor->spr.angle - vc / 2;
-	else if (CanMove(actor, actor->GetTarget(), actor->spr.angle + v8, range))
-		actor->xspr.goalAng = actor->spr.angle + v8;
-	else if (CanMove(actor, actor->GetTarget(), actor->spr.angle, range))
-		actor->xspr.goalAng = actor->spr.angle;
-	else if (CanMove(actor, actor->GetTarget(), actor->spr.angle - v8, range))
-		actor->xspr.goalAng = actor->spr.angle - v8;
+	double range = actor->vel.XY().dot(actor->spr.Angles.Yaw.ToVector()) * 120;
+
+	if (CanMove(actor, actor->GetTarget(), actor->spr.Angles.Yaw + vc, range))
+		actor->xspr.goalAng = actor->spr.Angles.Yaw + vc;
+	else if (CanMove(actor, actor->GetTarget(), actor->spr.Angles.Yaw + vc / 2, range))
+		actor->xspr.goalAng = actor->spr.Angles.Yaw + vc / 2;
+	else if (CanMove(actor, actor->GetTarget(), actor->spr.Angles.Yaw - vc / 2, range))
+		actor->xspr.goalAng = actor->spr.Angles.Yaw - vc / 2;
+	else if (CanMove(actor, actor->GetTarget(), actor->spr.Angles.Yaw + v8, range))
+		actor->xspr.goalAng = actor->spr.Angles.Yaw + v8;
+	else if (CanMove(actor, actor->GetTarget(), actor->spr.Angles.Yaw, range))
+		actor->xspr.goalAng = actor->spr.Angles.Yaw;
+	else if (CanMove(actor, actor->GetTarget(), actor->spr.Angles.Yaw - v8, range))
+		actor->xspr.goalAng = actor->spr.Angles.Yaw - v8;
 	//else if (actor->spr.flags&2)
 		//actor->xspr.goalAng = actor->spr.angle+341;
 	else // Weird..
-		actor->xspr.goalAng = actor->spr.angle + almost60deg;
+		actor->xspr.goalAng = actor->spr.Angles.Yaw + almost60deg;
 	if (Chance(0x8000))
 		actor->xspr.dodgeDir = 1;
 	else
 		actor->xspr.dodgeDir = -1;
 
 	actor->xspr.goalAng = actor->xspr.goalAng.Normalized360();
-	if (!CanMove(actor, actor->GetTarget(), actor->spr.angle + DAngle90 * actor->xspr.dodgeDir, 512))
+	if (!CanMove(actor, actor->GetTarget(), actor->spr.Angles.Yaw + DAngle90 * actor->xspr.dodgeDir, 512))
 	{
 		actor->xspr.dodgeDir = -actor->xspr.dodgeDir;
-		if (!CanMove(actor, actor->GetTarget(), actor->spr.angle + DAngle90 * actor->xspr.dodgeDir, 512))
+		if (!CanMove(actor, actor->GetTarget(), actor->spr.Angles.Yaw + DAngle90 * actor->xspr.dodgeDir, 512))
 			actor->xspr.dodgeDir = 0;
 	}
 }
@@ -299,13 +295,12 @@ void aiMoveForward(DBloodActor* actor)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
-	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
-	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
+	auto nAng = deltaangle(actor->spr.Angles.Yaw, actor->xspr.goalAng);
+	auto nTurnRange = pDudeInfo->TurnRange();
+	actor->spr.Angles.Yaw += clamp(nAng, -nTurnRange, nTurnRange);
 	if (abs(nAng) > DAngle60)
 		return;
-	actor->add_int_bvel_x(MulScale(pDudeInfo->frontSpeed, Cos(actor->int_ang()), 30));
-	actor->add_int_bvel_y(MulScale(pDudeInfo->frontSpeed, Sin(actor->int_ang()), 30));
+	actor->vel.XY() += actor->spr.Angles.Yaw.ToVector() * pDudeInfo->FrontSpeed();
 }
 
 //---------------------------------------------------------------------------
@@ -318,9 +313,9 @@ void aiMoveTurn(DBloodActor* actor)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
-	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
-	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
+	auto nAng = deltaangle(actor->spr.Angles.Yaw, actor->xspr.goalAng);
+	auto nTurnRange = pDudeInfo->TurnRange();
+	actor->spr.Angles.Yaw += clamp(nAng, -nTurnRange, nTurnRange);
 }
 
 //---------------------------------------------------------------------------
@@ -333,9 +328,9 @@ void aiMoveDodge(DBloodActor* actor)
 {
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	auto nAng = deltaangle(actor->spr.angle, actor->xspr.goalAng);
-	auto nTurnRange = DAngle::fromQ16(pDudeInfo->angSpeed << 3);
-	actor->spr.angle += clamp(nAng, -nTurnRange, nTurnRange);
+	auto nAng = deltaangle(actor->spr.Angles.Yaw, actor->xspr.goalAng);
+	auto nTurnRange = pDudeInfo->TurnRange();
+	actor->spr.Angles.Yaw += clamp(nAng, -nTurnRange, nTurnRange);
 	if (actor->xspr.dodgeDir)
 	{
 		AdjustVelocity(actor, ADJUSTER{
@@ -358,7 +353,7 @@ void aiActivateDude(DBloodActor* actor)
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	if (!actor->xspr.state)
 	{
-		aiChooseDirection(actor, VecToAngle(actor->xspr.TargetPos - actor->spr.pos));
+		aiChooseDirection(actor, (actor->xspr.TargetPos - actor->spr.pos).Angle());
 		actor->xspr.state = 1;
 	}
 	switch (actor->spr.type)
@@ -907,10 +902,10 @@ void aiActivateDude(DBloodActor* actor)
 //
 //---------------------------------------------------------------------------
 
-void aiSetTarget(DBloodActor* actor, int x, int y, int z)
+void aiSetTarget(DBloodActor* actor, const DVector3& pos)
 {
 	actor->SetTarget(nullptr);
-	actor->xspr.TargetPos = {x * maptoworld, y * maptoworld, z * zmaptoworld };
+	actor->xspr.TargetPos = pos;
 }
 
 void aiSetTarget(DBloodActor* actor, DBloodActor* target)
@@ -926,7 +921,7 @@ void aiSetTarget(DBloodActor* actor, DBloodActor* target)
 		{
 			actor->SetTarget(target);
 			DUDEINFO* pDudeInfo = getDudeInfo(target->spr.type);
-			double eyeHeight = ((pDudeInfo->eyeHeight * target->spr.yrepeat) << 2) * inttoworld;
+			double eyeHeight = (pDudeInfo->eyeHeight * target->spr.scale.Y);
 			actor->xspr.TargetPos = target->spr.pos.plusZ(-eyeHeight);
 		}
 	}
@@ -1500,24 +1495,24 @@ void aiThinkTarget(DBloodActor* actor)
 			if (actor->GetOwner() == pPlayer->actor || pPlayer->actor->xspr.health == 0 || powerupCheck(pPlayer, kPwUpShadowCloak) > 0)
 				continue;
 			auto ppos = pPlayer->actor->spr.pos;
-			auto dvec = ppos - actor->spr.pos.XY();
+			auto dvec = ppos.XY() - actor->spr.pos.XY();
 			auto pSector = pPlayer->actor->sector();
 
-			int nDist = approxDist(dvec);
-			if (nDist > pDudeInfo->seeDist && nDist > pDudeInfo->hearDist)
+			double nDist = dvec.Length();
+			if (nDist > pDudeInfo->SeeDist() && nDist > pDudeInfo->HearDist())
 				continue;
-			double height = (pDudeInfo->eyeHeight * actor->spr.yrepeat) * REPEAT_SCALE;
+			double height = (pDudeInfo->eyeHeight * actor->spr.scale.Y);
 			if (!cansee(ppos, pSector, actor->spr.pos.plusZ(-height), actor->sector()))
 				continue;
 
-			int nDeltaAngle = getincangle(actor->int_ang(), getangle(dvec));
-			if (nDist < pDudeInfo->seeDist && abs(nDeltaAngle) <= pDudeInfo->periphery)
+			DAngle nDeltaAngle = absangle(actor->spr.Angles.Yaw, dvec.Angle());
+			if (nDist < pDudeInfo->SeeDist() && nDeltaAngle <= pDudeInfo->Periphery())
 			{
 				aiSetTarget(actor, pPlayer->actor);
 				aiActivateDude(actor);
 				return;
 			}
-			else if (nDist < pDudeInfo->hearDist)
+			else if (nDist < pDudeInfo->HearDist())
 			{
 				aiSetTarget(actor, ppos);
 				aiActivateDude(actor);
@@ -1545,23 +1540,23 @@ void aiLookForTarget(DBloodActor* actor)
 			if (actor->GetOwner() == pPlayer->actor || pPlayer->actor->xspr.health == 0 || powerupCheck(pPlayer, kPwUpShadowCloak) > 0)
 				continue;
 			auto ppos = pPlayer->actor->spr.pos;
-			auto dvec = ppos - actor->spr.pos.XY();
+			auto dvec = ppos.XY() - actor->spr.pos.XY();
 			auto pSector = pPlayer->actor->sector();
 
-			int nDist = approxDist(dvec);
-			if (nDist > pDudeInfo->seeDist && nDist > pDudeInfo->hearDist)
+			double nDist = dvec.Length();
+			if (nDist > pDudeInfo->SeeDist() && nDist > pDudeInfo->HearDist())
 				continue;
-			double height = (pDudeInfo->eyeHeight * actor->spr.yrepeat) * REPEAT_SCALE;
+			double height = (pDudeInfo->eyeHeight * actor->spr.scale.Y);
 			if (!cansee(ppos, pSector, actor->spr.pos.plusZ(-height), actor->sector()))
 				continue;
-			int nDeltaAngle = getincangle(actor->int_ang(), getangle(dvec));
-			if (nDist < pDudeInfo->seeDist && abs(nDeltaAngle) <= pDudeInfo->periphery)
+			DAngle nDeltaAngle = absangle(actor->spr.Angles.Yaw, dvec.Angle());
+			if (nDist < pDudeInfo->SeeDist() && nDeltaAngle <= pDudeInfo->Periphery())
 			{
 				aiSetTarget(actor, pPlayer->actor);
 				aiActivateDude(actor);
 				return;
 			}
-			else if (nDist < pDudeInfo->hearDist)
+			else if (nDist < pDudeInfo->HearDist())
 			{
 				aiSetTarget(actor, ppos);
 				aiActivateDude(actor);
@@ -1576,11 +1571,11 @@ void aiLookForTarget(DBloodActor* actor)
 			BloodStatIterator it(kStatDude);
 			while (DBloodActor* actor2 = it.Next())
 			{
-				int nDist = approxDist(actor2->spr.pos.XY() - actor->spr.pos.XY());
+				double nDist = (actor2->spr.pos.XY() - actor->spr.pos.XY()).Length();
 				if (actor2->spr.type == kDudeInnocent)
 				{
 					pDudeInfo = getDudeInfo(actor2->spr.type);
-					if (nDist > pDudeInfo->seeDist && nDist > pDudeInfo->hearDist)
+					if (nDist > pDudeInfo->SeeDist() && nDist > pDudeInfo->HearDist())
 						continue;
 					aiSetTarget(actor, actor2);
 					aiActivateDude(actor);
@@ -1855,7 +1850,7 @@ void aiInitSprite(DBloodActor* actor)
 		aiNewState(actor, &genIdle);
 		break;
 	}
-	aiSetTarget(actor, 0, 0, 0);
+	aiSetTarget(actor, DVector3(0, 0, 0));
 	actor->xspr.stateTimer = 0;
 	switch (actor->spr.type)
 	{

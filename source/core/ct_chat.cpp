@@ -52,6 +52,8 @@
 #include "gamestruct.h"
 #include "gamecvars.h"
 #include "menustate.h"
+#include "cheathandler.h"
+#include "statusbar.h"
 
 enum
 {
@@ -84,7 +86,7 @@ static bool DoSubstitution (FString &out, const char *in);
 
 static TArray<uint8_t> ChatQueue;
 
-extern FStringCVar* const CombatMacros[];
+extern FStringCVarRef* const CombatMacros[];
 
 
 CVAR (Bool, chat_substitution, false, CVAR_ARCHIVE)
@@ -234,7 +236,7 @@ void CT_Drawer (void)
 		int screen_height= twod->GetHeight() / scale;
 
 		y = screen_height - displayfont->GetHeight()-2;
-		auto res = gi->GetReservedScreenSpace(hud_size);
+		auto res = GetReservedScreenSpace(hud_size);
 
 		promptwidth = displayfont->StringWidth (prompt) * scalex;
 		x = displayfont->GetCharWidth (displayfont->GetCursor()) * scalex * 2 + promptwidth;
@@ -326,10 +328,11 @@ static void ShoveChatStr (const char *str, uint8_t who)
 
 	if (*str == '#')
 	{
-		C_DoCommand(FStringf("activatecheat \"%s\"", str + 1));
+		PlaybackCheat(str + 1);
 	}
 	else
 	{
+		if (PlaybackCheat(str)) return;
 #if 0
 		FString substBuff;
 

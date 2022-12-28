@@ -35,6 +35,7 @@ EXTERN_CVAR(Bool, cl_bloodqavinterp)
 EXTERN_CVAR(Bool, cl_bloodweapinterp)
 EXTERN_CVAR(Bool, cl_bloodoldweapbalance)
 EXTERN_CVAR(Bool, cl_loadingscreens)
+EXTERN_CVAR(Bool, cl_clampedpitch)
 
 EXTERN_CVAR(Bool, demorec_seeds_cvar)
 EXTERN_CVAR(Bool, demoplay_diffs)
@@ -68,7 +69,7 @@ EXTERN_CVAR(Bool, hud_messages)
 EXTERN_CVAR(Int, althud_numbertile)
 EXTERN_CVAR(Int, althud_numberpal)
 EXTERN_CVAR(Int, althud_shadows)
-EXTERN_CVAR(Int, althud_flashing)
+EXTERN_CVAR(Bool, althud_flashing)
 
 EXTERN_CVAR(Bool, am_textfont)
 EXTERN_CVAR(Bool, am_showlabel)
@@ -105,16 +106,24 @@ EXTERN_CVAR(Int, m_ffire)
 EXTERN_CVAR(Int, m_noexits)
 EXTERN_CVAR(Int, playercolor)
 
-inline const char* PlayerName(int pindex)
+EXTERN_CVAR(Int, cl_maxdecalamount)
+
+inline const char* PlayerName(size_t pindex)
 {
 	// Todo: proper implementation of user CVARs.
 	return playername;
 }
 
-inline int Autoaim(int player)
+inline int Autoaim(size_t player)
 {
 	// Todo: proper implementation of user CVARs.
 	return cl_autoaim;
+}
+
+inline int WeaponSwitch(size_t player)
+{
+	// Todo: proper implementation of user CVARs.
+	return cl_weaponswitch;
 }
 
 extern bool gNoAutoLoad;
@@ -134,7 +143,8 @@ enum EHudSize
 	Hud_Stbar,
 	Hud_StbarOverlay,
 	Hud_Mini,
-	Hud_full,
+	Hud_Full,
+	Hud_Althud,
 	Hud_Nothing,
 	Hud_MAX
 };

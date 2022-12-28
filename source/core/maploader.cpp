@@ -47,7 +47,9 @@
 #include "render.h"
 #include "hw_sections.h"
 #include "interpolate.h"
+#include "tiletexture.h"
 #include "games/blood/src/mapstructs.h"
+#include "buildtiles.h"
 
 extern BitArray clipsectormap;
 
@@ -62,8 +64,7 @@ void walltype::calcLength()
 {
 	lengthflags &= ~1;
 	point2Wall()->lengthflags &= ~2;
-	auto d = int_delta();
-	length = (int)sqrt(d.X * d.X + d.Y * d.Y);
+	length = delta().Length(); 
 }
 
 // needed for skipping over to get the map size first.
@@ -96,20 +97,21 @@ void sectortype::allocX()
 
 static void ReadSectorV7(FileReader& fr, sectortype& sect)
 {
-	sect.wallptr = fr.ReadInt16();
-	sect.wallnum = fr.ReadInt16();
+	int wallptr = fr.ReadInt16();
+	int wallnum = fr.ReadInt16();
+	sect.walls.Set(&wall[wallptr], wallnum);
 	int c = fr.ReadInt32();
 	int f = fr.ReadInt32();
 	sect.setzfrommap(c, f);
 	sect.ceilingstat = ESectorFlags::FromInt(fr.ReadUInt16());
 	sect.floorstat = ESectorFlags::FromInt(fr.ReadUInt16());
-	sect.ceilingpicnum = fr.ReadUInt16();
+	sect.setceilingtexture(tileGetTextureID(fr.ReadUInt16()));
 	sect.ceilingheinum = fr.ReadInt16();
 	sect.ceilingshade = fr.ReadInt8();
 	sect.ceilingpal = fr.ReadUInt8();
 	sect.ceilingxpan_ = fr.ReadUInt8();
 	sect.ceilingypan_ = fr.ReadUInt8();
-	sect.floorpicnum = fr.ReadUInt16();
+	sect.setfloortexture(tileGetTextureID(fr.ReadUInt16()));
 	sect.floorheinum = fr.ReadInt16();
 	sect.floorshade = fr.ReadInt8();
 	sect.floorpal = fr.ReadUInt8();
@@ -124,10 +126,11 @@ static void ReadSectorV7(FileReader& fr, sectortype& sect)
 
 static void ReadSectorV6(FileReader& fr, sectortype& sect)
 {
-	sect.wallptr = fr.ReadUInt16();
-	sect.wallnum = fr.ReadUInt16();
-	sect.ceilingpicnum = fr.ReadUInt16();
-	sect.floorpicnum = fr.ReadUInt16();
+	int wallptr = fr.ReadInt16();
+	int wallnum = fr.ReadInt16();
+	sect.walls.Set(&wall[wallptr], wallnum);
+	sect.setceilingtexture(tileGetTextureID(fr.ReadUInt16()));
+	sect.setfloortexture(tileGetTextureID(fr.ReadUInt16()));
 	sect.ceilingheinum = clamp(fr.ReadInt16() << 5, -32768, 32767);
 	sect.floorheinum = clamp(fr.ReadInt16() << 5, -32768, 32767);
 	int c = fr.ReadInt32();
@@ -152,10 +155,11 @@ static void ReadSectorV6(FileReader& fr, sectortype& sect)
 
 static void ReadSectorV5(FileReader& fr, sectortype& sect)
 {
-	sect.wallptr = fr.ReadInt16();
-	sect.wallnum = fr.ReadInt16();
-	sect.ceilingpicnum = fr.ReadUInt16();
-	sect.floorpicnum = fr.ReadUInt16();
+	int wallptr = fr.ReadInt16();
+	int wallnum = fr.ReadInt16();
+	sect.walls.Set(&wall[wallptr], wallnum);
+	sect.setceilingtexture(tileGetTextureID(fr.ReadUInt16()));
+	sect.setfloortexture(tileGetTextureID(fr.ReadUInt16()));
 	sect.ceilingheinum = clamp(fr.ReadInt16() << 5, -32768, 32767);
 	sect.floorheinum = clamp(fr.ReadInt16() << 5, -32768, 32767);
 	int c = fr.ReadInt32();
@@ -188,8 +192,10 @@ static void ReadWallV7(FileReader& fr, walltype& wall)
 	wall.nextwall = fr.ReadInt16();
 	wall.nextsector = fr.ReadInt16();
 	wall.cstat = EWallFlags::FromInt(fr.ReadUInt16());
-	wall.picnum = fr.ReadInt16();
-	wall.overpicnum = fr.ReadInt16();
+	wall.wallpicnum = fr.ReadInt16();
+	int overpicnum = fr.ReadInt16();
+	if (overpicnum == 0) overpicnum = -1; 
+	wall.overpicnum = overpicnum;
 	wall.shade = fr.ReadInt8();
 	wall.pal = fr.ReadUInt8();
 	wall.xrepeat = fr.ReadUInt8();
@@ -209,8 +215,10 @@ static void ReadWallV6(FileReader& fr, walltype& wall)
 	wall.point2 = fr.ReadInt16();
 	wall.nextsector = fr.ReadInt16();
 	wall.nextwall = fr.ReadInt16();
-	wall.picnum = fr.ReadInt16();
-	wall.overpicnum = fr.ReadInt16();
+	wall.wallpicnum = fr.ReadInt16();
+	int overpicnum = fr.ReadInt16();
+	if (overpicnum == 0) overpicnum = -1;
+	wall.overpicnum = overpicnum;
 	wall.shade = fr.ReadInt8();
 	wall.pal = fr.ReadUInt8();
 	wall.cstat = EWallFlags::FromInt(fr.ReadUInt16());
@@ -229,8 +237,10 @@ static void ReadWallV5(FileReader& fr, walltype& wall)
 	int y = fr.ReadInt32();
 	wall.setPosFromMap(x, y);
 	wall.point2 = fr.ReadInt16();
-	wall.picnum = fr.ReadInt16();
-	wall.overpicnum = fr.ReadInt16();
+	wall.wallpicnum = fr.ReadInt16();
+	int overpicnum = fr.ReadInt16();
+	if (overpicnum == 0) overpicnum = -1;
+	wall.overpicnum = overpicnum;
 	wall.shade = fr.ReadInt8();
 	wall.cstat = EWallFlags::FromInt(fr.ReadUInt16());
 	wall.xrepeat = fr.ReadUInt8();
@@ -249,50 +259,49 @@ static void ReadWallV5(FileReader& fr, walltype& wall)
 
 static void SetWallPalV5()
 {
-	for (unsigned i = 0; i < sector.Size(); i++)
+	for (auto& sect : sector)
 	{
-		int startwall = sector[i].wallptr;
-		int endwall = startwall + sector[i].wallnum;
-		for (int w = startwall; w < endwall; w++)
+		for(auto& wal : sect.walls)
 		{
-			wall[w].pal = sector[i].floorpal;
+			wal.pal = sect.floorpal;
 		}
 	}
 }
 
 void validateSprite(spritetype& spri, int sectnum, int index)
 {
-	auto pos = spri.int_pos();
+	sectortype* sectp = &sector[sectnum];
+
+	auto pos = spri.pos;
 	bool bugged = false;
 	if ((unsigned)spri.statnum >= MAXSTATUS)
 	{
-		Printf("Sprite #%d (%d,%d) has invalid statnum %d.\n", index, pos.X, pos.Y, spri.statnum);
+		Printf("Sprite #%d (%.0f,%.0f) has invalid statnum %d.\n", index, pos.X, pos.Y, spri.statnum);
 		bugged = true;
 	}
 	else if ((unsigned)spri.picnum >= MAXTILES)
 	{
-		Printf("Sprite #%d (%d,%d) has invalid picnum %d.\n", index, pos.X, pos.Y, spri.picnum);
+		Printf("Sprite #%d (%.0f,%.0f) has invalid picnum %d.\n", index, pos.X, pos.Y, spri.picnum);
 		bugged = true;
 	}
 	else if (!validSectorIndex(sectnum))
 	{
-		sectnum = -1;
-		updatesector(pos.X, pos.Y, &sectnum);
-		bugged = sectnum < 0;
+		sectp = nullptr;
+		updatesector(pos.XY(), &sectp);
+		bugged = sectp == nullptr;
 
-		if (!DPrintf(DMSG_WARNING, "Sprite #%d (%d,%d) with invalid sector %d was corrected to sector %d\n", index, pos.X, pos.Y, sectnum, sectnum))
+		if (!DPrintf(DMSG_WARNING, "Sprite #%d (%.0f,%.0f) with invalid sector %d was corrected to sector %d\n", index, pos.X, pos.Y, sectnum, ::sectindex(sectp)))
 		{
-			if (bugged) Printf("Sprite #%d (%d,%d) with invalid sector %d\n", index, pos.X, pos.Y, sectnum);
+			if (bugged) Printf("Sprite #%d (%.0f,%.0f) with invalid sector %d\n", index, pos.X, pos.Y, sectnum);
 		}
 	}
 	if (bugged)
 	{
 		spri = {};
 		spri.statnum = MAXSTATUS;
-		sectnum = -1;
+		sectp = nullptr;
 	}
-	if (sectnum >= 0) spri.sectp = &sector[sectnum];
-	else spri.sectp = nullptr;
+	spri.sectp = sectp;
 }
 
 static void ReadSpriteV7(FileReader& fr, spritetype& spr, int& secno)
@@ -305,16 +314,17 @@ static void ReadSpriteV7(FileReader& fr, spritetype& spr, int& secno)
 	spr.picnum = fr.ReadInt16();
 	spr.shade = fr.ReadInt8();
 	spr.pal = fr.ReadUInt8();
-	spr. clipdist = fr.ReadUInt8();
+	spr.clipdist = fr.ReadUInt8();
 	spr.blend = fr.ReadUInt8();
-	spr.xrepeat = fr.ReadUInt8();
-	spr.yrepeat = fr.ReadUInt8();
+	x = fr.ReadUInt8();
+	y = fr.ReadUInt8();
+	spr.scale = DVector2(x * REPEAT_SCALE, y * REPEAT_SCALE);
 	spr.xoffset = fr.ReadInt8();
 	spr.yoffset = fr.ReadInt8();
 	secno = fr.ReadInt16();
 	spr.statnum = fr.ReadInt16();
 	spr.intangle = fr.ReadInt16();
-	spr.angle = DAngle::fromBuild(spr.intangle);
+	spr.Angles.Yaw = mapangle(spr.intangle);
 	spr.intowner = fr.ReadInt16();
 	spr.xint = fr.ReadInt16();
 	spr.yint = fr.ReadInt16();
@@ -334,14 +344,15 @@ static void ReadSpriteV6(FileReader& fr, spritetype& spr, int& secno)
 	spr.cstat = ESpriteFlags::FromInt(fr.ReadUInt16());
 	spr.shade = fr.ReadInt8();
 	spr.pal = fr.ReadUInt8();
-	spr. clipdist = fr.ReadUInt8();
-	spr.xrepeat = fr.ReadUInt8();
-	spr.yrepeat = fr.ReadUInt8();
+	spr.clipdist = fr.ReadUInt8();
+	x = fr.ReadUInt8();
+	y = fr.ReadUInt8();
+	spr.scale = DVector2(x * REPEAT_SCALE, y * REPEAT_SCALE);
 	spr.xoffset = fr.ReadInt8();
 	spr.yoffset = fr.ReadInt8();
 	spr.picnum = fr.ReadInt16();
 	spr.intangle = fr.ReadInt16();
-	spr.angle = DAngle::fromBuild(spr.intangle);
+	spr.Angles.Yaw = mapangle(spr.intangle);
 	spr.xint = fr.ReadInt16();
 	spr.yint = fr.ReadInt16();
 	spr.inittype = fr.ReadInt16();
@@ -365,11 +376,12 @@ static void ReadSpriteV5(FileReader& fr, spritetype& spr, int& secno)
 	spr.SetMapPos(x, y, z);
 	spr.cstat = ESpriteFlags::FromInt(fr.ReadUInt16());
 	spr.shade = fr.ReadInt8();
-	spr.xrepeat = fr.ReadUInt8();
-	spr.yrepeat = fr.ReadUInt8();
+	x = fr.ReadUInt8();
+	y = fr.ReadUInt8();
+	spr.scale = DVector2(x * REPEAT_SCALE, y * REPEAT_SCALE);
 	spr.picnum = fr.ReadInt16();
 	spr.intangle = fr.ReadInt16();
-	spr.angle = DAngle::fromBuild(spr.intangle);
+	spr.Angles.Yaw = mapangle(spr.intangle);
 	spr.xint = fr.ReadInt16();
 	spr.yint = fr.ReadInt16();
 	spr.inittype = fr.ReadInt16();
@@ -389,7 +401,7 @@ static void ReadSpriteV5(FileReader& fr, spritetype& spr, int& secno)
 		spr.pal = sec->floorpal;
 
 	spr.blend = 0;
-	spr. clipdist = 32;
+	spr.clipdist = 32;
 	spr.xoffset = 0;
 	spr.yoffset = 0;
 	spr.detail = 0;
@@ -420,41 +432,40 @@ void fixSectors()
 {
 	for(auto& sect: sector)
 	{
-		// Fix maps which do not set their wallptr to the first wall of the sector. Lo Wang In Time's map 11 is such a case.
-		auto wp = sect.firstWall();
+		// Fix maps which do not set their wall index to the first wall of the sector. Lo Wang In Time's map 11 is such a case.
+		auto wp = sect.walls.Data();
 		// Note: we do not have the 'sector' index initialized here, it would not be helpful anyway for this fix.
 		while (wp != wall.Data() && wp[-1].twoSided() && wp[-1].nextWall()->nextWall() == &wp[-1] && wp[-1].nextWall()->nextSector() == &sect)
 		{
-			sect.wallptr--;
-			sect.wallnum++;
+			sect.walls.Set(sect.walls.Data() - 1, sect.walls.Size() + 1);
 			wp--;
 		}
 	}
 }
 
-void validateStartSector(const char* filename, const DVector3& pos, int* cursectnum, unsigned numsectors, bool noabort)
+void validateStartSector(const char* filename, const DVector3& pos, sectortype** cursect, unsigned numsectors, bool noabort)
 {
 
-	if ((unsigned)(*cursectnum) >= numsectors)
+	if (*cursect == nullptr)
 	{
 		sectortype* sect = nullptr;
 		updatesectorz(pos, &sect);
 		if (!sect) updatesector(pos, &sect);
 		if (sect || noabort)
 		{
-			Printf(PRINT_HIGH, "Error in map %s: Start sector %d out of range. Max. sector is %d\n", filename, *cursectnum, numsectors);
-			*cursectnum = sect? sectnum(sect) : 0;
+			Printf(PRINT_HIGH, "Error in map %s: Start sector %d out of range. Max. sector is %d\n", filename, sectindex(*cursect), numsectors);
+			*cursect = sect? sect : &sector[0];
 		}
 		else
 		{
-			I_Error("Unable to start map %s: Start sector %d out of range. Max. sector is %d. No valid location at start spot\n", filename, *cursectnum, numsectors);
+			I_Error("Unable to start map %s: Start sector %d out of range. Max. sector is %d. No valid location at start spot\n", filename, sectindex(*cursect), numsectors);
 		}
 	}
 
 
 }
 
-void loadMap(const char* filename, int flags, DVector3* pos, int16_t* ang, int* cursectnum, SpawnSpriteDef& sprites)
+void loadMap(const char* filename, int flags, DVector3* pos, int16_t* ang, sectortype** cursect, SpawnSpriteDef& sprites)
 {
 	inputState.ClearAllInput();
 
@@ -470,7 +481,8 @@ void loadMap(const char* filename, int flags, DVector3* pos, int16_t* ang, int* 
 	pos->Y = fr.ReadInt32() * maptoworld;
 	pos->Z = fr.ReadInt32() * zmaptoworld;
 	*ang = fr.ReadInt16() & 2047;
-	*cursectnum = fr.ReadUInt16();
+
+	int cursectnum = fr.ReadUInt16();
 
 	// Get the basics out before loading the data so that we can set up the global storage.
 	unsigned numsectors = fr.ReadUInt16();
@@ -529,16 +541,15 @@ void loadMap(const char* filename, int flags, DVector3* pos, int16_t* ang, int* 
 
 	}
 
-	artSetupMapArt(filename);
-
 	//Must be last.
 	fixSectors();
-	updatesector(*pos, cursectnum);
-	guniqhudid = 0;
+	*cursect = validSectorIndex(cursectnum) ? &sector[cursectnum] : nullptr;
+	updatesector(*pos, cursect);
 	fr.Seek(0, FileReader::SeekSet);
 	auto buffer = fr.Read();
 	uint8_t md4[16];
 	md4once(buffer.Data(), buffer.Size(), md4);
+	PostProcessLevel(md4, filename, sprites);
 	loadMapHack(filename, md4, sprites);
 	setWallSectors();
 	hw_CreateSections();
@@ -547,7 +558,7 @@ void loadMap(const char* filename, int flags, DVector3* pos, int16_t* ang, int* 
 
 	wallbackup = wall;
 	sectorbackup = sector;
-	validateStartSector(filename, *pos, cursectnum, numsectors);
+	validateStartSector(filename, *pos, cursect, numsectors);
 }
 
 
@@ -725,7 +736,7 @@ void loadMapBackup(const char* filename)
 {
 	DVector3 fpos;
 	int16_t scratch;
-	int scratch2;
+	sectortype* scratch2;
 	SpawnSpriteDef scratch3;
 
 	if (isBlood())
@@ -752,15 +763,18 @@ void setWallSectors()
 		auto sect = &sector[i];
 		auto nextsect = &sector[i + 1];
 
-		if (sect->wallptr < nextsect->wallptr && sect->wallptr + sect->wallnum > nextsect->wallptr)
+		unsigned int sectstart = wallindex(sect->walls.Data());
+		unsigned int nextsectstart = wallindex(sect->walls.Data());
+
+		if (sectstart < nextsectstart && sectstart + sect->walls.Size() > nextsectstart)
 		{
 			// We have overlapping wall ranges for two sectors. Do some analysis to see where these walls belong
-			int checkstart = nextsect->wallptr;
-			int checkend = sect->wallptr + sect->wallnum;
+			int checkstart = nextsectstart;
+			int checkend = sectstart + sect->walls.Size();
 
 			// for now assign the walls to the first sector. Final decisions are made below.
-			nextsect->wallnum -= checkend - checkstart;
-			nextsect->wallptr = checkend;
+			nextsectstart = checkend;
+			nextsect->walls.Set(&wall[nextsectstart], nextsect->walls.Size() - (checkend - checkstart));
 
 			auto belongs = [](int wal, int first, int last, int firstwal)
 			{
@@ -773,22 +787,23 @@ void setWallSectors()
 					}
 				return refok && point2ok;
 			};
-			while (checkstart < checkend && belongs(checkstart, sect->wallptr, checkstart, checkstart))
+			while (checkstart < checkend && belongs(checkstart, sectstart, checkstart, checkstart))
 				checkstart++;
 
-			sect->wallnum = checkstart - sect->wallptr;
+			sect->walls.Set(sect->walls.Data(), checkstart - sectstart);
 
-			while (checkstart < checkend && belongs(checkend - 1, checkend, nextsect->wallptr + nextsect->wallnum, checkstart))
+			while (checkstart < checkend && belongs(checkend - 1, checkend, nextsectstart + nextsect->walls.Size(), checkstart))
 				checkend--;
 
-			nextsect->wallnum += nextsect->wallptr - checkend;
-			nextsect->wallptr = checkend;
+			int cnt = nextsect->walls.Size() - (nextsectstart - checkend);
+			nextsectstart = checkend;
+			nextsect->walls.Set(&wall[nextsectstart], cnt);
 
-			if (nextsect->wallptr > sect->wallptr + sect->wallnum)
+			if (nextsectstart > sectstart + sect->walls.Size())
 			{
 				// If there's a gap, assign to the first sector. In this case we may only guess.
-				Printf("Wall range %d - %d referenced by sectors %d and %d\n", sect->wallptr + sect->wallnum, nextsect->wallptr - 1, i, i + 1);
-				sect->wallnum = nextsect->wallptr - sect->wallptr;
+				Printf("Wall range %d - %d referenced by sectors %d and %d\n", sectstart + sect->walls.Size(), nextsectstart - 1, i, i + 1);
+				sect->walls.Set(sect->walls.Data(), nextsectstart - sectstart);
 			}
 		}
 	}
@@ -797,7 +812,7 @@ void setWallSectors()
 	for(auto& sect: sector)
 	{
 		sect.dirty = EDirty::AllDirty;
-		for (auto& wal : wallsofsector(&sect))
+		for (auto& wal : sect.walls)
 		{
 			if (wal.sector == -1)
 				wal.sector = i;
@@ -860,7 +875,7 @@ void MarkMap()
 	{
 		GC::Mark(sect.firstEntry);
 		GC::Mark(sect.lastEntry);
-		if (isDukeLike()) GC::Mark(sect.hitagactor);
+		if (isDukeEngine()) GC::Mark(sect.hitagactor);
 		else if (isBlood())
 		{
 			GC::Mark(sect.upperLink);

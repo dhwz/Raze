@@ -33,23 +33,30 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_PS_NS
 
-void GameInterface::WarpToCoords(double x, double y, double z, DAngle ang, int horz)
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+void GameInterface::WarpToCoords(double x, double y, double z, DAngle ang)
 {
-    Player     *nPlayer = &PlayerList[nLocalPlayer];
+    Player *nPlayer = &PlayerList[nLocalPlayer];
 
     nPlayer->pActor->spr.pos = DVector3(x, y, z);
     nPlayer->pActor->backuppos();
 
     if (ang != DAngle::fromDeg(INT_MIN))
     {
-        nPlayer->angle.oang = nPlayer->angle.ang = ang;
-    }
-
-    if (horz != INT_MIN)
-    {
-        nPlayer->horizon.ohoriz = nPlayer->horizon.horiz = buildhoriz(horz);
+        nPlayer->pActor->PrevAngles.Yaw = nPlayer->pActor->spr.Angles.Yaw = ang;
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 static int osdcmd_doors(CCmdFuncPtr parm)
 {
@@ -66,6 +73,12 @@ static int osdcmd_doors(CCmdFuncPtr parm)
     return CCMD_OK;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 static int osdcmd_spawn(CCmdFuncPtr parm)
 {
     if (parm->numparms != 1) return CCMD_SHOWHELP;
@@ -74,7 +87,7 @@ static int osdcmd_spawn(CCmdFuncPtr parm)
     if (!stricmp(c, "anubis")) BuildAnubis(nullptr, initpos, sectp, inita, false);
     else if (!stricmp(c, "spider")) BuildSpider(nullptr, initpos, sectp, inita);
     else if (!stricmp(c, "mummy")) BuildMummy(nullptr, initpos, sectp, inita);
-    else if (!stricmp(c, "fish")) BuildFish(nullptr, initpos.plusZ(PlayerList[nLocalPlayer].eyelevel), sectp, inita);
+    else if (!stricmp(c, "fish")) BuildFish(nullptr, initpos.plusZ(PlayerList[nLocalPlayer].pActor->viewzoffset), sectp, inita);
     else if (!stricmp(c, "lion")) BuildLion(nullptr, initpos, sectp, inita);
     else if (!stricmp(c, "lava")) BuildLava(nullptr, initpos, sectp, inita, nNetPlayerCount);
     else if (!stricmp(c, "rex")) BuildRex(nullptr, initpos, sectp, inita, nNetPlayerCount);
@@ -88,6 +101,12 @@ static int osdcmd_spawn(CCmdFuncPtr parm)
     else Printf("Unknown creature type %s\n", c);
     return CCMD_OK;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void GameInterface::ToggleThirdPerson()
 {
@@ -105,6 +124,12 @@ void GameInterface::ToggleThirdPerson()
     }
 }
 
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int32_t registerosdcommands(void)
 {

@@ -28,19 +28,33 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "build.h"
 
 #include "blood.h"
+#include "hw_voxels.h"
+#include "tilesetbuilder.h"
 
 BEGIN_BLD_NS
 
 
 int nTileFiles = 0;
 
-int tileStart[256];
-int tileEnd[256];
-int hTileFile[256];
 
-uint8_t surfType[kMaxTiles];
-int8_t tileShade[kMaxTiles];
-short voxelIndex[kMaxTiles];
+#define x(a, b) registerName(#a, b);
+static void SetTileNames(TilesetBuildInfo& info)
+{
+    auto registerName = [&](const char* name, int index)
+    {
+        info.addName(name, index);
+    };
+#include "namelist.h"
+    // Oh Joy! Plasma Pak changes the tile number of the title screen, but we preferably want mods that use the original one to display it, e.g. Cryptic Passage
+    // So let's make this remapping depend on the CRC.
+    const int OTITLE = 2046, PTITLE = 2518;
+    auto& orgtitle = info.tile[OTITLE];
+    auto& pptile = info.tile[PTITLE];
+
+    if (tileGetCRC32(pptile.tileimage) == 1170870757 && (tileGetCRC32(orgtitle.tileimage) != 290208654 || pptile.tileimage->GetWidth() == 0)) registerName("titlescreen", 2046);
+    else registerName("titlescreen", 2518);
+}
+#undef x
 
 //---------------------------------------------------------------------------
 //
@@ -48,32 +62,53 @@ short voxelIndex[kMaxTiles];
 //
 //---------------------------------------------------------------------------
 
-void GameInterface::LoadGameTextures()
+void GameInterface::LoadTextureInfo(TilesetBuildInfo& info)
 {
     auto hFile = fileSystem.OpenFileReader("SURFACE.DAT");
     if (hFile.isOpen())
     {
-        hFile.Read(surfType, sizeof(surfType));
+        int count = (int)hFile.GetLength();
+        for (int i = 0; i < count; i++)
+        {
+            info.tile[i].extinfo.surftype = hFile.ReadInt8();
+        }
     }
+
     hFile = fileSystem.OpenFileReader("VOXEL.DAT");
     if (hFile.isOpen())
     {
-        hFile.Read(voxelIndex, sizeof(voxelIndex));
-#if WORDS_BIGENDIAN
-        for (int i = 0; i < kMaxTiles; i++)
-            voxelIndex[i] = LittleShort(voxelIndex[i]);
-#endif
+        int count = (int)hFile.GetLength() / 2;
+
+        for (int i = 0; i < count; i++)
+        {
+            int voxindex = hFile.ReadInt16();
+
+            // only insert into the table if they are flagged to be processed in viewProcessSprites, i.e. the type value is 6 or 7,
+            if (voxindex > -1 && (info.tile[i].extinfo.picanm.extra & 7) >= 6)
+            {
+                info.tile[i].extinfo.tiletovox = voxindex;
+            }
+        }
     }
+
     hFile = fileSystem.OpenFileReader("SHADE.DAT");
     if (hFile.isOpen())
     {
-		hFile.Read(tileShade, sizeof(tileShade));
+        int count = (int)hFile.GetLength();
+        for (int i = 0; i < count; i++)
+        {
+            info.tile[i].extinfo.tileshade = hFile.ReadInt8();
+        }
     }
-    for (int i = 0; i < kMaxTiles; i++)
-    {
-        if (voxelIndex[i] >= 0 && voxelIndex[i] < kMaxVoxels)
-            voxreserve.Set(voxelIndex[i]);
-    }
+}
+
+void GameInterface::SetupSpecialTextures(TilesetBuildInfo& info)
+{
+    SetTileNames(info);
+    // set up all special tiles here, before we fully hook up with the texture manager.
+    info.Delete(504);
+    info.MakeWritable(2342);
+
 }
 
 //---------------------------------------------------------------------------
@@ -81,11 +116,6 @@ void GameInterface::LoadGameTextures()
 // 
 //
 //---------------------------------------------------------------------------
-
-int tileGetSurfType(int hit)
-{
-    return surfType[hit];
-}
 
 int tileGetSurfType(CollisionBase& hit)
 {
@@ -94,25 +124,12 @@ int tileGetSurfType(CollisionBase& hit)
     default:
         return 0;
     case kHitSector:
-        return surfType[hit.hitSector->floorpicnum];
+        return GetExtInfo(hit.hitSector->floortexture).surftype;
     case kHitWall:
-        return surfType[hit.hitWall->picnum];
+        return GetExtInfo(hit.hitWall->walltexture()).surftype;
     case kHitSprite:
-        return surfType[hit.hitActor->spr.picnum];
+        return GetExtInfo(hit.hitActor->spr.spritetexture()).surftype;
     }
-}
-
-//---------------------------------------------------------------------------
-//
-// 
-//
-//---------------------------------------------------------------------------
-
-void GameInterface::SetTileProps(int tile, int surf, int vox, int shade)
-{
-    if (surf != INT_MAX) surfType[tile] = surf;
-    if (vox != INT_MAX) voxelIndex[tile] = vox;
-    if (shade != INT_MAX) tileShade[tile] = shade;
 }
 
 END_BLD_NS

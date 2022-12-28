@@ -903,19 +903,19 @@ int SetupRipper2(DSWActor* actor)
     DoActorSetSpeed(actor, NORM_SPEED);
     actor->user.StateEnd = s_Ripper2Die;
     actor->user.Rot = sg_Ripper2Run;
-    actor->set_const_clipdist(512 >> 2);  // This actor is bigger, needs bigger box.
-    actor->spr.xrepeat = actor->spr.yrepeat = 55;
+    actor->clipdist = 32;  // This actor is bigger, needs bigger box.
+    actor->spr.scale = DVector2(0.859375, 0.859375);
 
     if (actor->spr.pal == PALETTE_BROWN_RIPPER)
     {
         EnemyDefaults(actor, &Ripper2BrownActionSet, &Ripper2Personality);
-        actor->spr.xrepeat += 40;
-        actor->spr.yrepeat += 40;
+        actor->spr.scale.X += (0.625);
+        actor->spr.scale.Y += (0.625);
 
         if (!(actor->spr.cstat & CSTAT_SPRITE_RESTORE))
             actor->user.Health = HEALTH_MOMMA_RIPPER;
 
-        actor->spr.clipdist += 128 >> 2;
+        actor->clipdist += 8;
     }
     else
     {
@@ -942,7 +942,7 @@ int InitRipper2Hang(DSWActor* actor)
 
     for (DAngle dang = nullAngle; dang < DAngle360; dang += DAngle22_5)
     {
-        auto tang = actor->spr.angle + dang;
+        auto tang = actor->spr.Angles.Yaw + dang;
 
         FAFhitscan(actor->spr.pos.plusZ(-ActorSizeZ(actor)), actor->sector(), DVector3(tang.ToVector() * 1024, 0), hit, CLIPMASK_MISSILE);
 
@@ -957,7 +957,7 @@ int InitRipper2Hang(DSWActor* actor)
         }
 
         Found = true;
-        actor->spr.angle = tang;
+        actor->spr.Angles.Yaw = tang;
         break;
     }
 
@@ -1011,7 +1011,7 @@ int DoRipper2Hang(DSWActor* actor)
 int DoRipper2MoveHang(DSWActor* actor)
 {
     // if cannot move the sprite
-    if (!move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0)))
+    if (!move_actor(actor, DVector3(actor->spr.Angles.Yaw.ToVector() * actor->vel.X, 0)))
     {
         if (actor->user.coll.type == kHitWall)
         {
@@ -1029,7 +1029,7 @@ int DoRipper2MoveHang(DSWActor* actor)
                 actor->user.WaitTics = 0; // Double jump
 
             // hang flush with the wall
-			actor->spr.angle = VecToAngle(actor->user.coll.hitWall->delta()) - DAngle90;
+			actor->spr.Angles.Yaw = actor->user.coll.hitWall->delta().Angle() - DAngle90;
 
             return 0;
         }
@@ -1084,9 +1084,9 @@ int DoRipper2BeginJumpAttack(DSWActor* actor)
 	Collision coll = move_sprite(actor, DVector3(vec, 0), actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_ACTOR, ACTORMOVETICS);
 
 	if (coll.type != kHitNone)
-		actor->spr.angle += RandomAngle(DAngle45) + DAngle180 - DAngle22_5;
+		actor->spr.Angles.Yaw += RandomAngle(DAngle45) + DAngle180 - DAngle22_5;
 	else
-		actor->spr.angle = VecToAngle(vec);
+		actor->spr.Angles.Yaw = vec.Angle();
 
     DoActorSetSpeed(actor, FAST_SPEED);
 
@@ -1204,7 +1204,7 @@ int DoRipper2RipHeart(DSWActor* actor)
     actor->user.WaitTics = 6 * 120;
 
     // player face ripper2
-    target->spr.angle = VecToAngle(actor->spr.pos - target->spr.pos);
+    target->spr.Angles.Yaw = (actor->spr.pos - target->spr.pos).Angle();
     return 0;
 }
 
@@ -1242,8 +1242,8 @@ void Ripper2Hatch(DSWActor* actor)
         ClearOwner(actorNew);
         actorNew->spr.pos = actor->spr.pos;
 
-        actorNew->spr.xrepeat = actorNew->spr.yrepeat = 64;
-        actorNew->spr.angle = RandomAngle();
+        actorNew->spr.scale = DVector2(1, 1);
+        actorNew->spr.Angles.Yaw = RandomAngle();
         actorNew->spr.pal = 0;
         actorNew->spr.shade = -10;
         SetupRipper2(actorNew);

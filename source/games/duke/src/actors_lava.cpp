@@ -33,6 +33,8 @@ Prepared for public release: 03/21/2003 - Charlie Wiederhold, 3D Realms
 #include "dukeactor.h"
 #include "interpolate.h"
 
+#include "buildtiles.h"
+
 BEGIN_DUKE_NS
 
 static int torchcnt;
@@ -45,9 +47,9 @@ static short torchtype[64];
 struct jaildoor
 {
 	sectortype* sect;
+	double dist;
+	double drag;
 	int speed;
-	float dist;
-	float drag;
 	int16_t direction;
 	int16_t sound;
 	int16_t open;
@@ -58,9 +60,9 @@ struct minecart
 {
 	sectortype* sect;
 	sectortype* childsect;
+	double dist;
+	double drag;
 	int speed;
-	float dist;
-	float drag;
 	int16_t direction;
 	int16_t sound;
 	int16_t open;
@@ -146,24 +148,24 @@ void lava_serialize(FSerializer& arc)
 		("windertime", windertime);
 }
 
-void addtorch(DDukeActor* actor)
+void addtorch(sectortype* sect, int shade, int lotag)
 {
 	if (torchcnt >= 64)
 		I_Error("Too many torch effects");
 
-	torchsector[torchcnt] = actor->sector();
-	torchsectorshade[torchcnt] = actor->sector()->floorshade;
-	torchtype[torchcnt] = actor->spr.lotag;
+	torchsector[torchcnt] = sect;
+	torchsectorshade[torchcnt] = shade;
+	torchtype[torchcnt] = lotag;
 	torchcnt++;
 }
 
-void addlightning(DDukeActor* actor)
+void addlightning(sectortype* sect, int shade)
 {
 	if (lightnincnt >= 64)
 		I_Error("Too many lightnin effects");
 
-	lightninsector[lightnincnt] = actor->sector();
-	lightninsectorshade[lightnincnt] = actor->sector()->floorshade;
+	lightninsector[lightnincnt] = sect;
+	lightninsectorshade[lightnincnt] = shade;
 	lightnincnt++;
 }
 
@@ -238,7 +240,7 @@ void dotorch(void)
 				sect->floorshade = shade;
 				break;
 		}
-		for (auto& wal : wallsofsector(sect))
+		for (auto& wal : sect->walls)
 		{
 			if (wal.lotag != 1)
 			{
@@ -301,7 +303,7 @@ void dojaildoor(void)
 			}
 			else
 			{
-				for (auto& wal : wallsofsector(sectp))
+				for (auto& wal : sectp->walls)
 				{
 					DVector2 vec = wal.pos;
 					switch (jd.direction)
@@ -388,7 +390,7 @@ void moveminecart(void)
 			}
 			else
 			{
-				for (auto& wal : wallsofsector(sectp))
+				for (auto& wal : sectp->walls)
 				{
 					auto pos = wal.pos;
 					switch (mc.direction)
@@ -415,7 +417,7 @@ void moveminecart(void)
 
 		auto csect = mc.childsect;
 		double max_x = INT32_MIN, max_y = INT32_MIN, min_x = INT32_MAX, min_y = INT32_MAX;
-		for (auto& wal : wallsofsector(csect))
+		for (auto& wal : csect->walls)
 		{
 			double x = wal.pos.X;
 			double y = wal.pos.Y;
@@ -450,7 +452,7 @@ void thunder(void)
 
 	if (!thunderflash)
 	{
-		if (testgotpic(RRTHUNDERSKY, true))
+		if (ps[screenpeek].actor->sector()->ceilingstat & CSTAT_SECTOR_SKY)
 		{
 			g_relvisibility = 0;
 			if (krand() > 65000)
@@ -475,9 +477,10 @@ void thunder(void)
 			thunder_brightness = brightness;
 		}
 	}
-	if (!winderflash)
+	if (!winderflash && isRR())
 	{
-		if (testgotpic(RRTILE2562, true))
+		auto tex = tileGetTexture(RTILE_CATACOMB);	// this cannot be easily generalized. :(
+		if (tex->isSeen(true))
 		{
 			if (krand() > 65000)
 			{
@@ -498,7 +501,7 @@ void thunder(void)
 				auto sectp = lightninsector[i];
 				sectp->floorshade = (int8_t)lightninsectorshade[i];
 				sectp->ceilingshade = (int8_t)lightninsectorshade[i];
-				for (auto& wal : wallsofsector(sectp))
+				for (auto& wal : sectp->walls)
 					wal.shade = (int8_t)lightninsectorshade[i];
 			}
 		}
@@ -520,10 +523,19 @@ void thunder(void)
 			auto sectp = lightninsector[i];
 			sectp->floorshade = lightninsectorshade[i] - shade;
 			sectp->ceilingshade = lightninsectorshade[i] - shade;
-			for (auto& wal : wallsofsector(sectp))
+			for (auto& wal : sectp->walls)
 				wal.shade = lightninsectorshade[i] - shade;
 		}
 	}
+}
+
+int addambient(int hitag, int lotag)
+{
+
+	ambienttags.Reserve(1);
+	ambienttags.Last().lo = lotag;
+	ambienttags.Last().hi = hitag;
+	return ambienttags.Size() - 1;
 }
 
 END_DUKE_NS

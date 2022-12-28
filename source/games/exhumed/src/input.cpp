@@ -27,6 +27,12 @@ BEGIN_PS_NS
 
 PlayerInput sPlayerInput[kMaxPlayers];
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 size_t MarkInput()
 {
     for (auto& p : sPlayerInput)
@@ -42,6 +48,12 @@ void ClearSpaceBar(int nPlayer)
     buttonMap.ClearButton(gamefunc_Open);
 }
 
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void GameInterface::GetInput(ControlInfo* const hidInput, double const scaleAdjust, InputPacket* packet)
 {
@@ -67,16 +79,15 @@ void GameInterface::GetInput(ControlInfo* const hidInput, double const scaleAdju
     }
     else
     {
-        lPlayerYVel = 0;
-        lPlayerXVel = 0;
+        sPlayerInput[nLocalPlayer].vel.Zero();
     }
 
-    if (!SyncInput())
+    if (!SyncInput() && gamestate == GS_LEVEL)
     {
         if (!nFreeze)
         {
-            pPlayer->angle.applyinput(input.avel, &sPlayerInput[nLocalPlayer].actions, scaleAdjust);
-            pPlayer->horizon.applyinput(input.horz, &sPlayerInput[nLocalPlayer].actions, scaleAdjust);
+            pPlayer->Angles.RenderAngles.Yaw += DAngle::fromDeg(input.avel);
+            pPlayer->Angles.RenderAngles.Pitch += DAngle::fromDeg(input.horz);
 
             if (input.horz)
             {
@@ -84,8 +95,6 @@ void GameInterface::GetInput(ControlInfo* const hidInput, double const scaleAdju
             }
         }
 
-        pPlayer->angle.processhelpers(scaleAdjust);
-        pPlayer->horizon.processhelpers(scaleAdjust);
         UpdatePlayerSpriteAngle(pPlayer);
     }
 

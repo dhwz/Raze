@@ -1021,6 +1021,10 @@ OptionMenu GameplayOptions protected
 		Option "$ENEMY_BEHAVIOR", "cl_bloodvanillaenemies", "EnemyBehavior"
 	}
 	StaticText ""
+	ifgame(Duke, Nam, WW2GI, Redneck, RedneckRides)
+	{
+		Option "$PLRMNU_FULLVIEWPITCH", "cl_clampedpitch", "OffOn"
+	}
 	ifgame(Blood)
 	{
 		Option "$PLRMNU_BLDQAVINTERP", "cl_bloodqavinterp", "OnOff"
@@ -1328,7 +1332,7 @@ OptionMenu "HUDOptions" protected
 
 	StaticText ""
 	Option "$DSPLYMNU_CROSSHAIR",				"cl_crosshair",	OnOff
-	Slider "$DSPLYMNU_CROSSHAIRSCALE",			"crosshairscale",		0.25, 1.0, 0.125, 2
+	Slider "$DSPLYMNU_CROSSHAIRSCALE",			"crosshairscale",		0.0, 2.0, 0.05, 2
 	Option "$HUDMNU_CROSSHAIR",				"crosshair", "Crosshairs"
 	//ColorPicker "$HUDMNU_CROSSHAIRCOLOR", 	"crosshaircolor" fixme: Does not exist yet in Raze.
 	Option "$HUDMNU_CROSSHAIRHEALTH",		"crosshairhealth", "CrosshairHealthTypes"
@@ -1645,9 +1649,7 @@ OptionValue PreferBackend
 {
 	0, "$OPTVAL_OPENGL"
 	1, "$OPTVAL_VULKAN"
-	// Enable when HAVE_SOFTPOLY will be defined
-	//2, "$OPTVAL_SOFTPOLY"
-	3, "$OPTVAL_OPENGLES"
+	2, "$OPTVAL_OPENGLES"
 }
 
 OptionMenu VideoModeMenu protected
@@ -2022,7 +2024,7 @@ OptionMenu "EngineCredits1a"
 	Submenu " ---->", "EngineCredits1b"
 	StaticText "Raze QA", 1
 
-	StaticText "sinisterseed                        ", 0
+	StaticText "sinisterseed      Kevin Caccamo     ", 0
 	StaticText "Major Cooke       Dynamo            ", 0
 	StaticText "Nash Muhandes     Martin Howe       ", 0
 	StaticText "SanyaWaffles      Nigel Rowand      ", 0

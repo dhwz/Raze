@@ -45,7 +45,10 @@
 #include "autosegs.h"
 #include "i_system.h"
 #include "gamecontrol.h"
-#include "autosegs.h"
+#include "coreactor.h"
+#include "texinfo.h"
+
+#include "buildtiles.h"
 
 extern TArray<ClusterDef> clusters;
 extern TArray<VolumeRecord> volumes;
@@ -56,6 +59,7 @@ static ClusterDef TheDefaultClusterInfo;
 
 TArray<int> ParsedLumps(8);
 
+constexpr int texlookupflags = FTextureManager::TEXMAN_ReturnAll | FTextureManager::TEXMAN_TryAny | FTextureManager::TEXMAN_ForceLookup;
 //==========================================================================
 //
 //
@@ -217,6 +221,346 @@ void FMapInfoParser::ParseMusic(FString &name, int &order)
 	if (CheckNumber())
 	{
 		order = sc.Number;
+	}
+}
+
+//==========================================================================
+//
+//
+//
+//==========================================================================
+
+void FMapInfoParser::ParseConstants()
+{
+	int num = -1;
+
+	// this block deliberately uses a 'flag = texture, texture...' syntax because it is a lot easier to handle than doing the reverse
+	sc.MustGetStringName("{");
+	while (!sc.CheckString("}"))
+	{
+		// Do not use internal lookup here because this code must be able to gracefully skip the definition if the flag constant does not exist.
+		// This also blocks passing in literal numbers which is quite intentional.
+		sc.MustGetString();
+		FString cname = sc.String;
+		ParseAssign();
+		sc.MustGetNumber(true);
+		sc.AddSymbol(cname, sc.Number);
+
+	} while (sc.CheckString(","));
+}
+
+//==========================================================================
+//
+//
+//
+//==========================================================================
+
+void FMapInfoParser::ParseSpawnClasses()
+{
+	FString fn;
+
+	sc.MustGetStringName("{");
+	while (!sc.CheckString("}"))
+	{
+		// This will need some reworking once we can use real textures.
+		int clipdist = -1;
+		int num = -1;
+		int base = -1;
+		int basetex = -1;
+		int brokentex = -1;
+		int fullbright = 0;
+		int flags = 0;
+		FSoundID sound = NO_SOUND;
+		PClassActor* actor = nullptr;
+
+		sc.MustGetString();
+		char* p;
+		num = (int)strtol(sc.String, &p, 10);
+		if (num < 0 || *p)
+		{
+			sc.ScriptMessage("Invalid spawn number. Must be positive integer, but got '%s'", sc.String);
+			SkipToNext();
+			continue;
+		}
+		ParseAssign();
+		sc.MustGetString();
+		actor = PClass::FindActor(sc.String);
+		if (actor == nullptr)
+		{
+			sc.ScriptMessage("Unknown actor class '%s' for spawn ID # %d", sc.String, num);
+
+		}
+
+		if (sc.CheckString(","))
+		{
+			// prefixing the texture names here with a '*' will render them fullbright.
+			sc.MustGetString();
+			const char* p = sc.String;
+			if (*p == '*') { fullbright |= 1; p++; }
+			basetex = tileForName(p);
+			if (basetex < 0) sc.ScriptMessage("Unknown texture '%s' in definition for spawn ID # %d", sc.String, num);
+			if (sc.CheckString(","))
+			{
+				sc.MustGetString();
+				const char* p = sc.String;
+				if (*p)
+				{
+					if (*p == '*') { fullbright |= 2; p++; }
+					brokentex = tileForName(p);
+					if (brokentex < 0) sc.ScriptMessage("Unknown texture '%s' in definition for spawn ID # %d", sc.String, num);
+				}
+				if (sc.CheckString(","))
+				{
+					sc.MustGetString();
+
+					sound = S_FindSound(sc.String);
+					if (*sc.String && !sound.isvalid()) Printf(TEXTCOLOR_RED "Unknown sound '%s' in definition for spawn ID # %d\n", sc.String, num);
+					if (sc.CheckString(","))
+					{
+						bool cont = true;
+						if (sc.CheckNumber())
+						{
+							clipdist = sc.Number;
+							cont = sc.CheckString(",");
+						}
+						if (cont) do
+						{
+							sc.MustGetString();
+							if (sc.Compare("damaging")) flags |= 1;
+							else if (sc.Compare("solid") || sc.Compare("blocking")) flags |= 2;
+							else if (sc.Compare("unblocking")) flags |= 4;
+							else if (sc.Compare("spawnglass")) flags |= 8;
+							else if (sc.Compare("spawnscrap")) flags |= 16;
+							else if (sc.Compare("spawnsmoke")) flags |= 32;
+							else if (sc.Compare("spawnglass2")) flags |= 64; // Duke has 2 ways of spawning glass debris...
+							else sc.ScriptMessage("'%s': Unknown actor class flag", sc.String);
+						} while (sc.CheckString(","));
+					}
+				}
+			}
+		}
+		if (actor != 0 && num >= 0)
+		{
+			// todo: check for proper base class
+			spawnMap.Insert(num, { actor, basetex, brokentex, sound, int8_t(fullbright), int8_t(clipdist), int16_t(flags) });
+		}
+	}
+}
+
+//==========================================================================
+//
+//
+//
+//==========================================================================
+
+void FMapInfoParser::ParseBreakWall()
+{
+
+	sc.MustGetStringName("{");
+	while (!sc.CheckString("}"))
+	{
+		FTextureID basetile = FNullTextureID();
+		FTextureID breaktile = FNullTextureID();
+		int flags = 0;
+		FSoundID sound = NO_SOUND;
+		VMFunction* handler = nullptr;
+
+		sc.MustGetString();
+		FString basename = sc.String; // save for printing error messages.
+		basetile = TexMan.CheckForTexture(sc.String, ETextureType::Any, texlookupflags);
+		if (!basetile.isValid())
+		{
+			sc.ScriptMessage("Unknown texture '%s' in breakwall definition", sc.String);
+			SkipToNext();
+		}
+		ParseAssign();
+		sc.MustGetString();
+		breaktile = TexMan.CheckForTexture(sc.String, ETextureType::Any, texlookupflags);
+		if (*sc.String && !breaktile.isValid()) 
+			sc.ScriptMessage("Unknown texture '%s' in breakwall definition", sc.String);
+		if (sc.CheckString(","))
+		{
+			sc.MustGetString();
+			sound = S_FindSound(sc.String);
+			if (*sc.String && !sound.isvalid()) sc.ScriptMessage("Unknown sound '%s' in definition for breakable wall '5s'\n", basename.GetChars());
+
+			auto saved = sc.SavePos();
+			if (sc.CheckString(","))
+			{
+				sc.MustGetString();
+
+				size_t p = strcspn(sc.String, ".");
+				if (sc.String[p] != 0)
+				{
+					FName clsname(sc.String, p, false);
+					FName funcname = sc.String + p + 1;
+					handler = PClass::FindFunction(clsname, funcname);
+					if (handler == nullptr)
+						sc.ScriptMessage("Call to undefined function %s", sc.String);
+					// todo: validate the function's signature. Must be (walltype, TextureID, Sound, DukeActor)
+				}
+				else sc.RestorePos(saved);
+				while (sc.CheckString(","))
+				{
+					sc.MustGetString();
+					if (sc.Compare("twosided")) flags |= 1;
+					else if (sc.Compare("maskedonly")) flags |= 2;
+					else sc.ScriptMessage("'%s': Unknown breakable flag", sc.String);
+				}
+			}
+		}
+		breakWallMap.Insert(basetile.GetIndex(), {breaktile, sound, handler, flags});
+	}
+}
+
+//==========================================================================
+//
+//
+//
+//==========================================================================
+
+void FMapInfoParser::ParseBreakCeiling()
+{
+
+	sc.MustGetStringName("{");
+	while (!sc.CheckString("}"))
+	{
+		FTextureID basetile = FNullTextureID();
+		FTextureID breaktile = FNullTextureID();
+		int flags = 0;
+		FSoundID sound = NO_SOUND;
+		VMFunction* handler = nullptr;
+
+		sc.MustGetString();
+		FString basename = sc.String; // save for printing error messages.
+		basetile = TexMan.CheckForTexture(sc.String, ETextureType::Any, texlookupflags);
+		if (!basetile.isValid())
+		{
+			sc.ScriptMessage("Unknown texture '%s' in breakceiling definition", sc.String);
+			SkipToNext();
+		}
+		ParseAssign();
+		sc.MustGetString();
+		breaktile = TexMan.CheckForTexture(sc.String, ETextureType::Any, texlookupflags);
+		if (*sc.String && !breaktile.isValid()) sc.ScriptMessage("Unknown texture '%s' in breakceiling definition", sc.String);
+		if (sc.CheckString(","))
+		{
+			sc.MustGetString();
+			sound = S_FindSound(sc.String);
+			if (*sc.String && !sound.isvalid()) sc.ScriptMessage("Unknown sound '%s' in definition for breakable ceiling '5s'\n", basename.GetChars());
+
+			auto saved = sc.SavePos();
+			if (sc.CheckString(","))
+			{
+				sc.MustGetString();
+
+				size_t p = strcspn(sc.String, ".");
+				if (sc.String[p] != 0)
+				{
+					FName clsname(sc.String, p, false);
+					FName funcname = sc.String + p + 1;
+					handler = PClass::FindFunction(clsname, funcname);
+					if (handler == nullptr)
+						sc.ScriptMessage("Call to undefined function %s", sc.String);
+					// todo: validate the function's signature. Must be (sectortype)
+				}
+				else sc.RestorePos(saved);
+				while (sc.CheckString(","))
+				{
+					sc.MustGetString();
+					if (sc.Compare("lightsout")) flags |= 1;			// all internal definitions have these two flags.
+					else if (sc.Compare("ceilingglass")) flags |= 2;
+					else sc.ScriptMessage("'%s': Unknown breakable flag", sc.String);
+				}
+			}
+		}
+		breakCeilingMap.Insert(basetile.GetIndex(), {breaktile, sound, handler, flags});
+	}
+}
+
+//==========================================================================
+//
+//
+//
+//==========================================================================
+
+void FMapInfoParser::ParseTextureFlags()
+{
+	int num = -1;
+
+	// this block deliberately uses a 'flag = texture, texture...' syntax because it is a lot easier to handle than doing the reverse
+	sc.MustGetStringName("{");
+	while (!sc.CheckString("}"))
+	{
+		// Do not use internal lookup here because this code must be able to gracefully skip the definition if the flag constant does not exist.
+		// This also blocks passing in literal numbers which is quite intentional.
+		sc.MustGetString();
+		FName cname(sc.String, true);
+		auto lookup = cname == NAME_None ? nullptr : sc.LookupSymbol(cname);
+		num = 0;
+		if (lookup) num = int(lookup->Number);
+		else 
+			sc.ScriptMessage("'%s': Unknown texture flag", sc.String);
+		ParseAssign();
+		do
+		{
+			sc.MustGetString();
+			// this must also get null textures and ones not yet loaded.
+			auto tex = TexMan.CheckForTexture(sc.String, ETextureType::Any, texlookupflags);
+
+			if (!tex.isValid())
+			{
+				sc.ScriptMessage("textureflags:Unknown texture name '%s'", sc.String);
+			}
+			else
+			{
+				AccessExtInfo(tex).flags |= num;
+			}
+
+		} while (sc.CheckString(","));
+	}
+}
+
+//==========================================================================
+//
+//
+//
+//==========================================================================
+
+void FMapInfoParser::ParseSurfaceTypes()
+{
+	int num = -1;
+
+	// this block deliberately uses a 'type = texture, texture...' syntax because it is a lot easier to handle than doing the reverse
+	sc.MustGetStringName("{");
+	while (!sc.CheckString("}"))
+	{
+		// Do not use internal lookup here because this code must be able to gracefully skip the definition if the flag constant does not exist.
+		// This also blocks passing in literal numbers which is quite intentional.
+		sc.MustGetString();
+		FName cname(sc.String, true);
+		auto lookup = cname == NAME_None ? nullptr : sc.LookupSymbol(cname);
+		num = 0;
+		if (lookup) num = int(lookup->Number);
+		else
+			sc.ScriptMessage("'%s': Unknown surface type", sc.String);
+		ParseAssign();
+		do
+		{
+			sc.MustGetString();
+			// this must also get null textures and ones not yet loaded.
+			auto tex = TexMan.CheckForTexture(sc.String, ETextureType::Any, texlookupflags);
+
+			if (!tex.isValid())
+			{
+				sc.ScriptMessage("textureflags:Unknown texture name '%s'", sc.String);
+			}
+			else
+			{
+				AccessExtInfo(tex).surftype = num;
+			}
+
+		} while (sc.CheckString(","));
 	}
 }
 
@@ -572,7 +916,7 @@ DEFINE_MAP_OPTION(ex_ramses_horiz, false)
 {
 	parse.ParseAssign();
 	parse.sc.MustGetNumber();
-	info->ex_ramses_horiz = parse.sc.Number;
+	info->ex_ramses_horiz = maphoriz(parse.sc.Number);
 }
 
 DEFINE_MAP_OPTION(ex_ramses_cdtrack, false)
@@ -1111,7 +1455,7 @@ void FMapInfoParser::ParseGameInfo()
 			ParseAssign();
 			sc.SetCMode(false);
 			sc.MustGetString();
-			sc.SetCMode(false);
+			sc.SetCMode(true);
 			globalCutscenes.SummaryScreen = sc.String;
 		}
 		else if (sc.Compare("mpsummaryscreen"))
@@ -1119,7 +1463,7 @@ void FMapInfoParser::ParseGameInfo()
 			ParseAssign();
 			sc.SetCMode(false);
 			sc.MustGetString();
-			sc.SetCMode(false);
+			sc.SetCMode(true);
 			globalCutscenes.MPSummaryScreen = sc.String;
 		}
 		else if (sc.Compare("statusbarclass"))
@@ -1127,7 +1471,7 @@ void FMapInfoParser::ParseGameInfo()
 			ParseAssign();
 			sc.SetCMode(false);
 			sc.MustGetString();
-			sc.SetCMode(false);
+			sc.SetCMode(true);
 			globalCutscenes.StatusBarClass = sc.String;
 		}
 		else if (!ParseCloseBrace())
@@ -1179,6 +1523,7 @@ void FMapInfoParser::ParseMapInfo (int lump, MapRecord &gamedefaults, MapRecord 
 	defaultinfo = gamedefaults;
 	defaultinfoptr = &defaultinfo;
 
+#if 0 // this check is too dumb and affects constant defining includes as well.
 	if (ParsedLumps.Find(lump) != ParsedLumps.Size())
 	{
 		sc.ScriptMessage("MAPINFO file is processed more than once\n");
@@ -1187,7 +1532,8 @@ void FMapInfoParser::ParseMapInfo (int lump, MapRecord &gamedefaults, MapRecord 
 	{
 		ParsedLumps.Push(lump);
 	}
-
+#endif
+	sc.SetCMode(true);
 	while (sc.GetString ())
 	{
 		if (sc.Compare("include"))
@@ -1207,9 +1553,9 @@ void FMapInfoParser::ParseMapInfo (int lump, MapRecord &gamedefaults, MapRecord 
 						fileSystem.GetResourceFileFullName(fileSystem.GetFileContainer(inclump)), sc.String);
 				}
 			}
-			FScanner saved_sc = sc;
-			ParseMapInfo(inclump, gamedefaults, defaultinfo);
-			sc = saved_sc;
+			// use a new parser object to parse the include. Otherwise we'd have to save the entire FScanner in a local variable which is a lot more messy.
+			FMapInfoParser includer(&sc);
+			includer.ParseMapInfo(inclump, gamedefaults, defaultinfo);
 		}
 		else if (sc.Compare("gamedefaults"))
 		{
@@ -1262,6 +1608,30 @@ void FMapInfoParser::ParseMapInfo (int lump, MapRecord &gamedefaults, MapRecord 
 		else if (sc.Compare("gameinfo"))
 		{
 			ParseGameInfo();
+		}
+		else if (sc.Compare("spawnclasses"))
+		{
+			ParseSpawnClasses();
+		}
+		else if (sc.Compare("breakwalls"))
+		{
+			ParseBreakWall();
+		}
+		else if (sc.Compare("breakceiling"))
+		{
+			ParseBreakCeiling();
+		}
+		else if (sc.Compare("textureflags"))
+		{
+			ParseTextureFlags();
+		}
+		else if (sc.Compare("surfacetypes"))
+		{
+			ParseSurfaceTypes();
+		}
+		else if (sc.Compare("constants"))
+		{
+			ParseConstants();
 		}
 		else if (sc.Compare("clearall"))
 		{

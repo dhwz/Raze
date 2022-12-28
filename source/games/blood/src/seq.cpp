@@ -57,8 +57,8 @@ static void (*seqClientCallback[])(int, DBloodActor*) = {
 	TeslaSeqCallback,
 	ShotSeqCallback,
 	cultThrowSeqCallback,
-	sub_68170,
-	sub_68230,
+	cultThrowSeqCallback2,
+	cultThrowSeqCallback3,
 	SlashFSeqCallback,
 	ThrowFSeqCallback,
 	ThrowSSeqCallback,
@@ -78,8 +78,8 @@ static void (*seqClientCallback[])(int, DBloodActor*) = {
 	SpidBiteSeqCallback,
 	SpidJumpSeqCallback,
 	SpidBirthSeqCallback,
-	sub_71BD4,
-	sub_720AC,
+	tchernobogBurnSeqCallback,
+	tchernobogBurnSeqCallback2,
 	sub_71A90,
 	genDudeAttack1,
 	punchCallback,
@@ -128,7 +128,7 @@ void seqPrecacheId(int id, int palette)
 
 void UpdateCeiling(sectortype* pSector, SEQFRAME* pFrame)
 {
-	pSector->ceilingpicnum = seqGetTile(pFrame);
+	pSector->setceilingtexture(seqGetTexture(pFrame));
 	pSector->ceilingshade = pFrame->shade;
 	if (pFrame->palette)
 		pSector->ceilingpal = pFrame->palette;
@@ -142,7 +142,7 @@ void UpdateCeiling(sectortype* pSector, SEQFRAME* pFrame)
 
 void UpdateFloor(sectortype* pSector, SEQFRAME* pFrame)
 {
-	pSector->floorpicnum = seqGetTile(pFrame);
+	pSector->setfloortexture(seqGetTexture(pFrame));
 	pSector->floorshade = pFrame->shade;
 	if (pFrame->palette)
 		pSector->floorpal = pFrame->palette;
@@ -157,7 +157,7 @@ void UpdateFloor(sectortype* pSector, SEQFRAME* pFrame)
 void UpdateWall(walltype* pWall, SEQFRAME* pFrame)
 {
 	assert(pWall->hasX());
-	pWall->picnum = seqGetTile(pFrame);
+	pWall->setwalltexture(seqGetTexture(pFrame));
 	if (pFrame->palette)
 		pWall->pal = pFrame->palette;
 	if (pFrame->transparent)
@@ -188,7 +188,9 @@ void UpdateMasked(walltype* pWall, SEQFRAME* pFrame)
 {
 	assert(pWall->hasX());
 	walltype* pWallNext = pWall->nextWall();
-	pWall->overpicnum = pWallNext->overpicnum = seqGetTile(pFrame);
+	auto texid = seqGetTexture(pFrame);
+	pWall->setovertexture(texid);
+	pWallNext->setovertexture(texid);
 	if (pFrame->palette)
 		pWall->pal = pWallNext->pal = pFrame->palette;
 	if (pFrame->transparent)
@@ -244,8 +246,10 @@ void UpdateSprite(DBloodActor* actor, SEQFRAME* pFrame)
 	assert(actor->hasX());
 	if (actor->spr.flags & 2)
 	{
-		if (tileHeight(actor->spr.picnum) != tileHeight(seqGetTile(pFrame)) || tileTopOffset(actor->spr.picnum) != tileTopOffset(seqGetTile(pFrame))
-			|| (pFrame->yrepeat && pFrame->yrepeat != actor->spr.yrepeat))
+		auto atex = TexMan.GetGameTexture(actor->spr.spritetexture());
+		auto stex = TexMan.GetGameTexture(seqGetTexture(pFrame));
+		if (atex->GetDisplayHeight() != stex->GetDisplayHeight() || atex->GetDisplayTopOffset() != stex->GetDisplayTopOffset()
+			|| (pFrame->scaley && pFrame->scaley != int(actor->spr.scale.Y * INV_REPEAT_SCALE)))
 			actor->spr.flags |= 4;
 	}
 	actor->spr.picnum = seqGetTile(pFrame);
@@ -254,14 +258,19 @@ void UpdateSprite(DBloodActor* actor, SEQFRAME* pFrame)
 	actor->spr.shade = pFrame->shade;
 
 	int scale = actor->xspr.scale; // SEQ size scaling
-	if (pFrame->xrepeat) {
-		if (scale) actor->spr.xrepeat = ClipRange(MulScale(pFrame->xrepeat, scale, 8), 0, 255);
-		else actor->spr.xrepeat = pFrame->xrepeat;
+	if (pFrame->scalex) 
+	{
+		int s;
+		if (scale) s = ClipRange(MulScale(pFrame->scalex, scale, 8), 0, 255);
+		else s = pFrame->scalex;
+		actor->spr.scale.X = (s * REPEAT_SCALE);
 	}
 
-	if (pFrame->yrepeat) {
-		if (scale) actor->spr.yrepeat = ClipRange(MulScale(pFrame->yrepeat, scale, 8), 0, 255);
-		else actor->spr.yrepeat = pFrame->yrepeat;
+	if (pFrame->scaley) {
+		int s;
+		if (scale) s = ClipRange(MulScale(pFrame->scaley, scale, 8), 0, 255);
+		else s = pFrame->scaley;
+		actor->spr.scale.Y = (s * REPEAT_SCALE);
 	}
 
 	if (pFrame->transparent)
@@ -351,7 +360,7 @@ void SEQINST::Update()
 		if (!VanillaMode() && pSequence->frames[frameIndex].surfaceSound && actor->vel.Z == 0 && actor->vel.X != 0) {
 
 			if (actor->sector()->upperLink) break; // don't play surface sound for stacked sectors
-			int surf = tileGetSurfType(actor->sector()->floorpicnum);
+			int surf = GetExtInfo(actor->sector()->floortexture).surftype;
 			if (!surf) break;
 			static int surfSfxMove[15][4] = {
 				/* {snd1, snd2, gameVolume, myVolume} */
@@ -374,7 +383,7 @@ void SEQINST::Update()
 
 			int sndId = surfSfxMove[surf][Random(2)];
 			auto snd = soundEngine->FindSoundByResID(sndId);
-			if (snd > 0)
+			if (snd.isvalid())
 			{
 				auto udata = soundEngine->GetUserData(snd);
 				int relVol = udata ? udata[2] : 255;
@@ -459,9 +468,19 @@ struct ActiveList
 		remove(SS_SPRITE, EventObject(actor));
 	}
 
+	void Mark()
+	{
+		for (auto& seqinst : list) seqinst.target.Mark();
+	}
+
 };
 
 static ActiveList activeList;
+
+void MarkSeq()
+{
+	activeList.Mark();
+}
 
 //---------------------------------------------------------------------------
 //
@@ -528,8 +547,8 @@ static void ByteSwapSEQ(Seq* pSeq)
 		swapFrame.transparent2 = bitReader.readBit();
 		swapFrame.blockable = bitReader.readBit();
 		swapFrame.hittable = bitReader.readBit();
-		swapFrame.xrepeat = bitReader.readUnsigned(8);
-		swapFrame.yrepeat = bitReader.readUnsigned(8);
+		swapFrame.scalex = bitReader.readUnsigned(8);
+		swapFrame.scaley = bitReader.readUnsigned(8);
 		swapFrame.shade = bitReader.readSigned(8);
 		swapFrame.palette = bitReader.readUnsigned(5);
 		swapFrame.trigger = bitReader.readBit();

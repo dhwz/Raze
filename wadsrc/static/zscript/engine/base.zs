@@ -220,6 +220,7 @@ struct _ native	// These are the global variables, the struct is only here to av
 	native readonly double NotifyFontScale;
 	native readonly int paused;
 	native readonly ui uint8 ConsoleState;
+	native readonly int display_mirror;
 }
 
 struct System native
@@ -514,9 +515,9 @@ class Canvas : Object native abstract
 	native vararg void DrawShapeFill(Color col, double amount, Shape2D s, ...);
 	native vararg void DrawChar(Font font, int normalcolor, double x, double y, int character, ...);
 	native vararg void DrawText(Font font, int normalcolor, double x, double y, String text, ...);
-	native void DrawLine(int x0, int y0, int x1, int y1, Color color, int alpha = 255);
+	native void DrawLine(double x0, double y0, double x1, double y1, Color color, int alpha = 255);
 	native void DrawLineFrame(Color color, int x0, int y0, int w, int h, int thickness = 1);
-	native void DrawThickLine(int x0, int y0, int x1, int y1, double thickness, Color color, int alpha = 255);
+	native void DrawThickLine(double x0, double y0, double x1, double y1, double thickness, Color color, int alpha = 255);
 	native Vector2, Vector2 VirtualToRealCoords(Vector2 pos, Vector2 size, Vector2 vsize, bool vbottom=false, bool handleaspect=true);
 	native void SetClipRect(int x, int y, int w, int h);
 	native void ClearClipRect();
@@ -547,9 +548,9 @@ struct Screen native
 	native static vararg void DrawShapeFill(Color col, double amount, Shape2D s, ...);
 	native static vararg void DrawChar(Font font, int normalcolor, double x, double y, int character, ...);
 	native static vararg void DrawText(Font font, int normalcolor, double x, double y, String text, ...);
-	native static void DrawLine(int x0, int y0, int x1, int y1, Color color, int alpha = 255);
+	native static void DrawLine(double x0, double y0, double x1, double y1, Color color, int alpha = 255);
 	native static void DrawLineFrame(Color color, int x0, int y0, int w, int h, int thickness = 1);
-	native static void DrawThickLine(int x0, int y0, int x1, int y1, double thickness, Color color, int alpha = 255);
+	native static void DrawThickLine(double x0, double y0, double x1, double y1, double thickness, Color color, int alpha = 255);
 	native static Vector2, Vector2 VirtualToRealCoords(Vector2 pos, Vector2 size, Vector2 vsize, bool vbottom=false, bool handleaspect=true);
 	native static double GetAspectRatio();
 	native static void SetClipRect(int x, int y, int w, int h);
@@ -893,3 +894,16 @@ struct Translation version("2.4")
 	}
 }
 
+// Convenient way to attach functions to Quat
+struct QuatStruct native
+{
+	native static Quat SLerp(Quat from, Quat to, double t);
+	native static Quat NLerp(Quat from, Quat to, double t);
+	native static Quat FromAngles(double yaw, double pitch, double roll);
+	native static Quat AxisAngle(Vector3 xyz, double angle);
+	native Quat Conjugate();
+	native Quat Inverse();
+	// native double Length();
+	// native double LengthSquared();
+	// native Quat Unit();
+}

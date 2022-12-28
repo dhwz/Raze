@@ -62,42 +62,20 @@ bool CheckProximity(DBloodActor* actor, const DVector3& pos, sectortype* pSector
 
 //---------------------------------------------------------------------------
 //
-//
-//
-//---------------------------------------------------------------------------
-
-bool CheckProximityPoint(int nX1, int nY1, int nZ1, int nX2, int nY2, int nZ2, int nDist)
-{
-	int oX = abs(nX2 - nX1) >> 4;
-	if (oX >= nDist)
-		return 0;
-	int oY = abs(nY2 - nY1) >> 4;
-	if (oY >= nDist)
-		return 0;
-	if (nZ2 != nZ1)
-	{
-		int oZ = abs(nZ2 - nZ1) >> 8;
-		if (oZ >= nDist)
-			return 0;
-	}
-	if (approxDist(oX, oY) >= nDist) return 0;
-	return 1;
-}
-
-//---------------------------------------------------------------------------
-//
 // Note: This function features some very bad math.
 // It cannot be redone because some game functionality
 // depends on the math being broken.
 //
 //---------------------------------------------------------------------------
 
-bool CheckProximityWall(walltype* pWall, int x, int y, int nDist)
+bool CheckProximityWall(walltype* pWall, const DVector2& pos, int nDist)
 {
-	int x1 = pWall->wall_int_pos().X;
-	int y1 = pWall->wall_int_pos().Y;
-	int x2 = pWall->point2Wall()->wall_int_pos().X;
-	int y2 = pWall->point2Wall()->wall_int_pos().Y;
+	int x = int(pos.X * (1. / maptoworld));
+	int y = int(pos.Y * (1. / maptoworld));
+	int x1 = int(pWall->pos.X * (1./maptoworld));
+	int y1 = int(pWall->pos.Y * (1./maptoworld));
+	int x2 = int(pWall->point2Wall()->pos.X * (1./maptoworld));
+	int y2 = int(pWall->point2Wall()->pos.Y * (1./maptoworld));
 	nDist <<= 4;
 	if (x1 < x2)
 	{
@@ -234,77 +212,15 @@ bool CheckProximityWall(walltype* pWall, int x, int y, int nDist)
 //
 //---------------------------------------------------------------------------
 
-int GetWallAngle(walltype* pWall)
-{
-	return getangle(pWall->delta());
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-bool IntersectRay(int wx, int wy, int wdx, int wdy, int x1, int y1, int z1, int x2, int y2, int z2, int* ix, int* iy, int* iz)
-{
-	int dX = x1 - x2;
-	int dY = y1 - y2;
-	int dZ = z1 - z2;
-	int side = wdx * dY - wdy * dX;
-	int dX2 = x1 - wx;
-	int dY2 = y1 - wy;
-	int check1 = dX2 * dY - dY2 * dX;
-	int check2 = wdx * dY2 - wdy * dX2;
-	if (side >= 0)
-	{
-		if (!side)
-			return 0;
-		if (check1 < 0)
-			return 0;
-		if (check2 < 0 || check2 >= side)
-			return 0;
-	}
-	else
-	{
-		if (check1 > 0)
-			return 0;
-		if (check2 > 0 || check2 <= side)
-			return 0;
-	}
-	int nScale = DivScale(check2, side, 16);
-	*ix = x1 + MulScale(dX, nScale, 16);
-	*iy = y1 + MulScale(dY, nScale, 16);
-	*iz = z1 + MulScale(dZ, nScale, 16);
-	return 1;
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-int HitScan(DBloodActor* actor, int z, int dx, int dy, int dz, unsigned int nMask, int nRange)
+int HitScan(DBloodActor* actor, double z, const DVector3& vect, unsigned int nMask, double nRange)
 {
 	assert(actor != nullptr);
-	assert(dx != 0 || dy != 0);
+	assert(!vect.XY().isZero());
 	gHitInfo.clearObj();
-	int x = actor->int_pos().X;
-	int y = actor->int_pos().Y;
 	auto bakCstat = actor->spr.cstat;
 	actor->spr.cstat &= ~CSTAT_SPRITE_BLOCK_HITSCAN;
-	if (nRange)
-	{
-		hitscangoal.X = x + MulScale(nRange << 4, Cos(actor->int_ang()), 30);
-		hitscangoal.Y = y + MulScale(nRange << 4, Sin(actor->int_ang()), 30);
-	}
-	else
-	{
-		hitscangoal.X = hitscangoal.Y = 0x1fffffff;
-	}
-	hitscan(vec3_t( x, y, z ), actor->sector(), { dx, dy, dz << 4 }, gHitInfo, nMask);
+	hitscan(DVector3(actor->spr.pos.XY(), z), actor->sector(), vect, gHitInfo, nMask, nRange);
 
-	hitscangoal.X = hitscangoal.Y = 0x1fffffff;
 	actor->spr.cstat = bakCstat;
 	if (gHitInfo.actor() != nullptr)
 		return 3;
@@ -314,14 +230,14 @@ int HitScan(DBloodActor* actor, int z, int dx, int dy, int dz, unsigned int nMas
 
 		if (!pWall->twoSided())
 			return 0;
-		int nZCeil, nZFloor;
-		getzsofslopeptr(pWall->nextSector(), gHitInfo.int_hitpos().X, gHitInfo.int_hitpos().Y, &nZCeil, &nZFloor);
-		if (gHitInfo.int_hitpos().Z <= nZCeil || gHitInfo.int_hitpos().Z >= nZFloor)
+		double nZCeil, nZFloor;
+		calcSlope(pWall->nextSector(), gHitInfo.hitpos.X, gHitInfo.hitpos.Y, &nZCeil, &nZFloor);
+		if (gHitInfo.hitpos.Z <= nZCeil || gHitInfo.hitpos.Z >= nZFloor)
 			return 0;
 		return 4;
 	}
 	if (gHitInfo.hitSector != nullptr)
-		return 1 + (z < gHitInfo.int_hitpos().Z);
+		return 1 + (z < gHitInfo.hitpos.Z);
 	return -1;
 }
 
@@ -331,77 +247,73 @@ int HitScan(DBloodActor* actor, int z, int dx, int dy, int dz, unsigned int nMas
 //
 //---------------------------------------------------------------------------
 
-int VectorScan(DBloodActor* actor, int nOffset, int nZOffset, int dx, int dy, int dz, int nRange, int ac)
+int VectorScan(DBloodActor* actor, double nOffset, double nZOffset, const DVector3& vel, double nRange, int ac)
 {
 	assert(actor != nullptr);
 
 	int nNum = 256;
 	gHitInfo.clearObj();
-	int x1 = actor->int_pos().X + MulScale(nOffset, Cos(actor->int_ang() + 512), 30);
-	int y1 = actor->int_pos().Y + MulScale(nOffset, Sin(actor->int_ang() + 512), 30);
-	int z1 = actor->int_pos().Z + nZOffset;
+	auto pos = actor->spr.pos.plusZ(nZOffset) + (actor->spr.Angles.Yaw + DAngle90).ToVector() * nOffset;
 	auto bakCstat = actor->spr.cstat;
 	actor->spr.cstat &= ~CSTAT_SPRITE_BLOCK_HITSCAN;
-	if (nRange)
-	{
-		hitscangoal.X = x1 + MulScale(nRange << 4, Cos(actor->int_ang()), 30);
-		hitscangoal.Y = y1 + MulScale(nRange << 4, Sin(actor->int_ang()), 30);
-	}
-	else
-	{
-		hitscangoal.X = hitscangoal.Y = 0x1fffffff;
-	}
-	vec3_t pos = { x1, y1, z1 };
-	hitscan(pos, actor->sector(), { dx, dy, dz << 4 }, gHitInfo, CLIPMASK1);
 
-	hitscangoal.X = hitscangoal.Y = 0x1ffffff;
+	hitscan(pos, actor->sector(), vel, gHitInfo, CLIPMASK1, nRange);
+
 	actor->spr.cstat = bakCstat;
 	while (nNum--)
 	{
-		if (nRange && approxDist(gHitInfo.hitpos.XY() - actor->spr.pos.XY()) > nRange)
+		if (nRange && (gHitInfo.hitpos.XY() - actor->spr.pos.XY()).Length() > nRange)
 			return -1;
 		auto other = gHitInfo.actor();
 		if (other != nullptr)
 		{
 			if ((other->spr.flags & 8) && !(ac & 1))
-				return 3;
+				return SS_SPRITE;
 			if ((other->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) != 0)
-				return 3;
-			int nPicnum = other->spr.picnum;
-			if (tileWidth(nPicnum) == 0 || tileHeight(nPicnum) == 0)
-				return 3;
-			int height = (tileHeight(nPicnum) * other->spr.yrepeat) << 2;
-			int otherZ = other->int_pos().Z;
+				return SS_SPRITE;
+
+			auto nTex = other->spr.spritetexture();
+			auto pTex = TexMan.GetGameTexture(nTex);
+			int twidth = pTex->GetTexelWidth();
+			int theight = pTex->GetTexelHeight();
+			if (twidth == 0 || theight == 0 || pTex->GetScaleX() != 1 || pTex->GetScaleY() != 1) // pixel checking does not work with scaled textures (at least not with this code...)
+				return SS_SPRITE;
+
+			double height = (theight * other->spr.scale.Y);
+			double otherZ = other->spr.pos.Z;
 			if (other->spr.cstat & CSTAT_SPRITE_YCENTER)
 				otherZ += height / 2;
-			int nTopOfs = tileTopOffset(nPicnum);
+
+			int nTopOfs = pTex->GetTexelTopOffset();
 			if (nTopOfs)
-				otherZ -= (nTopOfs * other->spr.yrepeat) << 2;
+				otherZ -= (nTopOfs * other->spr.scale.Y);
 			assert(height > 0);
-			int height2 = Scale(otherZ - gHitInfo.int_hitpos().Z, tileHeight(nPicnum), height);
+
+			double height2 = (otherZ - gHitInfo.hitpos.Z) * theight / height;
 			if (!(other->spr.cstat & CSTAT_SPRITE_YFLIP))
-				height2 = tileHeight(nPicnum) - height2;
-			if (height2 >= 0 && height2 < tileHeight(nPicnum))
+				height2 = theight - height2;
+
+			if (height2 >= 0 && height2 < theight)
 			{
-				int width = (tileWidth(nPicnum) * other->spr.xrepeat) >> 2;
-				width = (width * 3) / 4;
-				int check1 = ((y1 - other->int_pos().Y) * dx - (x1 - other->int_pos().X) * dy) / ksqrt(dx * dx + dy * dy);
+				double width = (twidth * other->spr.scale.X) * 0.75; // should actually be 0.8 to match the renderer!
+				double check1 = ((pos.Y - other->spr.pos.Y) * vel.X - (pos.X - other->spr.pos.X) * vel.Y) / vel.XY().Length();
 				assert(width > 0);
-				int width2 = Scale(check1, tileWidth(nPicnum), width);
-				int nLeftOfs = tileLeftOffset(nPicnum);
-				width2 += nLeftOfs + tileWidth(nPicnum) / 2;
-				if (width2 >= 0 && width2 < tileWidth(nPicnum))
+
+				double width2 = check1 * twidth / width;
+				int nLeftOfs = pTex->GetTexelLeftOffset();
+				width2 += nLeftOfs + twidth / 2;
+				if (width2 >= 0 && width2 < twidth)
 				{
-					auto pData = tilePtr(nPicnum);
-					if (pData[width2 * tileHeight(nPicnum) + height2] != TRANSPARENT_INDEX)
-						return 3;
+					auto pData = GetRawPixels(nTex);
+					if (pData[int(width2) * theight + int(height2)] != TRANSPARENT_INDEX)
+						return SS_SPRITE;
 				}
 			}
 			bakCstat = other->spr.cstat;
 			other->spr.cstat &= ~CSTAT_SPRITE_BLOCK_HITSCAN;
 			gHitInfo.clearObj();
-			pos = gHitInfo.int_hitpos(); // must make a copy!
-			hitscan(pos, other->sector(), { dx, dy, dz << 4 }, gHitInfo, CLIPMASK1);
+			pos = gHitInfo.hitpos; // must make a copy!
+			hitscan(pos, other->sector(), vel, gHitInfo, CLIPMASK1);
 			other->spr.cstat = bakCstat;
 			continue;
 		}
@@ -412,11 +324,11 @@ int VectorScan(DBloodActor* actor, int nOffset, int nZOffset, int dx, int dy, in
 				return 0;
 			sectortype* pSector = gHitInfo.hitSector;
 			sectortype* pSectorNext = pWall->nextSector();
-			int nZCeil, nZFloor;
-			getzsofslopeptr(pWall->nextSector(), gHitInfo.int_hitpos().X, gHitInfo.int_hitpos().Y, &nZCeil, &nZFloor);
-			if (gHitInfo.int_hitpos().Z <= nZCeil)
+			double nZCeil, nZFloor;
+			calcSlope(pWall->nextSector(), gHitInfo.hitpos, &nZCeil, &nZFloor);
+			if (gHitInfo.hitpos.Z <= nZCeil)
 				return 0;
-			if (gHitInfo.int_hitpos().Z >= nZFloor)
+			if (gHitInfo.hitpos.Z >= nZFloor)
 			{
 				if (!(pSector->floorstat & CSTAT_SECTOR_SKY) || !(pSectorNext->floorstat & CSTAT_SECTOR_SKY))
 					return 0;
@@ -424,36 +336,34 @@ int VectorScan(DBloodActor* actor, int nOffset, int nZOffset, int dx, int dy, in
 			}
 			if (!(pWall->cstat & (CSTAT_WALL_MASKED | CSTAT_WALL_1WAY)))
 				return 0;
-			int nOfs;
+			double nOfs;
 			if (pWall->cstat & CSTAT_WALL_ALIGN_BOTTOM)
-				nOfs = ClipHigh(pSector->int_floorz(), pSectorNext->int_floorz());
+				nOfs = min(pSector->floorz, pSectorNext->floorz);
 			else
-				nOfs = ClipLow(pSector->int_ceilingz(), pSectorNext->int_ceilingz());
-			nOfs = (gHitInfo.int_hitpos().Z - nOfs) >> 8;
+				nOfs = max(pSector->ceilingz, pSectorNext->ceilingz);
+			nOfs = (gHitInfo.hitpos.Z - nOfs);
 			if (pWall->cstat & CSTAT_WALL_YFLIP)
 				nOfs = -nOfs;
 
-			int nPicnum = pWall->overpicnum;
-			int nSizX = tileWidth(nPicnum);
-			int nSizY = tileHeight(nPicnum);
+			auto nTex = TexMan.GetGameTexture(pWall->overtexture());
+			int nSizX = int(nTex->GetDisplayWidth());
+			int nSizY = int(nTex->GetDisplayHeight());
 			if (!nSizX || !nSizY)
 				return 0;
 
-			nOfs = (nOfs * pWall->yrepeat) / 8;
-			nOfs += int((nSizY * pWall->ypan_) / 256);
-			int nLength = approxDist(pWall->pos - pWall->point2Wall()->pos);
-			int nHOffset;
+			int nnOfs = int((nOfs * pWall->yrepeat) / 8);
+			nnOfs += int((nSizY * pWall->ypan_) / 256);
+			double nLength = (pWall->pos - pWall->point2Wall()->pos).Length();
+			double fHOffset;
 			if (pWall->cstat & CSTAT_WALL_XFLIP)
-				nHOffset = approxDist(gHitInfo.hitpos.XY() - pWall->point2Wall()->pos);
+				fHOffset = (gHitInfo.hitpos.XY() - pWall->point2Wall()->pos).Length();
 			else
-				nHOffset = approxDist(gHitInfo.hitpos.XY() - pWall->pos);
+				fHOffset = (gHitInfo.hitpos.XY() - pWall->pos).Length();
 
-			nHOffset = pWall->xpan() + ((nHOffset * pWall->xrepeat) << 3) / nLength;
-			nHOffset %= nSizX;
-			nOfs %= nSizY;
-			auto pData = tilePtr(nPicnum);
-			int nPixel;
-			nPixel = nHOffset * nSizY + nOfs;
+			int nHOffset = int(pWall->xpan_ + ((fHOffset * pWall->xrepeat) * 8) / nLength) % nSizX;
+			nnOfs %= nSizY;
+			auto pData = GetRawPixels(pWall->overtexture());
+			int nPixel = nHOffset * nSizY + nnOfs;
 
 			if (pData[nPixel] == TRANSPARENT_INDEX)
 			{
@@ -462,8 +372,8 @@ int VectorScan(DBloodActor* actor, int nOffset, int nZOffset, int dx, int dy, in
 				auto bakCstat2 = pWall->nextWall()->cstat;
 				pWall->nextWall()->cstat &= ~CSTAT_WALL_BLOCK_HITSCAN;
 				gHitInfo.clearObj();
-				pos = gHitInfo.int_hitpos();
-				hitscan(pos, pWall->nextSector(), { dx, dy, dz << 4 }, gHitInfo, CLIPMASK1);
+				pos = gHitInfo.hitpos;
+				hitscan(pos, pWall->nextSector(), vel, gHitInfo, CLIPMASK1);
 
 				pWall->cstat = bakCstat1;
 				pWall->nextWall()->cstat = bakCstat2;
@@ -473,31 +383,25 @@ int VectorScan(DBloodActor* actor, int nOffset, int nZOffset, int dx, int dy, in
 		}
 		if (gHitInfo.hitSector != nullptr)
 		{
-			if (dz > 0)
+			if (vel.Z > 0)
 			{
 				auto upper = barrier_cast<DBloodActor*>(gHitInfo.hitSector->upperLink);
-				if (!upper) return 2;
+				if (!upper) return SS_FLOOR;
 				auto link = upper->GetOwner();
 				gHitInfo.clearObj();
-				x1 = gHitInfo.int_hitpos().X + link->int_pos().X - upper->int_pos().X;
-				y1 = gHitInfo.int_hitpos().Y + link->int_pos().Y - upper->int_pos().Y;
-				z1 = gHitInfo.int_hitpos().Z + link->int_pos().Z - upper->int_pos().Z;
-				pos = { x1, y1, z1 };
-				hitscan(pos, link->sector(), { dx, dy, dz << 4 }, gHitInfo, CLIPMASK1);
+				pos = gHitInfo.hitpos + link->spr.pos - upper->spr.pos;
+				hitscan(pos, link->sector(), vel, gHitInfo, CLIPMASK1);
 
 				continue;
 			}
 			else
 			{
 				auto lower = barrier_cast<DBloodActor*>(gHitInfo.hitSector->lowerLink);
-				if (!lower) return 1;
+				if (!lower) return SS_CEILING;
 				auto link = lower->GetOwner();
 				gHitInfo.clearObj();
-				x1 = gHitInfo.int_hitpos().X + link->int_pos().X - lower->int_pos().X;
-				y1 = gHitInfo.int_hitpos().Y + link->int_pos().Y - lower->int_pos().Y;
-				z1 = gHitInfo.int_hitpos().Z + link->int_pos().Z - lower->int_pos().Z;
-				pos = { x1, y1, z1 };
-				hitscan(pos, link->sector(), { dx, dy, dz << 4 }, gHitInfo, CLIPMASK1);
+				pos = gHitInfo.hitpos + link->spr.pos - lower->spr.pos;
+				hitscan(pos, link->sector(), vel, gHitInfo, CLIPMASK1);
 				continue;
 			}
 		}
@@ -512,46 +416,46 @@ int VectorScan(DBloodActor* actor, int nOffset, int nZOffset, int dx, int dy, in
 //
 //---------------------------------------------------------------------------
 
-void GetZRange(DBloodActor* actor, int* ceilZ, Collision* ceilColl, int* floorZ, Collision* floorColl, int nDist, unsigned int nMask, unsigned int nClipParallax)
+void GetZRange(DBloodActor* actor, double* ceilZ, Collision* ceilColl, double* floorZ, Collision* floorColl, double nDist, unsigned int nMask, unsigned int nClipParallax)
 {
 	assert(actor != nullptr);
 	Collision scratch;
 
 	auto bakCstat = actor->spr.cstat;
-	int32_t nTemp1;
+	double nTemp1;
 	actor->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-	getzrange(actor->int_pos(), actor->sector(), (int32_t*)ceilZ, *ceilColl, (int32_t*)floorZ, *floorColl, nDist, nMask);
+	getzrange(actor->spr.pos, actor->sector(), ceilZ, *ceilColl, floorZ, *floorColl, nDist, nMask);
 	if (floorColl->type == kHitSector)
 	{
 		auto pSector = floorColl->hitSector;
 		if ((nClipParallax & PARALLAXCLIP_FLOOR) == 0 && (pSector->floorstat & CSTAT_SECTOR_SKY))
-			*floorZ = 0x7fffffff;
+			*floorZ = 0x800000;
 		if (pSector->hasX())
 		{
 			XSECTOR* pXSector = &pSector->xs();
-			*floorZ += pXSector->Depth << 10;
+			*floorZ += pXSector->Depth << 2;
 		}
 		auto linkActor = barrier_cast<DBloodActor*>(pSector->upperLink);
 		if (linkActor)
 		{
 			auto linkOwner = linkActor->GetOwner();
-			vec3_t lpos = actor->int_pos() + linkOwner->int_pos() - linkActor->int_pos();
-			getzrange(lpos, linkOwner->sector(), &nTemp1, scratch, (int32_t*)floorZ, *floorColl, nDist, nMask);
-			*floorZ -= linkOwner->int_pos().Z - linkActor->int_pos().Z;
+			auto lpos = actor->spr.pos + linkOwner->spr.pos - linkActor->spr.pos;
+			getzrange(lpos, linkOwner->sector(), &nTemp1, scratch, floorZ, *floorColl, nDist, nMask);
+			*floorZ -= linkOwner->spr.pos.Z - linkActor->spr.pos.Z;
 		}
 	}
 	if (ceilColl->type == kHitSector)
 	{
 		auto pSector = ceilColl->hitSector;
 		if ((nClipParallax & PARALLAXCLIP_CEILING) == 0 && (pSector->ceilingstat & CSTAT_SECTOR_SKY))
-			*ceilZ = 0x80000000;
+			*ceilZ = -(int)0x800000;
 		auto linkActor = barrier_cast<DBloodActor*>(pSector->lowerLink);
 		if (linkActor)
 		{
 			auto linkOwner = linkActor->GetOwner();
-			vec3_t lpos = actor->int_pos() + linkOwner->int_pos() - linkActor->int_pos();
-			getzrange(lpos, linkOwner->sector(), (int32_t*)ceilZ, *ceilColl, &nTemp1, scratch, nDist, nMask);
-			*ceilZ -= linkOwner->int_pos().Z - linkActor->int_pos().Z;
+			auto lpos = actor->spr.pos + linkOwner->spr.pos - linkActor->spr.pos;
+			getzrange(lpos, linkOwner->sector(), ceilZ, *ceilColl, &nTemp1, scratch, nDist, nMask);
+			*ceilZ -= linkOwner->spr.pos.Z - linkActor->spr.pos.Z;
 		}
 	}
 	actor->spr.cstat = bakCstat;
@@ -563,43 +467,42 @@ void GetZRange(DBloodActor* actor, int* ceilZ, Collision* ceilColl, int* floorZ,
 //
 //---------------------------------------------------------------------------
 
-void GetZRangeAtXYZ(int x, int y, int z, sectortype* pSector, int* ceilZ, Collision* ceilColl, int* floorZ, Collision* floorColl, int nDist, unsigned int nMask, unsigned int nClipParallax)
+void GetZRangeAtXYZ(const DVector3& pos, sectortype* pSector, double* ceilZ, Collision* ceilColl, double* floorZ, Collision* floorColl, double nDist, unsigned int nMask, unsigned int nClipParallax)
 {
 	Collision scratch;
-	int32_t nTemp1;
-	vec3_t lpos = { x, y, z };
-	getzrange(lpos, pSector, (int32_t*)ceilZ, *ceilColl, (int32_t*)floorZ, *floorColl, nDist, nMask);
+	double nTemp1;
+	getzrange(pos, pSector, ceilZ, *ceilColl, floorZ, *floorColl, nDist, nMask);
 	if (floorColl->type == kHitSector)
 	{
 		auto pHitSect = floorColl->hitSector;
 		if ((nClipParallax & PARALLAXCLIP_FLOOR) == 0 && (pHitSect->floorstat & CSTAT_SECTOR_SKY))
-			*floorZ = 0x7fffffff;
+			*floorZ = 0x800000;
 		if (pHitSect->hasX())
 		{
 			XSECTOR* pXSector = &pHitSect->xs();
-			*floorZ += pXSector->Depth << 10;
+			*floorZ += pXSector->Depth << 2;
 		}
 		auto actor = barrier_cast<DBloodActor*>(pHitSect->upperLink);
 		if (actor)
 		{
 			auto link = actor->GetOwner();
-			vec3_t newpos = lpos + link->int_pos() - actor->int_pos();
-			getzrange(newpos, link->sector(), &nTemp1, scratch, (int32_t*)floorZ, *floorColl, nDist, nMask);
-			*floorZ -= link->int_pos().Z - actor->int_pos().Z;
+			auto newpos = pos + link->spr.pos - actor->spr.pos;
+			getzrange(newpos, link->sector(), &nTemp1, scratch, floorZ, *floorColl, nDist, nMask);
+			*floorZ -= link->spr.pos.Z - actor->spr.pos.Z;
 		}
 	}
 	if (ceilColl->type == kHitSector)
 	{
 		auto pHitSect = ceilColl->hitSector;
 		if ((nClipParallax & PARALLAXCLIP_CEILING) == 0 && (pHitSect->ceilingstat & CSTAT_SECTOR_SKY))
-			*ceilZ = 0x80000000;
+			*ceilZ = -0x800000;
 		auto actor = barrier_cast<DBloodActor*>(pHitSect->lowerLink);
 		if (actor)
 		{
 			auto link = actor->GetOwner();
-			vec3_t newpos = lpos + link->int_pos() - actor->int_pos();
-			getzrange(newpos, link->sector(), (int32_t*)ceilZ, *ceilColl, &nTemp1, scratch, nDist, nMask);
-			*ceilZ -= link->int_pos().Z - actor->int_pos().Z;
+			auto newpos = pos + link->spr.pos - actor->spr.pos;
+			getzrange(newpos, link->sector(), ceilZ, *ceilColl, &nTemp1, scratch, nDist, nMask);
+			*ceilZ -= link->spr.pos.Z - actor->spr.pos.Z;
 		}
 	}
 }
@@ -610,44 +513,18 @@ void GetZRangeAtXYZ(int x, int y, int z, sectortype* pSector, int* ceilZ, Collis
 //
 //---------------------------------------------------------------------------
 
-int GetDistToLine(int x1, int y1, int x2, int y2, int x3, int y3)
-{
-	int check = (y1 - y3) * (x3 - x2);
-	int check2 = (x1 - x2) * (y3 - y2);
-	if (check2 > check)
-		return -1;
-	int v8 = DMulScale(x1 - x2, x3 - x2, y1 - y3, y3 - y2, 4);
-	int vv = DMulScale(x3 - x2, x3 - x2, y3 - y2, y3 - y2, 4);
-	int t1, t2;
-	if (v8 <= 0)
-	{
-		t1 = x2;
-		t2 = y2;
-	}
-	else if (vv > v8)
-	{
-		t1 = x2 + Scale(x3 - x2, v8, vv);
-		t2 = y2 + Scale(y3 - y2, v8, vv);
-	}
-	else
-	{
-		t1 = x3;
-		t2 = y3;
-	}
-	return approxDist(t1 - x1, t2 - y1);
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-void ClipMove(vec3_t& pos, sectortype** pSector, int xv, int yv, int wd, int cd, int fd, unsigned int nMask, CollisionBase& hit, int tracecount)
+void ClipMove(DVector3& pos, sectortype** pSector, const DVector2& vect, double wd, double cd, double fd, unsigned int nMask, CollisionBase& hit, int tracecount)
 {
 	auto opos = pos;
 	sectortype* bakSect = *pSector;
-	clipmove(pos, &bakSect, xv << 14, yv << 14, wd, cd, fd, nMask, hit, tracecount);
+	
+	// Due to the low precision of original Build coordinates this code is susceptible to shifts from negative values being off by one, 
+	// so we have to replicate the imprecision here. Gross...
+	DVector2 vel;
+	vel.X = (FloatToFixed(vect.X) >> 12) / 16.;
+	vel.Y = (FloatToFixed(vect.Y) >> 12) / 16.;
+	
+	clipmove(pos, &bakSect, vel, wd, cd, fd, nMask, hit, tracecount);
 	if (bakSect == nullptr)
 	{
 		pos = opos;
@@ -666,8 +543,6 @@ void ClipMove(vec3_t& pos, sectortype** pSector, int xv, int yv, int wd, int cd,
 
 BitArray GetClosestSpriteSectors(sectortype* pSector, const DVector2& pos, int nDist, TArray<walltype*>* pWalls, bool newSectCheckMethod)
 {
-	int x = pos.X * worldtoint;
-	int y = pos.Y * worldtoint;
 	// by default this function fails with sectors that linked with wide spans, or there was more than one link to the same sector. for example...
 	// E6M1: throwing TNT on the stone footpath while standing on the brown road will fail due to the start/end points of the span being too far away. it'll only do damage at one end of the road
 	// E1M2: throwing TNT at the double doors while standing on the train platform
@@ -675,14 +550,14 @@ BitArray GetClosestSpriteSectors(sectortype* pSector, const DVector2& pos, int n
 
 	BitArray sectorMap(sector.Size()); // this gets returned to the caller.
 	sectorMap.Zero();
-	sectorMap.Set(sectnum(pSector));
+	sectorMap.Set(sectindex(pSector));
 	double nDist4sq = nDist * nDist;    // (nDist * 16)^2 - * 16 to account for Build's 28.4 fixed point format.
 
 	BFSSectorSearch search(pSector);
 
 	while (auto pCurSector = search.GetNext())
 	{
-		for (auto& wal : wallsofsector(pCurSector))
+		for (auto& wal : pCurSector->walls)
 		{
 			if (!wal.twoSided()) continue;
 			const auto pNextSector = wal.nextSector();
@@ -692,7 +567,7 @@ BitArray GetClosestSpriteSectors(sectortype* pSector, const DVector2& pos, int n
 			{
 				if (search.Check(pNextSector)) // if we've already checked this sector, skip. This is bad, therefore only in compat mode.
 					continue;
-				withinRange = CheckProximityWall(wal.point2Wall(), x, y, nDist);
+				withinRange = CheckProximityWall(wal.point2Wall(), pos, nDist);
 			}
 			else // new method using proper math and no bad shortcut.
 			{
@@ -701,7 +576,7 @@ BitArray GetClosestSpriteSectors(sectortype* pSector, const DVector2& pos, int n
 			}
 			if (withinRange) // if new sector is within range, add it to the processing queue
 			{
-				sectorMap.Set(sectnum(pNextSector));
+				sectorMap.Set(sectindex(pNextSector));
 				search.Add(pNextSector);
 				if (pWalls && wal.hasX())
 				{
@@ -714,21 +589,6 @@ BitArray GetClosestSpriteSectors(sectortype* pSector, const DVector2& pos, int n
 	}
 	return sectorMap;
 }
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-int picWidth(int nPic, int repeat) {
-	return ClipLow((tileWidth(nPic) * repeat) << 2, 0);
-}
-
-int picHeight(int nPic, int repeat) {
-	return ClipLow((tileHeight(nPic) * repeat) << 2, 0);
-}
-
 
 
 END_BLD_NS

@@ -1,219 +1,95 @@
 #pragma once
 
 #include "m_fixed.h"
-#include "fixedhorizon.h"
 #include "gamecvars.h"
 #include "gamestruct.h"
 #include "gamefuncs.h"
 #include "packet.h"
 
-struct PlayerHorizon
+struct PlayerAngles
 {
-	fixedhoriz horiz, ohoriz, horizoff, ohorizoff;
+	// Player viewing angles, separate from the camera.
+	DRotator PrevViewAngles, ViewAngles;
 
-	friend FSerializer& Serialize(FSerializer& arc, const char* keyname, PlayerHorizon& w, PlayerHorizon* def);
+	// Player camera angles, not for direct manipulation within the playsim.
+	DRotator RenderAngles;
 
-	// Prototypes for functions in gameinput.cpp.
-	void applyinput(float const horz, ESyncBits* actions, double const scaleAdjust = 1);
-	void calcviewpitch(vec2_t const pos, DAngle const ang, bool const aimmode, bool const canslopetilt, sectortype* const cursectnum, double const scaleAdjust = 1, bool const climbing = false);
-	void calcviewpitch(const DVector2& pos, DAngle const ang, bool const aimmode, bool const canslopetilt, sectortype* const cursectnum, double const scaleAdjust = 1, bool const climbing = false)
-	{
-		vec2_t ps = { int(pos.X * worldtoint), int(pos.Y * worldtoint) };
-		calcviewpitch(ps, ang, aimmode, canslopetilt, cursectnum, scaleAdjust, climbing);
-	}
-	void calcviewpitch(const DVector3& pos, DAngle const ang, bool const aimmode, bool const canslopetilt, sectortype* const cursectnum, double const scaleAdjust = 1, bool const climbing = false)
-	{
-		vec2_t ps = { int(pos.X * worldtoint), int(pos.Y * worldtoint) };
-		calcviewpitch(ps, ang, aimmode, canslopetilt, cursectnum, scaleAdjust, climbing);
-	}
+	// Holder of current yaw spin state for the 180 degree turn.
+	DAngle YawSpin;
 
-	// Interpolation helpers.
-	void backup()
+	friend FSerializer& Serialize(FSerializer& arc, const char* keyname, PlayerAngles& w, PlayerAngles* def);
+
+	// Prototypes.
+	void doPitchKeys(ESyncBits* actions, const bool stopcentering);
+	void doYawKeys(ESyncBits* actions);
+	void doViewPitch(const DVector2& pos, DAngle const ang, bool const aimmode, bool const canslopetilt, sectortype* const cursectnum, bool const climbing = false);
+	void doViewYaw(const ESyncBits actions);
+
+	// General methods.
+	void initialize(DCoreActor* const actor, const DAngle viewyaw = nullAngle)
 	{
-		ohoriz = horiz;
-		ohorizoff = horizoff;
+		if ((pActor = actor)) RenderAngles = PrevLerpAngles = pActor->spr.Angles;
+		PrevViewAngles.Yaw = ViewAngles.Yaw = viewyaw;
 	}
-	void restore()
+	DAngle getPitchWithView()
 	{
-		horiz = ohoriz;
-		horizoff = ohorizoff;
+		return ClampViewPitch(pActor->spr.Angles.Pitch + ViewAngles.Pitch);
 	}
 
-	// Commonly used getters.
-	fixedhoriz osum() { return ohoriz + ohorizoff; }
-	fixedhoriz sum() { return horiz + horizoff; }
-	fixedhoriz interpolatedsum(double const interpfrac) { return interpolatedvalue(osum(), sum(), interpfrac); }
-
-	// Ticrate playsim adjustment helpers.
-	void resetadjustment() { adjustment = 0; }
-	bool targetset() { return target.asq16(); }
-
-	// Input locking helpers.
-	void lockinput() { inputdisabled = true; }
-	void unlockinput() { inputdisabled = false; }
-	bool movementlocked() {	return targetset() || inputdisabled; }
+	// Render angle functions.
+	DRotator lerpViewAngles(const double interpfrac)
+	{
+		return interpolatedvalue(PrevViewAngles, ViewAngles, interpfrac);
+	}
+	DRotator getRenderAngles(const double interpfrac)
+	{
+		// Get angles and return with clamped off pitch.
+		auto angles = RenderAngles + lerpViewAngles(interpfrac);
+		angles.Pitch = ClampViewPitch(angles.Pitch);
+		return angles;
+	}
+	void updateRenderAngles(const double interpfrac)
+	{
+		// Apply the current interpolated angle state to the render angles.
+		const auto lerpAngles = pActor->interpolatedangles(interpfrac);
+		RenderAngles += lerpAngles - PrevLerpAngles;
+		PrevLerpAngles = lerpAngles;
+	}
+	void resetRenderAngles()
+	{
+		// Apply any last remaining ticrate angle updates and reset variables.
+		RenderAngles += pActor->spr.Angles - PrevLerpAngles;
+		PrevLerpAngles = pActor->spr.Angles = RenderAngles;
+		PrevViewAngles = ViewAngles;
+	}
 
 	// Draw code helpers.
-	double horizsumfrac(double const interpfrac) { return (!SyncInput() ? sum() : interpolatedsum(interpfrac)).asbuildf() * (1. / 16.); }
-
-	// Ticrate playsim adjustment setters and processor.
-	void addadjustment(fixedhoriz const value)
+	auto getCrosshairOffsets(const double interpfrac)
 	{
-		if (!SyncInput())
-		{
-			adjustment += value.asbuildf();
-		}
-		else
-		{
-			horiz += value;
-		}
+		// Set up angles.
+		const auto viewAngles = lerpViewAngles(interpfrac);
+		const auto rotTangent = viewAngles.Roll.Tan();
+		const auto yawTangent = clamp(viewAngles.Yaw, -DAngle90, DAngle90).Tan();
+		const auto fovTangent = tan(r_fov * pi::pi() / 360.);
+
+		// Return as pair with roll as the 2nd object since all callers inevitably need it.
+		return std::make_pair(DVector2(160, 120 * -rotTangent) * -yawTangent / fovTangent, viewAngles.Roll);
 	}
-
-	void settarget(fixedhoriz value, bool const backup = false)
+	auto getWeaponOffsets(const double interpfrac)
 	{
-		// Clamp incoming variable because sometimes the caller can exceed bounds.
-		value = q16horiz(clamp(value.asq16(), gi->playerHorizMin(), gi->playerHorizMax()));
-
-		if (!SyncInput() && !backup)
-		{
-			target = value.asq16() ? value : q16horiz(1);
-		}
-		else
-		{
-			horiz = value;
-			if (backup) ohoriz = horiz;
-		}
-	}
-
-	void processhelpers(double const scaleAdjust)
-	{
-		if (targetset())
-		{
-			auto delta = (target - horiz).asbuildf();
-
-			if (abs(delta) > 1)
-			{
-				horiz += buildfhoriz(scaleAdjust * delta);
-			}
-			else
-			{
-				horiz = target;
-				target = q16horiz(0);
-			}
-		}
-		else if (adjustment)
-		{
-			horiz += buildfhoriz(scaleAdjust * adjustment);
-		}
+		// Push the Y down a bit since the weapon is at the edge of the screen.
+		auto offsets = getCrosshairOffsets(interpfrac); offsets.first.Y *= 4.;
+		return offsets;
 	}
 
 private:
-	fixedhoriz target;
-	double adjustment;
-	bool inputdisabled;
-};
-
-struct PlayerAngle
-{
-	DAngle ang, oang, look_ang, olook_ang, rotscrnang, orotscrnang, spin;
-
-	friend FSerializer& Serialize(FSerializer& arc, const char* keyname, PlayerAngle& w, PlayerAngle* def);
-
-	// Prototypes for functions in gameinput.cpp.
-	void applyinput(float const avel, ESyncBits* actions, double const scaleAdjust = 1);
-
-	// Interpolation helpers.
-	void backup()
-	{
-		oang = ang;
-		olook_ang = look_ang;
-		orotscrnang = rotscrnang;
-	}
-	void restore()
-	{
-		ang = oang;
-		look_ang = olook_ang;
-		rotscrnang = orotscrnang;
-	}
-
-	// Commonly used getters.
-	DAngle osum() { return oang + olook_ang; }
-	DAngle sum() { return ang + look_ang; }
-	DAngle interpolatedsum(double const interpfrac) { return interpolatedvalue(osum(), sum(), interpfrac); }
-	DAngle interpolatedang(double const interpfrac) { return interpolatedvalue(oang, ang, interpfrac); }
-	DAngle interpolatedlookang(double const interpfrac) { return interpolatedvalue(olook_ang, look_ang, interpfrac); }
-	DAngle interpolatedrotscrn(double const interpfrac) { return interpolatedvalue(orotscrnang, rotscrnang, interpfrac); }
-	DAngle renderlookang(double const interpfrac) { return !SyncInput() ? look_ang : interpolatedlookang(interpfrac); }
-
-	// Ticrate playsim adjustment helpers.
-	void resetadjustment() { adjustment = nullAngle; }
-	bool targetset() { return target.Sgn(); }
-
-	// Input locking helpers.
-	void lockinput() { inputdisabled = true; }
-	void unlockinput() { inputdisabled = false; }
-	bool movementlocked() { return targetset() || inputdisabled; }
-
-	// Draw code helpers. The logic where these are used rely heavily on Build's angle period.
-	double look_anghalf(double const interpfrac) { return renderlookang(interpfrac).Normalized180().Degrees() * (128. / 45.); }
-	double looking_arc(double const interpfrac) { return fabs(renderlookang(interpfrac).Normalized180().Degrees() * (1024. / 1620.)); }
-
-	// Ticrate playsim adjustment setters and processor.
-	void addadjustment(const DAngle value)
-	{
-		if (!SyncInput())
-		{
-			adjustment += value.Normalized180();
-		}
-		else
-		{
-			ang += value;
-		}
-	}
-
-	void settarget(const DAngle value, bool const backup = false)
-	{
-		if (!SyncInput() && !backup)
-		{
-			target = value.Sgn() ? value : DAngle::fromBam(1);
-		}
-		else
-		{
-			ang = value;
-			if (backup) oang = ang;
-		}
-	}
-
-	void processhelpers(double const scaleAdjust)
-	{
-		if (targetset())
-		{
-			auto delta = deltaangle(ang, target);
-
-			if (abs(delta) > DAngleBuildToDeg)
-			{
-				ang += delta * scaleAdjust;
-			}
-			else
-			{
-				ang = target;
-				target = nullAngle;
-			}
-		}
-		else if (adjustment.Sgn())
-		{
-			ang += adjustment * scaleAdjust;
-		}
-	}
-
-private:
-	DAngle target, adjustment;
-	bool inputdisabled;
+	// Private data which should never be accessed publically.
+	DRotator PrevLerpAngles;
+	DCoreActor* pActor;
 };
 
 class FSerializer;
-FSerializer& Serialize(FSerializer& arc, const char* keyname, PlayerAngle& w, PlayerAngle* def);
-FSerializer& Serialize(FSerializer& arc, const char* keyname, PlayerHorizon& w, PlayerHorizon* def);
+FSerializer& Serialize(FSerializer& arc, const char* keyname, PlayerAngles& w, PlayerAngles* def);
 
 
 void updateTurnHeldAmt(double const scaleAdjust);

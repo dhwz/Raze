@@ -39,6 +39,12 @@ class DukeStatusBar : DukeCommonStatusBar
 	TextureID ThreeByFive[12];
 	HUDFont indxfont;
 
+	override int, int GetReservedScreenSpace(int viewsize)
+	{
+		int sbar = tileHeight("BOTTOMSTATUSBAR");
+		return 0, sbar;
+	}
+
 	override void Init()
 	{
 		numberFont = HUDFont.Create(BigFont, 0, Mono_Off, 1, 1 );
@@ -88,9 +94,9 @@ class DukeStatusBar : DukeCommonStatusBar
 	//
 	//==========================================================================
 
-	int getinvamount(DukePlayer p)
+	int getinvamountforitem(DukePlayer p, int which)
 	{
-		switch (p.inven_icon)
+		switch (which)
 		{
 		case Duke.ICON_FIRSTAID:
 			return p.firstaid_amount;
@@ -109,6 +115,11 @@ class DukeStatusBar : DukeCommonStatusBar
 		}
 
 		return -1;
+	}
+
+	int getinvamount(DukePlayer p)
+	{
+		return getinvamountforitem(p, p.inven_icon);
 	}
 
 	int GetMoraleOrShield(DukePlayer p)
@@ -143,10 +154,10 @@ class DukeStatusBar : DukeCommonStatusBar
 		imgScale = baseScale / siz.Y;
 		DrawTexture(img, (2, -1.5), DI_ITEM_LEFT_BOTTOM, scale:(imgScale, imgScale));
 
-		if (!hud_flashing || p.last_extra > (Duke.MaxPlayerHealth() >> 2) || (PlayClock & 32) || (p.IsFrozen() && p.last_extra < 2))
+		if (!althud_flashing || p.last_extra > (gs.max_player_health >> 2) || (PlayClock & 32) || (p.IsFrozen() && p.last_extra < 2))
 		{
 			int s = -8;
-			if (hud_flashing && p.last_extra > Duke.MaxPlayerHealth())
+			if (althud_flashing && p.last_extra > gs.max_player_health)
 				s += Raze.bsin(Raze.GetBuildTime() << 5) >> 10;
 			int intens = clamp(255 - 6 * s, 0, 255);
 			format = String.Format("%d", p.last_extra);
@@ -194,7 +205,7 @@ class DukeStatusBar : DukeCommonStatusBar
 				imgX += (imgX * 0.6) * (strlen - 1);
 			}
 
-			if (weapon != DukeWpn.KNEE_WEAPON && (!hud_flashing || PlayClock & 32 || ammo > (Duke.MaxAmmoAmount(weapon) / 10)))
+			if (weapon != DukeWpn.KNEE_WEAPON && (!althud_flashing || PlayClock & 32 || ammo > (Duke.MaxAmmoAmount(weapon) / 10)))
 			{
 				DrawString(numberFont, format, (-3, texty), DI_TEXT_ALIGN_RIGHT, Font.CR_UNTRANSLATED);
 			}
@@ -306,7 +317,7 @@ class DukeStatusBar : DukeCommonStatusBar
 			FullscreenHUD2(p);
 			DoLevelStats(tileHeight("HEALTHBOX") + 4, info);
 		}
-		else
+		else 
 		{
 			DrawInventory(p, 0, -28, DI_SCREEN_CENTER_BOTTOM);
 			DoLevelStats(2, info);
@@ -325,23 +336,25 @@ class DukeStatusBar : DukeCommonStatusBar
 		/*
 		if (isShareware() && (ind > DukeWpn.HANDBOMB_WEAPON || ind < 0))
 		{
-			minitextshade(x + 1, y - 4, "ORDER", 20, 11, 2 + 8 + 16 + ROTATESPRITE_MAX);
+			minitextshade(x + 1, y - 4, "ORDER", 20, 11, 2 + 8 + 16);
 			return;
 		}
 		*/
 		String format;
 		bool parsedDivisor = false;
 
+		num1 = max(num1, 0);
+		num2 = max(num2, 0);
 		if (numdigits == 2)
 		{
-			if (num1 > 99) num1 = 99;
-			if (num2 > 99) num2 = 99;
+			num1 = min(num1, 99);
+			num2 = min(num2, 99);
 			format = String.Format("%2d/%d", num1, num2);
 		}
 		else
 		{
-			if (num1 > 999) num1 = 999;
-			if (num2 > 999) num2 = 999;
+			num1 = min(num1, 999);
+			num2 = min(num2, 999);
 			format = String.Format("%3d/%d", num1, num2);
 		}
 		y--;
@@ -468,12 +481,121 @@ class DukeStatusBar : DukeCommonStatusBar
 		let p = Duke.GetViewPlayer();
 		if (hud_size >= Hud_Mini)
 		{
-			DrawHud(p, hud_size == Hud_Nothing ? 0 : hud_size == Hud_full ? 1 : 2, info);
+			DrawHud(p, hud_size == Hud_Nothing ? 0 : hud_size == Hud_Full ? 1 : 2, info);
 		}
 		else
 		{
 			Statusbar(p);
 			DoLevelStats(-1, info);
+		}
+	}
+	
+	//---------------------------------------------------------------------------
+	//
+	//
+	//
+	//---------------------------------------------------------------------------
+
+
+
+	override void GetAllStats(HudStats stats)
+	{
+		stats.Clear();
+		stats.info.fontscale = 1.;
+
+		stats.info.statfont = SmallFont;
+		stats.info.letterColor = Font.TEXTCOLOR_ORANGE;
+		if (Raze.isNamWW2GI())
+		{
+			stats.info.statfont = ConFont;
+			stats.info.spacing = 8;
+			stats.info.standardColor = Font.TEXTCOLOR_YELLOW;
+			stats.info.completeColor = Font.TEXTCOLOR_FIRE;
+		}
+		else
+		{
+			stats.info.spacing = 7;
+			stats.info.standardColor = Font.TEXTCOLOR_CREAM;
+			stats.info.completeColor = Font.TEXTCOLOR_FIRE;
+		}
+		
+		let p = Duke.GetViewPlayer();
+		stats.healthicon = Raze.isNamWW2GI()? "FIRSTAID_ICON" : "COLA";
+		stats.healthvalue = p.last_extra;
+		
+		let armorval = GetMoraleOrShield(p);
+		if (armorval > 0)
+		{
+			stats.armoricons.Push("SHIELD");
+			stats.armorvalues.Push(armorval);
+		}
+		
+		for (int i = 0; i < 3; i++)
+		{
+			if (p.got_access & (1 << i))
+			{
+				static const int translations[] = { 8, 23, 21 };
+				stats.keyicons.Push("ACCESSCARD");
+				stats.keytranslations.Push(Translation.MakeID(Translation_Remap, translations[i]));
+			}
+		}
+
+		// omits all weapons where ammo == weapon or secondary fire mode.
+		static const String weaponIcons[] = { "", "FIRSTGUNSPRITE",  "SHOTGUNSPRITE", "CHAINGUNSPRITE", "RPGSPRITE", "" /*pipe bomb*/, "SHRINKERSPRITE", 
+			"DEVISTATORSPRITE", "" /*trip bomb*/, "FREEZESPRITE", "" /*handremote*/, "" /*grower*/, "FLAMETHROWERSPRITE" };
+			
+		int maxweap = Raze.IsWorldTour()? 12 : 10;
+		
+		for(int i = 0; i <= maxweap; i++)
+		{
+			if (p.gotweapon[i] && weaponIcons[i] != "") 
+			{
+				if (p.curr_weapon == i || 
+					(p.curr_weapon == DukeWpn.HANDREMOTE_WEAPON && i == DukeWpn.HANDBOMB_WEAPON) ||
+					(p.curr_weapon == DukeWpn.GROW_WEAPON && i == DukeWpn.SHRINKER_WEAPON))
+				{
+					stats.weaponselect = stats.weaponicons.Size();
+				}
+				stats.weaponicons.Push(weaponIcons[i]);
+			}
+		}
+		
+		static const int ammoOrder[] = { DukeWpn.PISTOL_WEAPON, DukeWpn.SHOTGUN_WEAPON, DukeWpn.CHAINGUN_WEAPON, DukeWpn.RPG_WEAPON, DukeWpn.HANDBOMB_WEAPON, DukeWpn.SHRINKER_WEAPON, 
+										DukeWpn.GROW_WEAPON, DukeWpn.DEVISTATOR_WEAPON, DukeWpn.TRIPBOMB_WEAPON, DukeWpn.FREEZE_WEAPON, DukeWpn.FLAMETHROWER_WEAPON };
+		int maxammo = Raze.IsWorldTour()? 11 : 10;
+		
+		for(int i = 0; i < maxammo; i++)
+		{
+			int ammonum = ammoorder[i];
+			if (ammonum == DukeWpn.GROW_WEAPON && !Raze.isPlutoPak()) continue;
+			if (p.curr_weapon == ammonum || (p.curr_weapon == DukeWpn.HANDREMOTE_WEAPON && ammonum == DukeWpn.HANDBOMB_WEAPON)) 
+			{
+				stats.ammoselect = stats.ammoicons.Size();
+			}
+			stats.ammoicons.Push(ammo_sprites[ammonum]);
+			int num = p.ammo_amount[ammonum];
+			stats.ammovalues.Push(num);
+			stats.ammomaxvalues.Push(Duke.MaxAmmoAmount(ammonum));
+		}
+		
+		int n = 0, j = 0;
+		if (p.firstaid_amount > 0) { n |= 1; j++; }
+		if (p.steroids_amount > 0) { n |= 2; j++; }
+		if (p.holoduke_amount > 0) { n |= 4; j++; }
+		if (p.jetpack_amount > 0) { n |= 8; j++; }
+		if (p.heat_amount > 0) { n |= 16; j++; }
+		if (p.scuba_amount > 0) { n |= 32; j++; }
+		if (p.boot_amount > 0) { n |= 64; j++; }
+
+		for(int bit = 0; bit < 7; bit++)
+		{
+			int i = 1 << bit;
+			if (n & i)
+			{
+				if (p.inven_icon == bit + 1) stats.inventoryselect = stats.inventoryicons.Size();
+				stats.inventoryicons.Push(item_icons[bit+1]);
+				stats.inventoryamounts.Push(getinvamountforitem(p, bit + 1));
+			}
 		}
 	}
 }

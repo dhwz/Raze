@@ -25,10 +25,27 @@ enum
 	RESPAWN = 9,
 	GPSPEED = 10,
 	FOF = 13,
+	MIRROR_DUKE = 560,
+	MIRROR_RR = 1089,
 
-	TILE_VIEWSCR = (MAXTILES-5)
+	// hack alert! CYCLER is free for use here as all items of this type get destroyed right on map spawn and this value never gets checked anywhere else.
+	// This avoids overallocation of empty tile slots as a high value slightly below the tile limit would do.
+	// Once we can do texture management without tile numbers this can be done as a regular texture without a valid tile index.
+	TILE_VIEWSCR = CYCLER 
 
 };	
+
+enum EScrap
+{
+	Scrap6 = 0,
+	Scrap1 = 10,
+	Scrap2 = 14,
+	Scrap3 = 18,
+	Scrap4 = 22,
+	Scrap5 = 26,
+	ScrapMax = 30
+};
+
 
 // the available palettes. These are indices into the global table of translations.
 enum basepal_t {
@@ -91,6 +108,7 @@ enum
 	SE_128_GLASS_BREAKING              = 128,
 	SE_130                             = 130,
 	SE_131                             = 131,
+	SE_156_CONVEYOR_NOSCROLL           = 156,
 };
 
 // sector lotags, also from EDuke32, for the same reason as above.
@@ -121,6 +139,9 @@ enum
 
 	ST_41_JAILDOOR			= 41,
 	ST_42_MINECART			= 42,
+
+	ST_160_FLOOR_TELEPORT	= 160,
+	ST_161_CEILING_TELEPORT = 161,
 	// left: ST 32767, 65534, 65535
 };
 
@@ -259,19 +280,23 @@ enum
 	STAT_LIGHT          = 14,
 	STAT_RAROR          = 15,
 
+	STAT_TEMP			= 99,
 	STAT_DESTRUCT		= 100,
 	STAT_BOWLING		= 105,
+	STAT_CHICKENPLANT	= 106,
+	STAT_LUMBERMILL		= 107,
+	STAT_TELEPORT		= 108,
+	STAT_BOBBING		= 118,
+	STAT_RABBITSPAWN	= 119,
 	STAT_REMOVED		= MAXSTATUS-2,
 	STAT_NETALLOC       = MAXSTATUS-1
 };
 
 enum
 {
-	MAXCYCLERS      = 1024,
 	MAXANIMATES     = 1024,
 	MAXANIMWALLS    = 512,
 	MAXANIMPOINTS   = 2048,
-	MAXCRANES		= 16,
 };
 
 enum amoveflags_t
@@ -346,18 +371,76 @@ enum sflags2_t
 	SFLAG2_BREAKMIRRORS			= 0x00000080,
 	SFLAG2_CAMERA				= 0x00000100,
 	SFLAG2_DONTANIMATE			= 0x00000200,
+	//SFLAG2_INTERPOLATEANGLE		= 0x00000400,
+	SFLAG2_GREENBLOOD			= 0x00000800,
+	SFLAG2_ALWAYSROTATE1		= 0x00001000,
+	SFLAG2_DIENOW				= 0x00002000,
+	SFLAG2_TRANFERPALTOJIBS		= 0x00004000,
+	SFLAG2_NORADIUSPUSH			= 0x00008000,
+	SFLAG2_FREEZEDAMAGE			= 0x00010000,
+	SFLAG2_REFLECTIVE			= 0x00020000,
+	SFLAG2_ALWAYSROTATE2		= 0x00040000,
+	SFLAG2_SPECIALAUTOAIM		= 0x00080000,
+	SFLAG2_NODAMAGEPUSH			= 0x00100000,
+	SFLAG2_IGNOREHITOWNER		= 0x00200000,
+	SFLAG2_DONTDIVE				= 0x00400000,
+	SFLAG2_FLOATING				= 0x00800000,
+	SFLAG2_PAL8OOZ				= 0x01000000,	// dirty hack - only needed because this needs to work from CON.
+	SFLAG2_SPAWNRABBITGUTS		= 0x02000000, // this depends on the shooter, not the projectile so it has to be done with a flag.
+	SFLAG2_NONSMOKYROCKET		= 0x04000000, // same with this one. Flags should later be copied to the projectile once posible.
+	SFLAG2_MIRRORREFLECT		= 0x08000000,
+	SFLAG2_ALTPROJECTILESPRITE	= 0x10000000, // yet another shooter flag. :(
+	SFLAG2_UNDERWATERSLOWDOWN	= 0x20000000,
+	SFLAG2_TRIGGERRESPAWN		= 0x40000000,
+	SFLAG2_FORCESECTORSHADE		= 0x80000000,
+
 };
 
 using EDukeFlags2 = TFlags<sflags2_t, uint32_t>;
 DEFINE_TFLAGS_OPERATORS(EDukeFlags2)
 
+enum sflags3_t
+{
+	SFLAG3_DONTDIVEALIVE = 0x00000001,
+	SFLAG3_BLOODY = 0x00000002,
+	SFLAG3_BROWNBLOOD = 0x00000004,
+	SFLAG3_LIGHTDAMAGE = 0x00000008,
+	SFLAG3_FORCERUNCON = 0x00000010,	// by default only STAT_ACTOR runs CON - this enables it for other statnums as well, provided they run Tick()
+
+};
+
+using EDukeFlags3 = TFlags<sflags3_t, uint32_t>;
+DEFINE_TFLAGS_OPERATORS(EDukeFlags3)
+
+// these get stored as user flags inside the texture manager.
 enum
 {
-	TFLAG_WALLSWITCH			= 1,
-	TFLAG_ADULT					= 2,
-	TFLAG_ELECTRIC				= 4,
-	TFLAG_CLEARINVENTORY		= 8,	// really dumb Duke stuff...
-	TFLAG_SLIME					= 16,
+	TFLAG_WALLSWITCH			= 1 << 0,
+	TFLAG_ADULT					= 1 << 1,
+	TFLAG_CLEARINVENTORY		= 1 << 2,	// really dumb Duke stuff...
+	TFLAG_DOORWALL				= 1 << 3,
+	TFLAG_BLOCKDOOR				= 1 << 4,
+	TFLAG_NOBLOODSPLAT			= 1 << 5,
+	TFLAG_NOCIRCLEREFLECT		= 1 << 6,
+	TFLAG_INTERPOLATEWALL		= 1 << 7,
+};
+
+enum
+{
+	TSURF_NONE					= 0,
+	TSURF_ELECTRIC				= 1,
+	TSURF_SLIME					= 2,
+	TSURF_OUTERSPACE			= 3,
+	TSURF_MUDDY					= 4,
+	TSURF_PURPLELAVA			= 5,	// very special kind of terrain type.
+	TSURF_SCROLLSKY				= 6,
+	TSURF_THUNDERSKY			= 7,
+	TSURF_PLASMA				= 8,
+	TSURF_MAGMA					= 9,
+	TSURF_METALDUCTS			= 10,
+	TSURF_OIL					= 11,
+	TSURF_DEEPMUD				= 12,	// also affects motorcycle
+	TSURF_SPECIALWATER			= 13,
 };
 
 enum
@@ -419,8 +502,6 @@ enum miscConstants
 
 	MOVEFIFOSIZ     =256,
 	AUTO_AIM_ANGLE  =48,
-	PHEIGHT_DUKE    =38,
-	PHEIGHT_RR      =40,
 
 	MAXMINECARTS = 16,
 	MAXJAILDOORS = 32,

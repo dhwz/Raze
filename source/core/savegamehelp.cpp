@@ -63,7 +63,11 @@
 #include "ns.h"
 #include "serialize_obj.h"
 #include "games/blood/src/mapstructs.h"
+#include "texinfo.h"
 #include <zlib.h>
+
+#include "buildtiles.h"
+
 
 
 void WriteSavePic(FileWriter* file, int width, int height);
@@ -73,8 +77,6 @@ extern FString BackupSaveGame;
 int SaveVersion;
 
 void SerializeMap(FSerializer &arc);
-
-CVAR(String, cl_savedir, "", CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 
 BEGIN_BLD_NS
 FSerializer& Serialize(FSerializer& arc, const char* keyname, XWALL& w, XWALL* def);
@@ -104,6 +106,9 @@ static void SerializeGlobals(FSerializer& arc)
 
 static void SerializeSession(FSerializer& arc)
 {
+	// In Duke we now have reliable sound names.
+	if (isDukeEngine()) arc.SetUniqueSoundNames();	
+
 	arc.ReadObjects(false);
 	SerializeMap(arc);
 	SerializeStatistics(arc);
@@ -393,47 +398,6 @@ int G_ValidateSavegame(FileReader &fr, FString *savetitle, bool formenu)
 	return 0;
 }
 
-//=============================================================================
-//
-//
-//
-//=============================================================================
-
-FString G_BuildSaveName (const char *prefix)
-{
-	FString name;
-	bool usefilter;
-
-	if (const char *const dir = Args->CheckValue("-savedir"))
-	{
-		name = dir;
-		usefilter = false;
-	}
-	else
-	{
-		name = **cl_savedir ? cl_savedir : M_GetSavegamesPath();
-		usefilter = true;
-	}
-
-	const size_t len = name.Len();
-	if (len > 0)
-	{
-		name.Substitute("\\", "/");
-		if (name[len - 1] != '/')
-			name << '/';
-	}
-
-	if (usefilter)
-		name << LumpFilter << '/';
-
-	CreatePath(name);
-
-	name << prefix;
-	if (!strchr(prefix, '.')) name << SAVEGAME_EXT; // only add an extension if the prefix doesn't have one already.
-	name = NicePath(name);
-	name.Substitute("\\", "/");
-	return name;
-}
 
 #include "build.h"
 
@@ -455,13 +419,13 @@ FSerializer &Serialize(FSerializer &arc, const char *key, spritetype &c, spritet
 			("pal", c.pal, def->pal)
 			("clipdist", c.clipdist, def->clipdist)
 			("blend", c.blend, def->blend)
-			("xrepeat", c.xrepeat, def->xrepeat)
-			("yrepeat", c.yrepeat, def->yrepeat)
+			("xrepeat", c.scale.X, def->scale.X)
+			("yrepeat", c.scale.Y, def->scale.Y)
 			("xoffset", c.xoffset, def->xoffset)
 			("yoffset", c.yoffset, def->yoffset)
 			("statnum", c.statnum)
 			("sectnum", c.sectp)
-			("angle", c.angle, def->angle)
+			("angles", c.Angles, def->Angles)
 			("ang", c.intangle, def->intangle)
 			("owner", c.intowner, def->intowner)
 			("xvel", c.xint, def->xint)
@@ -479,20 +443,12 @@ FSerializer &Serialize(FSerializer &arc, const char *key, spritetype &c, spritet
 
 FSerializer& Serialize(FSerializer& arc, const char* key, spriteext_t& c, spriteext_t* def)
 {
-	if (arc.isWriting() && c.mdanimtims)
-	{
-		c.mdanimtims -= mdtims;
-		if (c.mdanimtims == 0) c.mdanimtims++;
-	}
-
 	def = &zspx; // always delta against 0
 	if (arc.BeginObject(key))
 	{
 		arc("mdanimtims", c.mdanimtims, def->mdanimtims)
 			("mdanimcur", c.mdanimcur, def->mdanimcur)
-			("angoff", c.angoff, def->angoff)
-			("pitch", c.pitch, def->pitch)
-			("roll", c.roll, def->roll)
+			("rot", c.rot, def->rot)
 			("pivot_offset", c.pivot_offset, def->pivot_offset)
 			("position_offset", c.position_offset, def->position_offset)
 			("flags", c.renderflags, def->renderflags)
@@ -500,7 +456,6 @@ FSerializer& Serialize(FSerializer& arc, const char* key, spriteext_t& c, sprite
 			.EndObject();
 	}
 
-	if (c.mdanimtims) c.mdanimtims += mdtims;
 	return arc;
 }
 
@@ -510,21 +465,19 @@ FSerializer &Serialize(FSerializer &arc, const char *key, sectortype &c, sectort
 	{
 		arc("firstentry", c.firstEntry)
 			("lastentry", c.lastEntry)
-			("wallptr", c.wallptr, def->wallptr)
-			("wallnum", c.wallnum, def->wallnum)
 #ifndef SECTOR_HACKJOB // can't save these in test mode...
 			("ceilingz", c.ceilingz, def->ceilingz)
 			("floorz", c.floorz, def->floorz)
 #endif
 			("ceilingstat", c.ceilingstat, def->ceilingstat)
 			("floorstat", c.floorstat, def->floorstat)
-			("ceilingpicnum", c.ceilingpicnum, def->ceilingpicnum)
+			("ceilingpicnum", c.ceilingtexture, def->ceilingtexture)
 			("ceilingheinum", c.ceilingheinum, def->ceilingheinum)
 			("ceilingshade", c.ceilingshade, def->ceilingshade)
 			("ceilingpal", c.ceilingpal, def->ceilingpal)
 			("ceilingxpanning", c.ceilingxpan_, def->ceilingxpan_)
 			("ceilingypanning", c.ceilingypan_, def->ceilingypan_)
-			("floorpicnum", c.floorpicnum, def->floorpicnum)
+			("floorpicnum", c.floortexture, def->floortexture)
 			("floorheinum", c.floorheinum, def->floorheinum)
 			("floorshade", c.floorshade, def->floorshade)
 			("floorpal", c.floorpal, def->floorpal)
@@ -540,7 +493,7 @@ FSerializer &Serialize(FSerializer &arc, const char *key, sectortype &c, sectort
 			("exflags", c.exflags, def->exflags);
 
 		// Save the extensions only when playing their respective games.
-		if (isDukeLike())
+		if (isDukeEngine())
 		{
 			arc("keyinfo", c.keyinfo, def->keyinfo)
 				("shadedsector", c.shadedsector, def->shadedsector)
@@ -614,7 +567,7 @@ FSerializer &Serialize(FSerializer &arc, const char *key, walltype &c, walltype 
 			("nextwall", c.nextwall, def->nextwall)
 			("nextsector", c.nextsector, def->nextsector)
 			("cstat", c.cstat, def->cstat)
-			("picnum", c.picnum, def->picnum)
+			("picnum", c.wallpicnum, def->wallpicnum)
 			("overpicnum", c.overpicnum, def->overpicnum)
 			("shade", c.shade, def->shade)
 			("pal", c.pal, def->pal)
@@ -675,14 +628,21 @@ void DCoreActor::Serialize(FSerializer& arc)
 		("prevsect", prevSect)
 		("nextsect", nextSect)
 		("sprite", spr)
+		("clipdist", clipdist)
 		("time", time)
 		("spritesetindex", spritesetindex)
 		("spriteext", sprext)
 		("xvel", vel.X)
 		("yvel", vel.Y)
-		("zvel", vel.Z);
+		("zvel", vel.Z)
+		("viewzoffset", viewzoffset)
+		("dispicnum", dispicnum);
 
-	if (arc.isReading()) spsmooth = {};
+	if (arc.isReading())
+	{
+		spsmooth = {};
+		backuploc();
+	}
 }
 
 
@@ -706,17 +666,6 @@ void SerializeMap(FSerializer& arc)
 			("allportals", allPortals);
 
 		SerializeInterpolations(arc);
-
-		if (arc.BeginArray("picanm")) // write this in the most compact form available.
-		{
-			for (int i = 0; i < MAXTILES; i++)
-			{
-				arc(nullptr, picanm[i].sf)
-					(nullptr, picanm[i].extra);
-			}
-			arc.EndArray();
-		}
-
 		arc.EndObject();
 	}
 
@@ -879,7 +828,7 @@ static int nextquicksave = -1;
 	}
 
 	num.Int = nextautosave;
-	autosavenum.ForceSet(num, CVAR_Int);
+	autosavenum->ForceSet(num, CVAR_Int);
 
 	auto Filename = G_BuildSaveName(FStringf("auto%04d", nextautosave));
 	readableTime = myasctime();
@@ -909,7 +858,7 @@ CCMD(rotatingquicksave)
 	}
 
 	num.Int = nextquicksave;
-	quicksavenum.ForceSet(num, CVAR_Int);
+	quicksavenum->ForceSet(num, CVAR_Int);
 
 	FSaveGameNode sg;
 	auto Filename = G_BuildSaveName(FStringf("quick%04d", nextquicksave));

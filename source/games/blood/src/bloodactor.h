@@ -18,7 +18,7 @@ class DBloodActor : public DCoreActor
 	HAS_OBJECT_POINTERS
 
 public:
-	int dudeSlope;
+	double dudeSlope; // Q18.14 format
 	bool hasx;
 	XSPRITE xspr;
 	SPRITEHIT hit;
@@ -103,6 +103,11 @@ public:
 		return spr.type >= kDudeBase && spr.type < kDudeMax;
 	}
 
+	bool IsThingActor()
+	{
+		return spr.type >= kThingBase && spr.type < kThingMax;
+	}
+
 	bool IsItemActor()
 	{
 		return spr.type >= kItemBase && spr.type < kItemMax;
@@ -148,17 +153,9 @@ using BloodStatIterator = TStatIterator<DBloodActor>;
 using BloodSectIterator = TSectIterator<DBloodActor>;
 using BloodSpriteIterator = TSpriteIterator<DBloodActor>;
 
-inline void GetActorExtents(DBloodActor* actor, int* top, int* bottom)
-{
-	GetSpriteExtents(&actor->spr, top, bottom);
-}
-
 inline void GetActorExtents(DBloodActor* actor, double* top, double* bottom)
 {
-	int t, b;
-	GetSpriteExtents(&actor->spr, &t, &b);
-	*top = t * zinttoworld;
-	*bottom = b * zinttoworld;
+	GetSpriteExtents(&actor->spr, top, bottom);
 }
 
 inline bool CheckSector(const BitArray& bits, DBloodActor* act)
@@ -177,8 +174,8 @@ inline bool IsTargetTeammate(DBloodActor* pSource, DBloodActor* pTarget)
 template<typename T>
 void AdjustVelocity(DBloodActor *actor, T adjuster)
 {
-	double nCos = actor->spr.angle.Cos();
-	double nSin = actor->spr.angle.Sin();
+	double nCos = actor->spr.Angles.Yaw.Cos();
+	double nSin = actor->spr.Angles.Yaw.Sin();
 	double t1 = actor->vel.X * nCos + actor->vel.Y * nSin;
 	double t2 = actor->vel.X * nSin - actor->vel.Y * nCos;
 	adjuster(actor, t1, t2);

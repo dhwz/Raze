@@ -36,9 +36,9 @@ enum
     kGenDudeTransformStatus = -222,
     kGenDudeUpdTimeRate = 10,
     kGenDudeMaxMeleeDist = 2048,
+    kGenDudeMaxMeleeDistf = 128,
     kGenDudeMinDispesion = 200,
     kGenDudeMaxDispersion = 3500,
-    kGenDudeKlabsAng = 56
 };
 
 enum {
@@ -159,18 +159,18 @@ extern const GENDUDESND gCustomDudeSnd[];
 // temporary, until normal DUDEEXTRA gets refactored
 struct GENDUDEEXTRA 
 {
-    uint16_t initVals[3];             // xrepeat, yrepeat, clipdist
+    double clipdist;
     uint16_t availDeaths[kDamageMax]; // list of seqs with deaths for each damage type
     uint32_t moveSpeed;
-    uint32_t fireDist;          // counts from sprite size
-    uint32_t throwDist;         // counts from sprite size
+    double fireDist;          // counts from sprite size
+    double throwDist;         // counts from sprite size
     uint16_t curWeapon;       // data1 duplicate to avoid potential problems when changing data dynamically
     uint16_t weaponType;
     uint16_t baseDispersion;
     uint16_t slaveCount;              // how many dudes is summoned
     TObjPtr<DBloodActor*> pLifeLeech;        // spritenum of dropped dude's leech
     TObjPtr<DBloodActor*> slave[kGenDudeMaxSlaves];  // index of the ones dude is summon
-    signed short dmgControl[kDamageMax];    // depends of current weapon, drop armor item, sprite yrepeat and surface type
+    signed short dmgControl[kDamageMax];    // depends of current weapon, drop armor item, sprite repeat and surface type
     bool updReq[kGenDudePropertyMax]; // update requests
     union
     {
@@ -204,7 +204,7 @@ void aiGenDudeChooseDirection(DBloodActor* actor, DAngle a3, const DVector2& vel
 void aiGenDudeNewState(DBloodActor* actor, AISTATE* pAIState);
 int checkAttackState(DBloodActor* actor);
 bool doExplosion(DBloodActor* pSprite, int nType);
-DBloodActor* genDudeSpawn(DBloodActor* source, DBloodActor* pSprite, int nDist);
+DBloodActor* genDudeSpawn(DBloodActor* source, DBloodActor* pSprite, double nDist);
 void genDudeTransform(DBloodActor* pSprite);
 void dudeLeechOperate(DBloodActor* actor, const EVENT& a3);
 int getDodgeChance(DBloodActor* pSprite);

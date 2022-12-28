@@ -39,12 +39,23 @@
 #include "md4.h"
 #include "hw_sections.h"
 #include "mapinfo.h"
+#include "gamefuncs.h"
+
+struct usermaphack_t
+{
+	FString mhkfile;
+	FString title;
+	uint8_t md4[16]{};
+};
 
 static TArray<usermaphack_t> usermaphacks;
 
-void AddUserMapHack(usermaphack_t& mhk)
+void AddUserMapHack(const FString& title, const FString& mhkfile, uint8_t* md4)
 {
-	usermaphacks.Push(mhk);
+	usermaphacks.Reserve(1);
+	usermaphacks.Last().title = title;
+	usermaphacks.Last().mhkfile = mhkfile;
+	memcpy(usermaphacks.Last().md4, md4, 16);
 }
 
 static int32_t LoadMapHack(const char *filename, SpawnSpriteDef& sprites)
@@ -152,112 +163,11 @@ static int32_t LoadMapHack(const char *filename, SpawnSpriteDef& sprites)
 				}
 			}
 		}
-		else if (sc.Compare("picnum"))
-		{
-			if (sc.CheckNumber())
-			{
-				if (currentwall != -1 && validateWall())
-				{
-					wall[currentwall].picnum = sc.Number;
-				}
-				else if (currentsprite != -1 && validateSprite())
-				{
-					sprites.sprites[currentsprite].picnum = sc.Number;
-				}
-			}
-		}
-		else if (sc.Compare("overpicnum"))
-		{
-			if (sc.CheckNumber() && validateWall())
-			{
-				wall[currentwall].overpicnum = sc.Number;
-			}
-		}
-		else if (sc.Compare("overpicnum"))
-		{
-			if (sc.CheckNumber() && validateWall())
-			{
-				wall[currentwall].overpicnum = sc.Number;
-			}
-		}
-		else if (sc.Compare("split"))
-		{
-			int start = -1, end = -1;
-			if (sc.CheckNumber()) start = sc.Number;
-			if (sc.CheckNumber()) end = sc.Number;
-			if (end >= 0 && validateSector())
-			{
-				hw_SetSplitSector(currentsector, start, end);
-			}
-		}
-		else if (sc.Compare("dontclip"))
-		{
-			sector[currentsector].exflags |= SECTOREX_DONTCLIP;
-		}
-		else if (sc.Compare("clearflags"))
-		{
-			if (currentsector != -1 && validateSector())
-			{
-				sc.GetString();
-				if (sc.Compare("floor") && sc.CheckNumber())
-				{
-					sector[currentsector].floorstat &= ESectorFlags::FromInt(~sc.Number);
-				}
-				else if (sc.Compare("ceiling") && sc.CheckNumber())
-				{
-					sector[currentsector].ceilingstat &= ESectorFlags::FromInt(~sc.Number);
-				}
-				else sc.ScriptError("Bad token %s", sc.String);
-			}
-			else if (sc.CheckNumber())
-			{
-				if (currentwall != -1 && validateWall())
-				{
-					wall[currentwall].cstat &= EWallFlags::FromInt(~sc.Number);
-				}
-				else if (currentsprite != -1 && validateSprite())
-				{
-					sprites.sprites[currentsprite].cstat &= ESpriteFlags::FromInt(~sc.Number);
-				}
-			}
-		}
-		else if (sc.Compare("setflags"))
-		{
-			if (sc.CheckNumber())
-			{
-				if (currentwall != -1 && validateWall())
-				{
-					wall[currentwall].cstat |= EWallFlags::FromInt(sc.Number);
-				}
-				else if (currentsprite != -1 && validateSprite())
-				{
-					sprites.sprites[currentsprite].cstat |= ESpriteFlags::FromInt(sc.Number);
-				}
-			}
-		}
-		else if (sc.Compare("lotag"))
-		{
-			if (sc.CheckNumber())
-			{
-				if (currentwall != -1 && validateWall())
-				{
-					wall[currentwall].lotag = sc.Number;
-				}
-				else if (currentsprite != -1 && validateSprite())
-				{
-					sprites.sprites[currentsprite].lotag = sc.Number;
-				}
-			}
-		}
-		else if (sc.Compare("sw_serp_continue")) // This is a hack for SW's Last Warrior mod to continue from L4 to L5.
-		{
-			if (currentLevel) currentLevel->gameflags |= LEVEL_SW_DEATHEXIT_SERPENT_NEXT;
-		}
 
 		else if (sc.Compare("angleoff") || sc.Compare("angoff"))
 		{
 			if (sc.CheckNumber() && validateSprite())
-				sprites.sprext[currentsprite].angoff = (int16_t)sc.Number;
+				sprites.sprext[currentsprite].rot.Yaw = mapangle(sc.Number);
 		}
 		else if (sc.Compare("notmd") || sc.Compare("notmd2") || sc.Compare("notmd3"))
 		{
@@ -272,12 +182,12 @@ static int32_t LoadMapHack(const char *filename, SpawnSpriteDef& sprites)
 		else if (sc.Compare("pitch"))
 		{
 			if (sc.CheckNumber() && validateSprite())
-				sprites.sprext[currentsprite].pitch = (int16_t)sc.Number;
+				sprites.sprext[currentsprite].rot.Pitch = mapangle(sc.Number);
 		}
 		else if (sc.Compare("roll"))
 		{
 			if (sc.CheckNumber() && validateSprite())
-				sprites.sprext[currentsprite].roll = (int16_t)sc.Number;
+				sprites.sprext[currentsprite].rot.Roll = mapangle(sc.Number);
 		}
 		else if (sc.Compare("mdxoff") || sc.Compare("mdpivxoff") || sc.Compare("mdpivotxoff"))
 		{
@@ -324,10 +234,8 @@ static int32_t LoadMapHack(const char *filename, SpawnSpriteDef& sprites)
 			if (validateSprite())
 			{
 				auto& sx = sprites.sprext[currentsprite];
-				sx.angoff = 0;
+				sx.rot = {};
 				sx.renderflags &= ~(SPREXT_NOTMD | SPREXT_NOMDANIM | SPREXT_AWAY1 | SPREXT_AWAY2);
-				sx.pitch = 0;
-				sx.roll = 0;
 				sx.pivot_offset = {};
 				sx.position_offset = {};
 			}
@@ -374,8 +282,6 @@ static int32_t LoadMapHack(const char *filename, SpawnSpriteDef& sprites)
 
 void loadMapHack(const char* filename, const uint8_t* md4, SpawnSpriteDef& sprites)
 {
-	hw_ClearSplitSector();
-
 	FString internal = "engine/compatibility/";
 	for (int j = 0; j < 16; ++j)
 	{

@@ -56,11 +56,9 @@ player_struct ps[MAXPLAYERS];
 //------------------------------------------------------------------------- 
 
 int lastvisinc;								// weapon flash
-int earthquaketime;
 int global_random;							// readonly - one single global per-frame random value. Ugh...
 
 // Redneck Rampage
-int chickenplant;							// readonly - used to trigger some special behavior if a special item is found in a map.
 int thunderon;								// readonly - enables thunder effect in RR if true.
 int ufospawn;								// UFO spawn flag
 int ufocnt;									// UFO spawn count
@@ -68,8 +66,9 @@ int hulkspawn;								// Spawn a hulk?
 int lastlevel;								// Set at the end of RRRA's E2L7.
 short fakebubba_spawn, mamaspawn_count, banjosound; // RRRA special effects
 short BellTime;
-int WindTime, WindDir;
-uint8_t enemysizecheat /*raat607*/, ufospawnsminion, pistonsound, chickenphase /* raat605*/, RRRA_ExitedLevel, fogactive;
+int WindTime;
+DAngle WindDir;
+uint8_t enemysizecheat /*raat607*/, pistonsound, chickenphase /* raat605*/, RRRA_ExitedLevel, fogactive;
 
 //------------------------------------------------------------------------- 
 //
@@ -83,37 +82,26 @@ int actor_tog;								// cheat helper
 int playerswhenstarted;						// why is this needed?
 int show_shareware;							// display only.
 int rtsplaying;								// RTS playback state
-int tempwallptr;							// msx/y index.
-int msx[MAXANIMPOINTS], msy[MAXANIMPOINTS];
-TArray<CraneDef> cranes;
-
-bool sound445done;							// used in checksectors_r. This was local state inside a function, but this must be maintained globally and serialized
+TArray<DVector2> mspos;
+TArray<animate> animates;
 
 int spriteqamount = 64;						// internal sprite queue
 int spriteqloc;
 animwalltype animwall[MAXANIMWALLS];		// animated walls
 int numanimwalls;
 int animatecnt;								// sector plane movement
-sectortype* animatesect[MAXANIMATES];
-int8_t animatetype[MAXANIMATES];
-int animatetarget[MAXANIMATES];
-int animategoal[MAXANIMATES];
-int animatevel[MAXANIMATES];
 int numclouds;								// cloudy skies
 sectortype* clouds[256];
 float cloudx;
 float cloudy;
 int cloudclock;
-int numcyclers;								// sector lighting effects
-Cycler cyclers[MAXCYCLERS];
+TArray<Cycler> cyclers;
+TArray<AmbientTags> ambienttags;
 int mirrorcnt;
 sectortype* mirrorsector[64];					// mirrors
 walltype* mirrorwall[64];
 int numplayersprites;						// player management for some SEs.
 player_orig po[MAXPLAYERS];
-unsigned ambientfx;							// used by soundtag and soundtagonce script commands. If exported, export the commands, not the data!
-short ambientlotag[64];
-short ambienthitag[64];
 uint32_t everyothertime;					// Global animation ticker helper.
 
 // Redneck Rampage

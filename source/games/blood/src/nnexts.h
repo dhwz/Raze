@@ -74,10 +74,8 @@ enum
 enum
 {
 	kPatrolStateSize = 42,
-	kPatrolAlarmSeeDist = 10000,
+	kPatrolAlarmSeeDistSq = 625*625,
 	kPatrolAlarmHearDist = 10000,
-	kMaxPatrolVelocity = 500000,
-	kMaxPatrolCrouchVelocity = (kMaxPatrolVelocity >> 1),
 	kMaxPatrolSpotValue = 500,
 	kMinPatrolTurnDelay = 8,
 	kPatrolTurnDelayRange = 20,
@@ -93,6 +91,10 @@ enum
 	kMinAllowedPowerup = kPwUpFeatherFall,
 	kMaxAllowedPowerup = kMaxPowerUps
 };
+
+constexpr double kMaxPatrolVelocity = FixedToFloat(500000); // ~7.63
+constexpr double kMaxPatrolCrouchVelocity = (kMaxPatrolVelocity / 2);
+
 
 // modern statnums
 enum {
@@ -192,11 +194,10 @@ enum {
 struct SPRITEMASS { // sprite mass info for getSpriteMassBySize();
 	int seqId;
 	int16_t picnum; // mainly needs for moving debris
-	int16_t xrepeat;
-	int16_t yrepeat;
-	int16_t clipdist; // mass multiplier
-	int mass;
+	DVector2 scale;
 	int16_t airVel; // mainly needs for moving debris
+	double clipDist; // mass multiplier
+	int mass;
 	int fraction; // mainly needs for moving debris
 };
 
@@ -243,13 +244,12 @@ struct OBJECTS_TO_TRACK {
 
 struct TRCONDITION {
 	DBloodActor* actor;
-	uint8_t length;
-	OBJECTS_TO_TRACK obj[kMaxTracedObjects];
+	TArray<OBJECTS_TO_TRACK> objects;
 };
 
 struct PATROL_FOUND_SOUNDS {
 
-	int snd;
+	FSoundID snd;
 	int max;
 	int cur;
 
@@ -264,7 +264,7 @@ struct CONDITION_TYPE_NAMES {
 };
 
 // - VARIABLES ------------------------------------------------------------------
-extern bool gModernMap;
+extern uint8_t gModernMap;
 extern bool gTeamsSpawnUsed;
 extern bool gEventRedirectsUsed;
 extern ZONE gStartZoneTeam1[kMaxPlayers];
@@ -274,7 +274,7 @@ extern const VECTORINFO_EXTRA gVectorInfoExtra[kVectorMax];
 extern const MISSILEINFO_EXTRA gMissileInfoExtra[kMissileMax];
 extern const DUDEINFO_EXTRA gDudeInfoExtra[kDudeMax];
 extern TRPLAYERCTRL gPlayerCtrl[kMaxPlayers];
-extern TRCONDITION gCondition[kMaxTrackingConditions];
+extern TArray<TRCONDITION> gConditions;
 inline TObjPtr<DBloodActor*> gProxySpritesList[kMaxSuperXSprites];
 inline TObjPtr<DBloodActor*> gSightSpritesList[kMaxSuperXSprites];
 inline TObjPtr<DBloodActor*> gPhysSpritesList[kMaxSuperXSprites];
@@ -283,7 +283,6 @@ inline int gProxySpritesCount;
 inline int gSightSpritesCount;
 inline int gPhysSpritesCount;
 inline int gImpactSpritesCount;
-extern int gTrackingCondsCount;
 extern AISTATE genPatrolStates[kPatrolStateSize];
 
 
@@ -301,14 +300,14 @@ void sfxPlayVectorSound(DBloodActor* pSprite, int vectorId);
 int debrisGetFreeIndex(void);
 void debrisBubble(DBloodActor* nSprite);
 void debrisMove(int listIndex);
-void debrisConcuss(DBloodActor* nOwner, int listIndex, int x, int y, int z, int dmg);
+void debrisConcuss(DBloodActor* nOwner, int listIndex, const DVector3& pos, int dmg);
 //  -------------------------------------------------------------------------   //
 void aiSetGenIdleState(DBloodActor*);
 
 // triggers related
 //  -------------------------------------------------------------------------   //
 int aiFightGetTargetDist(DBloodActor* pSprite, DUDEINFO* pDudeInfo, DBloodActor* pTarget);
-int aiFightGetFineTargetDist(DBloodActor* actor, DBloodActor* target);
+double aiFightGetFineTargetDist(DBloodActor* actor, DBloodActor* target);
 bool aiFightDudeCanSeeTarget(DBloodActor* pXDude, DUDEINFO* pDudeInfo, DBloodActor* pTarget);
 bool aiFightDudeIsAffected(DBloodActor* pXDude);
 bool aiFightMatesHaveSameTarget(DBloodActor* leaderactor, DBloodActor* targetactor, int allow);
@@ -348,7 +347,7 @@ void playerDeactivateShrooms(PLAYER* pPlayer);
 QAV* playerQavSceneLoad(int qavId);
 void playerQavSceneProcess(PLAYER* pPlayer, QAVSCENE* pQavScene);
 void playerQavScenePlay(PLAYER* pPlayer);
-void playerQavSceneDraw(PLAYER* pPlayer, int a2, double a3, double a4, int a5);
+void playerQavSceneDraw(PLAYER* pPlayer, int shade, double xpos, double ypos, int palnum, DAngle angle);
 void playerQavSceneReset(PLAYER* pPlayer);
 //  -------------------------------------------------------------------------   //
 void callbackUniMissileBurst(DBloodActor* actor, sectortype* nSprite);
@@ -371,14 +370,13 @@ void levelEndLevelCustom(int nLevel);
 int useCondition(DBloodActor*, EVENT& event);
 bool condCmp(int val, int arg1, int arg2, int comOp);
 void condError(DBloodActor* pXCond, const char* pzFormat, ...);
-void condUpdateObjectIndex(DBloodActor* oldplayer, DBloodActor* newplayer);
+void conditionsUpdateIndex(DBloodActor* oldplayer, DBloodActor* newplayer);
 DBloodActor* evrListRedirectors(int objType, sectortype*, walltype*, DBloodActor* objActor, DBloodActor* pXRedir, int* tx);
 void seqSpawnerOffSameTx(DBloodActor* actor);
 void triggerTouchSprite(DBloodActor* pSprite, DBloodActor* nHSprite);
 void triggerTouchWall(DBloodActor* pSprite, walltype* nHWall);
 void killEvents(int nRx, int nCmd);
-void changeSpriteAngle(DBloodActor* pSpr, int nAng);
-int getVelocityAngle(DBloodActor* pSpr);
+void changeSpriteAngle(DBloodActor* pSpr, DAngle nAng);
 //  -------------------------------------------------------------------------   //
 void aiPatrolSetMarker(DBloodActor* actor);
 void aiPatrolThink(DBloodActor* actor);
@@ -422,6 +420,8 @@ void clampSprite(DBloodActor* actor, int which = 3);
 int getSpritesNearWalls(int nSrcSect, int* spriOut, int nMax, int nDist);
 bool isMovableSector(int nType);
 bool isMovableSector(sectortype* pSect);
+void killEffectGenCallbacks(DBloodActor* actor);
+bool xsprIsFine(DBloodActor* pSpr);
 #endif
 
 inline bool valueIsBetween(int val, int min, int max)

@@ -314,14 +314,13 @@ int SetupHornet(DSWActor* actor)
     actor->user.Flags |= (SPR_NO_SCAREDZ|SPR_XFLIP_TOGGLE);
     actor->spr.cstat |= (CSTAT_SPRITE_YCENTER);
 
-    actor->set_const_clipdist((100) >> 2);
+    actor->clipdist = 6.25;
     actor->user.floor_dist = (16);
     actor->user.ceiling_dist = (16);
 
     actor->user.pos.Z = actor->spr.pos.Z;
 
-    actor->spr.xrepeat = 37;
-    actor->spr.yrepeat = 32;
+	actor->spr.scale = DVector2(0.578125, 0.5);
 
     // Special looping buzz sound attached to each hornet spawned
     PlaySound(DIGI_HORNETBUZZ, actor, v3df_follow|v3df_init);
@@ -466,17 +465,17 @@ int DoHornetCircle(DSWActor* actor)
 {
     double bound;
 
-    actor->spr.angle += DAngle::fromBuild(actor->user.Counter2);
+    actor->spr.Angles.Yaw += mapangle(actor->user.Counter2);
 
-    if (!move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0)))
+    if (!move_actor(actor, DVector3(actor->spr.Angles.Yaw.ToVector() * actor->vel.X, 0)))
     {
         //ActorMoveHitReact(actor);
 
         // try moving in the opposite direction
         actor->user.Counter2 = -actor->user.Counter2;
-        actor->spr.angle += DAngle180;
+        actor->spr.Angles.Yaw += DAngle180;
 
-        if (!move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0)))
+        if (!move_actor(actor, DVector3(actor->spr.Angles.Yaw.ToVector() * actor->vel.X, 0)))
         {
             InitActorReposition(actor);
             return 0;
@@ -534,7 +533,7 @@ int DoHornetDeath(DSWActor* actor)
         DoActorSlide(actor);
 
     // slide while falling
-	auto vec = actor->spr.angle.ToVector() * actor->vel.X;
+	auto vec = actor->spr.Angles.Yaw.ToVector() * actor->vel.X;
 
     actor->user.coll = move_sprite(actor, DVector3(vec, 0), actor->user.ceiling_dist, actor->user.floor_dist, 1, ACTORMOVETICS);
 
@@ -572,7 +571,7 @@ int DoCheckSwarm(DSWActor* actor)
     if (actor->user.targetActor->user.PlayerP)
     {
         pp = actor->user.targetActor->user.PlayerP;
-        pdist = (actor->spr.pos.XY() - pp->pos.XY()).LengthSquared();
+        pdist = (actor->spr.pos.XY() - pp->actor->spr.pos.XY()).LengthSquared();
     }
     else
         return 0;

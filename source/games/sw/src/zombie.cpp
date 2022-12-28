@@ -760,8 +760,7 @@ int SetupZombie(DSWActor* actor)
     actor->user.Health = 100;
     actor->user.StateEnd = &s_ZombiePain[0][0];
     actor->user.Rot = sg_ZombieRun;
-    actor->spr.xrepeat = PLAYER_NINJA_XREPEAT;
-    actor->spr.yrepeat = PLAYER_NINJA_YREPEAT;
+	actor->spr.scale = DVector2(PLAYER_NINJA_XREPEAT, PLAYER_NINJA_YREPEAT);
 
     actor->user.Attrib = &ZombieAttrib;
     EnemyDefaults(actor, &ZombieActionSet, &ZombiePersonality);
@@ -788,10 +787,10 @@ void SpawnZombie(PLAYER* pp, DSWActor* weaponActor)
     if (ownerActor == nullptr)
         return;
 
-    auto actorNew = SpawnActor(STAT_ENEMY, ZOMBIE_RUN_R0, s_ZombieRun[0], pp->cursector, pp->pos, pp->angle.ang, 0);
+    auto actorNew = SpawnActor(STAT_ENEMY, ZOMBIE_RUN_R0, s_ZombieRun[0], pp->cursector, pp->actor->getPosWithOffsetZ(), pp->actor->spr.Angles.Yaw, 0);
     SetOwner(actorNew, ownerActor);
     actorNew->spr.pal = actorNew->user.spal = ownerActor->user.spal;
-    actorNew->spr.angle = RandomAngle();
+    actorNew->spr.Angles.Yaw = RandomAngle();
     SetupZombie(actorNew);
     actorNew->spr.shade = -10;
     actorNew->user.Flags2 |= (SPR2_DONT_TARGET_OWNER);
@@ -840,11 +839,11 @@ void SpawnZombie2(DSWActor* actor)
     }
 
 
-    auto actorNew = SpawnActor(STAT_ENEMY, ZOMBIE_RUN_R0, s_ZombieRun[0], actor->sector(), actor->spr.pos, actor->spr.angle, 0);
+    auto actorNew = SpawnActor(STAT_ENEMY, ZOMBIE_RUN_R0, s_ZombieRun[0], actor->sector(), actor->spr.pos, actor->spr.Angles.Yaw, 0);
     actorNew->user.Counter3 = 0;
     SetOwner(ownerActor, actorNew);
     actorNew->spr.pal = actorNew->user.spal = ownerActor->user.spal;
-    actorNew->spr.angle = RandomAngle();
+    actorNew->spr.Angles.Yaw = RandomAngle();
     SetupZombie(actorNew);
     actorNew->spr.shade = -10;
     actorNew->user.Flags2 |= (SPR2_DONT_TARGET_OWNER);

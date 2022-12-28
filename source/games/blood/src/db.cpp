@@ -50,8 +50,8 @@ DBloodActor* InsertSprite(sectortype* pSector, int nStat)
 {
 	auto act = static_cast<DBloodActor*>(::InsertActor(RUNTIME_CLASS(DBloodActor), pSector, nStat));
 	act->spr.cstat = CSTAT_SPRITE_YCENTER;
-	act->set_const_clipdist(32);
-	act->spr.xrepeat = act->spr.yrepeat = 64;
+	act->clipdist = 8;
+	act->spr.scale = DVector2(1, 1);
 	return act;
 }
 
@@ -66,7 +66,7 @@ int DeleteSprite(DBloodActor* actor)
 }
 
 
-bool gModernMap = false;
+uint8_t gModernMap = 0;
 int gVisibility;
 
 //---------------------------------------------------------------------------
@@ -130,7 +130,7 @@ unsigned int dbReadMapCRC(const char* pPath)
 //
 //---------------------------------------------------------------------------
 
-void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum, unsigned int* pCRC, BloodSpawnSpriteDef& sprites)
+void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, sectortype** cursect, unsigned int* pCRC, BloodSpawnSpriteDef& sprites)
 {
 	const int nXSectorSize = 60;
 	const int nXSpriteSize = 56;
@@ -172,7 +172,17 @@ void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum,
 		// indicate if the map requires modern features to work properly
 		// for maps wich created in PMAPEDIT BETA13 or higher versions. Since only minor version changed,
 		// the map is still can be loaded with vanilla BLOOD / MAPEDIT and should work in other ports too.
-		if ((header.version & 0x00ff) == 0x001) gModernMap = true;
+		int tmp = (header.version & 0x00ff);
+
+		// get the modern features revision
+		switch (tmp) {
+		case 0x001:
+			gModernMap = 1;
+			break;
+		case 0x002:
+			gModernMap = 2;
+			break;
+		}
 #endif
 
 	}
@@ -216,7 +226,7 @@ void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum,
 	}
 	gMapRev = mapHeader.revision;
 	allocateMapArrays(mapHeader.numwalls, mapHeader.numsectors, mapHeader.numsprites);
-	*cursectnum = mapHeader.sect;
+	*cursect = validSectorIndex(mapHeader.sect)? &sector[mapHeader.sect] : nullptr;
 
 	if (encrypted)
 	{
@@ -242,7 +252,7 @@ void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum,
 		tpskyoff[i] = LittleShort(tpskyoff[i]);
 	}
 
-	defineSky(DEFAULTPSKY, mapHeader.pskybits, tpskyoff);
+	defineSky(nullptr, mapHeader.pskybits, tpskyoff);
 
 	for (unsigned i = 0; i < sector.Size(); i++)
 	{
@@ -253,14 +263,13 @@ void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum,
 		{
 			dbCrypt((char*)&load, sizeof(sectortypedisk), gMapRev * sizeof(sectortypedisk));
 		}
-		pSector->wallptr = LittleShort(load.wallptr);
-		pSector->wallnum = LittleShort(load.wallnum);
+		pSector->walls.Set(&wall[LittleShort(load.wallptr)], LittleShort(load.wallnum));
 		pSector->setzfrommap(LittleLong(load.ceilingz), LittleLong(load.floorz));
 		pSector->ceilingstat = ESectorFlags::FromInt(LittleShort(load.ceilingstat));
 		pSector->floorstat = ESectorFlags::FromInt(LittleShort(load.floorstat));
-		pSector->ceilingpicnum = LittleShort(load.ceilingpicnum);
+		pSector->setceilingtexture(tileGetTextureID(LittleShort(load.ceilingpic)));
 		pSector->ceilingheinum = LittleShort(load.ceilingheinum);
-		pSector->floorpicnum = LittleShort(load.floorpicnum);
+		pSector->setfloortexture(tileGetTextureID(LittleShort(load.floorpic)));
 		pSector->floorheinum = LittleShort(load.floorheinum);
 		pSector->type = LittleShort(load.type);
 		pSector->hitag = LittleShort(load.hitag);
@@ -329,7 +338,7 @@ void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum,
 			pXSector->Underwater = bitReader.readUnsigned(1);
 			pXSector->Depth = bitReader.readUnsigned(3);
 			pXSector->panVel = bitReader.readUnsigned(8);
-			pXSector->panAngle = bitReader.readUnsigned(11);
+			pXSector->panAngle = mapangle(bitReader.readUnsigned(11));
 			pXSector->unused1 = bitReader.readUnsigned(1);
 			pXSector->decoupled = bitReader.readUnsigned(1);
 			pXSector->triggerOnce = bitReader.readUnsigned(1);
@@ -348,10 +357,10 @@ void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum,
 			pXSector->stopOn = bitReader.readUnsigned(1);
 			pXSector->stopOff = bitReader.readUnsigned(1);
 			pXSector->ceilpal = bitReader.readUnsigned(4);
-			pXSector->offCeilZ = bitReader.readSigned(32);
-			pXSector->onCeilZ = bitReader.readSigned(32);
-			pXSector->offFloorZ = bitReader.readSigned(32);
-			pXSector->onFloorZ = bitReader.readSigned(32);
+			pXSector->offCeilZ = bitReader.readSigned(32) * zmaptoworld;
+			pXSector->onCeilZ = bitReader.readSigned(32) * zmaptoworld;
+			pXSector->offFloorZ = bitReader.readSigned(32) * zmaptoworld;
+			pXSector->onFloorZ = bitReader.readSigned(32) * zmaptoworld;
 			/*pXSector->marker0 =*/ bitReader.readUnsigned(16);
 			/*pXSector->marker1 =*/ bitReader.readUnsigned(16);
 			pXSector->Crush = bitReader.readUnsigned(1);
@@ -363,7 +372,7 @@ void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum,
 			pSector->floorypan_ += bitReader.readUnsigned(8) / 256.f;
 			pXSector->locked = bitReader.readUnsigned(1);
 			pXSector->windVel = bitReader.readUnsigned(10);
-			pXSector->windAng = bitReader.readUnsigned(11);
+			pXSector->windAng = mapangle(bitReader.readUnsigned(11));
 			pXSector->windAlways = bitReader.readUnsigned(1);
 			pXSector->dudeLockout = bitReader.readUnsigned(1);
 			pXSector->bobTheta = bitReader.readUnsigned(11);
@@ -393,8 +402,9 @@ void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum,
 		pWall->nextwall = LittleShort(load.nextwall);
 		pWall->nextsector = LittleShort(load.nextsector);
 		pWall->cstat = EWallFlags::FromInt(LittleShort(load.cstat));
-		pWall->picnum = EWallFlags::FromInt(LittleShort(load.picnum));
-		pWall->overpicnum = LittleShort(load.overpicnum);
+		pWall->setwalltexture(tileGetTextureID(LittleShort(load.picnum)));
+		if (load.overpic == 0) load.overpic = -1;
+		pWall->setovertexture(tileGetTextureID(LittleShort(load.overpic)));
 		pWall->type = LittleShort(load.type);
 		pWall->hitag = LittleShort(load.hitag);
 		pWall->extra = LittleShort(load.extra);
@@ -475,7 +485,7 @@ void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum,
 		pSprite->picnum = LittleShort(load.picnum);
 		int secno = LittleShort(load.sectnum);
 		pSprite->statnum = LittleShort(load.statnum);
-		pSprite->angle = DAngle::fromBuild(LittleShort(load.ang));
+		pSprite->Angles.Yaw = mapangle(LittleShort(load.ang));
 		pSprite->intowner = LittleShort(load.owner);
 		pSprite->xint = LittleShort(load.index);
 		pSprite->yint = LittleShort(load.yvel);
@@ -485,8 +495,7 @@ void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum,
 		pSprite->extra = LittleShort(load.extra);
 		pSprite->pal = load.pal;
 		pSprite->clipdist = load.clipdist;
-		pSprite->xrepeat = load.xrepeat;
-		pSprite->yrepeat = load.yrepeat;
+		pSprite->scale = DVector2(load.xrepeat * REPEAT_SCALE, load.yrepeat * REPEAT_SCALE);
 		pSprite->xoffset = load.xoffset;
 		pSprite->yoffset = load.yoffset;
 		pSprite->detail = load.detail;
@@ -549,7 +558,7 @@ void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum,
 			pXSprite->data1 = bitReader.readSigned(16);
 			pXSprite->data2 = bitReader.readSigned(16);
 			pXSprite->data3 = bitReader.readSigned(16);
-			pXSprite->goalAng = DAngle::fromBuild(bitReader.readUnsigned(11));
+			pXSprite->goalAng = mapangle(bitReader.readUnsigned(11));
 			pXSprite->dodgeDir = bitReader.readSigned(2);
 			pXSprite->locked = bitReader.readUnsigned(1);
 			pXSprite->medium = bitReader.readUnsigned(2);
@@ -581,8 +590,18 @@ void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum,
 #ifdef NOONE_EXTENSIONS
 			// indicate if the map requires modern features to work properly
 			// for maps wich created in different editors (include vanilla MAPEDIT) or in PMAPEDIT version below than BETA13
-			if (!gModernMap && pXSprite->rxID == kChannelMapModernize && pXSprite->rxID == pXSprite->txID && pXSprite->command == kCmdModernFeaturesEnable)
-				gModernMap = true;
+			if (!gModernMap && pXSprite->rxID == pXSprite->txID && pXSprite->command == kCmdModernFeaturesEnable)
+			{
+				// get the modern features revision
+				switch (pXSprite->txID) {
+				case kChannelMapModernRev1:
+					gModernMap = 1;
+					break;
+				case kChannelMapModernRev2:
+					gModernMap = 2;
+					break;
+				}
+			}
 #endif
 		}
 	}
@@ -594,6 +613,7 @@ void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum,
 	auto buffer = fr.Read();
 	uint8_t md4[16];
 	md4once(buffer.Data(), buffer.Size(), md4);
+	PostProcessLevel(md4, mapname, sprites);
 	loadMapHack(mapname, md4, sprites);
 
 	if (CalcCRC32(buffer.Data(), buffer.Size() - 4) != nCRC)
@@ -664,7 +684,7 @@ void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* cursectnum,
 	sectionGeometry.SetSize(sections.Size());
 	wallbackup = wall;
 	sectorbackup = sector;
-	validateStartSector(mapname.GetChars(), pos, cursectnum, mapHeader.numsectors, true);
+	validateStartSector(mapname.GetChars(), pos, cursect, mapHeader.numsectors, true);
 }
 
 
@@ -679,6 +699,6 @@ END_BLD_NS
 void qloadboard(const char* filename, uint8_t flags, DVector3* dapos, int16_t* daang)
 {
 	Blood::BloodSpawnSpriteDef sprites;
-	int sp;
+	sectortype* sp;
 	Blood::dbLoadMap(filename, *dapos, daang, &sp, nullptr, sprites);
 }

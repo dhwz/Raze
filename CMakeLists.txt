@@ -99,7 +99,7 @@ function( add_pk3 PK3_NAME PK3_DIR )
 	if( WIN32 )
 		set( INSTALL_PK3_PATH . CACHE STRING "Directory where engine data will be placed during install." )
 	else()
-		set( INSTALL_PK3_PATH share/games/raze CACHE STRING "Directory where engine data will be placed during install." )
+		set( INSTALL_PK3_PATH ${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME} CACHE STRING "Directory where engine data will be placed during install." )
 	endif()
 	install(FILES "${PROJECT_BINARY_DIR}/${PK3_NAME}"
 			DESTINATION ${INSTALL_PK3_PATH}
@@ -147,6 +147,13 @@ endif()
 
 if( DEM_CMAKE_COMPILER_IS_GNUCXX_COMPATIBLE )
 	set( PROFILE 0 CACHE BOOL "Enable profiling with gprof for Debug and RelWithDebInfo build types." )
+
+	if( CMAKE_CXX_STANDARD )
+		# By default, try_compile() invocations ignore CXX_STANDARD value
+		# CMake 3.8 and newer have CMP0067 policy that fixes the issue, but it should be enabled explicitly
+		# Older versions require manual specification of the corresponding command line option
+		set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++${CMAKE_CXX_STANDARD}" )
+	endif()
 endif()
 
 # Fast math flags, required by some subprojects
@@ -322,9 +329,7 @@ option(FORCE_INTERNAL_ASMJIT "Use internal asmjit" ON)
 mark_as_advanced( FORCE_INTERNAL_ASMJIT )
 
 if (HAVE_VULKAN)
-	add_subdirectory( libraries/glslang/glslang)
-	add_subdirectory( libraries/glslang/spirv )
-	add_subdirectory( libraries/glslang/OGLCompilersDLL )
+	add_subdirectory( libraries/ZVulkan )
 endif()
 
 add_subdirectory( libraries/discordrpc )

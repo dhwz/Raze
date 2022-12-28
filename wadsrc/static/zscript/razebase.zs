@@ -52,7 +52,8 @@ enum EHudSize
 	Hud_Stbar,
 	Hud_StbarOverlay,
 	Hud_Mini,
-	Hud_full,
+	Hud_Full,
+	Hud_Althud,
 	Hud_Nothing,
 	Hud_MAX
 }
@@ -71,8 +72,8 @@ extend struct _
 	native readonly int automapMode;
 	native readonly int PlayClock;
 	
-	native Array<@sectortype> Sector;
-	native Array<@walltype> Wall;
+	native Array<@sectortype> Sectors;
+	native Array<@walltype> Walls;
 	
 }
 
@@ -129,10 +130,34 @@ struct SummaryInfo native
 	native readonly int secrets; 
 	native readonly int maxsecrets;
 	native readonly int supersecrets;
-	native readonly int time; 
+	native readonly int time;
+	native readonly int totaltime;
 	native readonly int playercount;
 	native readonly bool cheated;
 	native readonly bool endofgame;
+}
+
+// this only allows function getters to enable validation on the target.
+struct CollisionData
+{
+	int type;
+	int exbits;
+	voidptr hit;	// do not access!
+	native walltype hitWall();
+	native sectortype hitSector();
+	native CoreActor hitActor();
+	native void setSector(sectortype s);
+	native void setWall(walltype w);
+	native void setActor(CoreActor a);
+	native void setVoid();
+}
+
+struct HitInfo
+{
+	Vector3 hitpos;
+	sectortype hitSector;
+	walltype hitWall;
+	CoreActor hitActor;
 }
 
 struct Raze
@@ -142,13 +167,31 @@ struct Raze
 
 	native static Color shadeToLight(int shade);
 	native static String PlayerName(int i);
-	static int bsin(int angle) { return int(sin(angle * (360. / 2048)) * 16384); }
+	static int bsin(double angle) { return int(sin(angle * (360. / 2048)) * 16384); }
+	static double bobval(double angle) { return sin(angle * (360. / 2048)); }
 	native static TextureID PickTexture(TextureID texid);
 	native static int GetBuildTime();
 	native static Font PickBigFont(String cmptext = "");
 	native static Font PickSmallFont(String cmptext = "");
+	native static int SoundEnabled();
+	native static void SetReverb(int r);
+	native static void SetReverbDelay(int d);
+	native static Sound FindSoundByResID(int id);
+
+	//native static int tileflags(TextureID tex)
+	
+	native static sectortype updatesector(Vector2 pos, sectortype lastsect, double maxdist = 96);
+	native static sectortype, Vector3 clipmove(Vector3 pos, sectortype sect, Vector2 move, double walldist, double ceildist, double flordist, uint cliptype, CollisionData coll, int clipmoveboxtracenum = 3);
+	native static bool cansee(Vector3 start, sectortype startsec, Vector3 end, sectortype endsec);
+	native static int hitscan(Vector3 start, sectortype startsect, Vector3 vect, HitInfo hitinfo, uint cliptype, double maxrange = -1);
 
 	// game check shortcuts
+
+	static bool isDuke()
+	{
+		return gameinfo.gametype & GAMEFLAG_DUKE;
+	}
+
 	static bool isNam()
 	{
 		return gameinfo.gametype & (GAMEFLAG_NAM | GAMEFLAG_NAPALM);
@@ -192,6 +235,11 @@ struct Raze
 	static bool isBlood()
 	{
 		return gameinfo.gametype & GAMEFLAG_BLOOD;
+	}
+
+	static bool isSW()
+	{
+		return gameinfo.gametype & GAMEFLAG_SW;
 	}
 
 	// Dont know yet how to best export this, so for now these are just placeholders as MP is not operational anyway.

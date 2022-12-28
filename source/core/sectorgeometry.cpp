@@ -36,11 +36,17 @@
 
 #include "sectorgeometry.h"
 #include "build.h"
+#include "buildtiles.h"
 #include "gamefuncs.h"
 #include "texturemanager.h"
 #include "earcut.hpp"
 #include "hw_sections.h"
 #include "tesselator.h"
+
+// this is too noisy in this file.
+#ifdef _MSC_VER
+#pragma warning(disable:4244)
+#endif
 
 SectionGeometry sectionGeometry;
 
@@ -58,11 +64,11 @@ static FVector3 CalcNormal(sectortype* sector, int plane)
 	if (plane == 1 && !(sector->ceilingstat & CSTAT_SECTOR_SLOPE)) return { 0.f, -1.f, 0.f };
 
 
-	auto wal = sector->firstWall();
+	auto wal = sector->walls.Data();
 	auto wal2 = wal->point2Wall();
 
-	pt[0] = { (float)WallStartX(wal), 0.f, (float)WallStartY(wal)};
-	pt[1] = { (float)WallStartX(wal2), 0.f, (float)WallStartY(wal2)};
+	pt[0] = { (float)wal->pos.X, 0.f, -(float)wal->pos.Y};
+	pt[1] = { (float)wal2->pos.X, 0.f, -(float)wal2->pos.Y};
 	PlanesAtPoint(sector, wal->pos.X, wal->pos.Y, plane ? &pt[0].Z : nullptr, plane? nullptr : &pt[0].Y);
 	PlanesAtPoint(sector, wal2->pos.X, wal2->pos.Y, plane ? &pt[1].Z : nullptr, plane ? nullptr : &pt[1].Y);
 
@@ -117,7 +123,7 @@ public:
 		myplane = plane;
 		offset = off;
 
-		auto firstwall = sec->firstWall();
+		auto firstwall = sec->walls.Data();
 		ix1 = firstwall->pos.X;
 		iy1 = firstwall->pos.Y;
 		ix2 = firstwall->point2Wall()->pos.X;
@@ -158,7 +164,8 @@ public:
 			// To calculate the inverse Build performs an integer division with significant loss of precision
 			// that can cause the texture to be shifted by multiple pixels.
 			// The code below calculates the amount of this deviation so that it can be added back to the formula.
-			int len = ksqrt(uhypsq(ix2 - ix1, iy2 - iy1));
+			int x = int(ix2 - ix1), y = int(iy2 - iy1);
+			int len = int(sqrt(double(x) * x + double(y) * y));
 			if (len != 0)
 			{
 				int i = 1048576 / len;
@@ -359,12 +366,12 @@ bool SectionGeometry::ValidateSection(Section* section, int plane)
 	if (plane == 0)
 	{
 		if (sec->floorheinum == compare->floorheinum &&
-			sec->floorpicnum == compare->floorpicnum &&
+			sec->floortexture == compare->floortexture &&
 			((sec->floorstat ^ compare->floorstat) & (CSTAT_SECTOR_ALIGN | CSTAT_SECTOR_YFLIP | CSTAT_SECTOR_XFLIP | CSTAT_SECTOR_TEXHALF | CSTAT_SECTOR_SWAPXY)) == 0 &&
 			sec->floorxpan_ == compare->floorxpan_ &&
 			sec->floorypan_ == compare->floorypan_ &&
-			sec->firstWall()->pos == sdata.poscompare[0] &&
-			sec->firstWall()->point2Wall()->pos == sdata.poscompare2[0] &&
+			sec->walls[0].pos == sdata.poscompare[0] &&
+			sec->walls[0].point2Wall()->pos == sdata.poscompare2[0] &&
 			!(section->dirty & EDirty::FloorDirty) && sdata.planes[plane].vertices.Size() ) return true;
 
 		section->dirty &= ~EDirty::FloorDirty;
@@ -372,19 +379,19 @@ bool SectionGeometry::ValidateSection(Section* section, int plane)
 	else
 	{
 		if (sec->ceilingheinum == compare->ceilingheinum &&
-			sec->ceilingpicnum == compare->ceilingpicnum &&
+			sec->ceilingtexture == compare->ceilingtexture &&
 			((sec->ceilingstat ^ compare->ceilingstat) & (CSTAT_SECTOR_ALIGN | CSTAT_SECTOR_YFLIP | CSTAT_SECTOR_XFLIP | CSTAT_SECTOR_TEXHALF | CSTAT_SECTOR_SWAPXY)) == 0 &&
 			sec->ceilingxpan_ == compare->ceilingxpan_ &&
 			sec->ceilingypan_ == compare->ceilingypan_ &&
-			sec->firstWall()->pos == sdata.poscompare[1] &&
-			sec->firstWall()->point2Wall()->pos == sdata.poscompare2[1] &&
+			sec->walls[0].pos == sdata.poscompare[1] &&
+			sec->walls[0].point2Wall()->pos == sdata.poscompare2[1] &&
 			!(section->dirty & EDirty::CeilingDirty) && sdata.planes[1].vertices.Size()) return true;
 
 		section->dirty &= ~EDirty::CeilingDirty;
 	}
 	compare->copy(sec);
-	sdata.poscompare[plane] = sec->firstWall()->pos;
-	sdata.poscompare2[plane] = sec->firstWall()->point2Wall()->pos;
+	sdata.poscompare[plane] = sec->walls[0].pos;
+	sdata.poscompare2[plane] = sec->walls[0].point2Wall()->pos;
 	return false;
 }
 
@@ -434,7 +441,7 @@ void SectionGeometry::CreatePlaneMesh(Section* section, int plane, const FVector
 {
 	auto sectorp = &sector[section->sector];
 	// calculate the rest.
-	auto texture = tileGetTexture(plane ? sectorp->ceilingpicnum : sectorp->floorpicnum);
+	auto texture = TexMan.GetGameTexture(plane ? sectorp->ceilingtexture : sectorp->floortexture);
 	auto& sdata = data[section->index];
 	auto& entry = sdata.planes[plane];
 	double fz = sectorp->floorz, cz = sectorp->ceilingz;
@@ -469,7 +476,7 @@ void SectionGeometry::CreatePlaneMesh(Section* section, int plane, const FVector
 
 void SectionGeometry::MarkDirty(sectortype* sector)
 {
-	for (auto section : sectionsPerSector[sectnum(sector)])
+	for (auto section : sectionsPerSector[sectindex(sector)])
 	{
 		sections[section].dirty = sector->dirty;
 	}

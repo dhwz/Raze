@@ -33,6 +33,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "names.h"
 #include "exhumedactor.h"
 #include "serialize_obj.h"
+#include "texturemanager.h"
 
 BEGIN_PS_NS
 
@@ -142,9 +143,9 @@ extern bool bDoFlashes;
 
 extern int bVanilla;
 
-inline int GameLogo()
+inline FTextureID GameLogo()
 {
-    return (g_gameType & GAMEFLAG_EXHUMED) ? kExhumedLogo : kPowerslaveLogo;
+    return TexMan.CheckForTexture((g_gameType & GAMEFLAG_EXHUMED) ? "ExhumedLogo" : "PowerslaveLogo", ETextureType::Any);
 }
 
 extern double g_frameDelay;
@@ -209,6 +210,7 @@ struct GameInterface : public ::GameInterface
 {
     const char* Name() override { return "Exhumed"; }
     void app_init() override;
+    void SetupSpecialTextures(TilesetBuildInfo& info) override;
     void clearlocalinputstate() override;
     void loadPalette() override;
 	bool GenerateSavePic() override;
@@ -217,7 +219,6 @@ struct GameInterface : public ::GameInterface
     FSavegameInfo GetSaveSig() override;
     void SerializeGameState(FSerializer& arc);
     bool CanSave() override;
-    ReservedSpace GetReservedScreenSpace(int viewsize) override { return { 0, 24 }; }
     void UpdateSounds() override;
     void ErrorCleanup() override;
     void Ticker() override;
@@ -231,15 +232,14 @@ struct GameInterface : public ::GameInterface
 	void LevelCompleted(MapRecord *map, int skill) override;
 	void NextLevel(MapRecord *map, int skill) override;
     bool DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac) override;
-    fixed_t playerHorizMin() override { return IntToFixed(-150); }
-    fixed_t playerHorizMax() override { return IntToFixed(150); }
-    int playerKeyMove() override { return 6; }
-    void WarpToCoords(double x, double y, double z, DAngle ang, int horz) override;
+    DAngle playerPitchMin() override { return DAngle::fromDeg(49.5); }
+    DAngle playerPitchMax() override { return DAngle::fromDeg(-49.5); }
+    void WarpToCoords(double x, double y, double z, DAngle ang) override;
     void ToggleThirdPerson() override;
-    DVector3 chaseCamPos(DAngle ang, fixedhoriz horiz) { return DVector3(-ang.ToVector() * 96., horiz.asbuildf() * 0.75); }
-    void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double interpfrac) override;
+    void processSprites(tspriteArray& tsprites, const DVector3& view, DAngle viewang, double interpfrac) override;
     int GetCurrentSkill() override;
     std::pair<DVector3, DAngle> GetCoordinates() override;
+    void StartSoundEngine() override;
 
 	::GameStats getStats() override;
 };

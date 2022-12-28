@@ -45,6 +45,12 @@ void GameInterface::MenuOpened()
 	StopLocalSound();
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void GameInterface::MenuSound(EMenuSounds snd)
 {
 	switch (snd)
@@ -67,6 +73,12 @@ void GameInterface::MenuSound(EMenuSounds snd)
 	}
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 FSavegameInfo GameInterface::GetSaveSig()
 {
 	return { SAVESIG_PS, MINSAVEVER_PS, SAVEVER_PS };
@@ -81,7 +93,7 @@ using namespace Exhumed;
 DEFINE_ACTION_FUNCTION(_ListMenuItemExhumedLogo, Draw)
 {
 	auto nLogoTile = GameLogo();
-	DrawRel(nLogoTile, 160, 40);
+	DrawRel(TexMan.GetGameTexture(nLogoTile), 160, 40);
 	return 0;
 }
 

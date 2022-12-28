@@ -97,7 +97,16 @@ enum ETSprFlags
 	TSPR_FLAGS_DRAW_LAST = 2,	// Currently unused: checked by Polymost but never set.
 	TSPR_MDLROTATE = 4,			// rotate if this is a model or voxel.
 	TSPR_SLOPESPRITE = 8,       // render as sloped sprite
+	TSPR_ROTATE8FRAMES = 16,	// do an 8 frame rotation
+	TSPR_ROTATE12FRAMES = 32,	// do an 12 frame rotation
 }
+
+enum ESectorExBits
+{
+	SECTOREX_CLOUDSCROLL			= 1,
+	SECTOREX_DRAGGED				= 2,
+	SECTOREX_DONTCLIP				= 4,
+};
 
 
 
@@ -109,19 +118,39 @@ enum ETSprFlags
 
 struct sectortype native
 {
+	enum EPlane
+	{
+		ceiling = 0,
+		floor = 1,
+	}
+	enum EFindNextSector
+	{
+		Find_Floor = 0,
+		Find_Ceiling = 1,
+	
+		Find_Down = 0,
+		Find_Up = 2,
+	
+		Find_Safe = 4,
+	
+		Find_CeilingUp = Find_Ceiling | Find_Up,
+		Find_CeilingDown = Find_Ceiling | Find_Down,
+		Find_FloorUp = Find_Floor | Find_Up,
+		Find_FloorDown = Find_Floor | Find_Down,
+	};
+
 	// panning byte fields were promoted to full floats to enable panning interpolation.
 	native readonly float ceilingxpan;
 	native readonly float ceilingypan;
 	native readonly float floorxpan;
 	native readonly float floorypan;
 	native readonly double ceilingz, floorz;
+	native readonly int16 ceilingheinum;
+	native readonly int16 floorheinum;
 
-	native readonly int wallptr;
-	native readonly int16 wallnum;
+	native Array<@walltype> walls;
 	native int16 ceilingstat;
 	native int16 floorstat;
-	//int16 ceilingpicnum;
-	//int16 floorpicnum;
 
 	native int16 lotag;
 	native int16 type; // type is an alias of lotag for Blood.
@@ -138,6 +167,9 @@ struct sectortype native
 	// new additions not from the binary map format.
 	native uint8 exflags;
 
+
+	// Duke
+	native uint8 shadedsector;
 
 /*
 	// Game specific extensions. Only export what's really needed.
@@ -206,6 +238,12 @@ struct sectortype native
 	native void setfloorslope(int heinum);
 	native int ceilingslope();
 	native int floorslope();
+	native double, double getslopes(Vector2 pos);
+	native sectortype nextsectorneighborz(double refz, int find);
+	native bool CheckTexture(int place, Name tex);
+	native void SetTextureName(int place, Name tex);
+	native void SetTexture(int place, TextureID tex);
+
 }
 
 //=============================================================================
@@ -216,6 +254,11 @@ struct sectortype native
 
 struct walltype native
 {
+	enum EPlane
+	{
+		main = 0,
+		over = 1,
+	}
 	native readonly Vector2 pos;
 
 	native readonly int point2;
@@ -239,8 +282,8 @@ struct walltype native
 
 	native int8 shade;
 	native uint8 pal;
-	native uint8 xrepeat;
-	native uint8 yrepeat;
+	//native uint8 xrepeat;
+	//native uint8 yrepeat;
 
 
 	native void setxpan(double add);
@@ -252,16 +295,15 @@ struct walltype native
 	native walltype nextWallp() const;
 	native walltype lastWall() const;
 	native walltype point2Wall() const;
-	/*
-	Vector2 delta() const;
-	Vector2 center() const;
-	*/
-	native double deltax() const;
-	native double deltay() const;
+	native Vector2 delta() const;
+	native Vector2 center() const;
 	native bool twoSided() const;
 
 	native double Length();
 	native void move(Vector2 vec);
+	native void dragpoint(Vector2 vec);
+	native void SetTextureName(int place, Name tex);
+	native void SetTexture(int place, TextureID tex);
 }
 
 //=============================================================================
@@ -272,6 +314,8 @@ struct walltype native
 
 struct tspritetype native
 {
+	native Vector3 pos;
+	native double angle;
 	native sectortype sector;
 	native int16 cstat;
 	//native int16 picnum;
@@ -291,12 +335,14 @@ struct tspritetype native
 	native uint8 pal;
 	native uint8 clipdist;
 	native uint8 blend;
-	native uint8 xrepeat;
-	native uint8 yrepeat;
+	native Vector2 scale;
 	native int8 xoffset;
 	native int8 yoffset;
 	native CoreActor ownerActor;
 	native int time;
+
+	native void setSpritePic(CoreActor actor, int index); // index into actor's spriteset.
+	native void setWeaponOrAmmoSprite(int num);
 
 }
 

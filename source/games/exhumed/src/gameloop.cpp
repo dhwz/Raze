@@ -62,6 +62,12 @@ void DoTitle(CompletionFunc completion);
 
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void GameInterface::Render()
 {
     drawtime.Reset();
@@ -81,7 +87,8 @@ void GameInterface::Render()
     if (nFreeze != 2) // Hide when Ramses is talking.
     {
         DrawStatusBar();
-        DrawCrosshair(kCrosshairTile, PlayerList[nLocalPlayer].nHealth >> 3, -PlayerList[nLocalPlayer].angle.look_anghalf(interpfrac), 0, 1);
+        auto offsets = PlayerList[nLocalPlayer].Angles.getCrosshairOffsets(interpfrac);
+        DrawCrosshair(kCrosshairTile, PlayerList[nLocalPlayer].nHealth >> 3, offsets.first.X, offsets.first.Y, 1, offsets.second);
 
         if (paused && !M_Active())
         {
@@ -110,12 +117,18 @@ void GameInterface::DrawBackground()
 
     DrawRel(kSkullHead, 160, 100, 0);
     DrawRel(kSkullJaw, 161, 130, 0);
-    DrawRel(nLogoTile, 160, 40, 0);
+    DrawRel(TexMan.GetGameTexture(nLogoTile), 160, 40, 0);
 
     // draw the fire urn/lamp thingies
     DrawRel(kTile3512 + dword_9AB5F, 50, 150, 0);
     DrawRel(kTile3512 + ((dword_9AB5F + 2) & 3), 270, 150, 0);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void GameInterface::NextLevel(MapRecord *map, int skill)
 {
@@ -158,6 +171,12 @@ DEFINE_ACTION_FUNCTION(DMapScreen, SetNextLevel)
     selectedlevelnew = v;
     return 0;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void GameInterface::LevelCompleted(MapRecord *to_map, int skill)
 {

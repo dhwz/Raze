@@ -926,7 +926,7 @@ void M_Init (void)
 	catch (CVMAbortException &err)
 	{
 		err.MaybePrintMessage();
-		Printf("%s", err.stacktrace.GetChars());
+		Printf(PRINT_NONOTIFY, "%s", err.stacktrace.GetChars());
 		I_FatalError("Failed to initialize menus");
 	}
 	M_CreateMenus();
@@ -1034,6 +1034,8 @@ DEFINE_FIELD(DListMenuDescriptor, mFontColor2)
 DEFINE_FIELD(DListMenuDescriptor, mAnimatedTransition)
 DEFINE_FIELD(DListMenuDescriptor, mAnimated)
 DEFINE_FIELD(DListMenuDescriptor, mCenter)
+DEFINE_FIELD(DListMenuDescriptor, mDontDim)
+DEFINE_FIELD(DListMenuDescriptor, mDontBlur)
 DEFINE_FIELD(DListMenuDescriptor, mVirtWidth)
 DEFINE_FIELD(DListMenuDescriptor, mVirtHeight)
 
@@ -1046,6 +1048,9 @@ DEFINE_FIELD(DOptionMenuDescriptor, mScrollPos)
 DEFINE_FIELD(DOptionMenuDescriptor, mIndent)
 DEFINE_FIELD(DOptionMenuDescriptor, mPosition)
 DEFINE_FIELD(DOptionMenuDescriptor, mDontDim)
+DEFINE_FIELD(DOptionMenuDescriptor, mDontBlur)
+DEFINE_FIELD(DOptionMenuDescriptor, mAnimatedTransition)
+DEFINE_FIELD(DOptionMenuDescriptor, mAnimated)
 DEFINE_FIELD(DOptionMenuDescriptor, mFont)
 
 DEFINE_FIELD(FOptionMenuSettings, mTitleColor)
@@ -1064,6 +1069,8 @@ DEFINE_FIELD(DImageScrollerDescriptor,textFont)
 DEFINE_FIELD(DImageScrollerDescriptor, textScale)
 DEFINE_FIELD(DImageScrollerDescriptor, mAnimatedTransition)
 DEFINE_FIELD(DImageScrollerDescriptor, mAnimated)
+DEFINE_FIELD(DImageScrollerDescriptor, mDontDim)
+DEFINE_FIELD(DImageScrollerDescriptor, mDontBlur)
 DEFINE_FIELD(DImageScrollerDescriptor, virtWidth)
 DEFINE_FIELD(DImageScrollerDescriptor, virtHeight)
 

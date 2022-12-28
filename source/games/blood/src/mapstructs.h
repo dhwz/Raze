@@ -27,10 +27,10 @@ struct sectortypedisk
 	int16_t wallptr, wallnum;
 	int32_t ceilingz, floorz;
 	uint16_t ceilingstat, floorstat;
-	int16_t ceilingpicnum, ceilingheinum;
+	int16_t ceilingpic, ceilingheinum;
 	int8_t ceilingshade;
 	uint8_t ceilingpal, ceilingxpanning, ceilingypanning;
-	int16_t floorpicnum, floorheinum;
+	int16_t floorpic, floorheinum;
 	int8_t floorshade;
 	uint8_t floorpal, floorxpanning, floorypanning;
 	uint8_t visibility, fogpal;
@@ -44,7 +44,7 @@ struct walltypedisk
 	int32_t x, y;
 	int16_t point2, nextwall, nextsector;
 	uint16_t cstat;
-	int16_t picnum, overpicnum;
+	int16_t picnum, overpic;
 	int8_t shade;
 	uint8_t pal, xrepeat, yrepeat, xpanning, ypanning;
 	int16_t type;
@@ -101,8 +101,6 @@ struct XSPRITE {
 	TObjPtr<DBloodActor*> target;           // target sprite
 	TObjPtr<DBloodActor*> burnSource;
 	
-	const vec3_t int_TargetPos() const { return { int(TargetPos.X * worldtoint), int(TargetPos.Y * worldtoint), int(TargetPos.Z * worldtoint)}; }
-
 	DVector3 TargetPos;
 	DAngle goalAng;          // Dude goal ang
 
@@ -190,10 +188,11 @@ struct XSECTOR {
 	DBloodActor* actordata;
 
 	uint32_t busy;
-	int32_t offCeilZ;
-	int32_t onCeilZ;
-	int32_t offFloorZ;
-	int32_t onFloorZ;
+	double offCeilZ;
+	double onCeilZ;
+	double offFloorZ;
+	double onFloorZ;
+
 	uint32_t windVel;          // Wind vel (changed from 10 bit to use higher velocity values)
 
 	uint16_t data;             // Data
@@ -201,10 +200,10 @@ struct XSECTOR {
 	uint16_t rxID;             // RX ID
 	uint16_t busyTimeA;        // OFF->ON busyTime
 	uint16_t waitTimeA;        // OFF->ON waitTime
-	uint16_t panAngle;         // Motion angle
+	DAngle panAngle;         // Motion angle
 	uint16_t busyTimeB;        // ON->OFF busyTime
 	uint16_t waitTimeB;        // ON->OFF waitTime
-	uint16_t windAng;          // Wind ang
+	DAngle windAng;          // Wind ang
 	uint16_t bobTheta;         // Motion Theta
 	int16_t bobSpeed;           // Motion speed
 

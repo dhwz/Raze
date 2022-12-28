@@ -37,6 +37,12 @@ static actionSeq RatSeq[] = {
     {0, 1}
 };
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void SerializeRat(FSerializer& arc)
 {
     if (arc.BeginObject("rat"))
@@ -47,6 +53,12 @@ void SerializeRat(FSerializer& arc)
             .EndObject();
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void InitRats()
 {
@@ -72,6 +84,12 @@ void SetRatVel(DExhumedActor* pActor)
     pActor->VelFromAngle(-2);
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void BuildRat(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, DAngle nAngle)
 {
 	if (pActor == nullptr)
@@ -83,7 +101,7 @@ void BuildRat(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, D
 	{
 		ChangeActorStat(pActor, 108);
 		pActor->spr.pos.Z = pActor->sector()->floorz;
-		nAngle = pActor->spr.angle;
+		nAngle = pActor->spr.Angles.Yaw;
 	}
 
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
@@ -92,10 +110,9 @@ void BuildRat(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, D
     pActor->spr.yoffset = 0;
     pActor->spr.picnum = 1;
     pActor->spr.pal = pActor->sector()->ceilingpal;
-    pActor->set_const_clipdist(30);
-    pActor->spr.angle = nAngle;
-    pActor->spr.xrepeat = 50;
-    pActor->spr.yrepeat = 50;
+	pActor->clipdist = 7.5;
+    pActor->spr.Angles.Yaw = nAngle;
+    pActor->spr.scale = DVector2(0.78125, 0.78125);
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
     pActor->vel.Z = 0;
@@ -119,6 +136,12 @@ void BuildRat(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, D
 
     pActor->nRun = runlist_AddRunRec(NewRun, pActor, 0x240000);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 DExhumedActor* FindFood(DExhumedActor* pActor)
 {
@@ -153,6 +176,12 @@ DExhumedActor* FindFood(DExhumedActor* pActor)
     return nullptr;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AIRat::RadialDamage(RunListEvent* ev)
 {
     auto pActor = ev->pObjActor;
@@ -161,6 +190,12 @@ void AIRat::RadialDamage(RunListEvent* ev)
     ev->nDamage = runlist_CheckRadialDamage(pActor);
     Damage(ev);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIRat::Damage(RunListEvent* ev)
 {
@@ -177,6 +212,12 @@ void AIRat::Damage(RunListEvent* ev)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AIRat::Draw(RunListEvent* ev)
 {
     auto pActor = ev->pObjActor;
@@ -186,6 +227,12 @@ void AIRat::Draw(RunListEvent* ev)
     seq_PlotSequence(ev->nParam, SeqOffsets[kSeqRat] + RatSeq[nAction].a, pActor->nFrame, RatSeq[nAction].b);
 }
 
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIRat::Tick(RunListEvent* ev)
 {
@@ -322,7 +369,7 @@ void AIRat::Tick(RunListEvent* ev)
                     return;
                 }
 
-                pActor->set_int_ang(RandomSize(11));
+                pActor->spr.Angles.Yaw = RandomAngle();
                 SetRatVel(pActor);
                 return;
             }

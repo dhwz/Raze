@@ -507,14 +507,13 @@ int DoCoolgMatchPlayerZ(DSWActor* actor);
 
 void CoolgCommon(DSWActor* actor)
 {
-    actor->set_const_clipdist((200) >> 2);
+    actor->clipdist = 12.5;
     actor->user.floor_dist = (16);
     actor->user.ceiling_dist = (20);
 
     actor->user.pos.Z = actor->spr.pos.Z;
 
-    actor->spr.xrepeat = 42;
-    actor->spr.yrepeat = 42;
+	actor->spr.scale = DVector2(0.65625, 0.65625);
     actor->spr.extra |= (SPRX_PLAYER_OR_ENEMY);
 }
 
@@ -559,7 +558,7 @@ int NewCoolg(DSWActor* actor)
 {
     ANIMATOR DoActorDecide;
 
-    auto actorNew = SpawnActor(STAT_ENEMY, COOLG_RUN_R0, &s_CoolgBirth[0], actor->sector(), actor->spr.pos, actor->spr.angle, 50/16.);
+    auto actorNew = SpawnActor(STAT_ENEMY, COOLG_RUN_R0, &s_CoolgBirth[0], actor->sector(), actor->spr.pos, actor->spr.Angles.Yaw, 50/16.);
 
     ChangeState(actorNew, &s_CoolgBirth[0]);
     actorNew->user.StateEnd = s_CoolgDie;
@@ -751,9 +750,9 @@ int DoCoolgCircle(DSWActor* actor)
 {
     double bound;
 
-    actor->spr.angle += DAngle::fromBuild(actor->user.Counter2);
+    actor->spr.Angles.Yaw += mapangle(actor->user.Counter2);
 
-    if (!move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0)))
+    if (!move_actor(actor, DVector3(actor->spr.Angles.Yaw.ToVector() * actor->vel.X, 0)))
     {
         InitActorReposition(actor);
         return 0;
@@ -793,7 +792,7 @@ int DoCoolgDeath(DSWActor* actor)
 {
     actor->spr.cstat &= ~(CSTAT_SPRITE_TRANSLUCENT);
     actor->spr.cstat &= ~(CSTAT_SPRITE_INVISIBLE);
-    actor->spr.xrepeat = 42;
+    actor->spr.scale.X = (0.65625);
     actor->spr.shade = -10;
 
     if (actor->user.Flags & (SPR_FALLING))
@@ -811,7 +810,7 @@ int DoCoolgDeath(DSWActor* actor)
         DoActorSlide(actor);
 
     // slide while falling
-	auto vec = actor->spr.angle.ToVector() * actor->vel.X;
+	auto vec = actor->spr.Angles.Yaw.ToVector() * actor->vel.X;
 
     actor->user.coll = move_sprite(actor, DVector3(vec, 0), actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, ACTORMOVETICS);
     DoFindGroundPoint(actor);
@@ -871,9 +870,9 @@ int DoCoolgMove(DSWActor* actor)
 
     if (actor->user.FlagOwner-1 == 0)
     {
-        actor->spr.xrepeat--;
+		actor->spr.scale.X -= REPEAT_SCALE;
         actor->spr.shade++;
-        if (actor->spr.xrepeat < 4) actor->spr.xrepeat = 4;
+		if (actor->spr.scale.X < 0.0625) actor->spr.scale.X = (0.0625);
         if (actor->spr.shade > 126)
         {
             actor->spr.shade = 127;
@@ -883,14 +882,14 @@ int DoCoolgMove(DSWActor* actor)
     else if (actor->user.FlagOwner-1 == 2)
     {
         actor->spr.hitag = 0;
-        actor->spr.xrepeat++;
+        actor->spr.scale.X += (REPEAT_SCALE);
         actor->spr.shade--;
-        if (actor->spr.xrepeat > 42) actor->spr.xrepeat = 42;
+        if (actor->spr.scale.X > 0.65625) actor->spr.scale.X = (0.65625);
         if (actor->spr.shade < -10) actor->spr.shade = -10;
     }
     else if (actor->user.FlagOwner == 0)
     {
-        actor->spr.xrepeat = 42;
+        actor->spr.scale.X = (0.65625);
         actor->spr.shade = -10;
         actor->spr.hitag = 0;
     }

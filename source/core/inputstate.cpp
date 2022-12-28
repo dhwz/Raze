@@ -50,6 +50,7 @@ ESyncBits ActionsToSend = 0;
 static int dpad_lock = 0;
 bool sendPause;
 bool crouch_toggle;
+double inputScale;
 
 // Mouse speeds
 CVAR(Float, m_pitch, 1.f, CVAR_GLOBALCONFIG | CVAR_ARCHIVE)
@@ -67,8 +68,10 @@ CVARD(Bool, invertmouse, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG, "invert vertic
 
 void InputState::GetMouseDelta(ControlInfo * hidInput)
 {
-	hidInput->mouseturnx = g_mousePos.X * m_yaw * backendinputscale();
-	hidInput->mouseturny = g_mousePos.Y * m_pitch * backendinputscale();
+	g_mousePos *= backendinputscale();
+
+	hidInput->mouseturnx = g_mousePos.X * m_yaw;
+	hidInput->mouseturny = g_mousePos.Y * m_pitch;
 	hidInput->mousemovex = g_mousePos.X * m_side;
 	hidInput->mousemovey = g_mousePos.Y * m_forward;
 
@@ -84,7 +87,7 @@ void InputState::GetMouseDelta(ControlInfo * hidInput)
 		hidInput->mousemovey = -hidInput->mousemovey;
 	}
 
-	g_mousePos = {};
+	g_mousePos.Zero();
 }
 
 //==========================================================================
@@ -278,6 +281,7 @@ CCMD(slot)
 	if (argv.argc() != 2)
 	{
 		Printf("slot <weaponslot>: select a weapon from the given slot (1-%d)", max);
+		return;
 	}
 
 	auto slot = atoi(argv[1]);
@@ -308,6 +312,7 @@ CCMD(useitem)
 	if (argv.argc() != 2)
 	{
 		Printf("useitem <itemnum>: activates an inventory item (1-%d)", max);
+		return;
 	}
 
 	auto slot = atoi(argv[1]);
@@ -347,11 +352,6 @@ CCMD(holsterweapon)
 	ActionsToSend |= SB_HOLSTER;
 }
 
-CCMD(backoff)
-{
-	ActionsToSend |= SB_ESCAPE;
-}
-
 CCMD(pause)
 {
 	sendPause = true;
@@ -387,7 +387,7 @@ CCMD(warptocoords)
 		horiz = atoi(argv[5]);
 	}
 
-	gi->WarpToCoords(x, y, z, DAngle::fromDeg(ang), horiz);
+	gi->WarpToCoords(x, y, z, DAngle::fromDeg(ang));
 }
 
 CCMD(third_person_view)
@@ -483,5 +483,6 @@ void ApplyGlobalInput(InputPacket& input, ControlInfo* hidInput, bool const crou
 
 	if (buttonMap.ButtonDown(gamefunc_Look_Right)) 
 		input.actions |= SB_LOOK_RIGHT;
+
 }
 

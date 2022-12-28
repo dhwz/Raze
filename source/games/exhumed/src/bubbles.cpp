@@ -25,6 +25,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_PS_NS
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void DestroyBubble(DExhumedActor* pActor)
 {
     runlist_DoSubRunRec(pActor->spr.lotag - 1); 
@@ -32,6 +38,12 @@ void DestroyBubble(DExhumedActor* pActor)
     runlist_SubRunRec(pActor->nRun);
     DeleteActor(pActor);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 DExhumedActor* BuildBubble(const DVector3& pos, sectortype* pSector)
 {
@@ -46,13 +58,12 @@ DExhumedActor* BuildBubble(const DVector3& pos, sectortype* pSector)
     pActor->spr.cstat = 0;
     pActor->spr.shade = -32;
     pActor->spr.pal = 0;
-    pActor->set_const_clipdist(5);
-    pActor->spr.xrepeat = 40;
-    pActor->spr.yrepeat = 40;
+	pActor->clipdist = 1.25;
+    pActor->spr.scale = DVector2(0.625, 0.625);
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
     pActor->spr.picnum = 1;
-    pActor->spr.angle = inita;
+    pActor->spr.Angles.Yaw = inita;
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
     pActor->vel.Z = -1200 / 256.;
@@ -72,7 +83,13 @@ DExhumedActor* BuildBubble(const DVector3& pos, sectortype* pSector)
     return pActor;
 }
 
-void AIBubble::Tick(RunListEvent* ev) 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+void AIBubble::Tick(RunListEvent* ev)
 {
     auto pActor = ev->pObjActor;
     if (!pActor) return;
@@ -96,12 +113,18 @@ void AIBubble::Tick(RunListEvent* ev)
         auto pSectAbove = pSector->pAbove;
 
         if (pActor->spr.hitag > -1 && pSectAbove != nullptr) {
-            BuildAnim(nullptr, 70, 0, DVector3(pActor->spr.pos.XY(), pSectAbove->floorz), pSectAbove, 64, 0);
+            BuildAnim(nullptr, 70, 0, DVector3(pActor->spr.pos.XY(), pSectAbove->floorz), pSectAbove, 1., 0);
         }
 
         DestroyBubble(pActor);
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIBubble::Draw(RunListEvent* ev)
 {
@@ -112,6 +135,12 @@ void AIBubble::Draw(RunListEvent* ev)
     ev->pTSprite->ownerActor = nullptr;
 }
 
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void DoBubbleMachines()
 {
@@ -129,6 +158,12 @@ void DoBubbleMachines()
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void BuildBubbleMachine(DExhumedActor* pActor)
 {
     pActor->nFrame = 75;
@@ -137,6 +172,12 @@ void BuildBubbleMachine(DExhumedActor* pActor)
     pActor->spr.cstat = CSTAT_SPRITE_INVISIBLE;
     ChangeActorStat(pActor, kStatBubbleMachine);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void DoBubbles(int nPlayer)
 {

@@ -88,7 +88,7 @@ struct MIRROR
 	int type;
 	int link;
 	DVector3 diff;
-	int wallnum;
+	int mynum;
 };
 
 extern MIRROR mirror[16];
@@ -120,7 +120,6 @@ struct GameInterface : public ::GameInterface
 	void MenuClosed() override;
 	bool CanSave() override;
 	std::pair<DVector3, DAngle> GetCoordinates() override;
-	ReservedSpace GetReservedScreenSpace(int viewsize) override;
 	void UpdateSounds() override;
 	void GetInput(ControlInfo* const hidInput, double const scaleAdjust, InputPacket* packet = nullptr) override;
 	void Ticker() override;
@@ -132,23 +131,22 @@ struct GameInterface : public ::GameInterface
 	void NextLevel(MapRecord* map, int skill) override;
 	void LevelCompleted(MapRecord* map, int skill) override;
 	bool DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac) override;
-	void SetTileProps(int til, int surf, int vox, int shade) override;
-	fixed_t playerHorizMin() override { return IntToFixed(-180); }
-	fixed_t playerHorizMax() override { return IntToFixed(120); }
-	int playerKeyMove() override { return 1024; }
-	void WarpToCoords(double x, double y, double z, DAngle a, int h) override;
+	DAngle playerPitchMin() override { return DAngle::fromDeg(54.575); }
+	DAngle playerPitchMax() override { return DAngle::fromDeg(-43.15); }
+	void WarpToCoords(double x, double y, double z, DAngle a) override;
 	void ToggleThirdPerson() override;
 	void SwitchCoopView() override;
 	void ToggleShowWeapon() override;
-	DVector3 chaseCamPos(DAngle ang, fixedhoriz horiz) { return DVector3(-ang.ToVector() * 80., horiz.asbuildf() * 0.625 - 16); }
-	void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double interpfrac) override;
+	void processSprites(tspriteArray& tsprites, const DVector3& view, DAngle viewang, double interpfrac) override;
 	void EnterPortal(DCoreActor* viewer, int type) override;
 	void LeavePortal(DCoreActor* viewer, int type) override;
-	void LoadGameTextures() override;
+	void LoadTextureInfo(TilesetBuildInfo& info) override;
+	void SetupSpecialTextures(TilesetBuildInfo&) override;
 	int GetCurrentSkill() override;
 	bool IsQAVInterpTypeValid(const FString& type) override;
 	void AddQAVInterpProps(const int res_id, const FString& interptype, const bool loopable, const TMap<int, TArray<int>>&& ignoredata) override;
 	void RemoveQAVInterpProps(const int res_id) override;
+	void StartSoundEngine() override;
 
 	GameStats getStats() override;
 };

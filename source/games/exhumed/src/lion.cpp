@@ -52,19 +52,18 @@ void BuildLion(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, 
     {
         ChangeActorStat(pActor, 104);
         pActor->spr.pos.Z = pActor->sector()->floorz;
-        nAngle = pActor->spr.angle;
+        nAngle = pActor->spr.Angles.Yaw;
     }
 
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
-    pActor->set_const_clipdist(60);
+	pActor->clipdist = 15;
     pActor->spr.shade = -12;
-    pActor->spr.xrepeat = 40;
-    pActor->spr.yrepeat = 40;
+    pActor->spr.scale = DVector2(0.625, 0.625);
     pActor->spr.picnum = 1;
     pActor->spr.pal = pActor->sector()->ceilingpal;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->spr.angle = nAngle;
+    pActor->spr.Angles.Yaw = nAngle;
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
     pActor->vel.Z = 0;
@@ -168,7 +167,7 @@ void AILion::Damage(RunListEvent* ev)
                         PlotCourseToSprite(pActor, pTarget);
                         pActor->nAction = 5;
                         pActor->nCount = RandomSize(3);
-                        pActor->set_int_ang((pActor->int_ang() - (RandomSize(1) << 8)) + (RandomSize(1) << 8)); // NOTE: no angle mask in original code
+                        pActor->spr.Angles.Yaw += mapangle((- (RandomSize(1) << 8)) + (RandomSize(1) << 8)); // NOTE: no angle mask in original code
                     }
                     else
                     {
@@ -250,7 +249,7 @@ void AILion::Tick(RunListEvent* ev)
             {
                 if (RandomBit())
                 {
-                    pActor->set_int_ang(RandomWord() & kAngleMask);
+                    pActor->spr.Angles.Yaw = RandomAngle();
                     pActor->VelFromAngle(-1);
                 }
                 else
@@ -272,22 +271,20 @@ void AILion::Tick(RunListEvent* ev)
         {
             PlotCourseToSprite(pActor, pTarget);
 
-            int nAng = pActor->int_ang() & 0xFFF8;
-
             if (pActor->spr.cstat & CSTAT_SPRITE_INVISIBLE)
             {
-				pActor->vel.XY() = pActor->spr.angle.ToVector() * 2048;
+				pActor->vel.XY() = pActor->spr.Angles.Yaw.ToVector() * 2048;
             }
             else
             {
-				pActor->vel.XY() = pActor->spr.angle.ToVector() * 512;
+				pActor->vel.XY() = pActor->spr.Angles.Yaw.ToVector() * 512;
             }
         }
 
         if (nMov.type == kHitWall)
         {
             // loc_378FA:
-            pActor->spr.angle += DAngle45;
+            pActor->spr.Angles.Yaw += DAngle45;
             pActor->VelFromAngle(-1);
             break;
         }
@@ -304,8 +301,8 @@ void AILion::Tick(RunListEvent* ev)
                 }
                 else
                 {
-					auto nAngDiff = AngleDiff(pActor->spr.angle, VecToAngle(pTarget->spr.pos - pActor->spr.pos));
-					if (nAngDiff < 64)
+                    auto nAngDiff = absangle(pActor->spr.Angles.Yaw, (pTarget->spr.pos - pActor->spr.pos).Angle());
+                    if (nAngDiff < DAngle22_5 / 2)
                     {
                         pActor->nAction = 3;
                     }
@@ -317,7 +314,7 @@ void AILion::Tick(RunListEvent* ev)
             else
             {
                 // loc_378FA:
-                pActor->spr.angle += DAngle45;
+                pActor->spr.Angles.Yaw += DAngle45;
                 pActor->VelFromAngle(-1);
                 break;
             }
@@ -335,7 +332,7 @@ void AILion::Tick(RunListEvent* ev)
         }
         else
         {
-            if (PlotCourseToSprite(pActor, pTarget) >= 768)
+            if (PlotCourseToSprite(pActor, pTarget) >= 48)
             {
                 pActor->nAction = 2;
             }
@@ -375,14 +372,14 @@ void AILion::Tick(RunListEvent* ev)
 
             double nCheckDist = 0x7FFFFFFF;
 
-            int nAngle = pActor->int_ang();
-            int nScanAngle = (nAngle - 512) & kAngleMask;
+            DAngle nAngle = pActor->spr.Angles.Yaw;
+            DAngle nScanAngle = (nAngle - DAngle90).Normalized360();
 
             for (int i = 0; i < 5; i++)
             {
                 HitInfo hit{};
 
-                hitscan(pActor->spr.pos.plusZ(-GetActorHeightF(pActor) * 0.5), pActor->sector(), DVector3(bcos(nScanAngle), bsin(nScanAngle), 0), hit, CLIPMASK1);
+                hitscan(pActor->spr.pos.plusZ(-GetActorHeight(pActor) * 0.5), pActor->sector(), DVector3(nScanAngle.ToVector() * 1024, 0), hit, CLIPMASK1);
 
                 if (hit.hitWall)
                 {
@@ -396,14 +393,13 @@ void AILion::Tick(RunListEvent* ev)
                     }
                 }
 
-                nScanAngle += 256;
-                nScanAngle &= kAngleMask;
+                nScanAngle += DAngle45;
             }
 
-            pActor->set_int_ang(nAngle);
+            pActor->spr.Angles.Yaw = nAngle;
 
             pActor->nAction = 6;
-			pActor->vel.XY() = pActor->spr.angle.ToVector() * (1024 - 128);
+			pActor->vel.XY() = pActor->spr.Angles.Yaw.ToVector() * (1024 - 128);
 			D3PlayFX(StaticSound[kSound24], pActor);
         }
 
@@ -422,7 +418,7 @@ void AILion::Tick(RunListEvent* ev)
         if (nMov.type == kHitWall)
         {
             pActor->nAction = 7;
-            pActor->set_int_ang((GetWallNormal(nMov.hitWall) + 1024) & kAngleMask);
+            pActor->spr.Angles.Yaw = (GetWallNormal(nMov.hitWall) + DAngle180).Normalized360();
             pActor->nCount = RandomSize(4);
             return;
         }
@@ -430,8 +426,8 @@ void AILion::Tick(RunListEvent* ev)
         {
             if (nMov.actor() == pTarget)
             {
-				auto nAngDiff = AngleDiff(pActor->spr.angle, VecToAngle(pTarget->spr.pos - pActor->spr.pos));
-				if (nAngDiff < 64)
+                auto nAngDiff = absangle(pActor->spr.Angles.Yaw, (pTarget->spr.pos - pActor->spr.pos).Angle());
+                if (nAngDiff < DAngle22_5 / 2)
                 {
                     pActor->nAction = 3;
                     pActor->nFrame = 0;
@@ -440,7 +436,7 @@ void AILion::Tick(RunListEvent* ev)
             else
             {
                 // loc_378FA:
-                pActor->spr.angle += DAngle45;
+                pActor->spr.Angles.Yaw += DAngle45;
                 pActor->VelFromAngle(-1);
                 break;
             }
@@ -462,13 +458,13 @@ void AILion::Tick(RunListEvent* ev)
             }
             else
             {
-                pActor->spr.angle += RandomAngle9() + DAngle45 + DAngle90;
+                pActor->spr.Angles.Yaw += RandomAngle9() + DAngle45 + DAngle90;
             }
 
             pActor->vel.Z = -1000 / 256.;
 
             pActor->nAction = 6;
-			pActor->vel.XY() = pActor->spr.angle.ToVector() * (1024 - 128);
+			pActor->vel.XY() = pActor->spr.Angles.Yaw.ToVector() * (1024 - 128);
             D3PlayFX(StaticSound[kSound24], pActor);
         }
 

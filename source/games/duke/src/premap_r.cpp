@@ -37,7 +37,8 @@ BEGIN_DUKE_NS
 
 static inline void tloadtile(int tilenum, int palnum = 0)
 {
-	markTileForPrecache(tilenum, palnum);
+	assert(tilenum < MAXTILES);
+	markTextureForPrecache(tileGetTextureID(tilenum), palnum);
 }
 
 //---------------------------------------------------------------------------
@@ -58,226 +59,223 @@ static void cachespritenum(DDukeActor* actor)
 
 	switch (actor->spr.picnum)
 	{
-	case HYDRENT:
-		tloadtile(BROKEFIREHYDRENT);
-		for (j = TOILETWATER; j < (TOILETWATER + 4); j++)
+	case RTILE_HYDRENT:
+		tloadtile(RTILE_BROKEFIREHYDRENT);
+		for (j = RTILE_TOILETWATER; j < (RTILE_TOILETWATER + 4); j++)
 			tloadtile(j, pal);
 		break;
-	case RRTILE2121:
-	case RRTILE2122:
+	case RTILE_TOILETSEAT:
+	case RTILE_TOILET2:
 		tloadtile(actor->spr.picnum, pal);
 		break;
-	case TOILET:
-		tloadtile(TOILETBROKE);
-		for (j = TOILETWATER; j < (TOILETWATER + 4); j++)
+	case RTILE_TOILET:
+		tloadtile(RTILE_TOILETBROKE);
+		for (j = RTILE_TOILETWATER; j < (RTILE_TOILETWATER + 4); j++)
 			tloadtile(j, pal);
 		break;
-	case STALL:
-		tloadtile(STALLBROKE);
-		for (j = TOILETWATER; j < (TOILETWATER + 4); j++)
+	case RTILE_STALL:
+		tloadtile(RTILE_STALLBROKE);
+		for (j = RTILE_TOILETWATER; j < (RTILE_TOILETWATER + 4); j++)
 			tloadtile(j, pal);
 		break;
-	case FORCERIPPLE:
+	case RTILE_FORCERIPPLE:
 		maxc = 9;
 		break;
-	case RUBBERCAN:
+	case RTILE_RUBBERCAN:
 		maxc = 2;
 		break;
-	case TOILETWATER:
+	case RTILE_TOILETWATER:
 		maxc = 4;
 		break;
-	case BUBBASTAND:
-		for (j = BUBBASCRATCH; j <= (BUBBASCRATCH + 47); j++)
+	case RTILE_BUBBASTAND:
+		for (j = RTILE_BUBBASCRATCH; j <= (RTILE_BUBBASCRATCH + 47); j++)
 			tloadtile(j, pal);
 		maxc = 0;
 		break;
-	case SBSWIPE:
+	case RTILE_SBSWIPE:
 		if (isRRRA())
-			for (j = SBSWIPE; j <= (SBSWIPE + 29); j++)
+			for (j = RTILE_SBSWIPE; j <= (RTILE_SBSWIPE + 29); j++)
 				tloadtile(j, pal);
 		maxc = 0;
 		break;
 
-	case COOT:
-		for (j = COOT; j <= (COOT + 217); j++)
+	case RTILE_COOT:
+		for (j = RTILE_COOT; j <= (RTILE_COOT + 217); j++)
 			tloadtile(j, pal);
-		for (j = COOTJIBA; j < COOTJIBC + 4; j++)
+		for (j = RTILE_COOTJIBA; j < RTILE_COOTJIBC + 4; j++)
 			tloadtile(j, pal);
 		maxc = 0;
 		break;
-	case LTH:
+	case RTILE_LTH:
 		maxc = 105;
-		for (j = LTH; j < (LTH + maxc); j++)
+		for (j = RTILE_LTH; j < (RTILE_LTH + maxc); j++)
 			tloadtile(j, pal);
 		maxc = 0;
 		break;
-	case BILLYRAY:
+	case RTILE_BILLYRAY:
 		maxc = 144;
-		for (j = BILLYWALK; j < (BILLYWALK + maxc); j++)
+		for (j = RTILE_BILLYWALK; j < (RTILE_BILLYWALK + maxc); j++)
 			tloadtile(j, pal);
-		for (j = BILLYJIBA; j <= BILLYJIBB + 4; j++)
+		for (j = RTILE_BILLYJIBA; j <= RTILE_BILLYJIBB + 4; j++)
 			tloadtile(j, pal);
 		maxc = 0;
 		break;
-	case COW:
+	case RTILE_COW:
 		maxc = 56;
 		for (j = actor->spr.picnum; j < (actor->spr.picnum + maxc); j++)
 			tloadtile(j, pal);
 		maxc = 0;
 		break;
-	case DOGRUN:
-		for (j = DOGATTACK; j <= DOGATTACK + 35; j++)
+	case RTILE_DOGRUN:
+		for (j = RTILE_DOGATTACK; j <= RTILE_DOGATTACK + 35; j++)
 			tloadtile(j, pal);
-		for (j = DOGRUN; j <= DOGRUN + 80; j++)
+		for (j = RTILE_DOGRUN; j <= RTILE_DOGRUN + 80; j++)
 			tloadtile(j, pal);
 		maxc = 0;
 		break;
-	case RABBIT:
+	case RTILE_RABBIT:
 		if (isRRRA())
 		{
-			for (j = RABBIT; j <= RABBIT + 54; j++)
+			for (j = RTILE_RABBIT; j <= RTILE_RABBIT + 54; j++)
 				tloadtile(j, pal);
-			for (j = RABBIT + 56; j <= RABBIT + 56 + 49; j++)
+			for (j = RTILE_RABBIT + 56; j <= RTILE_RABBIT + 56 + 49; j++)
 				tloadtile(j, pal);
-			for (j = RABBIT + 56; j <= RABBIT + 56 + 49; j++)
+			for (j = RTILE_RABBIT + 56; j <= RTILE_RABBIT + 56 + 49; j++)
 				tloadtile(j, pal);
 			maxc = 0;
 		}
 		break;
-	case BIKERB:
-	case BIKERBV2:
+	case RTILE_BIKERB:
+	case RTILE_BIKERBV2:
 		if (isRRRA())
 		{
-			for (j = BIKERB; j <= BIKERB + 104; j++)
+			for (j = RTILE_BIKERB; j <= RTILE_BIKERB + 104; j++)
 				tloadtile(j, pal);
 			maxc = 0;
 		}
 		break;
-	case BIKER:
+	case RTILE_BIKER:
 		if (isRRRA())
 		{
-			for (j = BIKER; j <= BIKER + 116; j++)
+			for (j = RTILE_BIKER; j <= RTILE_BIKER + 116; j++)
 				tloadtile(j, pal);
-			for (j = BIKER + 150; j <= BIKER + 150 + 104; j++)
+			for (j = RTILE_BIKER + 150; j <= RTILE_BIKER + 150 + 104; j++)
 				tloadtile(j, pal);
 			maxc = 0;
 		}
 		break;
-	case CHEER:
+	case RTILE_CHEER:
 		if (isRRRA())
 		{
-			for (j = CHEER; j <= CHEER + 44; j++)
+			for (j = RTILE_CHEER; j <= RTILE_CHEER + 44; j++)
 				tloadtile(j, pal);
-			for (j = CHEER + 47; j <= CHEER + 47 + 211; j++)
+			for (j = RTILE_CHEER + 47; j <= RTILE_CHEER + 47 + 211; j++)
 				tloadtile(j, pal);
-			for (j = CHEER + 262; j <= CHEER + 262 + 72; j++)
+			for (j = RTILE_CHEER + 262; j <= RTILE_CHEER + 262 + 72; j++)
 				tloadtile(j, pal);
 			maxc = 0;
 		}
 		break;
-	case CHEERB:
+	case RTILE_CHEERB:
 		if (isRRRA())
 		{
-			for (j = CHEERB; j <= CHEERB + 83; j++)
+			for (j = RTILE_CHEERB; j <= RTILE_CHEERB + 83; j++)
 				tloadtile(j, pal);
-			for (j = CHEERB + 157; j <= CHEERB + 157 + 83; j++)
-				tloadtile(j, pal);
-			maxc = 0;
-		}
-		break;
-	case MAMA:
-		if (isRRRA())
-		{
-			for (j = MAMA; j <= MAMA + 78; j++)
-				tloadtile(j, pal);
-			for (j = MAMA + 80; j <= MAMA + 80 + 7; j++)
-				tloadtile(j, pal);
-			for (j = MAMA + 90; j <= MAMA + 90 + 94; j++)
+			for (j = RTILE_CHEERB + 157; j <= RTILE_CHEERB + 157 + 83; j++)
 				tloadtile(j, pal);
 			maxc = 0;
 		}
 		break;
-	case CHEERBOAT:
+	case RTILE_MAMA:
 		if (isRRRA())
 		{
-			tloadtile(CHEERBOAT);
-			maxc = 0;
-		}
-		break;
-	case HULKBOAT:
-		if (isRRRA())
-		{
-			tloadtile(HULKBOAT);
-			maxc = 0;
-		}
-		break;
-	case MINIONBOAT:
-		if (isRRRA())
-		{
-			tloadtile(MINIONBOAT);
-			maxc = 0;
-		}
-		break;
-	case BILLYPLAY:
-		if (isRRRA())
-		{
-			for (j = BILLYPLAY; j <= BILLYPLAY + 2; j++)
+			for (j = RTILE_MAMA; j <= RTILE_MAMA + 78; j++)
+				tloadtile(j, pal);
+			for (j = RTILE_MAMA + 80; j <= RTILE_MAMA + 80 + 7; j++)
+				tloadtile(j, pal);
+			for (j = RTILE_MAMA + 90; j <= RTILE_MAMA + 90 + 94; j++)
 				tloadtile(j, pal);
 			maxc = 0;
 		}
 		break;
-	case COOTPLAY:
+	case RTILE_CHEERBOAT:
 		if (isRRRA())
 		{
-			for (j = COOTPLAY; j <= COOTPLAY + 4; j++)
+			tloadtile(RTILE_CHEERBOAT);
+			maxc = 0;
+		}
+		break;
+	case RTILE_HULKBOAT:
+		if (isRRRA())
+		{
+			tloadtile(RTILE_HULKBOAT);
+			maxc = 0;
+		}
+		break;
+	case RTILE_MINIONBOAT:
+		if (isRRRA())
+		{
+			tloadtile(RTILE_MINIONBOAT);
+			maxc = 0;
+		}
+		break;
+	case RTILE_BILLYPLAY:
+		if (isRRRA())
+		{
+			for (j = RTILE_BILLYPLAY; j <= RTILE_BILLYPLAY + 2; j++)
 				tloadtile(j, pal);
 			maxc = 0;
 		}
 		break;
-	case PIG:
-	case PIGSTAYPUT:
+	case RTILE_COOTPLAY:
+		if (isRRRA())
+		{
+			for (j = RTILE_COOTPLAY; j <= RTILE_COOTPLAY + 4; j++)
+				tloadtile(j, pal);
+			maxc = 0;
+		}
+		break;
+	case RTILE_PIG:
+	case RTILE_PIGSTAYPUT:
 		maxc = 68;
 		break;
-	case TORNADO:
+	case RTILE_TORNADO:
 		maxc = 7;
 		break;
-	case HEN:
-	case HENSTAND:
+	case RTILE_HEN:
+	case RTILE_HENSTAND:
 		maxc = 34;
 		break;
-	case APLAYER:
+	case RTILE_APLAYER:
 		maxc = 0;
 		if (ud.multimode > 1)
 		{
 			maxc = 5;
-			for (j = APLAYER; j < APLAYER + 220; j++)
+			for (j = RTILE_APLAYER; j < RTILE_APLAYER + 220; j++)
 				tloadtile(j, pal);
-			for (j = DUKEGUN; j < DUKELEG + 4; j++)
+			for (j = RTILE_DUKEGUN; j < RTILE_DUKELEG + 4; j++)
 				tloadtile(j, pal);
 		}
 		break;
-	case ATOMICHEALTH:
+	case RTILE_ATOMICHEALTH:
 		maxc = 14;
 		break;
-	case DRONE:
+	case RTILE_DRONE:
 		maxc = 6;
 		break;
-	case EXPLODINGBARREL:
-	case SEENINE:
-	case OOZFILTER:
+	case RTILE_EXPLODINGBARREL:
 		maxc = 3;
 		break;
-	case NUKEBARREL:
-	case CAMERA1:
+	case RTILE_NUKEBARREL:
 		maxc = 5;
 		break;
-	case VIXEN:
+	case RTILE_VIXEN:
 		maxc = 214;
 		for (j = actor->spr.picnum; j < actor->spr.picnum + maxc; j++)
 			tloadtile(j, pal);
 		maxc = 0;
 		break;
-	case SBMOVE:
+	case RTILE_SBMOVE:
 		if (!isRRRA())
 		{
 
@@ -285,24 +283,24 @@ static void cachespritenum(DDukeActor* actor)
 			for (j = actor->spr.picnum; j < actor->spr.picnum + maxc; j++)
 				tloadtile(j, pal);
 			maxc = 100;
-			for (j = SBMOVE; j < SBMOVE + maxc; j++)
+			for (j = RTILE_SBMOVE; j < RTILE_SBMOVE + maxc; j++)
 				tloadtile(j, pal);
 			maxc = 0;
 		}
 		break;
-	case HULK:
+	case RTILE_HULK:
 		maxc = 40;
 		for (j = actor->spr.picnum - 41; j < actor->spr.picnum + maxc - 41; j++)
 			tloadtile(j, pal);
-		for (j = HULKJIBA; j <= HULKJIBC + 4; j++)
+		for (j = RTILE_HULKJIBA; j <= RTILE_HULKJIBC + 4; j++)
 			tloadtile(j, pal);
 		maxc = 0;
 		break;
-	case MINION:
+	case RTILE_MINION:
 		maxc = 141;
 		for (j = actor->spr.picnum; j < actor->spr.picnum + maxc; j++)
 			tloadtile(j, pal);
-		for (j = MINJIBA; j <= MINJIBC + 4; j++)
+		for (j = RTILE_MINJIBA; j <= RTILE_MINJIBC + 4; j++)
 			tloadtile(j, pal);
 		maxc = 0;
 		break;
@@ -324,38 +322,38 @@ static void cachegoodsprites(void)
 {
 	int i;
 
-	tloadtile(BOTTOMSTATUSBAR);
+	tloadtile(RTILE_BOTTOMSTATUSBAR);
 	if (ud.multimode > 1)
 	{
-		tloadtile(FRAGBAR);
+		tloadtile(RTILE_FRAGBAR);
 	}
 
-	for (i = FOOTPRINTS; i < FOOTPRINTS + 3; i++)
+	for (i = RTILE_FOOTPRINTS; i < RTILE_FOOTPRINTS + 3; i++)
 		tloadtile(i);
 
-	for (i = BURNING; i < BURNING + 14; i++)
+	for (i = RTILE_BURNING; i < RTILE_BURNING + 14; i++)
 		tloadtile(i);
 
-	for (i = FIRSTGUN; i < FIRSTGUN + 10; i++)
+	for (i = RTILE_FIRSTGUN; i < RTILE_FIRSTGUN + 10; i++)
 		tloadtile(i);
 
-	for (i = EXPLOSION2; i < EXPLOSION2 + 21; i++)
+	for (i = RTILE_EXPLOSION2; i < RTILE_EXPLOSION2 + 21; i++)
 		tloadtile(i);
 
-	tloadtile(BULLETHOLE);
+	tloadtile(RTILE_BULLETHOLE);
 
-	for (i = SHOTGUN; i < SHOTGUN + 8; i++)
+	for (i = RTILE_SHOTGUN; i < RTILE_SHOTGUN + 8; i++)
 		tloadtile(i);
 
-	tloadtile(FOOTPRINTS);
+	tloadtile(RTILE_FOOTPRINTS);
 
-	for (i = JIBS1; i < (JIBS5 + 5); i++)
+	for (i = RTILE_JIBS1; i < (RTILE_JIBS5 + 5); i++)
 		tloadtile(i);
 
-	for (i = SCRAP1; i < (SCRAP1 + 19); i++)
+	for (i = RTILE_SCRAP1; i < (RTILE_SCRAP1 + 19); i++)
 		tloadtile(i);
 
-	for (i = SMALLSMOKE; i < (SMALLSMOKE + 4); i++)
+	for (i = RTILE_SMALLSMOKE; i < (RTILE_SMALLSMOKE + 4); i++)
 		tloadtile(i);
 
 }
@@ -368,30 +366,14 @@ static void cachegoodsprites(void)
 
 void cacheit_r(void)
 {
-	if (!r_precache) return;
-
 	cachegoodsprites();
 
-	for (auto& wal : wall)
+	DukeSpriteIterator it;
+	while (auto act = it.Next())
 	{
-			tloadtile(wal.picnum, wal.pal);
-		if(wal.overpicnum >= 0)
-			tloadtile(wal.overpicnum, wal.pal);
+		if (act->spr.scale.X != 0 && act->spr.scale.Y != 0 && (act->spr.cstat & CSTAT_SPRITE_INVISIBLE) == 0)
+			cachespritenum(act);
 	}
-
-	for (auto& sect: sector)
-	{
-		tloadtile(sect.floorpicnum, sect.floorpal);
-		tloadtile(sect.ceilingpicnum, sect.ceilingpal);
-
-		DukeSectIterator it(&sect);
-		while (auto act = it.Next())
-		{
-			if(act->spr.xrepeat != 0 && act->spr.yrepeat != 0 && (act->spr.cstat & CSTAT_SPRITE_INVISIBLE) == 0)
-					cachespritenum(act);
-		}
-	}
-	precacheMarkedTiles();
 }
 
 //---------------------------------------------------------------------------
@@ -402,6 +384,7 @@ void cacheit_r(void)
 
 void spriteinit_r(DDukeActor* actor, TArray<DDukeActor*>& actors)
 {
+	actor->mapSpawned = true;
 	bool res = initspriteforspawn(actor);
 	if (res) spawninit_r(nullptr, actor, &actors);
 }
@@ -412,7 +395,7 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 	int i;
 	int j;
 	int lotaglist;
-	short lotags[65];
+	TArray<short> lotags;
 	int speed = 0;
 	int dist;
 	int sound;
@@ -432,7 +415,7 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 			if (actor->spr.pal == 100)
 			{
 				if (numplayers > 1)
-					deletesprite(actor);
+					actor->Destroy();
 				else
 					actor->spr.pal = 0;
 			}
@@ -441,7 +424,7 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 				actor->spr.extra = 0;
 				actor->spr.hitag = 1;
 				actor->spr.pal = 0;
-				ChangeActorStat(actor, 118);
+				ChangeActorStat(actor, STAT_BOBBING);
 			}
 		}
 	}
@@ -449,8 +432,6 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 	for (auto&sect: sector)
 	{
 		auto sectp = &sect;
-		if (sectp->ceilingpicnum == RRTHUNDERSKY)
-			thunderon = 1;
 
 		switch (sectp->lotag)
 		{
@@ -460,22 +441,22 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 			dist = 0;
 			while (auto act = it.Next())
 			{
-				if (act->spr.picnum == RRJAILDOOR)
+				if (act->GetClass()->TypeName == NAME_RedneckJaildoorDef)
 				{
 					dist = act->spr.lotag;
 					speed = act->spr.hitag;
-					deletesprite(act);
+					act->Destroy();
 				}
-				if (act->spr.picnum == RRJAILDOORSOUND)
+				if (act->GetClass()->TypeName == NAME_RedneckJaildoorSound)
 				{
 					sound = act->spr.lotag;
-					deletesprite(act);
+					act->Destroy();
 				}
 			}
 			if (dist == 0)
 			{
 				// Oh no, we got an incomplete definition.
-				if (sectnum(sectp) == 534 && currentLevel->levelNumber == 2007) // fix for bug in RR E2L7 Beaudry Mansion.
+				if (sectindex(sectp) == 534 && currentLevel->levelNumber == 2007) // fix for bug in RR E2L7 Beaudry Mansion.
 				{
 					dist = 48;
 					speed = 32;
@@ -500,26 +481,26 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 			DukeSectIterator it(sectp);
 			while (auto act = it.Next())
 			{
-				if (act->spr.picnum == RRMINECART)
+				if (act->GetClass()->TypeName == NAME_RedneckMinecartDef)
 				{
 					dist = act->spr.lotag;
 					speed = act->spr.hitag;
 					DukeSpriteIterator itt;
 					while(auto act1 = itt.Next())
 					{
-						if (act1->spr.picnum == RRMINECARTINNER)
+						if (act1->GetClass()->TypeName == NAME_RedneckMinecartInner)
 							if (act1->spr.lotag == act->sectno()) // bad map format design... Should have used a tag instead...
 							{
 								childsectnum = act1->sector();
-								deletesprite(act1);
+								act1->Destroy();
 							}
 					}
-					deletesprite(act);
+					act->Destroy();
 				}
-				if (act->spr.picnum == RRMINECARTSOUND)
+				if (act->GetClass()->TypeName == NAME_RedneckMinecartSound)
 				{
 					sound = act->spr.lotag;
-					deletesprite(act);
+					act->Destroy();
 				}
 			}
 			addminecart(dist, speed, sectp, sectp->hitag, sound, childsectnum);
@@ -535,58 +516,22 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 
 		if (ac->spr.lotag == -1 && (ac->spr.cstat & CSTAT_SPRITE_ALIGNMENT_WALL))
 		{
-			ps[0].exit.X = ac->int_pos().X;
-			ps[0].exit.Y = ac->int_pos().Y;
+			ps[0].Exit = ac->spr.pos.XY();
 		}
-		else switch (ac->spr.picnum)
+		else if (ac->spr.picnum == RTILE_CHICKENPLANTBUTTON)
 		{
-		default:
+			ud.chickenplant = 1;
+		}
+		else
+		{
 			premapcontroller(ac);
-			break;
-			
-		case NUKEBUTTON:
-			chickenplant = 1;
-			break;
-
-		case RRTILE18:
-			addtorch(ac);
-			deletesprite(ac);
-			break;
-
-		case RRTILE35:
-			addlightning(ac);
-			deletesprite(ac);
-			break;
-
-		case RRTILE68:
-			ac->sector()->shadedsector = 1;
-			deletesprite(ac);
-			break;
-
-		case RRTILE67:
-			ac->spr.cstat |= CSTAT_SPRITE_INVISIBLE;
-			break;
-
-		case SOUNDFX:
-			if (ambientfx >= 64)
-				I_Error("Too many ambient effects");
-			else
-			{
-				ambienthitag[ambientfx] = ac->spr.hitag;
-				ambientlotag[ambientfx] = ac->spr.lotag;
-				ac->spr.detail = ambientfx;
-				ambientfx++;
-				ac->spr.lotag = 0;
-				ac->spr.hitag = 0;
-			}
-			break;
 		}
 	}
 
 	for (auto actor : actors)
 	{
 		if (!actor->exists()) continue;
-		if (actor->spr.picnum == RRTILE19)
+		if (actor->GetClass()->TypeName == NAME_RedneckGeometryEffect)
 		{
 			if (geocnt > 64)
 				I_Error("Too many geometry effects");
@@ -595,7 +540,7 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 				geosector[geocnt] = actor->sector();
 				for (auto actor2 : actors)
 				{
-					if (actor->spr.lotag == actor2->spr.lotag && actor2 != actor && actor2->spr.picnum == RRTILE19)
+					if (actor && actor->spr.lotag == actor2->spr.lotag && actor2 != actor && actor2->GetClass() == actor->GetClass())
 					{
 						if (actor2->spr.hitag == 1)
 						{
@@ -622,7 +567,7 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 	{
 		if (actor->exists())
 		{
-			if (actor->spr.picnum == SECTOREFFECTOR && actor->spr.lotag == SE_14_SUBWAY_CAR)
+			if (iseffector(actor) && actor->spr.lotag == SE_14_SUBWAY_CAR)
 				continue;
 			spriteinit_r(actor, actors);
 		}
@@ -632,14 +577,14 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 	{
 		if (actor->exists())
 		{
-			if (actor->spr.picnum == SECTOREFFECTOR && actor->spr.lotag == SE_14_SUBWAY_CAR)
+			if (iseffector(actor) && actor->spr.lotag == SE_14_SUBWAY_CAR)
 				spriteinit_r(actor, actors);
-			if (actor->spr.picnum == RRTILE19)
-				deletesprite(actor);
-			if (actor->spr.picnum == RRTILE34)
+			if (actor->GetClass()->TypeName == NAME_RedneckGeometryEffect)
+				actor->Destroy();
+			if (actor->GetClass()->TypeName == NAME_RedneckKeyinfoSetter)
 			{
 				actor->sector()->keyinfo = uint8_t(actor->spr.lotag);
-				deletesprite(actor);
+				actor->Destroy();
 			}
 		}
 	}
@@ -651,40 +596,33 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 	{
 		switch (ac->spr.picnum)
 		{
-		case RRTILE8464 + 1:
+		case RTILE_IRONWHEELSWITCHON:
 			if (!isRRRA()) break;
 			[[fallthrough]];
-		case DIPSWITCH + 1:
-		case DIPSWITCH2 + 1:
-		case PULLSWITCH + 1:
-		case HANDSWITCH + 1:
-		case SLOTDOOR + 1:
-		case LIGHTSWITCH + 1:
-		case SPACELIGHTSWITCH + 1:
-		case SPACEDOORSWITCH + 1:
-		case FRANKENSTINESWITCH + 1:
-		case LIGHTSWITCH2 + 1:
-		case POWERSWITCH1 + 1:
-		case LOCKSWITCH1 + 1:
-		case POWERSWITCH2 + 1:
-		case NUKEBUTTON:
-		case NUKEBUTTON + 1:
+		case RTILE_DIPSWITCHON:
+		case RTILE_DIPSWITCH2ON:
+		case RTILE_PULLSWITCHON:
+		case RTILE_HANDSWITCHON:
+		case RTILE_SLOTDOORON:
+		case RTILE_LIGHTSWITCHON:
+		case RTILE_SPACELIGHTSWITCHON:
+		case RTILE_SPACEDOORSWITCHON:
+		case RTILE_FRANKENSTINESWITCHON:
+		case RTILE_LIGHTSWITCH2ON:
+		case RTILE_POWERSWITCH1ON:
+		case RTILE_LOCKSWITCH1ON:
+		case RTILE_POWERSWITCH2ON:
+		case RTILE_CHICKENPLANTBUTTON:
+		case RTILE_CHICKENPLANTBUTTONON:
 
-			for (j = 0; j < lotaglist; j++)
-				if (ac->spr.lotag == lotags[j])
-					break;
-
-			if (j == lotaglist)
+			j = lotags.Find(ac->spr.lotag);
+			if (j == lotags.Size()) 
 			{
-				lotags[lotaglist] = ac->spr.lotag;
-				lotaglist++;
-				if (lotaglist > 64)
-					I_Error("Too many switches (64 max).");
-
+				lotags.Push(ac->spr.lotag);
 				DukeStatIterator it1(STAT_EFFECTOR);
 				while (auto actj = it1.Next())
 				{
-					if (actj->spr.lotag == 12 && actj->spr.hitag == ac->spr.lotag)
+					if (actj->spr.lotag == SE_12_LIGHT_SWITCH && actj->spr.hitag == ac->spr.lotag)
 						actj->temp_data[0] = 1;
 				}
 			}
@@ -694,22 +632,19 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 
 	mirrorcnt = 0;
 
-	for (auto& wl : wall)
+	for (auto& wal : wall)
 	{
-		walltype* wal = &wl;
-
-
-		if (wal->overpicnum == MIRROR && (wal->cstat & CSTAT_WALL_1WAY) != 0)
+		if (wal.overtexture() == mirrortex && (wal.cstat & CSTAT_WALL_1WAY) != 0)
 		{
-			auto sectp = wal->nextSector();
+			auto sectp = wal.nextSector();
 
 			if (mirrorcnt > 63)
 				I_Error("Too many mirrors (64 max.)");
-			if (sectp && sectp->ceilingpicnum != MIRROR)
+			if (sectp && sectp->ceilingtexture != mirrortex)
 			{
-				sectp->ceilingpicnum = MIRROR;
-				sectp->floorpicnum = MIRROR;
-				mirrorwall[mirrorcnt] = wal;
+				sectp->setceilingtexture(mirrortex);
+				sectp->setfloortexture(mirrortex);
+				mirrorwall[mirrorcnt] = &wal;
 				mirrorsector[mirrorcnt] = sectp;
 				mirrorcnt++;
 				continue;
@@ -722,29 +657,29 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 		animwall[numanimwalls].tag = 0;
 		animwall[numanimwalls].wall = nullptr;
 
-		switch (wal->overpicnum)
+		switch (wal.overpicnum)
 		{
-		case FANSPRITE:
+		case RTILE_FANSPRITE:
 			//wal.cstat |= CSTAT_WALL_BLOCK | CSTAT_WALL_BLOCK_HITSCAN; Original code assigned this to 'wall', i.e. wall[0]
-			animwall[numanimwalls].wall = wal;
+			animwall[numanimwalls].wall = &wal;
 			numanimwalls++;
 			break;
-		case BIGFORCE:
-			animwall[numanimwalls].wall = wal;
+		case RTILE_BIGFORCE:
+			animwall[numanimwalls].wall = &wal;
 			numanimwalls++;
 			continue;
 		}
 
-		wal->extra = -1;
+		wal.extra = -1;
 
-		switch (wal->picnum)
+		switch (wal.wallpicnum)
 		{
-		case SCREENBREAK6:
-		case SCREENBREAK7:
-		case SCREENBREAK8:
-			for (j = SCREENBREAK6; j <= SCREENBREAK8; j++)
+		case RTILE_SCREENBREAK6:
+		case RTILE_SCREENBREAK7:
+		case RTILE_SCREENBREAK8:
+			for (j = RTILE_SCREENBREAK6; j <= RTILE_SCREENBREAK8; j++)
 				tloadtile(j);
-			animwall[numanimwalls].wall = wal;
+			animwall[numanimwalls].wall = &wal;
 			animwall[numanimwalls].tag = -1;
 			numanimwalls++;
 			break;
@@ -754,10 +689,10 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 	//Invalidate textures in sector behind mirror
 	for (i = 0; i < mirrorcnt; i++)
 	{
-		for (auto& mwal : wallsofsector(mirrorsector[i]))
+		for (auto& wal : mirrorsector[i]->walls)
 		{
-			mwal.picnum = MIRROR;
-			mwal.overpicnum = MIRROR;
+			wal.setwalltexture(mirrortex);
+			wal.setovertexture(mirrortex);
 		}
 	}
 	thunder_brightness = 0;

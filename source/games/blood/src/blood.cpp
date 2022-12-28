@@ -48,6 +48,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "texturemanager.h"
 #include "statusbar.h"
 #include "vm.h"
+#include "tilesetbuilder.h"
+#include "nnexts.h"
 
 BEGIN_BLD_NS
 
@@ -73,6 +75,9 @@ IMPLEMENT_POINTERS_END
 //
 //
 //---------------------------------------------------------------------------
+void MarkSprInSect();
+void MarkSeq();
+
 
 size_t DBloodActor::PropagateMark()
 {
@@ -90,6 +95,7 @@ static void markgcroots()
 	GC::MarkArray(gSightSpritesList, gSightSpritesCount);
 	GC::MarkArray(gPhysSpritesList, gPhysSpritesCount);
 	GC::MarkArray(gImpactSpritesList, gImpactSpritesCount);
+	MarkSprInSect();
 	for (auto& pl : gPlayer)
 	{
 		GC::Mark(pl.actor);
@@ -99,6 +105,15 @@ static void markgcroots()
 		GC::Mark(pl.fragger);
 		GC::Mark(pl.voodooTarget);
 	}
+	for (auto& evobj : rxBucket)
+	{
+		evobj.Mark();
+	}
+	for (auto& cond : gConditions)
+	{
+		for (auto& obj : cond.objects) obj.obj.Mark();
+	}
+	MarkSeq();
 }
 
 
@@ -157,7 +172,7 @@ TArray<DBloodActor*> SpawnActors(BloodSpawnSpriteDef& sprites)
 		auto actor = InsertSprite(sprt->sectp, sprt->statnum);
 		spawns[j++] = actor;
 		actor->time = i;
-		actor->spr = sprites.sprites[i];
+		actor->initFromSprite(&sprites.sprites[i]);
 		if (sprites.sprext.Size()) actor->sprext = sprites.sprext[i];
 		else actor->sprext = {};
 		actor->spsmooth = {};
@@ -249,10 +264,9 @@ void StartLevel(MapRecord* level, bool newgame)
 #endif
 	//drawLoadingScreen();
 	BloodSpawnSpriteDef sprites;
-	int startsectno;
 	DVector3 startpos;
-	dbLoadMap(currentLevel->fileName, startpos, &startang, &startsectno, nullptr, sprites);
-	startsector = &sector[startsectno];
+	dbLoadMap(currentLevel->fileName, startpos, &startang, &startsector, nullptr, sprites);
+	auto startangle = mapangle(startang);
 	SECRET_SetMapName(currentLevel->DisplayName(), currentLevel->name);
 	STAT_NewLevel(currentLevel->fileName);
 	TITLE_InformName(currentLevel->name);
@@ -290,22 +304,22 @@ void StartLevel(MapRecord* level, bool newgame)
 		Printf(PRINT_NONOTIFY, "> Modern types erased: %d.\n", modernTypesErased);
 #endif
 
-	startpos.Z = getflorzofslopeptrf(startsector, startpos.X, startpos.Y);
+	startpos.Z = getflorzofslopeptr(startsector, startpos.X, startpos.Y);
 	for (int i = 0; i < kMaxPlayers; i++) {
 		gStartZone[i].pos = startpos;
 		gStartZone[i].sector = startsector;
-		gStartZone[i].ang = startang;
+		gStartZone[i].angle = startangle;
 
 #ifdef NOONE_EXTENSIONS
 		// Create spawn zones for players in teams mode.
 		if (gModernMap && i <= kMaxPlayers / 2) {
 			gStartZoneTeam1[i].pos = startpos;
 			gStartZoneTeam1[i].sector = startsector;
-			gStartZoneTeam1[i].ang = startang;
+			gStartZoneTeam1[i].angle = startangle;
 
 			gStartZoneTeam2[i].pos = startpos;
 			gStartZoneTeam2[i].sector = startsector;
-			gStartZoneTeam2[i].ang = startang;
+			gStartZoneTeam2[i].angle = startangle;
 		}
 #endif
 	}
@@ -343,7 +357,7 @@ void StartLevel(MapRecord* level, bool newgame)
 	PreloadCache();
 	InitMirrors();
 	trInit(actorlist);
-	if (!gMe->packSlots[1].isActive) // if diving suit is not active, turn off reverb sound effect
+	if (!gPlayer[myconnectindex].packSlots[1].isActive) // if diving suit is not active, turn off reverb sound effect
 		sfxSetReverb(0);
 	ambInit();
 	Net_ClearFifo();
@@ -422,9 +436,14 @@ void GameInterface::Ticker()
 		thinktime.Clock();
 		for (int i = connecthead; i >= 0; i = connectpoint2[i])
 		{
+			// this must be done before the view is backed up.
+			gPlayer[i].Angles.resetRenderAngles();
+
 			viewBackupView(i);
 			playerProcess(&gPlayer[i]);
 		}
+
+		PLAYER* pPlayer = &gPlayer[myconnectindex];
 
 		trProcessBusy();
 		evProcess(PlayClock);
@@ -438,21 +457,25 @@ void GameInterface::Ticker()
 		actortime.Unclock();
 
 		viewCorrectPrediction();
-		ambProcess();
-		viewUpdateDelirium();
+		ambProcess(pPlayer);
+		viewUpdateDelirium(pPlayer);
 		gi->UpdateSounds();
-		if (gMe->hand == 1)
+		if (pPlayer->hand == 1)
 		{
 			const int CHOKERATE = 8;
 			const int COUNTRATE = 30;
 			gChokeCounter += CHOKERATE;
 			while (gChokeCounter >= COUNTRATE)
 			{
-				gChoke.callback(gMe);
+				gChoke.callback(pPlayer);
 				gChokeCounter -= COUNTRATE;
 			}
 		}
 		thinktime.Unclock();
+
+		// update console player's viewzoffset at the end of the tic.
+		pPlayer->actor->oviewzoffset = pPlayer->actor->viewzoffset;
+		pPlayer->actor->viewzoffset = pPlayer->zView - pPlayer->actor->spr.pos.Z;
 
 		gFrameCount++;
 		PlayClock += kTicsPerFrame;
@@ -489,22 +512,6 @@ void GameInterface::DrawBackground()
 	auto tex = TexMan.CheckForTexture("titlescreen", ETextureType::Any);
 	DrawTexture(twod, TexMan.GetGameTexture(tex), 0, 0, DTA_FullscreenEx, FSMode_ScaleToFit43, TAG_DONE);
 }
-
-#define x(a, b) registerName(#a, b);
-static void SetTileNames()
-{
-	auto registerName = [](const char* name, int index)
-	{
-		TexMan.AddAlias(name, tileGetTexture(index));
-		TileFiles.addName(name, index);
-	};
-#include "namelist.h"
-	// Oh Joy! Plasma Pak changes the tile number of the title screen, but we preferably want mods that use the original one to display it.
-	// So let's make this remapping depend on the CRC.
-	if (tileGetCRC32(2518) == 1170870757 && (tileGetCRC32(2046) != 290208654 || tileWidth(2518) == 0)) registerName("titlescreen", 2046);
-	else registerName("titlescreen", 2518); 
-}
-#undef x
 
 
 void ReadAllRFS();
@@ -591,7 +598,10 @@ void GameInterface::loadPalette(void)
 
 void GameInterface::app_init()
 {
+	mirrortile = tileGetTextureID(504);
+
 	GC::AddMarkerFunc(markgcroots);
+
 	InitCheats();
 	memcpy(&gGameOptions, &gSingleGameOptions, sizeof(GAMEOPTIONS));
 	gGameOptions.nMonsterSettings = !userConfig.nomonsters;
@@ -600,7 +610,6 @@ void GameInterface::app_init()
 	levelLoadDefaults();
 
 	//---------
-	SetTileNames();
 	C_InitConback(TexMan.CheckForTexture("BACKTILE", ETextureType::Any), true, 0.25);
 
 	Printf(PRINT_NONOTIFY, "Initializing view subsystem\n");
@@ -625,7 +634,6 @@ void GameInterface::app_init()
 	enginecompatibility_mode = ENGINECOMPATIBILITY_19960925;
 
 	gViewIndex = myconnectindex;
-	gMe = gView = &gPlayer[myconnectindex];
 }
 
 //---------------------------------------------------------------------------
@@ -637,7 +645,6 @@ void GameInterface::app_init()
 static void gameInit()
 {
 	gViewIndex = myconnectindex;
-	gMe = gView = &gPlayer[myconnectindex];
 
 	UpdateNetworkMenus();
 	if (gGameOptions.nGameType > 0)
@@ -692,16 +699,6 @@ void GameInterface::FreeLevelData()
 }
 
 
-ReservedSpace GameInterface::GetReservedScreenSpace(int viewsize)
-{
-	int top = 0;
-	if (gGameOptions.nGameType > 0 && gGameOptions.nGameType <= 3)
-	{
-		top = (tileHeight(2229) * ((gNetPlayers + 3) / 4));
-	}
-	return { top, 25 };
-}
-
 ::GameInterface* CreateInterface()
 {
 	return new GameInterface;
@@ -725,7 +722,11 @@ enum
 DEFINE_ACTION_FUNCTION(_Blood, OriginalLoadScreen)
 {
 	static int bLoadScreenCrcMatch = -1;
-	if (bLoadScreenCrcMatch == -1) bLoadScreenCrcMatch = tileGetCRC32(kLoadScreen) == kLoadScreenCRC;
+	if (bLoadScreenCrcMatch == -1)
+	{
+		auto tex = tileGetTexture(kLoadScreen)->GetTexture()->GetImage(); // if this is invalid we have a bigger problem on our hand than the inevitable crash.
+		bLoadScreenCrcMatch = tileGetCRC32(tex) == kLoadScreenCRC;
+	}
 	ACTION_RETURN_INT(bLoadScreenCrcMatch);
 }
 
@@ -773,7 +774,7 @@ DEFINE_ACTION_FUNCTION(_Blood, PowerupIcon)
 DEFINE_ACTION_FUNCTION(_Blood, GetViewPlayer)
 {
 	PARAM_PROLOGUE;
-	ACTION_RETURN_POINTER(gView);
+	ACTION_RETURN_POINTER(&gPlayer[gViewIndex]);
 }
 
 DEFINE_ACTION_FUNCTION(_BloodPlayer, GetHealth)

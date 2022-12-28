@@ -124,8 +124,7 @@ static const char *cheatKfc(int player)
 		if (spr)
 		{
 			spr->spr.pal = 1;
-			spr->spr.xrepeat = spr->spr.xrepeat << 2;
-			spr->spr.yrepeat = spr->spr.yrepeat << 2;
+			spr->spr.scale *= 4;
 		}
 	}
 	return quoteMgr.GetQuote(QUOTE_CHEAT_KFC);
@@ -178,12 +177,12 @@ const char* GameInterface::GenericCheat(int player, int cheat)
 		return cheatMonsters();
 
 	case CHT_BIKE:
-		OnMotorcycle(&ps[player], nullptr);
+		OnMotorcycle(&ps[player]);
 		ps[player].ammo_amount[MOTORCYCLE_WEAPON] = gs.max_ammo_amount[MOTORCYCLE_WEAPON];
 		return quoteMgr.GetQuote(QUOTE_ON_BIKE);
 
 	case CHT_BOAT:
-		OnBoat(&ps[player], 0);
+		OnBoat(&ps[player]);
 		ps[player].ammo_amount[BOAT_WEAPON] = gs.max_ammo_amount[BOAT_WEAPON];
 		return quoteMgr.GetQuote(QUOTE_ON_BOAT);
 

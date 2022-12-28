@@ -93,15 +93,12 @@ class CFX {
 public:
 	void destroy(DBloodActor*);
 	void remove(DBloodActor*);
-	DBloodActor* fxSpawnActor(FX_ID a, sectortype* b, int c, int d, int e, unsigned int f);
-	DBloodActor* fxSpawnActor(FX_ID a, sectortype* b, const DVector3& pos, unsigned int f);
+	DBloodActor* fxSpawnActor(FX_ID a, sectortype* b, const DVector3& pos, DAngle f = nullAngle);
 	void fxProcess(void);
 };
 
 void fxSpawnBlood(DBloodActor* pSprite, int a2);
 void fxSpawnPodStuff(DBloodActor* pSprite, int a2);
-void fxSpawnEjectingBrass(DBloodActor* pSprite, int z, int a3, int a4);
-void fxSpawnEjectingShell(DBloodActor* pSprite, int z, int a3, int a4);
 
 extern CFX gFX;
 

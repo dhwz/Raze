@@ -1838,8 +1838,7 @@ int SetupNinja(DSWActor* actor)
 
     actor->user.StateEnd = s_NinjaDie;
     actor->user.Rot = sg_NinjaRun;
-    actor->spr.xrepeat = 46;
-    actor->spr.yrepeat = 46;
+	actor->spr.scale = DVector2(0.71875, 0.71875);
 
     if (actor->spr.pal == PALETTE_PLAYER5)
     {
@@ -2064,7 +2063,7 @@ int DoNinjaMove(DSWActor* actor)
 int NinjaJumpActionFunc(DSWActor* actor)
 {
     // if cannot move the sprite
-    if (!move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0)))
+    if (!move_actor(actor, DVector3(actor->spr.Angles.Yaw.ToVector() * actor->vel.X, 0)))
     {
         return 0;
     }
@@ -2167,13 +2166,13 @@ int DoNinjaCeiling(DSWActor* actor)
 // too convienent to put it here.
 //
 
-void InitAllPlayerSprites(void)
+void InitAllPlayerSprites(const DVector3& spawnpos, const DAngle startang)
 {
     short i;
 
     TRAVERSE_CONNECT(i)
     {
-        InitPlayerSprite(Player + i);
+        InitPlayerSprite(Player + i, spawnpos, startang);
     }
 }
 
@@ -2386,17 +2385,30 @@ extern ACTOR_ACTION_SET PlayerNinjaActionSet;
 //
 //---------------------------------------------------------------------------
 
-void InitPlayerSprite(PLAYER* pp)
+void InitPlayerSprite(PLAYER* pp, const DVector3& spawnpos, const DAngle startang)
 {
     int pnum = int(pp - Player);
+    double fz,cz;
     extern bool NewGame;
 
     COVER_SetReverb(0); // Turn off any echoing that may have been going before
     pp->Reverb = 0;
-    auto actor = SpawnActor(STAT_PLAYER0 + pnum, NINJA_RUN_R0, nullptr, pp->cursector, pp->pos, pp->angle.ang);
+    auto actor = SpawnActor(STAT_PLAYER0 + pnum, NINJA_RUN_R0, nullptr, pp->cursector, spawnpos.plusZ(PLAYER_HEIGHTF), startang);
+    actor->viewzoffset = -PLAYER_HEIGHTF;
+
+    // if too close to the floor - stand up
+    calcSlope(pp->cursector, actor->getPosWithOffsetZ(), &cz, &fz);
+    if (actor->spr.pos.Z > fz)
+    {
+        actor->spr.pos.Z = fz;
+    }
+    actor->backuploc();
 
     pp->actor = actor;
     pp->pnum = pnum;
+
+    pp->Angles = {};
+    pp->Angles.initialize(pp->actor);
 
     actor->spr.cstat |= (CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
     actor->spr.extra |= (SPRX_PLAYER_OR_ENEMY);
@@ -2417,10 +2429,9 @@ void InitPlayerSprite(PLAYER* pp)
 
     actor->spr.picnum = actor->user.State->Pic;
     actor->spr.shade = -60; // was 15
-    actor->set_const_clipdist(256 >> 2);
+    actor->clipdist = 16;
 
-    actor->spr.xrepeat = PLAYER_NINJA_XREPEAT;
-    actor->spr.yrepeat = PLAYER_NINJA_YREPEAT;
+    actor->spr.scale = DVector2(PLAYER_NINJA_XREPEAT, PLAYER_NINJA_YREPEAT);
     actor->spr.pal = PALETTE_PLAYER0 + pp->pnum;
     actor->user.spal = actor->spr.pal;
 
@@ -2467,7 +2478,7 @@ void SpawnPlayerUnderSprite(PLAYER* pp)
     int pnum = int(pp - Player);
 
     pp->PlayerUnderActor = SpawnActor(STAT_PLAYER_UNDER0 + pnum,
-                                                 NINJA_RUN_R0, nullptr, pp->cursector, pp->pos, pp->angle.ang);
+                                                 NINJA_RUN_R0, nullptr, pp->cursector, pp->actor->getPosWithOffsetZ(), pp->actor->spr.Angles.Yaw);
 
     DSWActor* actor = pp->PlayerUnderActor;
 
@@ -2487,8 +2498,7 @@ void SpawnPlayerUnderSprite(PLAYER* pp)
 
     actor->spr.picnum = plActor->spr.picnum;
     actor->copy_clipdist(plActor);
-    actor->spr.xrepeat = plActor->spr.xrepeat;
-    actor->spr.yrepeat = plActor->spr.yrepeat;
+    actor->spr.scale = plActor->spr.scale;
 }
 
 //---------------------------------------------------------------------------

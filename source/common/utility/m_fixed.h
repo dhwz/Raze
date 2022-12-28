@@ -7,18 +7,21 @@
 
 
 __forceinline constexpr int32_t MulScale(int32_t a, int32_t b, int32_t shift) { return (int32_t)(((int64_t)a * b) >> shift); }
-__forceinline constexpr double MulScaleF(double a, double b, int32_t shift) { return (a * b) * (1. / (uint32_t(1) << shift)); }
 __forceinline constexpr int32_t DMulScale(int32_t a, int32_t b, int32_t c, int32_t d, int32_t shift) { return (int32_t)(((int64_t)a * b + (int64_t)c * d) >> shift); }
-__forceinline constexpr int32_t TMulScale(int32_t a, int32_t b, int32_t c, int32_t d, int32_t e, int32_t f, int32_t shift) { return (int32_t)(((int64_t)a * b + (int64_t)c * d + (int64_t)e * f) >> shift); }
 __forceinline constexpr int32_t DivScale(int32_t a, int32_t b, int shift) { return (int32_t)(((int64_t)a << shift) / b); }
 __forceinline constexpr int64_t DivScaleL(int64_t a, int64_t b, int shift) { return ((a << shift) / b); }
 
 #include "xs_Float.h"
 
 template<int b = 16>
-inline fixed_t FloatToFixed(double f)
+constexpr fixed_t FloatToFixed(double f)
 {
-	return xs_Fix<b>::ToFix(f);
+	return int(f * (1 << b));
+}
+
+constexpr fixed_t FloatToFixed(double f, int b)
+{
+	return int(f * (1 << b));
 }
 
 template<int b = 16>
@@ -29,6 +32,11 @@ inline constexpr fixed_t IntToFixed(int32_t f)
 
 template<int b = 16>
 inline constexpr double FixedToFloat(fixed_t f)
+{
+	return f * (1. / (1 << b));
+}
+
+inline constexpr double FixedToFloat(fixed_t f, int b)
 {
 	return f * (1. / (1 << b));
 }

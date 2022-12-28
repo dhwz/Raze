@@ -35,7 +35,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 BEGIN_BLD_NS
 
 PLAYER gPlayer[kMaxPlayers];
-PLAYER* gMe, * gView;
 
 bool gBlueFlagDropped = false;
 bool gRedFlagDropped = false;
@@ -103,30 +102,30 @@ POSTURE gPostureDefaults[kModeMax][kPostureMax] = {
 
 	// normal human
 	{
-		{ 0x4000, 0x4000, 0x4000, 14, 17, 24, 16, 32, 80, 0x1600, 0x1200, 0xc00, 0x90, -0xbaaaa, -0x175555 },
-		{ 0x1200, 0x1200, 0x1200, 14, 17, 24, 16, 32, 80, 0x1400, 0x1000, -0x600, 0xb0, 0x5b05, 0 },
-		{ 0x2000, 0x2000, 0x2000, 22, 28, 24, 16, 16, 40, 0x800, 0x600, -0x600, 0xb0, 0, 0 },
+		{ FixedToFloat<14>(0x4000), FixedToFloat<14>(0x4000), FixedToFloat<14>(0x4000), 14, 17, 0.09375, 0.0625, 0.125, 0.3125, 22, 18, 36, 12, -FixedToFloat(0xbaaaa), -FixedToFloat(0x175555) },
+		{ FixedToFloat<14>(0x1200), FixedToFloat<14>(0x1200), FixedToFloat<14>(0x1200), 14, 17, 0.09375, 0.0625, 0.125, 0.3125, 20, 16, 44, -6, FixedToFloat(0x5b05), 0 },
+		{ FixedToFloat<14>(0x2000), FixedToFloat<14>(0x2000), FixedToFloat<14>(0x2000), 22, 28, 0.09375, 0.0625, 0.0625, 0.15625, 8, 6, 44, -6, 0, 0 },
 	},
 
 	// normal beast
 	{
-		{ 0x4000, 0x4000, 0x4000, 14, 17, 24, 16, 32, 80, 0x1600, 0x1200, 0xc00, 0x90, -0xbaaaa, -0x175555 },
-		{ 0x1200, 0x1200, 0x1200, 14, 17, 24, 16, 32, 80, 0x1400, 0x1000, -0x600, 0xb0, 0x5b05, 0 },
-		{ 0x2000, 0x2000, 0x2000, 22, 28, 24, 16, 16, 40, 0x800, 0x600, -0x600, 0xb0, 0, 0 },
+		{ FixedToFloat<14>(0x4000), FixedToFloat<14>(0x4000), FixedToFloat<14>(0x4000), 14, 17, 0.09375, 0.0625, 0.125, 0.3125, 22, 18, 36, 12, -FixedToFloat(0xbaaaa), -FixedToFloat(0x175555) },
+		{ FixedToFloat<14>(0x1200), FixedToFloat<14>(0x1200), FixedToFloat<14>(0x1200), 14, 17, 0.09375, 0.0625, 0.125, 0.3125, 20, 16, 44, -6, FixedToFloat(0x5b05), 0 },
+		{ FixedToFloat<14>(0x2000), FixedToFloat<14>(0x2000), FixedToFloat<14>(0x2000), 22, 28, 0.09375, 0.0625, 0.0625, 0.15625, 8, 6, 44, -6, 0, 0 },
 	},
 
 	// shrink human
 	{
-		{ 10384, 10384, 10384, 14, 17, 24, 16, 32, 80, 5632, 4608, 3072, 144, -564586, -1329173 },
-		{ 2108, 2108, 2108, 14, 17, 24, 16, 32, 80, 5120, 4096, -1536, 176, 0x5b05, 0 },
-		{ 2192, 2192, 2192, 22, 28, 24, 16, 16, 40, 2048, 1536, -1536, 176, 0, 0 },
+		{ FixedToFloat<14>(10384), FixedToFloat<14>(10384), FixedToFloat<14>(10384), 14, 17, 0.09375, 0.0625, 0.125, 0.3125, 22, 18, 36, 12, -FixedToFloat(564586), -FixedToFloat(1329173) },
+		{ FixedToFloat<14>(2108), FixedToFloat<14>(2108), FixedToFloat<14>(2108), 14, 17, 0.09375, 0.0625, 0.125, 0.3125, 20, 16, 44, -6, FixedToFloat(0x5b05), 0 },
+		{ FixedToFloat<14>(2192), FixedToFloat<14>(2192), FixedToFloat<14>(2192), 22, 28, 0.09375, 0.0625, 0.0625, 0.15625, 8, 6, 44, -6, 0, 0 },
 	},
 
 	// grown human
 	{
-		{ 19384, 19384, 19384, 14, 17, 24, 16, 32, 80, 5632, 4608, 3072, 144, -1014586, -1779173 },
-		{ 5608, 5608, 5608, 14, 17, 24, 16, 32, 80, 5120, 4096, -1536, 176, 0x5b05, 0 },
-		{ 11192, 11192, 11192, 22, 28, 24, 16, 16, 40, 2048, 1536, -1536, 176, 0, 0 },
+		{ FixedToFloat<14>(19384), FixedToFloat<14>(19384), FixedToFloat<14>(19384), 14, 17, 0.09375, 0.0625, 0.125, 0.3125, 22, 18, 36, 12, -FixedToFloat(1014586), -FixedToFloat(1779173) },
+		{ FixedToFloat<14>(5608), FixedToFloat<14>(5608), FixedToFloat<14>(5608), 14, 17, 0.09375, 0.0625, 0.125, 0.3125, 20, 16, 44, -6, FixedToFloat(0x5b05), 0 },
+		{ FixedToFloat<14>(11192), FixedToFloat<14>(11192), FixedToFloat<14>(11192), 22, 28, 0.09375, 0.0625, 0.0625, 0.15625, 8, 6, 44, -6, 0, 0 },
 	},
 };
 
@@ -316,7 +315,7 @@ bool powerupActivate(PLAYER* pPlayer, int nPowerUp)
 		pPlayer->damageControl[0]++;
 		break;
 	case kItemReflectShots: // reflective shots
-		if (pPlayer == gMe && gGameOptions.nGameType == 0)
+		if (pPlayer->nPlayer == myconnectindex && gGameOptions.nGameType == 0)
 			sfxSetReverb2(1);
 		break;
 	case kItemDeathMask:
@@ -325,7 +324,7 @@ bool powerupActivate(PLAYER* pPlayer, int nPowerUp)
 		break;
 	case kItemDivingSuit: // diving suit
 		pPlayer->damageControl[4]++;
-		if (pPlayer == gMe && gGameOptions.nGameType == 0)
+		if (pPlayer->nPlayer == myconnectindex && gGameOptions.nGameType == 0)
 			sfxSetReverb(1);
 		break;
 	case kItemGasMask:
@@ -378,11 +377,11 @@ void powerupDeactivate(PLAYER* pPlayer, int nPowerUp)
 		break;
 	case kItemDivingSuit:
 		pPlayer->damageControl[4]--;
-		if (pPlayer == gMe && VanillaMode() ? true : pPlayer->pwUpTime[24] == 0)
+		if (pPlayer && pPlayer->nPlayer == myconnectindex && VanillaMode() ? true : pPlayer->pwUpTime[24] == 0)
 			sfxSetReverb(0);
 		break;
 	case kItemReflectShots:
-		if (pPlayer == gMe && VanillaMode() ? true : pPlayer->packSlots[1].isActive == 0)
+		if (pPlayer && pPlayer->nPlayer == myconnectindex && VanillaMode() ? true : pPlayer->packSlots[1].isActive == 0)
 			sfxSetReverb(0);
 		break;
 	case kItemGasMask:
@@ -694,7 +693,7 @@ void playerSetRace(PLAYER* pPlayer, int nLifeMode)
 	pPlayer->lifeMode = nLifeMode;
 
 	// By NoOne: don't forget to change clipdist for grow and shrink modes
-	pPlayer->actor->set_native_clipdist(pDudeInfo->clipdist);
+	pPlayer->actor->clipdist = pDudeInfo->fClipdist();
 
 	for (int i = 0; i < 7; i++)
 		pDudeInfo->damageVal[i] = MulScale(Handicap[gSkill], pDudeInfo->startDamage[i], 8);
@@ -714,16 +713,20 @@ void playerSetGodMode(PLAYER* pPlayer, bool bGodMode)
 void playerResetInertia(PLAYER* pPlayer)
 {
 	POSTURE* pPosture = &pPlayer->pPosture[pPlayer->lifeMode][pPlayer->posture];
-	pPlayer->zView = pPlayer->actor->int_pos().Z - pPosture->eyeAboveZ;
-	pPlayer->zWeapon = pPlayer->actor->int_pos().Z - pPosture->weaponAboveZ;
+	pPlayer->zView = pPlayer->actor->spr.pos.Z - pPosture->eyeAboveZ;
+	pPlayer->zWeapon = pPlayer->actor->spr.pos.Z - pPosture->weaponAboveZ;
+	pPlayer->actor->oviewzoffset = pPlayer->actor->viewzoffset = pPlayer->zView - pPlayer->actor->spr.pos.Z;
 	viewBackupView(pPlayer->nPlayer);
 }
 
-void playerCorrectInertia(PLAYER* pPlayer, vec3_t const* oldpos)
+void playerCorrectInertia(PLAYER* pPlayer, const DVector3& oldpos)
 {
-	pPlayer->zView += pPlayer->actor->int_pos().Z - oldpos->Z;
-	pPlayer->zWeapon += pPlayer->actor->int_pos().Z - oldpos->Z;
-	viewCorrectViewOffsets(pPlayer->nPlayer, oldpos);
+	auto zAdj = pPlayer->actor->spr.pos.Z - oldpos.Z;
+	pPlayer->zView += zAdj;
+	pPlayer->zWeapon += zAdj;
+	pPlayer->actor->opos.XY() += pPlayer->actor->spr.pos.XY() - oldpos.XY();
+	pPlayer->ozView += zAdj;
+	pPlayer->actor->opos.Z += zAdj;
 }
 
 void playerResetPowerUps(PLAYER* pPlayer)
@@ -798,28 +801,29 @@ void playerStart(int nPlayer, int bNewLevel)
 	auto actor = actSpawnSprite(pStartZone->sector, pStartZone->pos, 6, 1);
 	assert(actor->hasX());
 	pPlayer->actor = actor;
+	pPlayer->Angles = {};
+	pPlayer->Angles.initialize(pPlayer->actor);
 	DUDEINFO* pDudeInfo = &dudeInfo[kDudePlayer1 + nPlayer - kDudeBase];
 	pPlayer->pDudeInfo = pDudeInfo;
 	playerSetRace(pPlayer, kModeHuman);
 	playerResetPosture(pPlayer);
 	seqSpawn(pDudeInfo->seqStartID, actor, -1);
-	if (pPlayer == gMe)
+	if (nPlayer == myconnectindex)
 		actor->spr.cstat2 |= CSTAT2_SPRITE_MAPPED;
-	int top, bottom;
+	double top, bottom;
 	GetActorExtents(actor, &top, &bottom);
-	actor->add_int_z(-(bottom - actor->int_pos().Z));
+	actor->spr.pos.Z -= bottom - actor->spr.pos.Z;
 	actor->spr.pal = 11 + (pPlayer->teamId & 3);
-	actor->set_int_ang(pStartZone->ang);
-	pPlayer->angle.ang = actor->spr.angle;
+	actor->spr.Angles.Yaw = pStartZone->angle;
 	actor->spr.type = kDudePlayer1 + nPlayer;
-	actor->set_native_clipdist(pDudeInfo->clipdist);
+	actor->clipdist = pDudeInfo->fClipdist();
 	actor->spr.flags = 15;
 	actor->xspr.burnTime = 0;
 	actor->SetBurnSource(nullptr);
 	pPlayer->actor->xspr.health = pDudeInfo->startHealth << 4;
 	pPlayer->actor->spr.cstat &= ~CSTAT_SPRITE_INVISIBLE;
 	pPlayer->bloodlust = 0;
-	pPlayer->horizon.horiz = pPlayer->horizon.horizoff = q16horiz(0);
+	pPlayer->actor->spr.Angles.Pitch = pPlayer->Angles.ViewAngles.Pitch = nullAngle;
 	pPlayer->slope = 0;
 	pPlayer->fragger = nullptr;
 	pPlayer->underwaterTime = 1200;
@@ -827,7 +831,7 @@ void playerStart(int nPlayer, int bNewLevel)
 	pPlayer->restTime = 0;
 	pPlayer->kickPower = 0;
 	pPlayer->laughCount = 0;
-	pPlayer->angle.spin = nullAngle;
+	pPlayer->Angles.YawSpin = nullAngle;
 	pPlayer->posture = 0;
 	pPlayer->voodooTarget = nullptr;
 	pPlayer->voodooTargets = 0;
@@ -835,9 +839,9 @@ void playerStart(int nPlayer, int bNewLevel)
 	pPlayer->vodooVar2 = 0;
 	playerResetInertia(pPlayer);
 	pPlayer->zWeaponVel = 0;
-	pPlayer->relAim.dx = 0x4000;
-	pPlayer->relAim.dy = 0;
-	pPlayer->relAim.dz = 0;
+	pPlayer->relAim.X = 1;
+	pPlayer->relAim.Y = 0;
+	pPlayer->relAim.Z = 0;
 	pPlayer->aimTarget = nullptr;
 	pPlayer->zViewVel = pPlayer->zWeaponVel;
 	if (!(gGameOptions.nGameType == 1 && gGameOptions.bKeepKeysOnRespawn && !bNewLevel))
@@ -855,7 +859,7 @@ void playerStart(int nPlayer, int bNewLevel)
 	pPlayer->throwPower = 0;
 	pPlayer->deathTime = 0;
 	pPlayer->nextWeapon = kWeapNone;
-	actor->ZeroVelocity();
+	actor->vel.Zero();
 	pInput->avel = 0;
 	pInput->actions = 0;
 	pInput->fvel = 0;
@@ -883,12 +887,12 @@ void playerStart(int nPlayer, int bNewLevel)
 		BloodStatIterator it(kStatModernPlayerLinker);
 		while (auto iactor = it.Next())
 		{
-			if (iactor->xspr.data1 == pPlayer->nPlayer + 1)
+			if (!iactor->xspr.data1 || iactor->xspr.data1 == pPlayer->nPlayer + 1)
 			{
 				DBloodActor* SpriteOld = iactor->prevmarker;
 				trPlayerCtrlLink(iactor, pPlayer, (SpriteOld == nullptr)); // this modifies iactor's prevmarker field!
 				if (SpriteOld)
-					condUpdateObjectIndex(SpriteOld, iactor->prevmarker);
+					conditionsUpdateIndex(SpriteOld, iactor->prevmarker);
 			}
 		}
 
@@ -899,7 +903,7 @@ void playerStart(int nPlayer, int bNewLevel)
 	pPlayer->nWaterPal = 0;
 	playerResetPowerUps(pPlayer);
 
-	if (pPlayer == gMe)
+	if (nPlayer == myconnectindex)
 	{
 		viewInitializePrediction();
 	}
@@ -1244,7 +1248,7 @@ bool PickupItem(PLAYER* pPlayer, DBloodActor* itemactor)
 		return 1;
 	}
 
-	sfxPlay3DSound(plActor->int_pos().X, plActor->int_pos().Y, plActor->int_pos().Z, pickupSnd, plActor->sector());
+	sfxPlay3DSound(plActor->spr.pos, pickupSnd, plActor->sector());
 	return 1;
 }
 
@@ -1362,7 +1366,7 @@ void PickUp(PLAYER* pPlayer, DBloodActor* actor)
 		actPostSprite(actor, kStatFree);
 
 	pPlayer->pickupEffect = 30;
-	if (pPlayer == gMe) {
+	if (pPlayer->nPlayer == myconnectindex) {
 		if (customMsg > 0) trTextOver(customMsg - 1);
 		else if (msg) viewSetMessage(msg, nullptr, MESSAGE_PRIORITY_PICKUP);
 	}
@@ -1419,11 +1423,9 @@ int ActionScan(PLAYER* pPlayer, HitInfo* out)
 {
 	auto plActor = pPlayer->actor;
 	*out = {};
-	int x = bcos(plActor->int_ang());
-	int y = bsin(plActor->int_ang());
-	int z = pPlayer->slope;
-	int hit = HitScan(pPlayer->actor, pPlayer->zView, x, y, z, 0x10000040, 128);
-	int hitDist = (int)(plActor->spr.pos.XY() - gHitInfo.hitpos.XY()).Length();
+	auto pos = DVector3(plActor->spr.Angles.Yaw.ToVector(), pPlayer->slope);
+	int hit = HitScan(pPlayer->actor, pPlayer->zView, pos, 0x10000040, 128);
+	double hitDist = (plActor->spr.pos.XY() - gHitInfo.hitpos.XY()).Length();
 	if (hitDist < 64)
 	{
 		switch (hit)
@@ -1450,10 +1452,7 @@ int ActionScan(PLAYER* pPlayer, HitInfo* out)
 				int nMass = getDudeInfo(hitactor->spr.type)->mass;
 				if (nMass)
 				{
-					int t2 = DivScale(0xccccc, nMass, 8);
-					hitactor->add_int_bvel_x(MulScale(x, t2, 16));
-					hitactor->add_int_bvel_y(MulScale(y, t2, 16));
-					hitactor->add_int_bvel_z(MulScale(z, t2, 16));
+					hitactor->spr.pos += pos * (FixedToFloat<8>(0xccccc) / nMass);
 				}
 				if (hitactor->xspr.Push && !hitactor->xspr.state && !hitactor->xspr.isTriggered)
 					trTriggerSprite(hitactor, kCmdSpritePush);
@@ -1496,27 +1495,16 @@ int ActionScan(PLAYER* pPlayer, HitInfo* out)
 
 //---------------------------------------------------------------------------
 //
-// Player's sprite angle function, called in ProcessInput() or from gi->GetInput() as required.
-//
-//---------------------------------------------------------------------------
-
-void UpdatePlayerSpriteAngle(PLAYER* pPlayer)
-{
-	pPlayer->actor->set_int_ang(pPlayer->angle.ang.Buildang());
-}
-
-//---------------------------------------------------------------------------
-//
 // Player's slope tilting wrapper function function, called in ProcessInput() or from gi->GetInput() as required.
 //
 //---------------------------------------------------------------------------
 
-void doslopetilting(PLAYER* pPlayer, double const scaleAdjust = 1)
+void doslopetilting(PLAYER* pPlayer)
 {
 	auto plActor = pPlayer->actor;
 	int const florhit = pPlayer->actor->hit.florhit.type;
 	bool const va = plActor->xspr.height < 16 && (florhit == kHitSector || florhit == 0) ? 1 : 0;
-	pPlayer->horizon.calcviewpitch(plActor->spr.pos.XY(), plActor->spr.angle, va, plActor->sector()->floorstat & CSTAT_SECTOR_SLOPE, plActor->sector(), scaleAdjust);
+	pPlayer->Angles.doViewPitch(plActor->spr.pos.XY(), plActor->spr.Angles.Yaw, va, plActor->sector()->floorstat & CSTAT_SECTOR_SLOPE, plActor->sector());
 }
 
 //---------------------------------------------------------------------------
@@ -1534,9 +1522,6 @@ void ProcessInput(PLAYER* pPlayer)
 		Item_BeastVision = 2,
 		Item_JumpBoots = 3
 	};
-
-	pPlayer->horizon.resetadjustment();
-	pPlayer->angle.resetadjustment();
 
 	DBloodActor* actor = pPlayer->actor;
 	POSTURE* pPosture = &pPlayer->pPosture[pPlayer->lifeMode][pPlayer->posture];
@@ -1557,11 +1542,11 @@ void ProcessInput(PLAYER* pPlayer)
 		DBloodActor* fragger = pPlayer->fragger;
 		if (fragger)
 		{
-			pPlayer->angle.addadjustment(deltaangle(pPlayer->angle.ang, VecToAngle(fragger->int_pos().X - actor->int_pos().X, fragger->int_pos().Y - actor->int_pos().Y)));
+			pPlayer->actor->spr.Angles.Yaw = (fragger->spr.pos.XY() - actor->spr.pos.XY()).Angle();
 		}
 		pPlayer->deathTime += 4;
 		if (!bSeqStat)
-			pPlayer->horizon.addadjustment(q16horiz(MulScale(0x8000 - (Cos(ClipHigh(pPlayer->deathTime << 3, 1024)) >> 15), gi->playerHorizMax(), 16) - pPlayer->horizon.horiz.asq16()));
+			pPlayer->actor->spr.Angles.Pitch = gi->playerPitchMax() * (1. - BobVal(min((pPlayer->deathTime << 3) + 512, 1536))) * 0.5;
 		if (pPlayer->curWeapon)
 			pInput->setNewWeapon(pPlayer->curWeapon);
 		if (pInput->actions & SB_OPEN)
@@ -1589,66 +1574,23 @@ void ProcessInput(PLAYER* pPlayer)
 		}
 		return;
 	}
-	if (pPlayer->posture == 1)
+
+	if ((pInput->fvel || pInput->svel) && (pPlayer->posture == 1 || actor->xspr.height < 256))
 	{
-		int x = Cos(actor->int_ang());
-		int y = Sin(actor->int_ang());
-		if (pInput->fvel)
-		{
-			int forward = pInput->fvel;
-			if (forward > 0)
-				forward = MulScale(pPosture->frontAccel, forward, 8);
-			else
-				forward = MulScale(pPosture->backAccel, forward, 8);
-			actor->add_int_bvel_x(MulScale(forward, x, 30));
-			actor->add_int_bvel_y(MulScale(forward, y, 30));
-		}
-		if (pInput->svel)
-		{
-			int strafe = pInput->svel;
-			strafe = MulScale(pPosture->sideAccel, strafe, 8);
-			actor->add_int_bvel_x(MulScale(strafe, y, 30));
-			actor->add_int_bvel_y(-MulScale(strafe, x, 30));
-		}
+		const double speed = pPlayer->posture == 1? 1. : 1. - (actor->xspr.height < 256 ? actor->xspr.height * (1. / 256.) : 0);
+		const double& fvAccel = pInput->fvel > 0 ? pPosture->frontAccel : pPosture->backAccel;
+		const double& svAccel = pPosture->sideAccel;
+		actor->vel.XY() += DVector2(pInput->fvel * fvAccel, pInput->svel * svAccel).Rotated(actor->spr.Angles.Yaw) * speed;
 	}
-	else if (actor->xspr.height < 256)
-	{
-		int speed = 0x10000;
-		if (actor->xspr.height > 0)
-			speed -= DivScale(actor->xspr.height, 256, 16);
-		int x = Cos(actor->int_ang());
-		int y = Sin(actor->int_ang());
-		if (pInput->fvel)
-		{
-			int forward = pInput->fvel;
-			if (forward > 0)
-				forward = MulScale(pPosture->frontAccel, forward, 8);
-			else
-				forward = MulScale(pPosture->backAccel, forward, 8);
-			if (actor->xspr.height)
-				forward = MulScale(forward, speed, 16);
-			actor->add_int_bvel_x(MulScale(forward, x, 30));
-			actor->add_int_bvel_y(MulScale(forward, y, 30));
-		}
-		if (pInput->svel)
-		{
-			int strafe = pInput->svel;
-			strafe = MulScale(pPosture->sideAccel, strafe, 8);
-			if (actor->xspr.height)
-				strafe = MulScale(strafe, speed, 16);
-			actor->add_int_bvel_x(MulScale(strafe, y, 30));
-			actor->add_int_bvel_y(-MulScale(strafe, x, 30));
-		}
-	}
+
+	pPlayer->Angles.doViewYaw(pInput->actions);
 
 	if (SyncInput())
 	{
-		pPlayer->angle.applyinput(pInput->avel, &pInput->actions);
+		pPlayer->actor->spr.Angles.Yaw += DAngle::fromDeg(pInput->avel);
 	}
 
-	// unconditionally update the player's sprite angle
-	// in case game is forcing synchronised input.
-	UpdatePlayerSpriteAngle(pPlayer);
+	pPlayer->Angles.doYawKeys(&pInput->actions);
 
 	if (!(pInput->actions & SB_JUMP))
 		pPlayer->cantJump = 0;
@@ -1656,9 +1598,9 @@ void ProcessInput(PLAYER* pPlayer)
 	switch (pPlayer->posture) {
 	case 1:
 		if (pInput->actions & SB_JUMP)
-			actor->add_int_bvel_z(-pPosture->normalJumpZ);//0x5b05;
+			actor->vel.Z -= pPosture->normalJumpZ;//0x5b05;
 		if (pInput->actions & SB_CROUCH)
-			actor->add_int_bvel_z(pPosture->normalJumpZ);//0x5b05;
+			actor->vel.Z += pPosture->normalJumpZ;//0x5b05;
 		break;
 	case 2:
 		if (!(pInput->actions & SB_CROUCH))
@@ -1671,8 +1613,8 @@ void ProcessInput(PLAYER* pPlayer)
 #endif
 				sfxPlay3DSound(actor, 700, 0, 0);
 
-			if (packItemActive(pPlayer, 4)) actor->set_int_bvel_z(pPosture->pwupJumpZ); //-0x175555;
-			else actor->set_int_bvel_z(pPosture->normalJumpZ); //-0xbaaaa;
+			if (packItemActive(pPlayer, 4)) actor->vel.Z = pPosture->pwupJumpZ; //-0x175555;
+			else actor->vel.Z = pPosture->normalJumpZ; //-0xbaaaa;
 			pPlayer->cantJump = 1;
 		}
 
@@ -1692,7 +1634,7 @@ void ProcessInput(PLAYER* pPlayer)
 			auto pSector = result.hitSector;
 			auto pXSector = &pSector->xs();
 			int key = pXSector->Key;
-			if (pXSector->locked && pPlayer == gMe)
+			if (pXSector->locked && pPlayer->nPlayer == myconnectindex)
 			{
 				viewSetMessage(GStrings("TXTB_LOCKED"));
 				auto snd = 3062;
@@ -1702,7 +1644,7 @@ void ProcessInput(PLAYER* pPlayer)
 			}
 			if (!key || pPlayer->hasKey[key])
 				trTriggerSector(pSector, kCmdSpritePush);
-			else if (pPlayer == gMe)
+			else if (pPlayer->nPlayer == myconnectindex)
 			{
 				viewSetMessage(GStrings("TXTB_KEY"));
 				auto snd = 3063;
@@ -1717,7 +1659,7 @@ void ProcessInput(PLAYER* pPlayer)
 			auto pWall = result.hitWall;
 			auto pXWall = &pWall->xw();
 			int key = pXWall->key;
-			if (pXWall->locked && pPlayer == gMe)
+			if (pXWall->locked && pPlayer->nPlayer == myconnectindex)
 			{
 				viewSetMessage(GStrings("TXTB_LOCKED"));
 				auto snd = 3062;
@@ -1727,7 +1669,7 @@ void ProcessInput(PLAYER* pPlayer)
 			}
 			if (!key || pPlayer->hasKey[key])
 				trTriggerWall(pWall, kCmdWallPush);
-			else if (pPlayer == gMe)
+			else if (pPlayer->nPlayer == myconnectindex)
 			{
 				viewSetMessage(GStrings("TXTB_KEY"));
 				auto snd = 3063;
@@ -1741,11 +1683,11 @@ void ProcessInput(PLAYER* pPlayer)
 		{
 			auto act = result.actor();
 			int key = act->xspr.key;
-			if (actor->xspr.locked && pPlayer == gMe && act->xspr.lockMsg)
+			if (actor->xspr.locked && pPlayer->nPlayer == myconnectindex && act->xspr.lockMsg)
 				trTextOver(act->xspr.lockMsg);
 			if (!key || pPlayer->hasKey[key])
 				trTriggerSprite(act, kCmdSpritePush);
-			else if (pPlayer == gMe)
+			else if (pPlayer->nPlayer == myconnectindex)
 			{
 				viewSetMessage(GStrings("TXTB_KEY"));
 				sndStartSample(3063, 255, 2, 0);
@@ -1758,15 +1700,12 @@ void ProcessInput(PLAYER* pPlayer)
 		if (pPlayer->handTime <= 0 && pPlayer->hand)
 		{
 			DBloodActor* pactor = pPlayer->actor;
-			auto spawned = actSpawnDude(pactor, kDudeHand, pPlayer->actor->native_clipdist() << 1, 0);
+			auto spawned = actSpawnDude(pactor, kDudeHand, pPlayer->actor->clipdist * 0.5);
 			if (spawned)
 			{
-				spawned->set_int_ang((pPlayer->actor->int_ang() + 1024) & 2047);
-				int x = bcos(pPlayer->actor->int_ang());
-				int y = bsin(pPlayer->actor->int_ang());
-				spawned->set_int_bvel_x(pPlayer->actor->int_vel().X + MulScale(0x155555, x, 14));
-				spawned->set_int_bvel_y(pPlayer->actor->int_vel().Y + MulScale(0x155555, y, 14));
-				spawned->set_int_bvel_z(pPlayer->actor->int_vel().Z);
+				spawned->spr.Angles.Yaw += DAngle180;
+				spawned->vel.XY() = pPlayer->actor->vel.XY() + (64. / 3.) * pPlayer->actor->spr.Angles.Yaw.ToVector();
+				spawned->vel.Z = pPlayer->actor->vel.Z;
 			}
 			pPlayer->hand = 0;
 		}
@@ -1775,14 +1714,13 @@ void ProcessInput(PLAYER* pPlayer)
 
 	if (SyncInput())
 	{
-		pPlayer->horizon.applyinput(pInput->horz, &pInput->actions);
-		doslopetilting(pPlayer);
+		pPlayer->actor->spr.Angles.Pitch += DAngle::fromDeg(pInput->horz);
 	}
 
-	pPlayer->angle.unlockinput();
-	pPlayer->horizon.unlockinput();
+	pPlayer->Angles.doPitchKeys(&pInput->actions, pInput->horz);
+	doslopetilting(pPlayer);
 
-	pPlayer->slope = -pPlayer->horizon.horiz.asq16() >> 9;
+	pPlayer->slope = pPlayer->actor->spr.Angles.Pitch.Tan();
 	if (pInput->actions & SB_INVPREV)
 	{
 		pInput->actions &= ~SB_INVPREV;
@@ -1840,15 +1778,15 @@ void playerProcess(PLAYER* pPlayer)
 	DBloodActor* actor = pPlayer->actor;
 	POSTURE* pPosture = &pPlayer->pPosture[pPlayer->lifeMode][pPlayer->posture];
 	powerupProcess(pPlayer);
-	int top, bottom;
+	double top, bottom;
 	GetActorExtents(actor, &top, &bottom);
-	int dzb = (bottom - actor->int_pos().Z) / 4;
-	int dzt = (actor->int_pos().Z - top) / 4;
-	int dw = actor->int_clipdist();
+	double dzflor = (bottom - actor->spr.pos.Z) / 4;
+	double dzceil = (actor->spr.pos.Z - top) / 4;
+
 	if (!gNoClip)
 	{
 		auto pSector = actor->sector();
-		if (pushmove(actor, &pSector, dw, dzt, dzb, CLIPMASK0) == -1)
+		if (pushmove(actor->spr.pos, &pSector, actor->clipdist, dzceil, dzflor, CLIPMASK0) == -1)
 			actDamageSprite(actor, actor, kDamageFall, 500 << 4);
 		if (actor->sector() != pSector)
 		{
@@ -1862,31 +1800,30 @@ void playerProcess(PLAYER* pPlayer)
 		}
 	}
 	ProcessInput(pPlayer);
-	int nSpeed = approxDist(actor->int_vel().X, actor->int_vel().Y);
-	pPlayer->zViewVel = interpolatedvalue(pPlayer->zViewVel, actor->int_vel().Z, 0x7000 * (1. / MaxSmoothRatio));
-	int dz = pPlayer->actor->int_pos().Z - pPosture->eyeAboveZ - pPlayer->zView;
+	pPlayer->zViewVel = interpolatedvalue(pPlayer->zViewVel, actor->vel.Z, FixedToFloat(0x7000));
+	double dz = pPlayer->actor->spr.pos.Z - pPosture->eyeAboveZ - pPlayer->zView;
 	if (dz > 0)
-		pPlayer->zViewVel += MulScale(dz << 8, 0xa000, 16);
+		pPlayer->zViewVel += dz * FixedToFloat(0xa000);
 	else
-		pPlayer->zViewVel += MulScale(dz << 8, 0x1800, 16);
-	pPlayer->zView += pPlayer->zViewVel >> 8;
-	pPlayer->zWeaponVel = interpolatedvalue(pPlayer->zWeaponVel, actor->int_vel().Z, 0x5000 * (1. / MaxSmoothRatio));
-	dz = pPlayer->actor->int_pos().Z - pPosture->weaponAboveZ - pPlayer->zWeapon;
+		pPlayer->zViewVel += dz * FixedToFloat(0x1800);
+	pPlayer->zView += pPlayer->zViewVel;
+	pPlayer->zWeaponVel = interpolatedvalue(pPlayer->zWeaponVel, actor->vel.Z, FixedToFloat(0x5000));
+	dz = pPlayer->actor->spr.pos.Z - pPosture->weaponAboveZ - pPlayer->zWeapon;
 	if (dz > 0)
-		pPlayer->zWeaponVel += MulScale(dz << 8, 0x8000, 16);
+		pPlayer->zWeaponVel += dz * FixedToFloat(0x8000);
 	else
-		pPlayer->zWeaponVel += MulScale(dz << 8, 0xc00, 16);
-	pPlayer->zWeapon += pPlayer->zWeaponVel >> 8;
-	pPlayer->bobPhase = ClipLow(pPlayer->bobPhase - 4, 0);
-	nSpeed >>= FRACBITS;
+		pPlayer->zWeaponVel += dz * FixedToFloat(0xc00);
+	pPlayer->zWeapon += pPlayer->zWeaponVel;
+	pPlayer->bobPhase = max(pPlayer->bobPhase - 4, 0.);
+	double nSpeed = actor->vel.XY().Length();
 	if (pPlayer->posture == 1)
 	{
 		pPlayer->bobAmp = (pPlayer->bobAmp + 17) & 2047;
 		pPlayer->swayAmp = (pPlayer->swayAmp + 17) & 2047;
-		pPlayer->bobHeight = MulScale(pPosture->bobV * 10, Sin(pPlayer->bobAmp * 2), 30);
-		pPlayer->bobWidth = MulScale(pPosture->bobH * pPlayer->bobPhase, Sin(pPlayer->bobAmp - 256), 30);
-		pPlayer->swayHeight = MulScale(pPosture->swayV * pPlayer->bobPhase, Sin(pPlayer->swayAmp * 2), 30);
-		pPlayer->swayWidth = MulScale(pPosture->swayH * pPlayer->bobPhase, Sin(pPlayer->swayAmp - 0x155), 30);
+		pPlayer->bobHeight = pPosture->bobV * 10 * BobVal(pPlayer->bobAmp * 2);
+		pPlayer->bobWidth = pPosture->bobH * pPlayer->bobPhase * BobVal(pPlayer->bobAmp - 256);
+		pPlayer->swayHeight = pPosture->swayV * pPlayer->bobPhase * BobVal(pPlayer->swayAmp * 2);
+		pPlayer->swayWidth = pPosture->swayH * pPlayer->bobPhase * BobVal(pPlayer->swayAmp - 0x155);
 	}
 	else
 	{
@@ -1898,18 +1835,18 @@ void playerProcess(PLAYER* pPlayer)
 			if (running)
 			{
 				if (pPlayer->bobPhase < 60)
-					pPlayer->bobPhase = ClipHigh(pPlayer->bobPhase + nSpeed, 60);
+					pPlayer->bobPhase = min(pPlayer->bobPhase + nSpeed, 60.);
 			}
 			else
 			{
 				if (pPlayer->bobPhase < 30)
-					pPlayer->bobPhase = ClipHigh(pPlayer->bobPhase + nSpeed, 30);
+					pPlayer->bobPhase = min(pPlayer->bobPhase + nSpeed, 30.);
 			}
 		}
-		pPlayer->bobHeight = MulScale(pPosture->bobV * pPlayer->bobPhase, Sin(pPlayer->bobAmp * 2), 30);
-		pPlayer->bobWidth = MulScale(pPosture->bobH * pPlayer->bobPhase, Sin(pPlayer->bobAmp - 256), 30);
-		pPlayer->swayHeight = MulScale(pPosture->swayV * pPlayer->bobPhase, Sin(pPlayer->swayAmp * 2), 30);
-		pPlayer->swayWidth = MulScale(pPosture->swayH * pPlayer->bobPhase, Sin(pPlayer->swayAmp - 0x155), 30);
+		pPlayer->bobHeight = pPosture->bobV * pPlayer->bobPhase * BobVal(pPlayer->bobAmp * 2);
+		pPlayer->bobWidth = pPosture->bobH * pPlayer->bobPhase * BobVal(pPlayer->bobAmp - 256);
+		pPlayer->swayHeight = pPosture->swayV * pPlayer->bobPhase * BobVal(pPlayer->swayAmp * 2);
+		pPlayer->swayWidth = pPosture->swayH * pPlayer->bobPhase * BobVal(pPlayer->swayAmp - 0x155);
 	}
 	pPlayer->flickerEffect = 0;
 	pPlayer->quakeEffect = ClipLow(pPlayer->quakeEffect - 4, 0);
@@ -1918,7 +1855,7 @@ void playerProcess(PLAYER* pPlayer)
 	pPlayer->painEffect = ClipLow(pPlayer->painEffect - 4, 0);
 	pPlayer->blindEffect = ClipLow(pPlayer->blindEffect - 4, 0);
 	pPlayer->pickupEffect = ClipLow(pPlayer->pickupEffect - 4, 0);
-	if (pPlayer == gMe && gMe->actor->xspr.health == 0)
+	if (pPlayer->nPlayer == myconnectindex && pPlayer->actor->xspr.health == 0)
 		pPlayer->hand = 0;
 	if (!actor->xspr.health)
 		return;
@@ -1964,15 +1901,14 @@ void playerProcess(PLAYER* pPlayer)
 //
 //---------------------------------------------------------------------------
 
-DBloodActor* playerFireMissile(PLAYER* pPlayer, int a2, int a3, int a4, int a5, int a6)
+DBloodActor* playerFireMissile(PLAYER* pPlayer, double xyoff, const DVector3& dv, int nType)
 {
-	return actFireMissile(pPlayer->actor, a2, pPlayer->zWeapon - pPlayer->actor->int_pos().Z, a3, a4, a5, a6);
+	return actFireMissile(pPlayer->actor, xyoff, pPlayer->zWeapon - pPlayer->actor->spr.pos.Z, dv, nType);
 }
 
-DBloodActor* playerFireThing(PLAYER* pPlayer, int a2, int a3, int thingType, int a5)
+DBloodActor* playerFireThing(PLAYER* pPlayer, double xyoff, double zvel, int thingType, double nSpeed)
 {
-	assert(thingType >= kThingBase && thingType < kThingMax);
-	return actFireThing(pPlayer->actor, a2, pPlayer->zWeapon - pPlayer->actor->int_pos().Z, pPlayer->slope + a3, thingType, a5);
+	return actFireThing(pPlayer->actor, xyoff, pPlayer->zWeapon - pPlayer->actor->spr.pos.Z, pPlayer->slope * 0.25 + zvel, thingType, nSpeed);
 }
 
 //---------------------------------------------------------------------------
@@ -2003,7 +1939,7 @@ void playerFrag(PLAYER* pKiller, PLAYER* pVictim)
 			team_score[pVictim->teamId]--;
 		int nMessage = Random(5);
 		int nSound = gSuicide[nMessage].Kills;
-		if (pVictim == gMe && gMe->handTime <= 0)
+		if (pVictim->nPlayer == myconnectindex && pVictim->handTime <= 0)
 		{
 			strcpy(buffer, GStrings("TXTB_KILLSELF"));
 			if (gGameOptions.nGameType > 0 && nSound >= 0)
@@ -2035,7 +1971,7 @@ void playerFrag(PLAYER* pKiller, PLAYER* pVictim)
 		int nSound = gVictory[nMessage].Kills;
 		const char* pzMessage = gVictory[nMessage].message;
 		sprintf(buffer, pzMessage, PlayerName(nKiller), PlayerName(nVictim));
-		if (gGameOptions.nGameType > 0 && nSound >= 0 && pKiller == gMe)
+		if (gGameOptions.nGameType > 0 && nSound >= 0 && pKiller->nPlayer == myconnectindex)
 			sndStartSample(nSound, 255, 2, 0);
 	}
 	viewSetMessage(buffer);
@@ -2173,7 +2109,7 @@ int playerDamageSprite(DBloodActor* source, PLAYER* pPlayer, DAMAGE_TYPE nDamage
 				double top, bottom;
 				GetActorExtents(pActor, &top, &bottom);
 				DVector3 gibPos(pActor->spr.pos.XY(), top);
-				CGibVelocity gibVel(pActor->int_vel().X >> 1, pActor->int_vel().Y >> 1, -0xccccc);
+				DVector3 gibVel(pActor->vel.XY() * 0.5, -FixedToFloat(0xccccc));
 				GibSprite(pActor, GIBTYPE_27, &gibPos, &gibVel);
 				GibSprite(pActor, GIBTYPE_7, NULL, NULL);
 				fxSpawnBlood(pActor, nDamage << 4);
@@ -2326,8 +2262,8 @@ int UseAmmo(PLAYER* pPlayer, int nAmmoType, int nDec)
 void voodooTarget(PLAYER* pPlayer)
 {
 	DBloodActor* actor = pPlayer->actor;
-	int v4 = pPlayer->aim.dz;
-	int dz = pPlayer->zWeapon - pPlayer->actor->int_pos().Z;
+	double aimz = pPlayer->flt_aim().Z;
+	double dz = pPlayer->zWeapon - pPlayer->actor->spr.pos.Z;
 	if (UseAmmo(pPlayer, 9, 0) < 8)
 	{
 		pPlayer->voodooTargets = 0;
@@ -2335,10 +2271,11 @@ void voodooTarget(PLAYER* pPlayer)
 	}
 	for (int i = 0; i < 4; i++)
 	{
-		int ang1 = (pPlayer->voodooVar1 + pPlayer->vodooVar2) & 2047;
-		actFireVector(actor, 0, dz, bcos(ang1), bsin(ang1), v4, kVectorVoodoo10);
-		int ang2 = (pPlayer->voodooVar1 + 2048 - pPlayer->vodooVar2) & 2047;
-		actFireVector(actor, 0, dz, bcos(ang2), bsin(ang2), v4, kVectorVoodoo10);
+		// both voodooVar's are always 0. This is only kept in case someone implements an extension.
+		DAngle ang1 = DAngle::fromBuild(pPlayer->voodooVar1 + pPlayer->vodooVar2);
+		actFireVector(actor, 0, dz, DVector3(ang1.ToVector(), aimz), kVectorVoodoo10);
+		DAngle ang2 = DAngle::fromBuild(pPlayer->voodooVar1 - pPlayer->vodooVar2);
+		actFireVector(actor, 0, dz, DVector3(ang1.ToVector(), aimz), kVectorVoodoo10);
 	}
 	pPlayer->voodooTargets = ClipLow(pPlayer->voodooTargets - 1, 0);
 }
@@ -2395,7 +2332,7 @@ void PlayerSurvive(int, DBloodActor* actor)
 		if (actor->IsPlayerActor())
 		{
 			PLAYER* pPlayer = &gPlayer[actor->spr.type - kDudePlayer1];
-			if (pPlayer == gMe)
+			if (pPlayer->nPlayer == myconnectindex)
 				viewSetMessage(GStrings("TXT_LIVEAGAIM"));
 			else
 			{
@@ -2432,18 +2369,6 @@ void PlayerKneelsOver(int, DBloodActor* actor)
 //
 //
 //---------------------------------------------------------------------------
-
-FSerializer& Serialize(FSerializer& arc, const char* keyname, Aim& w, Aim* def)
-{
-	if (arc.BeginObject(keyname))
-	{
-		arc("x", w.dx)
-			("y", w.dx)
-			("z", w.dx)
-			.EndObject();
-	}
-	return arc;
-}
 
 FSerializer& Serialize(FSerializer& arc, const char* keyname, PACKINFO& w, PACKINFO* def)
 {
@@ -2486,8 +2411,8 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, PLAYER& w, PLAYER*
 	if (arc.BeginObject(keyname))
 	{
 		arc("spritenum", w.actor)
-			("horizon", w.horizon)
-			("angle", w.angle)
+			("horizon", w.Angles)
+			("angle", w.Angles)
 			("newweapon", w.newWeapon)
 			("used1", w.used1)
 			("weaponqav", w.weaponQav)
@@ -2683,7 +2608,7 @@ DEFINE_FIELD_X(BloodPlayer, PLAYER, qavLoop)
 DEFINE_FIELD_X(BloodPlayer, PLAYER, fuseTime)
 DEFINE_FIELD_X(BloodPlayer, PLAYER, throwTime)
 DEFINE_FIELD_X(BloodPlayer, PLAYER, throwPower)
-DEFINE_FIELD_X(BloodPlayer, PLAYER, aim)  // world
+//DEFINE_FIELD_X(BloodPlayer, PLAYER, aim)  // world
 DEFINE_FIELD_X(BloodPlayer, PLAYER, aimTargetsCount)
 //DEFINE_FIELD_X(BloodPlayer, PLAYER, aimTargets)
 DEFINE_FIELD_X(BloodPlayer, PLAYER, deathTime)

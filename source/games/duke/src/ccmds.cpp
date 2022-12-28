@@ -46,7 +46,7 @@ static int ccmd_spawn(CCmdFuncPtr parm)
 	ESpriteFlags cstat = 0;
 	int picnum = 0;
 	unsigned int pal = 0;
-	int ang = 0;
+	DAngle ang = nullAngle;
 	int set = 0;
 
 #if 0 // fixme - route through the network and this limitation becomes irrelevant
@@ -64,10 +64,10 @@ static int ccmd_spawn(CCmdFuncPtr parm)
 		set |= 8;
 		[[fallthrough]];
 	case 4: // ang
-		ang = atol(parm->parms[3]) & 2047; set |= 4;
+		ang = DAngle::fromDeg(atoi(parm->parms[3])); set |= 4;
 		[[fallthrough]];
 	case 3: // cstat
-		cstat = ESpriteFlags::FromInt(atol(parm->parms[2])); set |= 2;
+		cstat = ESpriteFlags::FromInt(atoi(parm->parms[2])); set |= 2;
 		[[fallthrough]];
 	case 2: // pal
 		pal = (uint8_t)atol(parm->parms[1]); set |= 1;
@@ -76,11 +76,17 @@ static int ccmd_spawn(CCmdFuncPtr parm)
 		if (isdigit((uint8_t)parm->parms[0][0])) {
 			picnum = (unsigned short)atol(parm->parms[0]);
 		}
-		else {
-			picnum = getlabelvalue(parm->parms[0]);
-			if (picnum < 0) {
-				Printf("spawn: Invalid tile label given\n");
-				return CCMD_OK;
+		else 
+		{
+			picnum = tileForName(parm->parms[0]);
+			if (picnum < 0) 
+			{
+				picnum = getlabelvalue(parm->parms[0]);
+				if (picnum < 0)
+				{
+					Printf("spawn: Invalid tile label given\n");
+					return CCMD_OK;
+				}
 			}
 		}
 
@@ -98,34 +104,33 @@ static int ccmd_spawn(CCmdFuncPtr parm)
 	{
 		if (set & 1) spawned->spr.pal = (uint8_t)pal;
 		if (set & 2) spawned->spr.cstat = ESpriteFlags::FromInt(cstat);
-		if (set & 4) spawned->set_int_ang(ang);
+		if (set & 4) spawned->spr.Angles.Yaw = ang;
 		if (set & 8) SetActor(spawned, DVector3( x, y, z ));
+		if (spawned->spr.scale.isZero()) spawned->spr.scale = isRR() ? DVector2(0.5, 0.5) : DVector2(1., 1.); // nake sure it's visible.
 
 		if (spawned->sector() == nullptr)
 		{
-			Printf("spawn: Sprite can't be spawned into null space\n");
-			deletesprite(spawned);
+			Printf("spawn: Sprite cannot be spawned into null space\n");
+			spawned->Destroy();
 		}
 	}
 
 	return CCMD_OK;
 }
 
-void GameInterface::WarpToCoords(double x, double y, double z, DAngle ang, int horz)
+void GameInterface::WarpToCoords(double x, double y, double z, DAngle ang)
 {
 	player_struct* p = &ps[myconnectindex];
+	auto pActor = p->GetActor();
 
-	p->pos = DVector3(x, y, z);
-	p->backupxyz();
+	if (!pActor) return;
+
+	pActor->spr.pos = DVector3(x, y, z);
+	pActor->backuppos();
 
 	if (ang != DAngle::fromDeg(INT_MIN))
 	{
-		p->angle.oang = p->angle.ang = ang;
-	}
-
-	if (horz != INT_MIN)
-	{
-		p->horizon.ohoriz = p->horizon.horiz = buildhoriz(horz);
+		p->GetActor()->PrevAngles.Yaw = p->GetActor()->spr.Angles.Yaw = ang;
 	}
 }
 
@@ -161,6 +166,11 @@ void GameInterface::ToggleShowWeapon()
 	if (gamestate != GS_LEVEL) return;
 	cl_showweapon = cl_showweapon == 0;
 	FTA(QUOTE_WEAPON_MODE_OFF - cl_showweapon, &ps[screenpeek]);
+}
+
+bool GameInterface::WantEscape() 
+{ 
+	return ps[myconnectindex].newOwner != nullptr;
 }
 
 

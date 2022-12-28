@@ -47,40 +47,11 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, GameVarValue& w, G
 void lava_serialize(FSerializer& arc);
 void SerializeGameVars(FSerializer &arc);
 
-static FSerializer& Serialize(FSerializer& arc, const char* key, FireProj& p, FireProj* def)
-{
-	if (arc.BeginObject(key))
-	{
-		arc
-			("xv", p.vel.X)
-			("yv", p.vel.Y)
-			("zv", p.vel.Z)
-			.EndObject();
-	}
-	return arc;
-}
-
-
-FSerializer& Serialize(FSerializer& arc, const char* keyname, CraneDef& w, CraneDef* def)
-{
-	if (arc.BeginObject(keyname))
-	{
-		arc("x", w.pos.X)
-			("y", w.pos.Y)
-			("z", w.pos.Z)
-			("polex", w.pole.X)
-			("poley", w.pole.Y)
-			("pole", w.poleactor)
-			.EndObject();
-	}
-	return arc;
-}
-
 FSerializer& Serialize(FSerializer& arc, const char* keyname, animwalltype& w, animwalltype* def)
 {
 	if (arc.BeginObject(keyname))
 	{
-	  arc("wallnum", w.wall)
+	  arc("wall", w.wall)
 		("tag", w.tag)
 		.EndObject();
 	}
@@ -105,17 +76,14 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, player_struct& w, 
 {
 	if (arc.BeginObject(keyname))
 	{
-		arc("posx", w.pos.X)
-			("posy", w.pos.Y)
-			("posz", w.pos.Z)
-			("angle", w.angle)
-			("horizon", w.horizon)
+		arc("angle", w.Angles)
+			("horizon", w.Angles)
 			.Array("gotweapon", w.gotweapon, MAX_WEAPONS)
 			("pals", w.pals)
 			("fricx", w.fric.X)
 			("fricy", w.fric.Y)
-			("exitx", w.exit.X)
-			("exity", w.exit.Y)
+			("exitx", w.Exit.X)
+			("exity", w.Exit.Y)
 			("numloogs", w.numloogs)
 			("loogcnt", w.loogcnt)
 			.Array("loogie", w.loogie, w.numloogs)
@@ -275,7 +243,7 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, player_struct& w, 
 			.EndObject();
 
 		w.invdisptime = 0;
-		w.backupxyz();
+		w.GetActor()->backuppos();
 		w.opyoff = w.pyoff;
 		w.backupweapon();
 		w.sync.actions &= SB_CENTERVIEW|SB_CROUCH; // these are the only bits we need to preserve.
@@ -298,11 +266,11 @@ void DDukeActor::Serialize(FSerializer& arc)
 		("owneractor", ownerActor)
 		("owner", hitOwnerActor)
 		("movflag", movflag)
-		("tempang", tempang)
+		("tempang", tempval)
 		("actorstayput", actorstayput)
-		("dispicnum", dispicnum)
 		("basepicnum", basepicnum)
 		("timetosleep", timetosleep)
+		("mapspawned", mapSpawned)
 		("floorz", floorz)
 		("ceilingz", ceilingz)
 		("lastvx", ovel.X)
@@ -311,22 +279,26 @@ void DDukeActor::Serialize(FSerializer& arc)
 		("temp_actor", temp_actor)
 		("seek_actor", seek_actor)
 		.Array("temp_data", temp_data, 6)
-		.Array("temo_wall", temp_walls, 2)
+		.Array("temp_wall", temp_walls, 2)
 		("temp_angle", temp_angle)
 		("temp_pos", temp_pos)
+		("temp_pos2", temp_pos2)
 		("temp_sect", temp_sect)
 		("uservars", uservars)
 		("flags1", flags1)
 		("flags2", flags2)
-
-		("fireproj", fproj);
+		("flags3", flags3);
 }
 
 
 FSerializer& Serialize(FSerializer& arc, const char* keyname, Cycler& w, Cycler* def)
 {
 	static Cycler nul;
-	if (!def) def = &nul;
+	if (!def)
+	{
+		def = &nul;
+		if (arc.isReading()) w = {};
+	}
 	if (arc.BeginObject(keyname))
 	{
 		arc("sector", w.sector, def->sector)
@@ -340,6 +312,42 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, Cycler& w, Cycler*
 	return arc;
 }
 
+FSerializer& Serialize(FSerializer& arc, const char* keyname, AmbientTags& w, AmbientTags* def)
+{
+	static AmbientTags nul;
+	if (!def)
+	{
+		def = &nul;
+		if (arc.isReading()) w = {};
+	}
+	if (arc.BeginObject(keyname))
+	{
+		arc("lotag", w.lo, def->lo)
+			("hitag", w.hi, def->hi)
+			.EndObject();
+	}
+	return arc;
+}
+
+FSerializer& Serialize(FSerializer& arc, const char* keyname, animate& w, animate* def)
+{
+	static animate nul;
+	if (!def)
+	{
+		def = &nul;
+		if (arc.isReading()) w = {};
+	}
+	if (arc.BeginObject(keyname))
+	{
+		arc("sector", w.sect, def->sect)
+			("type", w.type, def->type)
+			("target", w.target, def->target)
+			("goal", w.goal, def->goal)
+			("vel", w.vel, def->vel)
+			.EndObject();
+	}
+	return arc;
+}
 
 void GameInterface::SerializeGameState(FSerializer& arc)
 {
@@ -347,8 +355,6 @@ void GameInterface::SerializeGameState(FSerializer& arc)
 	{
 		memset(geosectorwarp, -1, sizeof(geosectorwarp));
 		memset(geosectorwarp2, -1, sizeof(geosectorwarp2));
-		memset(ambienthitag, -1, sizeof(ambienthitag));
-		memset(ambientlotag, -1, sizeof(ambientlotag));
 	}
 	if (arc.BeginObject("duke.gamestate"))
 	{
@@ -372,28 +378,23 @@ void GameInterface::SerializeGameState(FSerializer& arc)
 			("bomb_tag", ud.bomb_tag)
 
 			("rtsplaying", rtsplaying)
-			("tempwallptr", tempwallptr)
-			("cranes", cranes)
-			("sound445done", sound445done)
+			//("tempwallptr", tempwallptr)
+			("joe9000", ud.joe9000)
 			.Array("players", ps, ud.multimode)
 			("spriteqamount", spriteqamount)
 			("lastvisinc", lastvisinc)
 			("numanimwalls", numanimwalls)
 			.Array("animwall", animwall, numanimwalls)
 			("camsprite", camsprite)
-			("earthquaketime", earthquaketime)
+			("earthquaketime", ud.earthquaketime)
 			("gs.freezerhurtowner", gs.freezerhurtowner)
 			("global_random", global_random)
 			("gs.impact_damage", gs.impact_damage)
 			("numplayersprites", numplayersprites)
 			("spriteqloc", spriteqloc)
-			("animatecnt", animatecnt)
-
-			.Array("animatesect", animatesect, animatecnt)
-			.Array("animatetype", animatetype, animatecnt)
-			.Array("animatetarget", animatetarget, animatecnt)
-			.Array("animategoal", animategoal, animatecnt)
-			.Array("animatevel", animatevel, animatecnt)
+			("animates", animates)
+			("chickenplant", ud.chickenplant)
+			("ufospawnsminion", ud.ufospawnsminion)
 
 			("numclouds", numclouds)
 			("cloudx", cloudx)
@@ -402,13 +403,11 @@ void GameInterface::SerializeGameState(FSerializer& arc)
 			.Array("clouds", clouds, numclouds)
 
 			.Array("spriteq", spriteq, 1024)
-			("numcyclers", numcyclers)
-			.Array("cycler", cyclers, numcyclers)
+			("cycler", cyclers)
 			("mirrorcnt", mirrorcnt)
 			.Array("mirrorsector", mirrorsector, mirrorcnt)
 			.Array("mirrorwall", mirrorwall, mirrorcnt)
 			("wupass", wupass)
-			("chickenplant", chickenplant)
 			("thunderon", thunderon)
 			("ufospawn", ufospawn)
 			("ufocnt", ufocnt)
@@ -422,11 +421,8 @@ void GameInterface::SerializeGameState(FSerializer& arc)
 			.Array("geoy", geoy, geocnt)
 			.Array("geox2", geox2, geocnt)
 			.Array("geoy2", geoy2, geocnt)
-			("ambientfx", ambientfx)
-			.Array("ambientlotag", ambientlotag, ambientfx)
-			.Array("ambienthitag", ambienthitag, ambientfx)
-			.Array("msx", msx, MAXANIMPOINTS)
-			.Array("msy", msy, MAXANIMPOINTS)
+			("ambienttags", ambienttags)
+			("mspos", mspos)
 			("windtime", WindTime)
 			("winddir", WindDir)
 			("fakebubba_spawn", fakebubba_spawn)
@@ -435,7 +431,6 @@ void GameInterface::SerializeGameState(FSerializer& arc)
 			("belltime", BellTime)
 			("bellsprite", BellSprite)
 			("enemysizecheat", enemysizecheat)
-			("ufospawnsminion", ufospawnsminion)
 			("pistonsound", pistonsound)
 			("chickenphase", chickenphase)
 			("RRRA_ExitedLevel", RRRA_ExitedLevel)
@@ -466,7 +461,6 @@ void GameInterface::SerializeGameState(FSerializer& arc)
 				ps[myconnectindex].over_shoulder_on = 1;
 			}
 
-			gotpic.Zero();
 			if (isRR()) cacheit_r(); else cacheit_d();
 
 			Mus_ResumeSaved();
@@ -477,6 +471,7 @@ void GameInterface::SerializeGameState(FSerializer& arc)
 			everyothertime = 0;
 
 			FX_SetReverb(0);
+			resetlanepics();
 
 		}
 	}

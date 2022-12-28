@@ -33,8 +33,10 @@
 #include "hw_skydome.h"
 #include "hw_drawstructs.h"
 #include "hw_vertexmap.h"
+#include "buildtiles.h"
 #include "gamefuncs.h"
 #include "cmdlib.h"
+#include "texinfo.h"
 
 #include "v_video.h"
 #include "flatvertices.h"
@@ -58,17 +60,17 @@ static walltype* IsOnWall(tspritetype* tspr, int height, DVector2& outpos)
 	double tx = tspr->pos.X;
 	double ty = tspr->pos.Y;
 
-	for(auto& wal : wallsofsector(sect))
+	for(auto& wal : sect->walls)
 	{
 		// Intentionally include two sided walls. Even on them the sprite should be projected onto the wall for better results.
 		auto d = wal.delta();
-		auto deltaang = absangle(VecToAngle(d), tspr->angle);
+		auto deltaang = absangle(d.Angle(), tspr->Angles.Yaw);
 		const DAngle maxangdelta = DAngle360 / 1024;
 
 		// angle of the sprite must either be the wall's normal or the negative wall's normal to be aligned.
 		if (deltaang >= DAngle90 - maxangdelta && deltaang <= DAngle90 + maxangdelta)
 		{
-			if (!((tspr->angle.Buildang()) & 510))
+			if (!((tspr->Angles.Yaw.Buildang()) & 510))
 			{
 				// orthogonal lines do not check the actual position so that certain off-sector sprites get handled properly. 
 				// In Wanton Destruction's airplane level there's such a sprite assigned to the wrong sector.
@@ -158,7 +160,8 @@ void HWWall::RenderMirrorSurface(HWDrawInfo *di, FRenderState &state)
 	// Use sphere mapping for this
 	state.SetEffect(EFF_SPHEREMAP);
 	SetLightAndFog(di, state, fade, palette, min<int>(shade, numshades), visibility, alpha);
-	state.SetColor(PalEntry(25, globalr >> 1, globalg >> 1, globalb >> 1));
+	//state.SetColor(PalEntry(25, globalr >> 1, globalg >> 1, globalb >> 1));
+	state.SetColor(PalEntry(25, 128, 128, 128));
 
 	state.SetRenderStyle(STYLE_Add);
 	state.AlphaFunc(Alpha_Greater, 0);
@@ -196,13 +199,16 @@ void HWWall::RenderTexturedWall(HWDrawInfo *di, FRenderState &state, int rflags)
 			state.EnableTexture(false);
 		}
 
-		int h = (int)texture->GetDisplayHeight();
-		int h2 = 1 << sizeToBits(h);
-		if (h2 < h) h2 *= 2;
-		if (h != h2)
+		if (!(seg->cstat & CSTAT_WALL_ROTATE_90))
 		{
-			float xOffset = 1.f / texture->GetDisplayWidth();
-			state.SetNpotEmulation(float(h2) / h, xOffset);
+			int h = (int)texture->GetDisplayHeight();
+			int h2 = 1 << sizeToBits(h);
+			if (h2 < h) h2 *= 2;
+			if (h != h2)
+			{
+				float xOffset = 1.f / texture->GetDisplayWidth();
+				state.SetNpotEmulation(float(h2) / h, xOffset);
+			}
 		}
 		RenderWall(di, state, rflags);
 	}
@@ -411,6 +417,15 @@ void HWWall::PutWall(HWDrawInfo *di, bool translucent)
 		ViewDistance = (di->Viewpoint.Pos.XY() - DVector2((glseg.x1 + glseg.x2) * 0.5f, (glseg.y1 + glseg.y2) * 0.5f)).LengthSquared();
 	}
 
+	if (seg && (seg->cstat & CSTAT_WALL_ROTATE_90))
+	{
+		float f;
+		// rotate 90° clockwise. The coordinates have already been set up in rotated space, so all we need to do here is swap u and v and then negate the new v.
+		f = tcs[UPLFT].u; tcs[UPLFT].u = tcs[UPLFT].v; tcs[UPLFT].v = 1.f - f;
+		f = tcs[LOLFT].u; tcs[LOLFT].u = tcs[LOLFT].v; tcs[LOLFT].v = 1.f - f;
+		f = tcs[UPRGT].u; tcs[UPRGT].u = tcs[UPRGT].v; tcs[UPRGT].v = 1.f - f;
+		f = tcs[LORGT].u; tcs[LORGT].u = tcs[LORGT].v; tcs[LORGT].v = 1.f - f;
+	}
 	if (texture->isHardwareCanvas())
 	{
 		tcs[UPLFT].v = 1.f - tcs[UPLFT].v;
@@ -742,6 +757,7 @@ void HWWall::DoTexture(HWDrawInfo* di, walltype* wal, walltype* refwall, float r
 
 	float tw = texture->GetDisplayWidth();
 	float th = texture->GetDisplayHeight();
+	if (wal->cstat & CSTAT_WALL_ROTATE_90) std::swap(tw, th);
 	int pow2size = 1 << sizeToBits(th);
 	if (pow2size < th) pow2size *= 2;
 	float ypanning = refwall->ypan_ ? pow2size * refwall->ypan_ / (256.0f * th) : 0;
@@ -914,15 +930,15 @@ void HWWall::Process(HWDrawInfo* di, walltype* wal, sectortype* frontsector, sec
 	float fch2;
 	float ffh2;
 
-	FVector2 v1(WallStartX(wal), WallStartY(wal));
-	FVector2 v2(WallEndX(wal), WallEndY(wal));
+	FVector2 v1(wal->pos.X, -wal->pos.Y);
+	FVector2 v2(p2wall->pos.X, -p2wall->pos.Y);
 
 	PlanesAtPoint(frontsector, wal->pos.X, wal->pos.Y, &fch1, &ffh1);
 	PlanesAtPoint(frontsector, p2wall->pos.X, p2wall->pos.Y, &fch2, &ffh2);
 
 
 #ifdef _DEBUG
-	if (wallnum(wal) == 34)
+	if (wallindex(wal) == 34)
 	{
 		int a = 0;
 	}
@@ -954,7 +970,7 @@ void HWWall::Process(HWDrawInfo* di, walltype* wal, sectortype* frontsector, sec
 
 	if (gl_seamless)
 	{
-		auto v = &vertices[vertexMap[wallnum(wal)]];
+		auto v = &vertices[vertexMap[wallindex(wal)]];
 		if (v->dirty) v->RecalcVertexHeights();
 		v = &vertices[vertexMap[wal->point2]];
 		if (v->dirty) v->RecalcVertexHeights();
@@ -996,10 +1012,8 @@ void HWWall::Process(HWDrawInfo* di, walltype* wal, sectortype* frontsector, sec
 
 		// normal texture
 
-		int tilenum = ((wal->cstat & CSTAT_WALL_1WAY) && wal->nextwall != -1) ? wal->overpicnum : wal->picnum;
-		gotpic.Set(tilenum);
-		tileUpdatePicnum(&tilenum, (wal->cstat & CSTAT_WALL_ROTATE_90));
-		texture = tileGetTexture(tilenum);
+		auto tilenum = ((wal->cstat & CSTAT_WALL_1WAY) && wal->nextwall != -1) ? wal->overtexture() : wal->walltexture();
+		texture = TexMan.GetGameTexture(tilenum, true);
 		if (texture && texture->isValid())
 		{
 			DoOneSidedTexture(di, wal, frontsector, backsector, fch1, fch2, ffh1, ffh2);
@@ -1034,10 +1048,8 @@ void HWWall::Process(HWDrawInfo* di, walltype* wal, sectortype* frontsector, sec
 
 			if (bch1a < fch1 || bch2a < fch2)
 			{
-				int tilenum = wal->picnum;
-				gotpic.Set(tilenum);
-				tileUpdatePicnum(&tilenum, (wal->cstat & CSTAT_WALL_ROTATE_90));
-				texture = tileGetTexture(tilenum);
+				auto tilenum = wal->walltexture();
+				texture = TexMan.GetGameTexture(tilenum, true);
 				if (texture && texture->isValid())
 				{
 					DoUpperTexture(di, wal, frontsector, backsector, fch1, fch2, bch1a, bch2a);
@@ -1047,10 +1059,8 @@ void HWWall::Process(HWDrawInfo* di, walltype* wal, sectortype* frontsector, sec
 
 		if (wal->cstat & (CSTAT_WALL_MASKED | CSTAT_WALL_1WAY))
 		{
-			int tilenum = wal->overpicnum;
-			gotpic.Set(tilenum);
-			tileUpdatePicnum(&tilenum, (wal->cstat & CSTAT_WALL_ROTATE_90));
-			texture = tileGetTexture(tilenum);
+			auto tilenum = wal->overtexture();
+			texture = TexMan.GetGameTexture(tilenum, true);
 			if (texture && texture->isValid())
 			{
 				DoMidTexture(di, wal, frontsector, backsector, fch1, fch2, ffh1, ffh2, bch1, bch2, bfh1, bfh2);
@@ -1073,10 +1083,8 @@ void HWWall::Process(HWDrawInfo* di, walltype* wal, sectortype* frontsector, sec
 			if (bfh1 > ffh1 || bfh2 > ffh2)
 			{
 				auto w = (wal->cstat & CSTAT_WALL_BOTTOM_SWAP) ? backwall : wal;
-				int tilenum = w->picnum;
-				gotpic.Set(tilenum);
-				tileUpdatePicnum(&tilenum, (w->cstat & CSTAT_WALL_ROTATE_90));
-				texture = tileGetTexture(tilenum);
+				auto tilenum = w->walltexture();
+				texture = TexMan.GetGameTexture(tilenum, true);
 				if (texture && texture->isValid())
 				{
 					DoLowerTexture(di, wal, frontsector, backsector, bfh1, bfh2, ffh1, ffh2);
@@ -1100,13 +1108,13 @@ void HWWall::Process(HWDrawInfo* di, walltype* wal, sectortype* frontsector, sec
 int HWWall::CheckWallSprite(tspritetype* spr, tspritetype* last)
 {
 	// If the position changed we need to recalculate everything.
-	if (spr->pos.XY() != last->pos.XY() || spr->sectp != last->sectp || spr->int_ang() != last->int_ang()) return 3;
+	if (spr->pos.XY() != last->pos.XY() || spr->sectp != last->sectp || spr->Angles.Yaw != last->Angles.Yaw) return 3;
 	
 	// if the horizontal orientation changes we need to recalculate the walls this attaches to, but not the positioning.
-	if (spr->xrepeat != last->xrepeat || spr->xoffset != last->xoffset || spr->picnum != last->picnum || ((spr->cstat ^ last->cstat) & CSTAT_SPRITE_XFLIP)) return 2;
+	if (spr->scale.X != last->scale.X || spr->xoffset != last->xoffset || spr->picnum != last->picnum || ((spr->cstat ^ last->cstat) & CSTAT_SPRITE_XFLIP)) return 2;
 	
 	// only y-positioning changed - we need to re-check the wall tiers this sprite attaches to
-	if(spr->yrepeat != last->yrepeat || spr->yoffset != last->yoffset || ((spr->cstat ^ last->cstat) & (CSTAT_SPRITE_YFLIP|CSTAT_SPRITE_YCENTER))) return 1;
+	if(spr->scale.Y != last->scale.Y || spr->yoffset != last->yoffset || ((spr->cstat ^ last->cstat) & (CSTAT_SPRITE_YFLIP | CSTAT_SPRITE_YCENTER))) return 1;
 
 	// all remaining properties only affect the render style which is not relevant for positioning a wall sprite
 	return 0;
@@ -1120,7 +1128,7 @@ int HWWall::CheckWallSprite(tspritetype* spr, tspritetype* last)
 
 void HWWall::ProcessWallSprite(HWDrawInfo* di, tspritetype* spr, sectortype* sector)
 {
-	auto tex = tileGetTexture(spr->picnum);
+	auto tex = TexMan.GetGameTexture(spr->spritetexture());
 	if (!tex || !tex->isValid()) return;
 
 	seg = nullptr;
@@ -1157,11 +1165,12 @@ void HWWall::ProcessWallSprite(HWDrawInfo* di, tspritetype* spr, sectortype* sec
 
 	SetSpriteTranslucency(Sprite, alpha, RenderStyle);
 
+	const TileOffs* tofs;
 	int height, topofs;
-	if (hw_hightile && TileFiles.tiledata[spr->picnum].hiofs.xsize)
+	if (hw_hightile && (tofs = GetHiresOffset(spr->spritetexture())))
 	{
-		height = TileFiles.tiledata[spr->picnum].hiofs.ysize;
-		topofs = (TileFiles.tiledata[spr->picnum].hiofs.yoffs + spr->yoffset);
+		height = tofs->ysize;
+		topofs = tofs->yoffs + spr->yoffset;
 	}
 	else
 	{
@@ -1174,8 +1183,8 @@ void HWWall::ProcessWallSprite(HWDrawInfo* di, tspritetype* spr, sectortype* sec
 	if (walldist)
 	{
 		// project the sprite right onto the wall.
-		auto v1 = NearestPointLine(glseg.x1, -glseg.y1, walldist);
-		auto v2 = NearestPointLine(glseg.x2, -glseg.y2, walldist);
+		auto v1 = NearestPointOnWall(glseg.x1, -glseg.y1, walldist, false);
+		auto v2 = NearestPointOnWall(glseg.x2, -glseg.y2, walldist, false);
 		glseg.x1 = v1.X;
 		glseg.y1 = -v1.Y;
 		glseg.x2 = v2.X;
@@ -1186,13 +1195,13 @@ void HWWall::ProcessWallSprite(HWDrawInfo* di, tspritetype* spr, sectortype* sec
 	if (spr->cstat & CSTAT_SPRITE_YFLIP)
 		topofs = -topofs;
 	
-	float yrepeat = spr->yrepeat * (1.f / 64.f);
-	float sprz = spr->pos.Z - topofs * yrepeat;
+	float yscale = spr->scale.Y;
+	float sprz = spr->pos.Z - topofs * yscale;
 
 	if (spr->cstat & CSTAT_SPRITE_YCENTER)
 	{
-		sprz += height * yrepeat * 0.5f;
-		if (height & 1) sprz += yrepeat * 0.5f;  // Odd yspans
+		sprz += height * yscale * 0.5f;
+		if (height & 1) sprz += yscale * 0.5f;  // Odd yspans
 	}
 
 	glseg.fracleft = 0;
@@ -1203,7 +1212,7 @@ void HWWall::ProcessWallSprite(HWDrawInfo* di, tspritetype* spr, sectortype* sec
 	tcs[LOLFT].v = tcs[LORGT].v = (spr->cstat & CSTAT_SPRITE_YFLIP) ? 0.f : 1.f;
 
 	zbottom[0] = zbottom[1] = -sprz;
-	ztop[0] = ztop[1] = -sprz + height * yrepeat;
+	ztop[0] = ztop[1] = -sprz + height * yscale;
 	if (zbottom[0] > ztop[0])
 	{
 		// reorder coordinates to make the clipping code below behave.
@@ -1241,7 +1250,7 @@ void HWWall::ProcessWallSprite(HWDrawInfo* di, tspritetype* spr, sectortype* sec
 		return; // nothing left to render.
 
 	// If the sprite is backward, flip it around so that we have guaranteed orientation when this is about to be sorted.
-	if (PointOnLineSide(di->Viewpoint.Pos.XY(), DVector2(glseg.x1, glseg.y1), DVector2(glseg.x2, glseg.y2)) < 0)
+	if (PointOnLineSide(di->Viewpoint.Pos.X, di->Viewpoint.Pos.Y, glseg.x1, glseg.y1, glseg.x2 - glseg.x1, glseg.y2 - glseg.y1 ) < 0)
 	{
 		std::swap(glseg.x1, glseg.x2);
 		std::swap(glseg.y1, glseg.y2);

@@ -1,16 +1,45 @@
 #pragma once
 
 #include "gamecontrol.h"
+#include "gamestruct.h"
 #include "build.h"
 #include "coreactor.h"
-#include "fixedhorizon.h"
 #include "intrect.h"
+#include "geometry.h"
+#include "c_cvars.h"
 
 extern IntRect viewport3d;
 
+EXTERN_CVAR(Bool, hw_hightile)
+EXTERN_CVAR(Bool, hw_models)
+EXTERN_CVAR(Float, gl_texture_filter_anisotropic)
+EXTERN_CVAR(Int, gl_texture_filter)
+extern bool hw_int_useindexedcolortextures;
+EXTERN_CVAR(Bool, hw_useindexedcolortextures)
+EXTERN_CVAR(Bool, r_voxels)
+
+inline int leveltimer;
+inline int Numsprites;
+inline int display_mirror;
+inline int randomseed;
+inline int g_visibility = 512, g_relvisibility = 0;
+
+constexpr int SLOPEVAL_FACTOR = 4096;
+
+enum
+{
+	CLIPMASK0 = (1 << 16) + 1,
+	CLIPMASK1 = (256 << 16) + 64
+};
+
+//==========================================================================
+//
 // breadth first search, this gets used multiple times throughout the engine, mainly for iterating over sectors.
 // Only works on indices, this has no knowledge of the actual objects being looked at.
 // All objects of this type operate on the same shared store. Interleaved use is not allowed, nested use is fine.
+//
+//==========================================================================
+
 class BFSSearch
 {
 	static inline TArray<unsigned> store;
@@ -152,132 +181,72 @@ void vertexscan(walltype* startwall, func mark)
 }
 
 
-//---------------------------------------------------------------------------
+//==========================================================================
 //
-// Constants used for Build sine/cosine functions.
-//
-//---------------------------------------------------------------------------
-
-enum
-{
-	BAMBITS = 21,
-	BAMUNIT = 1 << BAMBITS,
-	SINTABLEBITS = 30,
-	SINTABLEUNIT = 1 << SINTABLEBITS,
-	BUILDSINBITS = 14,
-	BUILDSINSHIFT = SINTABLEBITS - BUILDSINBITS,
-};
-
-constexpr double BAngRadian = pi::pi() * (1. / 1024.);
-constexpr double BAngToDegree = 360. / 2048.;
-constexpr DAngle DAngleBuildToDeg = DAngle::fromDeg(BAngToDegree);
-
-extern int sintable[2048];
-
-inline constexpr double sinscale(const int shift)
-{
-	return shift >= -BUILDSINBITS ? uint64_t(1) << (BUILDSINBITS + shift) : 1. / (uint64_t(1) << abs(BUILDSINBITS + shift));
-}
-
-
-//---------------------------------------------------------------------------
-//
-// Build sine inline functions.
-//
-//---------------------------------------------------------------------------
-
-inline int bsin(const int ang, int shift = 0)
-{
-	return (shift -= BUILDSINSHIFT) < 0 ? sintable[ang & 2047] >> abs(shift) : sintable[ang & 2047] << shift;
-}
-inline double bsinf(const double ang, const int shift = 0)
-{
-	return g_sinbam(ang * BAMUNIT) * sinscale(shift);
-}
-
-
-//---------------------------------------------------------------------------
-//
-// Build cosine inline functions.
 // 
-// About shifts:
-// -6 -> * 16
-// -7 -> * 8
-// -8 -> * 4
-// -9 -> * 2
-// -10 -> * 1
 //
-//---------------------------------------------------------------------------
+//==========================================================================
 
-inline int bcos(const int ang, int shift = 0)
+inline void dragpoint(walltype* startwall, const DVector2& pos)
 {
-	return (shift -= BUILDSINSHIFT) < 0 ? sintable[(ang + 512) & 2047] >> abs(shift) : sintable[(ang + 512) & 2047] << shift;
-}
-inline double bcosf(const double ang, const int shift = 0)
-{
-	return g_cosbam(ang * BAMUNIT) * sinscale(shift);
+	vertexscan(startwall, [&](walltype* wal)
+		{
+			wal->move(pos);
+			wal->sectorp()->exflags |= SECTOREX_DRAGGED;
+		});
 }
 
 
 //---------------------------------------------------------------------------
 //
-// High precision vector angle function, mainly for the renderer.
+//
 //
 //---------------------------------------------------------------------------
-
-inline int getangle(double xvect, double yvect)
-{
-	return DVector2(xvect, yvect).Angle().Buildang();
-}
-
-inline int getangle(const DVector2& vec)
-{
-	return getangle(vec.X, vec.Y);
-}
-
-inline int getangle(const vec2_t& vec)
-{
-	return getangle(vec.X, vec.Y);
-}
-
-
-//---------------------------------------------------------------------------
-//
-// Returns an angle delta for Build angles.
-//
-//---------------------------------------------------------------------------
-
-inline constexpr int getincangle(unsigned a, unsigned na)
-{
-	return int((na - a) << 21) >> 21;
-}
-
 
 extern double cameradist, cameraclock;
 
-void loaddefinitionsfile(const char* fn, bool cumulative = false, bool maingrp = false);
+bool calcChaseCamPos(DVector3& ppos, DCoreActor* pspr, sectortype** psectnum, const DRotator& angles, double const interpfrac, double const backamp);
+int getslopeval(sectortype* sect, const DVector3& pos, double bazez);
+bool cansee(const DVector3& start, sectortype* sect1, const DVector3& end, sectortype* sect2);
+double intersectSprite(DCoreActor* actor, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor);
+double intersectWallSprite(DCoreActor* actor, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor, bool checktex = false);
+double intersectFloorSprite(DCoreActor* actor, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor);
+double intersectSlopeSprite(DCoreActor* actor, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor);
+double checkWallHit(walltype* wal, EWallFlags flagmask, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor);
+double checkSectorPlaneHit(sectortype* sec, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor);
+void neartag(const DVector3& start, sectortype* sect, DAngle angle, HitInfoBase& result, double neartagrange, int tagsearch);
+int testpointinquad(const DVector2& pt, const DVector2* quad);
+int hitscan(const DVector3& start, const sectortype* startsect, const DVector3& vect, HitInfoBase& hitinfo, unsigned cliptype, double maxrange = -1);
 
-bool calcChaseCamPos(DVector3& ppos, DCoreActor* pspr, sectortype** psectnum, DAngle ang, fixedhoriz horiz, double const interpfrac);
+bool checkRangeOfWall(walltype* wal, EWallFlags flagmask, const DVector3& pos, double maxdist, double* theZs);
+bool checkRangeOfFaceSprite(DCoreActor* itActor, const DVector3& pos, double maxdist, double* theZs);
+bool checkRangeOfWallSprite(DCoreActor* itActor, const DVector3& pos, double maxdist, double* theZs);
+bool checkRangeOfFloorSprite(DCoreActor* itActor, const DVector3& pos, double maxdist, double& theZ);
+void getzrange(const DVector3& pos, sectortype* sect, double* ceilz, CollisionBase& ceilhit, double* florz, CollisionBase& florhit, double walldist, uint32_t cliptype);
 
-inline bool calcChaseCamPos(int* px, int* py, int* pz, DCoreActor* pspr, sectortype** psectnum, DAngle ang, fixedhoriz horiz, double const smoothratio)
+bool checkOpening(const DVector2& inpos, double z, const sectortype* sec, const sectortype* nextsec, double ceilingdist, double floordist, bool precise = false);
+int pushmove(DVector3& pos, sectortype** pSect, double walldist, double ceildist, double flordist, unsigned cliptype);
+tspritetype* renderAddTsprite(tspriteArray& tsprites, DCoreActor* actor);
+
+inline int pushmove(DVector2& pos, double z, sectortype** pSect, double walldist, double ceildist, double flordist, unsigned cliptype)
 {
-	auto pos = DVector3((*px) * inttoworld, (*py) * inttoworld, (*pz) * zinttoworld);
-	auto res = calcChaseCamPos(pos, pspr, psectnum, ang, horiz, smoothratio * (1. / MaxSmoothRatio));
-	(*px) = pos.X * worldtoint;
-	(*py) = pos.Y * worldtoint;
-	(*pz) = pos.Z * zworldtoint;
-	return res;
+	auto vect = DVector3(pos, z);
+	auto result = pushmove(vect, pSect, walldist, ceildist, flordist, cliptype);
+	pos = vect.XY();
+	return result;
 }
 
-void PlanesAtPoint(const sectortype* sec, float dax, float day, float* ceilz, float* florz);
-
-int getslopeval(sectortype* sect, int x, int y, int z, int planez);
 
 
+
+int FindBestSector(const DVector3& pos);
+
+
+tspritetype* renderAddTsprite(tspriteArray& tsprites, DCoreActor* actor);
 
 void setWallSectors();
 void GetWallSpritePosition(const spritetypebase* spr, const DVector2& pos, DVector2* out, bool render = false);
-void GetFlatSpritePosition(DCoreActor* spr, const DVector2& pos, DVector2* out, bool render = false);
+void GetFlatSpritePosition(DCoreActor* spr, const DVector2& pos, DVector2* out, double* outz = nullptr, bool render = false);
 void GetFlatSpritePosition(const tspritetype* spr, const DVector2& pos, DVector2* out, double* outz, bool render = false);
 
 enum class EClose
@@ -289,59 +258,129 @@ enum class EClose
 EClose IsCloseToLine(const DVector2& vect, const DVector2& start, const DVector2& end, double walldist);
 EClose IsCloseToWall(const DVector2& vect, walltype* wal, double walldist);
 
-void checkRotatedWalls();
 bool sectorsConnected(int sect1, int sect2);
-[[deprecated]] void dragpoint(walltype* wal, int newx, int newy);
-void dragpoint(walltype* wal, const DVector2& pos);
 int32_t inside(double x, double y, const sectortype* sect);
-void getcorrectzsofslope(int sectnum, int dax, int day, int* ceilz, int* florz);
-int getceilzofslopeptr(const sectortype* sec, int dax, int day);
-int getflorzofslopeptr(const sectortype* sec, int dax, int day);
-void getzsofslopeptr(const sectortype* sec, int dax, int day, int* ceilz, int* florz);
-void getzsofslopeptr(const sectortype* sec, double dax, double day, double* ceilz, double* florz);
+int insidePoly(double x, double y, const DVector2* points, int count);
 
-template<class Vector>
-inline int getceilzofslopeptr(const sectortype* sec, const Vector& pos)
-{
-	return getceilzofslopeptr(sec, pos.X * worldtoint, pos.Y * worldtoint);
-}
-template<class Vector>
-inline int getflorzofslopeptr(const sectortype* sec, const Vector& pos)
-{
-	return getflorzofslopeptr(sec, pos.X * worldtoint, pos.Y * worldtoint);
-}
-template<class Vector>
-inline void getzsofslopeptr(const sectortype* sec, const Vector& pos, int* ceilz, int* florz)
-{
-	getzsofslopeptr(sec, int(pos.X * worldtoint), int(pos.Y * worldtoint), ceilz, florz);
-}
-template<class Vector>
-inline void getzsofslopeptr(const sectortype* sec, const Vector& pos, double* ceilz, double* florz)
-{
-	getzsofslopeptr(sec, pos.X, pos.Y, ceilz, florz);
-}
+enum {
+	NT_Lotag = 1,
+	NT_Hitag = 2,
+	NT_NoSpriteCheck = 4
+};
 
-inline double getceilzofslopeptrf(const sectortype* sec, double dax, double day)
+
+//==========================================================================
+//
+// slope getter stuff (many wrappers, one worker only)
+//
+//==========================================================================
+
+void calcSlope(const sectortype* sec, double xpos, double ypos, double* pceilz, double* pflorz);
+
+//==========================================================================
+//
+// for the renderer
+//
+//==========================================================================
+
+inline void PlanesAtPoint(const sectortype* sec, float dax, float day, float* pceilz, float* pflorz)
 {
-	return getceilzofslopeptr(sec, dax * worldtoint, day * worldtoint) * zinttoworld;
-}
-inline double getflorzofslopeptrf(const sectortype* sec, double dax, double day)
-{
-	return getflorzofslopeptr(sec, dax * worldtoint, day * worldtoint) * zinttoworld;
-}
-inline double getceilzofslopeptrf(const sectortype* sec, const DVector2& pos)
-{
-	return getceilzofslopeptr(sec, pos.X * worldtoint, pos.Y * worldtoint) * zinttoworld;
-}
-inline double getflorzofslopeptrf(const sectortype* sec, const DVector2& pos)
-{
-	return getflorzofslopeptr(sec, pos.X * worldtoint, pos.Y * worldtoint) * zinttoworld;
+	double f, c;
+	calcSlope(sec, dax, day, &c, &f);
+	if (pceilz) *pceilz = -float(c);
+	if (pflorz) *pflorz = -float(f);
 }
 
-inline DVector2 rotatepoint(const DVector2& pivot, const DVector2& point, DAngle angle)
+
+//==========================================================================
+//
+// for the game engine
+//
+//==========================================================================
+
+template<class Vector>
+inline void calcSlope(const sectortype* sec, const Vector& pos, double* ceilz, double* florz)
 {
-	return (point - pivot).Rotated(angle) + pivot;
+	calcSlope(sec, pos.X, pos.Y, ceilz, florz);
 }
+
+inline double getceilzofslopeptr(const sectortype* sec, double dax, double day)
+{
+	double c;
+	calcSlope(sec, dax, day, &c, nullptr);
+	return c;
+}
+inline double getflorzofslopeptr(const sectortype* sec, double dax, double day)
+{
+	double f;
+	calcSlope(sec, dax, day, nullptr, &f);
+	return f;
+}
+template<class Vector>
+inline double getceilzofslopeptr(const sectortype* sec, const Vector& pos)
+{
+	return getceilzofslopeptr(sec, pos.X, pos.Y);
+}
+template<class Vector>
+inline double getflorzofslopeptr(const sectortype* sec, const Vector& pos)
+{
+	return getflorzofslopeptr(sec, pos.X, pos.Y);
+}
+
+//==========================================================================
+//
+// slope setters
+//
+//==========================================================================
+
+inline void alignceilslope(sectortype* sect, const DVector3& pos)
+{
+	sect->setceilingslope(getslopeval(sect, pos, sect->ceilingz));
+}
+
+inline void alignflorslope(sectortype* sect, const DVector3& pos)
+{
+	sect->setfloorslope(getslopeval(sect, pos, sect->floorz));
+}
+
+//==========================================================================
+//
+// slope sprites
+//
+//==========================================================================
+
+inline void spriteSetSlope(DCoreActor* actor, int heinum)
+{
+	if (actor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_FLOOR)
+	{
+		actor->spr.xoffset = heinum & 255;
+		actor->spr.yoffset = (heinum >> 8) & 255;
+		actor->spr.cstat = (actor->spr.cstat & ~CSTAT_SPRITE_ALIGNMENT_MASK) | (heinum != 0 ? CSTAT_SPRITE_ALIGNMENT_SLOPE : CSTAT_SPRITE_ALIGNMENT_FLOOR);
+	}
+}
+
+inline int spriteGetSlope(DCoreActor* actor)
+{
+	return ((actor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) != CSTAT_SPRITE_ALIGNMENT_SLOPE) ? 0 : uint8_t(actor->spr.xoffset) + (int8_t(actor->spr.yoffset) << 8);
+}
+
+// same stuff, different flag...
+inline int tspriteGetSlope(const tspritetype* spr)
+{
+	return !(spr->clipdist & TSPR_SLOPESPRITE) ? 0 : uint8_t(spr->xoffset) + (int8_t(spr->yoffset) << 8);
+}
+
+inline double spriteGetZOfSlopef(const spritetypebase* tspr, const DVector2& pos, int heinum)
+{
+	if (heinum == 0) return tspr->pos.Z;
+	return tspr->pos.Z + heinum * -tspr->Angles.Yaw.ToVector().dot(pos - tspr->pos.XY()) * (1. / SLOPEVAL_FACTOR);
+}
+
+//==========================================================================
+//
+// end of slopes
+//
+//==========================================================================
 
 
 enum EFindNextSector
@@ -360,79 +399,16 @@ enum EFindNextSector
 	Find_FloorDown = Find_Floor | Find_Down,
 };
 sectortype* nextsectorneighborzptr(sectortype* sectp, double startz, int flags);
+int isAwayFromWall(DCoreActor* ac, double delta);
 
 
-
-inline double WallStartX(int wallnum)
-{
-	return wall[wallnum].pos.X;
-}
-
-inline double WallStartY(int wallnum)
-{
-	return -wall[wallnum].pos.Y;
-}
-
-inline double WallEndX(int wallnum)
-{
-	return wall[wallnum].point2Wall()->pos.X;
-}
-
-inline double WallEndY(int wallnum)
-{
-	return -wall[wallnum].point2Wall()->pos.Y;
-}
-
-inline double WallStartX(const walltype* wallnum)
-{
-	return wallnum->pos.X;
-}
-
-inline double WallStartY(const walltype* wallnum)
-{
-	return -wallnum->pos.Y;
-}
-
-inline DVector2 WallStart(const walltype* wallnum)
-{
-	return { WallStartX(wallnum), WallStartY(wallnum) };
-}
-
-inline double WallEndX(const walltype* wallnum)
-{
-	return wallnum->point2Wall()->pos.X;
-}
-
-inline double WallEndY(const walltype* wallnum)
-{
-	return -wallnum->point2Wall()->pos.Y;
-}
-
-inline DVector2 WallEnd(const walltype* wallnum)
-{
-	return { WallEndX(wallnum), WallEndY(wallnum) };
-}
-
-inline DVector2 WallDelta(const walltype* wallnum)
-{
-	return WallEnd(wallnum) - WallStart(wallnum);
-}
-
-inline double PointOnLineSide(double x, double y, double linex, double liney, double deltax, double deltay)
-{
-	return (x - linex) * deltay - (y - liney) * deltax;
-}
-
+// important note: This returns positive for 'in front' with renderer coordinates.
+// Due to Build's inverted coordinate system it will return negative for 'in front' there.
 inline double PointOnLineSide(const DVector2 &pos, const walltype *line)
 {
-	return (pos.X - WallStartX(line)) * WallDelta(line).Y - (pos.Y - WallStartY(line)) * WallDelta(line).X;
+	return (pos.X - line->pos.X) * line->delta().Y - (pos.Y - line->pos.Y) * line->delta().X;
 }
 
-template<class T>
-inline double PointOnLineSide(const TVector2<T>& pos, const TVector2<T>& linestart, const TVector2<T>& lineend)
-{
-	return (pos.X - linestart.X) * (lineend.Y - linestart.Y) - (pos.Y - linestart.Y) * (lineend.X - linestart.X);
-}
 
 extern int numshades;
 
@@ -449,117 +425,25 @@ inline void copyfloorpal(tspritetype* spr, const sectortype* sect)
 	if (!lookups.noFloorPal(sect->floorpal)) spr->pal = sect->floorpal;
 }
 
-inline void spriteSetSlope(DCoreActor* actor, int heinum)
-{
-	if (actor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_FLOOR)
-	{
-		actor->spr.xoffset = heinum & 255;
-		actor->spr.yoffset = (heinum >> 8) & 255;
-		actor->spr.cstat = (actor->spr.cstat & ~CSTAT_SPRITE_ALIGNMENT_MASK) | (heinum != 0 ? CSTAT_SPRITE_ALIGNMENT_SLOPE : CSTAT_SPRITE_ALIGNMENT_FLOOR);
-	}
-}
-
-inline int spriteGetSlope(DCoreActor* actor)
-{
-	return ((actor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) != CSTAT_SPRITE_ALIGNMENT_SLOPE) ? 0 : uint8_t(actor->spr.xoffset) + (uint8_t(actor->spr.yoffset) << 8);
-}
-
-// same stuff, different flag...
-inline int tspriteGetSlope(const tspritetype* spr)
-{
-	return !(spr->clipdist & TSPR_SLOPESPRITE) ? 0 : uint8_t(spr->xoffset) + (int8_t(spr->yoffset) << 8);
-}
-
-inline int32_t spriteGetZOfSlope(const spritetypebase* tspr, int dax, int day, int heinum)
-{
-	if (heinum == 0) return tspr->int_pos().Z;
-
-	int const j = DMulScale(bsin(tspr->int_ang() + 1024), day - tspr->int_pos().Y, -bsin(tspr->int_ang() + 512), dax - tspr->int_pos().X, 4);
-	return tspr->int_pos().Z + MulScale(heinum, j, 18);
-}
-
-inline int inside(int x, int y, const sectortype* sect)
-{
-	return inside(x * inttoworld, y * inttoworld, sect);
-}
-
-// still needed by some parts in the engine.
-inline int inside_p(int x, int y, int sectnum) { return (sectnum >= 0 && inside(x, y, &sector[sectnum]) == 1); }
-
-
-
 inline int I_GetBuildTime()
 {
 	return I_GetTime(120);
 }
 
-inline int32_t getangle(walltype* wal)
-{
-	return getangle(wal->delta());
-}
-
-inline TArrayView<walltype> wallsofsector(const sectortype* sec)
-{
-	return TArrayView<walltype>(sec->firstWall(), sec->wallnum);
-}
-
-inline TArrayView<walltype> wallsofsector(int sec)
-{
-	return wallsofsector(&sector[sec]);
-}
-
 // these are mainly meant as refactoring aids to mark function calls to work on.
-inline int wallnum(const walltype* wal)
+inline int wallindex(const walltype* wal)
 {
 	return wall.IndexOf(wal);
 }
 
-inline int sectnum(const sectortype* sect)
+inline int sectindex(const sectortype* sect)
 {
 	return sector.IndexOf(sect);
 }
 
-inline double SquareDist(double lx1, double ly1, double lx2, double ly2)
+inline DVector2 NearestPointOnWall(double px, double py, const walltype* wal, bool clamp = true)
 {
-	double dx = lx2 - lx1;
-	double dy = ly2 - ly1;
-	return dx * dx + dy * dy;
-}
-
-inline DVector2 NearestPointLine(double px, double py, const walltype* wal)
-{
-	double lx1 = wal->pos.X;
-	double ly1 = wal->pos.Y;
-	double lx2 = wal->point2Wall()->pos.X;
-	double ly2 = wal->point2Wall()->pos.Y;
-
-	double wall_length = SquareDist(lx1, ly1, lx2, ly2);
-
-	if (wall_length == 0) return { lx1, ly1 };
-
-	double t = ((px - lx1) * (lx2 - lx1) + (py - ly1) * (ly2 - ly1)) / wall_length;
-	double xx = lx1 + t * (lx2 - lx1);
-	double yy = ly1 + t * (ly2 - ly1);
-	return { xx, yy };
-}
-
-inline DVector2 NearestPointOnWall(double px, double py, const walltype* wal)
-{
-	double lx1 = wal->pos.X;
-	double ly1 = wal->pos.Y;
-	double lx2 = wal->point2Wall()->pos.X;
-	double ly2 = wal->point2Wall()->pos.Y;
-
-	double wall_length = SquareDist(lx1, ly1, lx2, ly2);
-
-	if (wall_length == 0) return { lx1, ly1 };
-
-	double t = ((px - lx1) * (lx2 - lx1) + (py - ly1) * (ly2 - ly1)) / wall_length;
-	if (t <= 0) return { lx1, ly1 };
-	if (t >= 1) return { lx2, ly2 };
-	double xx = lx1 + t * (lx2 - lx1);
-	double yy = ly1 + t * (ly2 - ly1);
-	return { xx, yy };
+	return NearestPointOnLine(px, py, wal->pos.X, wal->pos.Y, wal->point2Wall()->pos.X, wal->point2Wall()->pos.Y, clamp);
 }
 
 inline double SquareDistToWall(double px, double py, const walltype* wal, DVector2* point = nullptr) 
@@ -571,42 +455,35 @@ inline double SquareDistToWall(double px, double py, const walltype* wal, DVecto
 
 double SquareDistToSector(double px, double py, const sectortype* sect, DVector2* point = nullptr);
 
-inline double SquareDistToLine(double px, double py, double lx1, double ly1, double lx2, double ly2)
-{
-	double wall_length = SquareDist(lx1, ly1, lx2, ly2);
-
-	if (wall_length == 0) return SquareDist(px, py, lx1, ly1);
-
-	double t = ((px - lx1) * (lx2 - lx1) + (py - ly1) * (ly2 - ly1)) / wall_length;
-	t = clamp(t, 0., 1.);
-	double xx = lx1 + t * (lx2 - lx1);
-	double yy = ly1 + t * (ly2 - ly1);
-	return SquareDist(px, py, xx, yy);
-}
-
-inline void alignceilslope(sectortype* sect, int x, int y, int z)
-{
-	sect->setceilingslope(getslopeval(sect, x, y, z, sect->int_ceilingz()));
-}
-
-inline void alignflorslope(sectortype* sect, int x, int y, int z)
-{
-	sect->setfloorslope(getslopeval(sect, x, y, z, sect->int_floorz()));
-}
-
-inline void alignceilslope(sectortype* sect, const DVector3& pos)
-{
-	sect->setceilingslope(getslopeval(sect, pos.X * worldtoint, pos.Y * worldtoint, pos.Z * zworldtoint, sect->int_ceilingz()));
-}
-
-inline void alignflorslope(sectortype* sect, const DVector3& pos)
-{
-	sect->setfloorslope(getslopeval(sect, pos.X * worldtoint, pos.Y * worldtoint, pos.Z * zworldtoint, sect->int_floorz()));
-}
-
 inline double BobVal(int val)
 {
 	return g_sinbam((unsigned)val << 21);
+}
+
+inline double BobVal(double val)
+{
+	return g_sinbam(xs_CRoundToUInt(val * (1 << 21)));
+}
+
+inline DAngle GetMinPitch()
+{
+	return !cl_clampedpitch ? (DAngle90 - minAngle) : gi->playerPitchMin();
+}
+
+inline DAngle GetMaxPitch()
+{
+	return !cl_clampedpitch ? (minAngle - DAngle90) : gi->playerPitchMax();
+}
+
+inline DAngle ClampViewPitch(const DAngle pitch)
+{
+	return clamp(pitch, GetMaxPitch(), GetMinPitch());
+}
+
+inline void setFreeAimVelocity(double& vel, double& zvel, const DAngle pitch, const double zvspeed)
+{
+	vel *= pitch.Cos();
+	zvel = pitch.Sin() * zvspeed;
 }
 
 #include "updatesector.h"

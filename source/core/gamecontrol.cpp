@@ -82,6 +82,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "findfile.h"
 #include "version.h"
 #include "hw_material.h"
+#include "tiletexture.h"
+#include "tilesetbuilder.h"
+
+#include "buildtiles.h"
 
 void LoadHexFont(const char* filename);
 
@@ -543,6 +547,11 @@ static void System_SetTransition(int type)
 	nextwipe = type;
 }
 
+bool WantEscape()
+{
+	return gi->WantEscape();
+}
+
 
 
 void I_StartupJoysticks();
@@ -555,6 +564,7 @@ int GameMain()
 {
 	int r;
 	I_InitTime();
+	C_InitCVars(0);
 	SetConsoleNotifyBuffer();
 	sysCallbacks =
 	{
@@ -590,7 +600,8 @@ int GameMain()
 		OnMenuOpen,
 		nullptr,
 		nullptr,
-		[]() ->FConfigFile* { return GameConfig; }
+		[]() ->FConfigFile* { return GameConfig; },
+		WantEscape,
 	};
 
 	try
@@ -628,9 +639,7 @@ int GameMain()
 	voxClear();
 	ClearPalManager();
 	TexMan.DeleteAll();
-	TileFiles.CloseAll();	// delete the texture data before shutting down graphics.
 	I_ShutdownGraphics();
-	freeallmodels();
 	if (gi)
 	{
 		delete gi;
@@ -638,6 +647,7 @@ int GameMain()
 	}
 	DeleteStartupScreen();
 	PClass::StaticShutdown();
+	C_UninitCVars();
 	if (Args) delete Args;
 	return r;
 }
@@ -721,6 +731,24 @@ static TArray<GrpEntry> SetupGame()
 	}
 	foundit:
 
+	// If the user has specified a script, let's see if we know it.
+	//
+	if (groupno == -1 && userConfig.DefaultCon.Len())
+	{
+		FString DefaultConlower = userConfig.DefaultCon.MakeLower();
+
+		int g = 0;
+		for (auto& grp : groups)
+		{
+			if (grp.FileInfo.scriptname.MakeLower() == DefaultConlower)
+			{
+				groupno = g;
+				break;
+			}
+			g++;
+		}
+	}
+
 	// If the user has specified a file name, let's see if we know it.
 	//
 	if (groupno == -1 && userConfig.gamegrp.Len())
@@ -755,7 +783,7 @@ static TArray<GrpEntry> SetupGame()
 			{
 				for (unsigned i = 0; i < groups.Size(); ++i)
 				{
-					FString& basename = groups[i].FileName;
+					FString& basename = groups[i].FileInfo.name;
 					if (stricmp(basename, defaultiwad) == 0)
 					{
 						pick = i;
@@ -788,7 +816,7 @@ static TArray<GrpEntry> SetupGame()
 					autoloadbrightmaps = !!(flags & 4);
 					autoloadwidescreen = !!(flags & 8);
 					// The newly selected IWAD becomes the new default
-					defaultiwad = groups[pick].FileName;
+					defaultiwad = groups[pick].FileInfo.name;
 				}
 				groupno = pick;
 			}
@@ -841,7 +869,7 @@ static TArray<GrpEntry> SetupGame()
 		LumpFilter = usedgroups.Last().FileInfo.name;
 		LumpFilter.StripChars(".:/\\<>?\"*| \t\r\n");
 	}
-
+	SavegameFolder = LumpFilter;
 	currentGame = LumpFilter;
 	currentGame.Truncate(currentGame.IndexOf("."));
 	PClass::StaticInit();
@@ -931,20 +959,30 @@ void GetGames()
 //
 //==========================================================================
 
-static void InitTextures()
+static void InitTextures(TArray<GrpEntry>& usedgroups)
 {
+	voxInit();
 
 	TexMan.usefullnames = true;
 	TexMan.Init();
 	TexMan.AddTextures([]() {}, [](BuildInfo&) {});
 	StartWindow->Progress();
-	mdinit();
 
-	TileFiles.Init();
-	TileFiles.LoadArtSet("tiles%03d.art"); // it's the same for all games.
-	voxInit();
-	gi->LoadGameTextures(); // loads game-side data that must be present before processing the .def files.
-	LoadDefinitions();
+	TArray<FString> addArt;
+	for (auto& grp : usedgroups)
+	{
+		for (auto& art : grp.FileInfo.loadart)
+		{
+			addArt.Push(art);
+		}
+	}
+	if (userConfig.AddArt) for (auto& art : *userConfig.AddArt)
+	{
+		addArt.Push(art);
+	}
+	InitArtFiles(addArt);
+
+	ConstructTileset();
 	InitFont();				// InitFonts may only be called once all texture data has been initialized.
 
 	lookups.postLoadTables();
@@ -953,7 +991,6 @@ static void InitTextures()
 	SetupFontSubstitution();
 	V_LoadTranslations();   // loading the translations must be delayed until the palettes have been fully set up.
 	UpdateUpscaleMask();
-	TileFiles.SetBackup();
 }
 
 //==========================================================================
@@ -1025,17 +1062,18 @@ int RunGame()
 	// Handle CVARs with game specific defaults here.
 	if (isBlood())
 	{
-		mus_redbook.SetGenericRepDefault(false, CVAR_Bool);	// Blood should default to CD Audio off - all other games must default to on.
-		am_showlabel.SetGenericRepDefault(true, CVAR_Bool);
+		mus_redbook->SetGenericRepDefault(false, CVAR_Bool);	// Blood should default to CD Audio off - all other games must default to on.
+		am_showlabel->SetGenericRepDefault(true, CVAR_Bool);
 	}
 	if (isSWALL())
 	{
-		cl_weaponswitch.SetGenericRepDefault(1, CVAR_Int);
+		hud_showmapname->SetGenericRepDefault(false, CVAR_Bool);	// SW never had this feature, make it optional.
+		cl_weaponswitch->SetGenericRepDefault(1, CVAR_Int);
 		if (cl_weaponswitch > 1) cl_weaponswitch = 1;
 	}
 	if (g_gameType & (GAMEFLAG_BLOOD|GAMEFLAG_RR))
 	{
-		am_nameontop.SetGenericRepDefault(true, CVAR_Bool);	// Blood and RR show the map name on the top of the screen by default.
+		am_nameontop->SetGenericRepDefault(true, CVAR_Bool);	// Blood and RR show the map name on the top of the screen by default.
 	}
 
 	G_ReadConfig(currentGame);
@@ -1053,20 +1091,6 @@ int RunGame()
 	V_InitScreen();
 	StartWindow = FStartupScreen::CreateInstance(8, true);
 	StartWindow->Progress();
-
-	TArray<FString> addArt;
-	for (auto& grp : usedgroups)
-	{
-		for (auto& art : grp.FileInfo.loadart)
-		{
-			addArt.Push(art);
-		}
-	}
-	if (userConfig.AddArt) for (auto& art : *userConfig.AddArt)
-	{
-		addArt.Push(art);
-	}
-	TileFiles.AddArt(addArt);
 
 	inputState.ClearAllInput();
 
@@ -1088,10 +1112,11 @@ int RunGame()
 	gi->loadPalette();
 	BuildFogTable();
 	StartWindow->Progress();
-	InitTextures();
+	InitTextures(usedgroups);
 
 	StartWindow->Progress();
 	I_InitSound();
+	gi->StartSoundEngine();
 	StartWindow->Progress();
 	Mus_InitMusic();
 	S_ParseSndInfo();
@@ -1109,7 +1134,6 @@ int RunGame()
 	gameinfo.mBackButton = "engine/graphics/m_back.png";
 	StartWindow->Progress();
 
-	engineInit();
 	GC::AddMarkerFunc(MarkMap);
 	gi->app_init();
 	StartWindow->Progress();
@@ -1147,13 +1171,14 @@ int RunGame()
 
 	D_CheckNetGame();
 	UpdateGenericUI(ui_generic);
+	PClassActor::StaticInit();
 	MainLoop();
-	return 0; // this is never reached. MainLoop only exits via exception.
+	return 0;
 }
 
 //---------------------------------------------------------------------------
 //
-// The one and only main loop in the entire engine. Yay!
+//
 //
 //---------------------------------------------------------------------------
 
@@ -1217,7 +1242,7 @@ CVAR(String, combatmacro6, "", CVAR_ARCHIVE | CVAR_USERINFO)
 CVAR(String, combatmacro7, "", CVAR_ARCHIVE | CVAR_USERINFO)
 CVAR(String, combatmacro8, "", CVAR_ARCHIVE | CVAR_USERINFO)
 CVAR(String, combatmacro9, "", CVAR_ARCHIVE | CVAR_USERINFO)
-FStringCVar* const CombatMacros[] = { &combatmacro0, &combatmacro1, &combatmacro2, &combatmacro3, &combatmacro4, &combatmacro5, &combatmacro6, &combatmacro7, &combatmacro8, &combatmacro9};
+FStringCVarRef* const CombatMacros[] = { &combatmacro0, &combatmacro1, &combatmacro2, &combatmacro3, &combatmacro4, &combatmacro5, &combatmacro6, &combatmacro7, &combatmacro8, &combatmacro9};
 
 void CONFIG_ReadCombatMacros()
 {
@@ -1230,7 +1255,7 @@ void CONFIG_ReadCombatMacros()
 			sc.MustGetToken(TK_StringConst);
 			UCVarValue val;
 			val.String = sc.String;
-			s->SetGenericRepDefault(val, CVAR_String);
+			s->get()->SetGenericRepDefault(val, CVAR_String);
 		}
 	}
 	catch (const CRecoverableError &)
@@ -1367,13 +1392,13 @@ void GameInterface::FreeLevelData()
 //
 //---------------------------------------------------------------------------
 
-void ST_DrawCrosshair(int phealth, double xpos, double ypos, double scale);
+void ST_DrawCrosshair(int phealth, double xpos, double ypos, double scale, DAngle angle);
 //void DrawGenericCrosshair(int num, int phealth, double xdelta);
 void ST_LoadCrosshair(int num, bool alwaysload);
 CVAR(Int, crosshair, 0, CVAR_ARCHIVE)
 
 
-void DrawCrosshair(int deftile, int health, double xdelta, double ydelta, double scale, PalEntry color)
+void DrawCrosshair(int deftile, int health, double xdelta, double ydelta, double scale, DAngle angle, PalEntry color)
 {
 	if (automapMode == am_off && cl_crosshair)
 	{
@@ -1382,8 +1407,8 @@ void DrawCrosshair(int deftile, int health, double xdelta, double ydelta, double
 			auto tile = tileGetTexture(deftile);
 			if (tile)
 			{
-				double crosshair_scale = crosshairscale * scale;
-				DrawTexture(twod, tile, 160 + xdelta, 100 + ydelta, DTA_Color, color,
+				double crosshair_scale = crosshairscale > 0.0f ? crosshairscale * scale : 1.;
+				DrawTexture(twod, tile, 160 + xdelta, 100 + ydelta, DTA_Color, color, DTA_Rotate, angle.Degrees(),
 					DTA_FullscreenScale, FSMode_Fit320x200, DTA_ScaleX, crosshair_scale, DTA_ScaleY, crosshair_scale, DTA_CenterOffsetRel, true,
 					DTA_ViewportX, viewport3d.Left(), DTA_ViewportY, viewport3d.Top(), DTA_ViewportWidth, viewport3d.Width(), DTA_ViewportHeight, viewport3d.Height(), TAG_DONE);
 
@@ -1394,64 +1419,9 @@ void DrawCrosshair(int deftile, int health, double xdelta, double ydelta, double
 		ST_LoadCrosshair(crosshair == 0 ? 2 : *crosshair, false);
 
 		double xpos = viewport3d.Width() * 0.5 + xdelta * viewport3d.Height() / 240.;
-		double ypos = viewport3d.Height() * 0.5;
-		ST_DrawCrosshair(health, xpos, ypos, 1);
+		double ypos = viewport3d.Height() * 0.5 + ydelta * viewport3d.Width() / 320.;
+		ST_DrawCrosshair(health, xpos, ypos, 1, angle);
 	}
-}
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-void LoadDefinitions()
-{
-	const char* defsfile = G_DefFile();
-	FString razedefsfile = defsfile;
-	razedefsfile.Substitute(".def", "-raze.def");
-
-	loaddefinitionsfile("engine/engine.def", true, true);	// Internal stuff that is required.
-
-	// check what we have.
-	// user .defs override the default ones and are not cumulative.
-	// if we fine even one Raze-specific file, all of those will be loaded cumulatively.
-	// otherwise the default rules inherited from older ports apply.
-	if (userConfig.UserDef.IsNotEmpty())
-	{
-		loaddefinitionsfile(userConfig.UserDef, false);
-	}
-	else
-	{
-		if (fileSystem.FileExists(razedefsfile))
-		{
-			loaddefinitionsfile(razedefsfile, true);
-		}
-		else if (fileSystem.FileExists(defsfile))
-		{
-			loaddefinitionsfile(defsfile, false);
-		}
-	}
-
-	if (userConfig.AddDefs)
-	{
-		for (auto& m : *userConfig.AddDefs)
-		{
-			loaddefinitionsfile(m, false);
-		}
-		userConfig.AddDefs.reset();
-	}
-
-	if (GameStartupInfo.def.IsNotEmpty())
-	{
-		loaddefinitionsfile(GameStartupInfo.def);	// Stuff from gameinfo.
-	}
-
-	// load the widescreen replacements last. This ensures that mods still get the correct CRCs for their own tile replacements.
-	if (fileSystem.FindFile("engine/widescreen.def") >= 0 && !Args->CheckParm("-nowidescreen"))
-	{
-		loaddefinitionsfile("engine/widescreen.def");
-	}
-	fileSystem.InitHashChains(); // make sure that any resources that got added can be found again.
 }
 
 bool M_Active()
@@ -1585,6 +1555,7 @@ DEFINE_FIELD_X(SummaryInfo, SummaryInfo, maxsecrets)
 DEFINE_FIELD_X(SummaryInfo, SummaryInfo, supersecrets)
 DEFINE_FIELD_X(SummaryInfo, SummaryInfo, playercount)
 DEFINE_FIELD_X(SummaryInfo, SummaryInfo, time)
+DEFINE_FIELD_X(SummaryInfo, SummaryInfo, totaltime)
 DEFINE_FIELD_X(SummaryInfo, SummaryInfo, cheated)
 DEFINE_FIELD_X(SummaryInfo, SummaryInfo, endofgame)
 

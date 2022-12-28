@@ -96,6 +96,12 @@ int nGlowCount;
 int bDoFlicks = 0;
 int bDoGlows = 0;
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 size_t MarkLighting()
 {
     for (int i = 0; i < kMaxFlashes; i++)
@@ -105,6 +111,12 @@ size_t MarkLighting()
     }
     return kMaxFlashes;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 FSerializer& Serialize(FSerializer& arc, const char* keyname, Flash& w, Flash* def)
 {
@@ -183,7 +195,12 @@ void SerializeLighting(FSerializer& arc)
     }
 }
 
-// done
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int GrabFlash()
 {
     int nFlash = sFlash.Get();
@@ -206,6 +223,12 @@ int GrabFlash()
     return nLastFlash;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void InitLights()
 {
     int i;
@@ -226,6 +249,12 @@ void InitLights()
     nLastFlash  = -1;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AddFlash(sectortype* pSector, const DVector3& pos, int val)
 {
     int var_28 = 0;
@@ -242,7 +271,7 @@ void AddFlash(sectortype* pSector, const DVector3& pos, int val)
 
     int var_14 = 0;
 
-	for (auto& wal : wallsofsector(pSector))
+	for (auto& wal : pSector->walls)
     {
         sectortype *pNextSector = NULL;
         if (wal.twoSided())
@@ -277,7 +306,7 @@ void AddFlash(sectortype* pSector, const DVector3& pos, int val)
 
                     wal.shade = max( -127, wal.shade + walldist);
 
-                    if (!var_1C && !wal.overpicnum && pNextSector)
+                    if (!var_1C && !wal.overtexture().isValid() && pNextSector)
                     {
                         AddFlash(pNextSector, pos, val);
                     }
@@ -371,6 +400,12 @@ void AddFlash(sectortype* pSector, const DVector3& pos, int val)
         }
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void UndoFlashes()
 {
@@ -507,6 +542,12 @@ loc_1868A:
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AddGlow(sectortype* pSector, int nVal)
 {
     if (nGlowCount >= kMaxGlows) {
@@ -521,7 +562,12 @@ void AddGlow(sectortype* pSector, int nVal)
     nGlowCount++;
 }
 
-// ok
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AddFlicker(sectortype* pSector, int nVal)
 {
     if (nFlickerCount >= kMaxFlickers) {
@@ -539,6 +585,12 @@ void AddFlicker(sectortype* pSector, int nVal)
 
     nFlickerCount++;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void DoGlows()
 {
@@ -566,12 +618,18 @@ void DoGlows()
         pSector->ceilingshade += nShade;
         pSector->floorshade   += nShade;
 
-		for(auto& wal : wallsofsector(pSector))
+		for(auto& wal : pSector->walls)
         {
             wal.shade += nShade;
         }
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void DoFlickers()
 {
@@ -609,7 +667,7 @@ void DoFlickers()
             pSector->ceilingshade += shade;
             pSector->floorshade += shade;
 
-			for(auto& wal : wallsofsector(pSector))
+			for(auto& wal : pSector->walls)
             {
                 wal.shade += shade;
             }
@@ -617,7 +675,13 @@ void DoFlickers()
     }
 }
 
-void AddFlow(sectortype* pSector, int nSpeed, int b, int nAngle)
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+void AddFlow(sectortype* pSector, int nSpeed, int b, DAngle nAngle)
 {
     if (nFlowCount >= kMaxFlows || b >= 2)
         return;
@@ -625,10 +689,8 @@ void AddFlow(sectortype* pSector, int nSpeed, int b, int nAngle)
     int nFlow = nFlowCount;
     nFlowCount++;
 
-    int nPic = pSector->floorpicnum;
-
-    sFlowInfo[nFlow].angcos  = float(-cos(nAngle * BAngRadian) * nSpeed);
-    sFlowInfo[nFlow].angsin = float(sin(nAngle * BAngRadian) * nSpeed);
+    sFlowInfo[nFlow].angcos  = float(-nAngle.Cos() * nSpeed);
+    sFlowInfo[nFlow].angsin = float(nAngle.Sin() * nSpeed);
     sFlowInfo[nFlow].pSector = pSector;
 
     StartInterpolation(pSector, b ? Interp_Sect_CeilingPanX : Interp_Sect_FloorPanX);
@@ -638,7 +700,13 @@ void AddFlow(sectortype* pSector, int nSpeed, int b, int nAngle)
 }
 
 
-void AddFlow(walltype* pWall, int nSpeed, int b, int nAngle)
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+void AddFlow(walltype* pWall, int nSpeed, int b)
 {
     if (nFlowCount >= kMaxFlows || b < 2)
         return;
@@ -650,14 +718,18 @@ void AddFlow(walltype* pWall, int nSpeed, int b, int nAngle)
     // only moves up or down
     StartInterpolation(pWall, Interp_Wall_PanY);
 
-    int nPic = pWall->picnum;
-
     sFlowInfo[nFlow].angcos = 0;
-    sFlowInfo[nFlow].angsin = b == 2 ? 1 : -1;
+    sFlowInfo[nFlow].angsin = b == 2 ? 1.f : -1.f;
     sFlowInfo[nFlow].pWall = pWall;
 
     sFlowInfo[nFlow].type = b;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void DoFlows()
 {
@@ -705,6 +777,12 @@ void DoLights()
     DoFlows();
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void SetTorch(int nPlayer, int bTorchOnOff)
 {
     if (bTorchOnOff == bTorch) {
@@ -729,6 +807,12 @@ void SetTorch(int nPlayer, int bTorchOnOff)
     const char* buf = bTorch ? "TXT_EX_TORCHLIT" : "TXT_EX_TORCHOUT";
     StatusMessage(150, GStrings(buf));
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void BuildFlash(int nPlayer, int nVal)
 {

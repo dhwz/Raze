@@ -37,11 +37,11 @@ static actionSeq LavadudeSeq[] = {
     {42, 1}
 };
 
-DExhumedActor* BuildLavaLimb(DExhumedActor* pActor, int move, int ebx)
+DExhumedActor* BuildLavaLimb(DExhumedActor* pActor, int move, double height)
 {
     auto pLimbActor = insertActor(pActor->sector(), 118);
 
-    pLimbActor->spr.pos = pActor->spr.pos.plusZ((-RandomLong() % ebx) * zmaptoworld);
+    pLimbActor->spr.pos = pActor->spr.pos.plusZ(-RandomFloat(height));
     pLimbActor->spr.cstat = 0;
     pLimbActor->spr.shade = -127;
     pLimbActor->spr.pal = 1;
@@ -50,12 +50,11 @@ DExhumedActor* BuildLavaLimb(DExhumedActor* pActor, int move, int ebx)
     pLimbActor->vel.Z = 10 - RandomSize(5);
     pLimbActor->spr.xoffset = 0;
     pLimbActor->spr.yoffset = 0;
-    pLimbActor->spr.xrepeat = 90;
-    pLimbActor->spr.yrepeat = 90;
+	pLimbActor->spr.scale = DVector2(1.40625, 1.40625);
     pLimbActor->spr.picnum = (move & 3) % 3;
     pLimbActor->spr.hitag = 0;
     pLimbActor->spr.lotag = runlist_HeadRun() + 1;
-    pLimbActor->set_const_clipdist(0);
+    pLimbActor->clipdist = 0;
 
 //	GrabTimeSlot(3);
 
@@ -73,7 +72,7 @@ void AILavaDudeLimb::Tick(RunListEvent* ev)
 
     pActor->spr.shade += 3;
 
-    auto coll = movesprite(pActor, pActor->vel, 4096., 2560, -2560, CLIPMASK1);
+    auto coll = movespritevel(pActor, pActor->vel, 16., -10, CLIPMASK1);
 
     if (coll.type || pActor->spr.shade > 100)
     {
@@ -107,25 +106,24 @@ void BuildLava(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, 
     else
     {
         pSector = pActor->sector();
-        nAngle = pActor->spr.angle;
+        nAngle = pActor->spr.Angles.Yaw;
 		pActor->spr.pos.Z = pSector->floorz;
 
         ChangeActorStat(pActor, 118);
     }
 
     pActor->spr.cstat = CSTAT_SPRITE_INVISIBLE;
-    pActor->spr.xrepeat = 200;
-    pActor->spr.yrepeat = 200;
+	pActor->spr.scale = DVector2(3.125, 3.125);
     pActor->spr.shade = -12;
     pActor->spr.pal = 0;
-    pActor->set_const_clipdist(127);
+	pActor->clipdist = 31.75;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
     pActor->spr.picnum = seq_GetSeqPicnum(kSeqLavag, LavadudeSeq[3].a, 0);
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
     pActor->vel.Z = 0;
-    pActor->spr.angle = nAngle;
+    pActor->spr.Angles.Yaw = nAngle;
     pActor->spr.hitag = 0;
     pActor->spr.lotag = runlist_HeadRun() + 1;
 
@@ -205,7 +203,7 @@ void AILavaDude::Damage(RunListEvent* ev)
             }
         }
 
-        BuildLavaLimb(pActor, totalmoves, 64000);
+        BuildLavaLimb(pActor, totalmoves, 250);
     }
 }
 
@@ -279,14 +277,14 @@ void AILavaDude::Tick(RunListEvent* ev)
 		auto pos = pActor->spr.pos;
         auto pSector =pActor->sector();
 
-        auto coll = movesprite(pActor, DVector3(pActor->vel.XY(), 0), 256., 0, 0, CLIPMASK0);
+        auto coll = movespritevel(pActor, DVector3(pActor->vel.XY(), 0), 1., 0, CLIPMASK0);
 
         if (pSector != pActor->sector())
         {
             ChangeActorSect(pActor, pSector);
 			pActor->spr.pos = pos;
 
-            pActor->set_int_ang((pActor->int_ang() + ((RandomWord() & 0x3FF) + 1024)) & kAngleMask);
+            pActor->spr.Angles.Yaw += DAngle180 + mapangle(RandomWord() & 0x3FF);
             pActor->VelFromAngle();
             break;
         }
@@ -297,7 +295,7 @@ void AILavaDude::Tick(RunListEvent* ev)
 
         if (coll.type == kHitWall)
         {
-            pActor->set_int_ang((pActor->int_ang() + ((RandomWord() & 0x3FF) + 1024)) & kAngleMask);
+            pActor->spr.Angles.Yaw += DAngle180 + mapangle(RandomWord() & 0x3FF);
             pActor->VelFromAngle();
             break;
         }
@@ -305,8 +303,8 @@ void AILavaDude::Tick(RunListEvent* ev)
         {
             if (coll.actor() == pTarget)
             {
-				auto nAngDiff = AngleDiff(pActor->spr.angle, VecToAngle(pTarget->spr.pos - pActor->spr.pos));
-				if (nAngDiff < 64)
+				auto nAngDiff = absangle(pActor->spr.Angles.Yaw, (pTarget->spr.pos - pActor->spr.pos).Angle());
+				if (nAngDiff < DAngle22_5 / 2)
                 {
                     pActor->nAction = 2;
                     pActor->nFrame = 0;
@@ -344,7 +342,7 @@ void AILavaDude::Tick(RunListEvent* ev)
     {
         if ((nFlag & 0x80) && pTarget)
         {
-             BuildBullet(pActor, 10, -1, pActor->spr.angle, pTarget, 1);
+             BuildBullet(pActor, 10, INT_MAX, pActor->spr.Angles.Yaw, pTarget, 1);
         }
         else if (var_1C)
         {
@@ -371,7 +369,7 @@ void AILavaDude::Tick(RunListEvent* ev)
     {
         if (nFlag & 0x40)
         {
-            auto pLimbSprite = BuildLavaLimb(pActor, pActor->nFrame, 64000);
+            auto pLimbSprite = BuildLavaLimb(pActor, pActor->nFrame, 250);
             D3PlayFX(StaticSound[kSound26], pLimbSprite);
         }
 
@@ -382,7 +380,7 @@ void AILavaDude::Tick(RunListEvent* ev)
                 int ecx = 0;
                 do
                 {
-                    BuildLavaLimb(pActor, ecx, 64000);
+                    BuildLavaLimb(pActor, ecx, 250);
                     ecx++;
                 } while (ecx < 20);
                 runlist_ChangeChannel(pActor->nCount, 1);
@@ -394,7 +392,7 @@ void AILavaDude::Tick(RunListEvent* ev)
 
             do
             {
-                BuildLavaLimb(pActor, ecx, 256);
+                BuildLavaLimb(pActor, ecx, 1);
                 ecx++;
             } while (ecx < 30);
 

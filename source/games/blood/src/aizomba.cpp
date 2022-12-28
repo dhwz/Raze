@@ -64,16 +64,15 @@ void HackSeqCallback(int, DBloodActor* actor)
 	auto target = actor->GetTarget();
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
 	DUDEINFO* pDudeInfoT = getDudeInfo(target->spr.type);
-	int tx = actor->xspr.int_TargetPos().X - actor->int_pos().X;
-	int ty = actor->xspr.int_TargetPos().Y - actor->int_pos().Y;
-	int nAngle = getangle(tx, ty);
-	int height = (actor->spr.yrepeat * pDudeInfo->eyeHeight) << 2;
-	int height2 = (target->spr.yrepeat * pDudeInfoT->eyeHeight) << 2;
-	int dz = height - height2;
-	int dx = bcos(nAngle);
-	int dy = bsin(nAngle);
+	DVector3 dv;
+	dv.XY() = (actor->xspr.TargetPos.XY() - actor->spr.pos.XY()).Resized(64);
+
+	double height = (pDudeInfo->eyeHeight * actor->spr.scale.Y);
+	double height2 = (pDudeInfoT->eyeHeight * target->spr.scale.Y);
+	dv.Z = height - height2;
+
 	sfxPlay3DSound(actor, 1101, 1, 0);
-	actFireVector(actor, 0, 0, dx, dy, dz, kVectorAxe);
+	actFireVector(actor, 0, 0, dv, kVectorAxe);
 }
 
 void StandSeqCallback(int, DBloodActor* actor)
@@ -92,10 +91,10 @@ static void zombaThinkGoto(DBloodActor* actor)
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
-	int nAngle = getangle(dvec);
-	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
-	if (nDist < 921 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
+	DAngle nAngle = dvec.Angle();
+	double nDist = dvec.Length();
+	aiChooseDirection(actor, nAngle);
+	if (nDist < 51.3125 && absangle(actor->spr.Angles.Yaw, nAngle) < pDudeInfo->Periphery())
 		aiNewState(actor, &zombieASearch);
 	aiThinkTarget(actor);
 }
@@ -113,9 +112,9 @@ static void zombaThinkChase(DBloodActor* actor)
 	auto target = actor->GetTarget();
 
 	auto dvec = target->spr.pos.XY() - actor->spr.pos.XY();
-	int nAngle = getangle(dvec);
-	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
+	DAngle nAngle = dvec.Angle();
+	double nDist = dvec.Length();
+	aiChooseDirection(actor, nAngle);
 
 	if (target->xspr.health == 0)
 	{
@@ -132,16 +131,16 @@ static void zombaThinkChase(DBloodActor* actor)
 		actor->spr.type = kDudeZombieAxeNormal;
 
 
-	if (nDist <= pDudeInfo->seeDist)
+	if (nDist <= pDudeInfo->SeeDist())
 	{
-		int nDeltaAngle = getincangle(actor->int_ang(), nAngle);
-		double height = (pDudeInfo->eyeHeight * actor->spr.yrepeat) * REPEAT_SCALE;
+		DAngle nDeltaAngle = absangle(actor->spr.Angles.Yaw, nAngle);
+		double height = (pDudeInfo->eyeHeight * actor->spr.scale.Y);
 		if (cansee(target->spr.pos, target->sector(), actor->spr.pos.plusZ(-height), actor->sector()))
 		{
-			if (abs(nDeltaAngle) <= pDudeInfo->periphery)
+			if (nDeltaAngle <= pDudeInfo->Periphery())
 			{
 				aiSetTarget(actor, actor->GetTarget());
-				if (nDist < 0x400 && abs(nDeltaAngle) < 85)
+				if (nDist < 0x40 && nDeltaAngle < DAngle15)
 					aiNewState(actor, &zombieAHack);
 				return;
 			}
@@ -165,9 +164,9 @@ static void zombaThinkPonder(DBloodActor* actor)
 	auto target = actor->GetTarget();
 
 	auto dvec = target->spr.pos.XY() - actor->spr.pos.XY();
-	int nAngle = getangle(dvec);
-	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
+	DAngle nAngle = dvec.Angle();
+	double nDist = dvec.Length();
+	aiChooseDirection(actor, nAngle);
 	if (target->xspr.health == 0)
 	{
 		aiNewState(actor, &zombieASearch);
@@ -179,18 +178,18 @@ static void zombaThinkPonder(DBloodActor* actor)
 		return;
 	}
 
-	if (nDist <= pDudeInfo->seeDist)
+	if (nDist <= pDudeInfo->SeeDist())
 	{
-		int nDeltaAngle = getincangle(actor->int_ang(), nAngle);
-		double height = (pDudeInfo->eyeHeight * actor->spr.yrepeat) * REPEAT_SCALE;
+		DAngle nDeltaAngle = absangle(actor->spr.Angles.Yaw, nAngle);
+		double height = (pDudeInfo->eyeHeight * actor->spr.scale.Y);
 		if (cansee(target->spr.pos, target->sector(), actor->spr.pos.plusZ(-height), actor->sector()))
 		{
-			if (abs(nDeltaAngle) <= pDudeInfo->periphery)
+			if (nDeltaAngle <= pDudeInfo->Periphery())
 			{
 				aiSetTarget(actor, actor->GetTarget());
-				if (nDist < 0x400)
+				if (nDist < 0x40)
 				{
-					if (abs(nDeltaAngle) < 85)
+					if (nDeltaAngle < DAngle15)
 					{
 						sfxPlay3DSound(actor, 1101, 1, 0);
 						aiNewState(actor, &zombieAHack);
@@ -217,19 +216,19 @@ static void myThinkTarget(DBloodActor* actor)
 		auto ppos = pPlayer->actor->spr.pos;
 		auto dvect = ppos.XY() - actor->spr.pos;
 		auto pSector = pPlayer->actor->sector();
-		int nDist = approxDist(dvect);
-		if (nDist > pDudeInfo->seeDist && nDist > pDudeInfo->hearDist)
+		double nDist = dvect.Length();
+		if (nDist > pDudeInfo->SeeDist() && nDist > pDudeInfo->HearDist())
 			continue;
-		double height = (pDudeInfo->eyeHeight * actor->spr.yrepeat) * REPEAT_SCALE;
+		double height = (pDudeInfo->eyeHeight * actor->spr.scale.Y);
 		if (!cansee(ppos, pSector, actor->spr.pos.plusZ(-height), actor->sector()))
 			continue;
-		int nDeltaAngle = getincangle(actor->int_ang(), getangle(dvect));
-		if (nDist < pDudeInfo->seeDist && abs(nDeltaAngle) <= pDudeInfo->periphery)
+		DAngle nDeltaAngle = absangle(actor->spr.Angles.Yaw, dvect.Angle());
+		if (nDist < pDudeInfo->SeeDist() && abs(nDeltaAngle) <= pDudeInfo->Periphery())
 		{
 			aiSetTarget(actor, pPlayer->actor);
 			aiActivateDude(actor);
 		}
-		else if (nDist < pDudeInfo->hearDist)
+		else if (nDist < pDudeInfo->HearDist())
 		{
 			aiSetTarget(actor, ppos);
 			aiActivateDude(actor);
@@ -266,7 +265,7 @@ static void entryAIdle(DBloodActor* actor)
 static void entryEStand(DBloodActor* actor)
 {
 	sfxPlay3DSound(actor, 1100, -1, 0);
-	actor->spr.angle = VecToAngle(actor->xspr.TargetPos - actor->spr.pos);
+	actor->spr.Angles.Yaw = (actor->xspr.TargetPos - actor->spr.pos).Angle();
 }
 
 END_BLD_NS

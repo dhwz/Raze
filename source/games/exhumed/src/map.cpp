@@ -30,6 +30,12 @@ BEGIN_PS_NS
 
 bool bShowTowers = false;
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void GrabMap()
 {
     for(auto&sec: sector)
@@ -49,22 +55,15 @@ void DrawMap(double const interpfrac)
     if (!nFreeze && automapMode != am_off) 
     {
         auto pPlayerActor = PlayerList[nLocalPlayer].pActor;
-        auto ang = !SyncInput() ? PlayerList[nLocalPlayer].angle.sum() : PlayerList[nLocalPlayer].angle.interpolatedsum(interpfrac);
-        DrawOverheadMap(pPlayerActor->interpolatedpos(interpfrac).XY(), ang, interpfrac);
+        DrawOverheadMap(pPlayerActor->interpolatedpos(interpfrac).XY(), PlayerList[nLocalPlayer].Angles.getRenderAngles(interpfrac).Yaw, interpfrac);
     }
 }
 
-void GetActorExtents(DExhumedActor* actor, int* top, int* bottom)
-{
-    *top = *bottom = actor->int_pos().Z;
-    if ((actor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) != CSTAT_SPRITE_ALIGNMENT_FLOOR)
-    {
-        int height = tileHeight(actor->spr.picnum);
-        int center = height / 2 + tileTopOffset(actor->spr.picnum);
-        *top -= (actor->spr.yrepeat << 2) * center;
-        *bottom += (actor->spr.yrepeat << 2) * (height - center);
-    }
-}
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 bool GameInterface::DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac)
 {

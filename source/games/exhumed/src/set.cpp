@@ -39,6 +39,12 @@ static actionSeq SetSeq[] = {
     {74, 1}
 };
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void BuildSet(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, DAngle nAngle, int nChannel)
 {
     if (pActor == nullptr)
@@ -50,21 +56,20 @@ void BuildSet(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, D
     {
         ChangeActorStat(pActor, 120);
 		pActor->spr.pos.Z = pActor->sector()->floorz;
-        nAngle = pActor->spr.angle;
+        nAngle = pActor->spr.Angles.Yaw;
     }
 
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     pActor->spr.shade = -12;
-    pActor->set_const_clipdist(110);
+	pActor->clipdist = 27.5;
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
     pActor->vel.Z = 0;
-    pActor->spr.xrepeat = 87;
-    pActor->spr.yrepeat = 96;
+	pActor->spr.scale = DVector2(1.359375, 1.5);
     pActor->spr.pal = pActor->sector()->ceilingpal;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->spr.angle = nAngle;
+    pActor->spr.Angles.Yaw = nAngle;
     pActor->spr.picnum = 1;
     pActor->spr.hitag = 0;
     pActor->spr.lotag = runlist_HeadRun() + 1;
@@ -91,24 +96,29 @@ void BuildSet(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, D
     nCreaturesTotal++;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void BuildSoul(DExhumedActor* pSet)
 {
     auto pActor = insertActor(pSet->sector(), 0);
 
     pActor->spr.cstat = CSTAT_SPRITE_INVISIBLE;
     pActor->spr.shade = -127;
-    pActor->spr.xrepeat = 1;
-    pActor->spr.yrepeat = 1;
+    pActor->spr.scale = DVector2(REPEAT_SCALE, REPEAT_SCALE);
     pActor->spr.pal = 0;
-    pActor->set_const_clipdist(5);
+	pActor->clipdist = 1.25;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
     pActor->spr.picnum = seq_GetSeqPicnum(kSeqSet, 75, 0);
-    pActor->set_int_ang(RandomSize(11));
+    pActor->spr.Angles.Yaw = RandomAngle();
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
     pActor->vel.Z = -1 - RandomSize(10) / 256.;
-    pActor->spr.pos = DVector3(pSet->spr.pos.XY(), RandomSize(8) + 32 + pActor->sector()->ceilingz - GetActorHeightF(pActor));
+    pActor->spr.pos = DVector3(pSet->spr.pos.XY(), RandomSize(8) + 32 + pActor->sector()->ceilingz - GetActorHeight(pActor));
 
     //pActor->spr.hitag = nSet;
 	pActor->pTarget = pSet;
@@ -121,6 +131,12 @@ void BuildSoul(DExhumedActor* pSet)
     pActor->spr.intowner = runlist_AddRunRec(NewRun, pActor, 0x230000);
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AISoul::Tick(RunListEvent* ev)
 {
 	auto pActor = ev->pObjActor;
@@ -128,32 +144,38 @@ void AISoul::Tick(RunListEvent* ev)
 
     seq_MoveSequence(pActor, SeqOffsets[kSeqSet] + 75, 0);
 
-    if (pActor->spr.xrepeat < 32)
+    if (pActor->spr.scale.X < 0.5)
     {
-        pActor->spr.xrepeat++;
-        pActor->spr.yrepeat++;
+        pActor->spr.scale.X += (REPEAT_SCALE);
+		pActor->spr.scale.Y += (REPEAT_SCALE);
     }
 
     pActor->spr.extra += (pActor->nPhase & 0x0F) + 5;
     pActor->spr.extra &= kAngleMask;
 
-    int nVel = bcos(pActor->spr.extra, -7);
+    double nVel = mapangle(pActor->spr.extra).Cos();
 
-	auto coll = movesprite(pActor, bcos(pActor->int_ang()) * nVel, bsin(pActor->int_ang()) * nVel, pActor->int_zvel(), 5120, 0, CLIPMASK0);
+    auto vect = pActor->spr.Angles.Yaw.ToVector() * nVel * 8;
+	auto coll = movesprite(pActor,vect, pActor->vel.Z, 0, CLIPMASK0);
     if (coll.exbits & 0x10000)
     {
 		DExhumedActor* pSet = pActor->pTarget;
 		if (!pSet) return;
 
         pActor->spr.cstat = 0;
-        pActor->spr.yrepeat = 1;
-        pActor->spr.xrepeat = 1;
-        pActor->spr.pos = pSet->spr.pos.plusZ(-GetActorHeightF(pSet) * 0.5);
+		pActor->spr.scale = DVector2(REPEAT_SCALE, REPEAT_SCALE);
+        pActor->spr.pos = pSet->spr.pos.plusZ(-GetActorHeight(pSet) * 0.5);
         ChangeActorSect(pActor, pSet->sector());
         return;
     }
 }
 
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AISet::RadialDamage(RunListEvent* ev)
 {
@@ -168,6 +190,12 @@ void AISet::RadialDamage(RunListEvent* ev)
     }
     Damage(ev);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AISet::Damage(RunListEvent* ev)
 {
@@ -208,6 +236,12 @@ void AISet::Damage(RunListEvent* ev)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AISet::Draw(RunListEvent* ev)
 {
 	auto pActor = ev->pObjActor;
@@ -217,6 +251,12 @@ void AISet::Draw(RunListEvent* ev)
     seq_PlotSequence(ev->nParam, SeqOffsets[kSeqSet] + SetSeq[nAction].a, pActor->nFrame, SetSeq[nAction].b);
     return;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AISet::Tick(RunListEvent* ev)
 {
@@ -264,7 +304,7 @@ void AISet::Tick(RunListEvent* ev)
     auto nMov = MoveCreature(pActor);
 
 	auto sect = pActor->sector();
-    pushmove(pActor, &sect, pActor->int_clipdist(), 5120, -5120, CLIPMASK0);
+    pushmove(pActor->spr.pos, &sect, pActor->clipdist, 20, -20, CLIPMASK0);
     pActor->setsector(sect);
 
     if (pActor->vel.Z > 4000/256.)
@@ -342,7 +382,7 @@ void AISet::Tick(RunListEvent* ev)
                 SetQuake(pActor, 100);
             }
 
-            int nCourse = PlotCourseToSprite(pActor, pTarget);
+            double nCourse = PlotCourseToSprite(pActor, pTarget);
 
             if ((pActor->nPhase & 0x1F) == (totalmoves & 0x1F))
             {
@@ -373,7 +413,7 @@ void AISet::Tick(RunListEvent* ev)
                 }
                 default:
                 {
-                    if (nCourse <= 100)
+                    if (nCourse <= 100/16.)
                     {
                         pActor->nIndex2 = 0;
                     }
@@ -387,7 +427,7 @@ void AISet::Tick(RunListEvent* ev)
             }
 
             // loc_338E2
-			pActor->vel.XY() = pActor->spr.angle.ToVector() * 512;
+			pActor->vel.XY() = pActor->spr.Angles.Yaw.ToVector() * 512;
 
             if (pActor->nIndex2)
             {
@@ -415,7 +455,7 @@ void AISet::Tick(RunListEvent* ev)
                     }
                 }
 
-                pActor->spr.angle += DAngle45;
+                pActor->spr.Angles.Yaw += DAngle45;
                 pActor->VelFromAngle(-1);
                 break;
             }
@@ -423,9 +463,9 @@ void AISet::Tick(RunListEvent* ev)
             {
                 if (pTarget == nMov.actor())
                 {
-					auto nAngDiff = AngleDiff(pActor->spr.angle, VecToAngle(pTarget->spr.pos - pActor->spr.pos));
-					if (nAngDiff < 64)
-                   {
+                    auto nAngDiff = absangle(pActor->spr.Angles.Yaw, (pTarget->spr.pos - pActor->spr.pos).Angle());
+                    if (nAngDiff < DAngle22_5 / 2)
+                    {
                         pActor->nAction = 4;
                         pActor->nFrame = 0;
                     }
@@ -461,7 +501,7 @@ void AISet::Tick(RunListEvent* ev)
         }
         else
         {
-            if (PlotCourseToSprite(pActor, pTarget) >= 768)
+            if (PlotCourseToSprite(pActor, pTarget) >= 48)
             {
                 pActor->nAction = 3;
             }
@@ -488,7 +528,7 @@ void AISet::Tick(RunListEvent* ev)
     {
         if (nFlag & 0x80)
         {
-            auto pBullet = BuildBullet(pActor, 11, -1, pActor->spr.angle, pTarget, 1);
+            auto pBullet = BuildBullet(pActor, 11, INT_MAX, pActor->spr.Angles.Yaw, pTarget, 1);
             if (pBullet)
 				SetBulletEnemy(pBullet->nPhase, pTarget);
 
@@ -512,7 +552,7 @@ void AISet::Tick(RunListEvent* ev)
             }
             else
             {
-                pActor->set_int_zvel(-(PlotCourseToSprite(pActor, pTarget)));
+                pActor->vel.Z = -(PlotCourseToSprite(pActor, pTarget)) / 16.;
             }
 
             pActor->nAction = 8;
@@ -565,9 +605,9 @@ void AISet::Tick(RunListEvent* ev)
     {
         if (nFlag & 0x80)
         {
-            pActor->spr.pos.Z -= GetActorHeightF(pActor);
+            pActor->spr.pos.Z -= GetActorHeight(pActor);
             BuildCreatureChunk(pActor, seq_GetSeqPicnum(kSeqSet, 76, 0));
-			pActor->spr.pos.Z += GetActorHeightF(pActor);
+			pActor->spr.pos.Z += GetActorHeight(pActor);
         }
 
         if (bVal)

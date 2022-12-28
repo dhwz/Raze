@@ -34,10 +34,11 @@ static actionSeq WaspSeq[] = {
     {29, 1}
 };
 
-void SetWaspVel(DExhumedActor* pActor)
-{
-    pActor->VelFromAngle();
-}
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 DExhumedActor* BuildWasp(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, DAngle nAngle, bool bEggWasp)
 {
@@ -49,30 +50,28 @@ DExhumedActor* BuildWasp(DExhumedActor* pActor, const DVector3& pos, sectortype*
     }
     else
     {
-        nAngle = pActor->spr.angle;
+        nAngle = pActor->spr.Angles.Yaw;
         ChangeActorStat(pActor, 107);
     }
 
     pActor->spr.shade = -12;
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     pActor->spr.pal = pActor->sector()->ceilingpal;
-    pActor->set_const_clipdist(70);
+	pActor->clipdist = 17.5;
 
     if (bEggWasp)
     {
-        pActor->spr.xrepeat = 20;
-        pActor->spr.yrepeat = 20;
+        pActor->spr.scale = DVector2(0.34375, 0.3125);
     }
     else
     {
-        pActor->spr.xrepeat = 50;
-        pActor->spr.yrepeat = 50;
+        pActor->spr.scale = DVector2(0.78125, 0.78125);
     }
 
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
     pActor->spr.picnum = 1;
-    pActor->spr.angle = nAngle;
+    pActor->spr.Angles.Yaw = nAngle;
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
     pActor->vel.Z = 0;
@@ -111,6 +110,12 @@ DExhumedActor* BuildWasp(DExhumedActor* pActor, const DVector3& pos, sectortype*
     return pActor;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AIWasp::Draw(RunListEvent* ev)
 {
     auto pActor = ev->pObjActor;
@@ -120,6 +125,12 @@ void AIWasp::Draw(RunListEvent* ev)
     seq_PlotSequence(ev->nParam, SeqOffsets[kSeqWasp] + WaspSeq[nAction].a, pActor->nFrame, WaspSeq[nAction].b);
     return;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIWasp::RadialDamage(RunListEvent* ev)
 {
@@ -132,6 +143,12 @@ void AIWasp::RadialDamage(RunListEvent* ev)
     ev->nDamage = runlist_CheckRadialDamage(pActor);
     Damage(ev);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIWasp::Damage(RunListEvent* ev)
 {
@@ -155,7 +172,7 @@ void AIWasp::Damage(RunListEvent* ev)
             }
 
             pActor->nAction = 1;
-			pActor->spr.angle += DAngle45 + DAngle90 + RandomAngle9();
+			pActor->spr.Angles.Yaw += DAngle45 + DAngle90 + RandomAngle9();
             pActor->norm_ang();
 
             pActor->nVel = 3000;
@@ -169,9 +186,9 @@ void AIWasp::Damage(RunListEvent* ev)
             pActor->nFrame = 0;
 
             pActor->spr.cstat = 0;
-            pActor->spr.angle += DAngle180;
+            pActor->spr.Angles.Yaw += DAngle180;
 
-            SetWaspVel(pActor);
+            pActor->VelFromAngle();
 
             pActor->vel.Z = 2;
 
@@ -180,6 +197,12 @@ void AIWasp::Damage(RunListEvent* ev)
     }
     return;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIWasp::Tick(RunListEvent* ev)
 {
@@ -225,7 +248,7 @@ void AIWasp::Tick(RunListEvent* ev)
 
     case 0:
     {
-        pActor->set_int_zvel(bsin(pActor->nAngle, -4));
+        pActor->vel.Z = BobVal(pActor->nAngle) * 4;
 
         pActor->nAngle += pActor->nAngle2;
         pActor->nAngle &= kAngleMask;
@@ -241,7 +264,7 @@ void AIWasp::Tick(RunListEvent* ev)
             }
             else
             {
-                pActor->angle2 = 0;
+                pActor->pitch = nullAngle;
                 pActor->vel.Z = 0;
                 pActor->nAction = 1;
                 pActor->nFrame = 0;
@@ -270,7 +293,7 @@ void AIWasp::Tick(RunListEvent* ev)
             return;
         }
 
-        auto nChaseVal = AngleChase(pActor, pTarget, pActor->nVel, 0, 16);
+        auto nChaseVal = AngleChase(pActor, pTarget, pActor->nVel, 0, DAngle22_5 / 8);
 
         switch (nChaseVal.type)
         {
@@ -304,7 +327,7 @@ void AIWasp::Tick(RunListEvent* ev)
     {
         if (bVal)
         {
-			pActor->spr.angle += DAngle45 + DAngle90 + RandomAngle9();
+			pActor->spr.Angles.Yaw += DAngle45 + DAngle90 + RandomAngle9();
             pActor->vel.Z = ((-20) - RandomSize(6)) / 256.;
 
             pActor->nAction = 1;
@@ -331,7 +354,7 @@ void AIWasp::Tick(RunListEvent* ev)
     {
         auto pSector =pActor->sector();
 
-        pActor->spr.pos.Z = pActor->vel.Z;
+        pActor->spr.pos.Z += pActor->vel.Z;
 
         if (pActor->spr.pos.Z >= pSector->floorz)
         {

@@ -45,6 +45,7 @@ Prepared for public release: 03/28/2005 - Charlie Wiederhold, 3D Realms
 #include "parent.h"
 #include "v_video.h"
 #include "render.h"
+#include "models/modeldata.h"
 
 BEGIN_SW_NS
 
@@ -67,8 +68,6 @@ bool bAutoSize = true;                  // Autosizing on/off
 //extern int chainnumpages;
 extern AMB_INFO ambarray[];
 extern short NormalVisibility;
-
-extern TILE_INFO_TYPE aVoxelArray[MAXTILES];
 
 // F U N C T I O N S //////////////////////////////////////////////////////////////////////////////
 
@@ -219,7 +218,7 @@ void JS_SpriteSetup(void)
     // Check for certain walls to make sounds
     for(auto& wal : wall)
     {
-        int picnum = wal.picnum;
+        int picnum = wal.wallpicnum;
 
         // Set the don't stick bit for liquid tiles
         switch (picnum)
@@ -260,12 +259,10 @@ void JS_InitMirrors(void)
 
     // Scan wall tags for mirrors
     mirrorcnt = 0;
-	tileDelete(MIRROR);
 	oscilationclock = I_GetBuildTime();
 
     for (i = 0; i < MAXMIRRORS; i++)
     {
-		tileDelete(i + MIRRORLABEL);
         mirror[i].campic = -1;
         mirror[i].camspriteActor = nullptr;
         mirror[i].cameraActor = nullptr;
@@ -282,14 +279,12 @@ void JS_InitMirrors(void)
                 if (mirrorcnt >= MAXMIRRORS)
                 {
                     Printf("MAXMIRRORS reached! Skipping mirror wall\n");
-                    wal.overpicnum = sec->ceilingpicnum;
+                    wal.setovertexture(sec->ceilingtexture);
                     continue;
                 }
 
-                wal.overpicnum = MIRRORLABEL + mirrorcnt;
-                wal.picnum = MIRRORLABEL + mirrorcnt;
-                sec->ceilingpicnum = MIRRORLABEL + mirrorcnt;
-                sec->floorpicnum = MIRRORLABEL + mirrorcnt;
+                wal.overpicnum = MIRRORLABEL;
+                wal.wallpicnum = MIRRORLABEL;
                 sec->floorstat |= CSTAT_SECTOR_SKY;
                 mirror[mirrorcnt].mirrorWall = &wal;
                 mirror[mirrorcnt].mirrorSector = sec;
@@ -309,7 +304,7 @@ void JS_InitMirrors(void)
                         {
                             mirror[mirrorcnt].cameraActor = itActor;
                             // Set up camera variables
-                            itActor->user.sang = itActor->spr.angle;      // Set current angle to sprite angle
+                            itActor->user.sang = itActor->spr.Angles.Yaw;      // Set current angle to sprite angle
                             Found_Cam = true;
                         }
                     }
@@ -322,7 +317,7 @@ void JS_InitMirrors(void)
                         {
                             mirror[mirrorcnt].cameraActor = itActor;
                             // Set up camera variables
-                            itActor->user.sang = itActor->spr.angle;      // Set current angle to sprite angle
+                            itActor->user.sang = itActor->spr.Angles.Yaw;      // Set current angle to sprite angle
                             Found_Cam = true;
                         }
                     }
@@ -347,10 +342,6 @@ void JS_InitMirrors(void)
                             {
                                 mirror[mirrorcnt].campic = itActor->spr.picnum;
                                 mirror[mirrorcnt].camspriteActor = itActor;
-
-                                // JBF: commenting out this line results in the screen in $BULLET being visible
-								tileDelete(mirror[mirrorcnt].campic);
-
                                 Found_Cam = true;
                             }
                         }
@@ -358,7 +349,7 @@ void JS_InitMirrors(void)
                         if (!Found_Cam)
                         {
                             Printf("Did not find drawtotile for camera number %d\n", mirrorcnt);
-                            Printf("wall(%d).hitag == %d\n", wallnum(&wal), wal.hitag);
+                            Printf("wall(%d).hitag == %d\n", wallindex(&wal), wal.hitag);
                             Printf("Map Coordinates: x = %d, y = %d\n", int(wal.pos.X), int(wal.pos.Y));
                             RESET_BOOL1(mirror[mirrorcnt].cameraActor);
                         }
@@ -381,37 +372,23 @@ void JS_InitMirrors(void)
                 mirrorcnt++;
             }
             else
-                wal.overpicnum = sec->ceilingpicnum;
+                wal.setovertexture(sec->ceilingtexture);
         }
     }
-
-    // Invalidate textures in sector behind mirror
-    for (i = 0; i < mirrorcnt; i++)
-    {
-        for (auto& wal : wallsofsector(mirror[i].mirrorSector))
-        {
-            wal.picnum = MIRROR;
-            wal.overpicnum = MIRROR;
-        }
-    }
-
 }                                   // InitMirrors
 
 /////////////////////////////////////////////////////
 //  Draw a 3d screen to a specific tile
 /////////////////////////////////////////////////////
-void drawroomstotile(const DVector3& pos,
-                     DAngle ang, fixedhoriz horiz, sectortype* dacursect, short tilenume, double smoothratio)
+void drawroomstotile(const DVector3& pos, DAngle ang, DAngle horiz, sectortype* dacursect, short tilenume, double smoothratio)
 {
-    int daposx = pos.X * worldtoint;
-    int daposy = pos.Y * worldtoint;
-    int daposz = pos.Z * zworldtoint;
-    auto canvas = tileGetCanvas(tilenume);
+    auto tex = tileGetTexture(tilenume);
+    auto canvas = dynamic_cast<FCanvasTexture*>(tex->GetTexture());
     if (!canvas) return;
 
     screen->RenderTextureView(canvas, [=](IntRect& rect)
         {
-               render_camtex(nullptr, vec3_t( daposx, daposy, daposz ), dacursect, ang, horiz, nullAngle, tileGetTexture(tilenume), rect, smoothratio);
+               render_camtex(nullptr, pos, dacursect, DRotator(horiz, ang, nullAngle), tex, rect, smoothratio);
         });
 
 }
@@ -427,7 +404,7 @@ void JS_ProcessEchoSpot()
     while (auto actor = it.Next())
     {
         double maxdist = SP_TAG4(actor) * maptoworld;
-        auto v = actor->spr.pos.XY() - pp->pos.XY();
+        auto v = actor->spr.pos.XY() - pp->actor->spr.pos.XY();
         double dist = abs(v.X) + abs(v.Y);
 
         if (dist <= maxdist) // tag4 = ang
@@ -484,34 +461,23 @@ void JS_DrawCameras(PLAYER* pp, const DVector3& campos, double smoothratio)
         oscilation_delta -= oscilation_delta % 4;
         oscilationclock += oscilation_delta;
         oscilation_delta *= 2;
-        DAngle oscillation_angle = DAngle::fromBuild(oscilation_delta);
+        DAngle oscillation_angle = mapangle(oscilation_delta);
         for (cnt = MAXMIRRORS - 1; cnt >= 0; cnt--) 
         {
-            if (!mirror[cnt].ismagic) continue; // these are definitely not camera textures.
+            if (!mirror[cnt].ismagic || mirror[cnt].campic < 0) continue; // these are definitely not camera textures.
 
-            if (testgotpic(cnt + MIRRORLABEL) || ((unsigned)mirror[cnt].campic < MAXTILES && testgotpic(mirror[cnt].campic)))
+            auto tex = tileGetTexture(mirror[cnt].campic);
+            if (tex && tex->isSeen(true))
             {
-                // Do not change any global state here!
-                bIsWallMirror = testgotpic(cnt + MIRRORLABEL);
-
-                DVector2 vec;
-                if (bIsWallMirror)
-                {
-                    vec = mirror[cnt].mirrorWall->pos - campos.XY();
-                }
-                else
-                {
-                    DSWActor* camactor = mirror[cnt].camspriteActor;
-
-                    vec = camactor->spr.pos - campos.XY();
-                }
+                DSWActor* camactor = mirror[cnt].camspriteActor;
+                DVector2 vec = camactor->spr.pos - campos.XY();
                 dist = abs(vec.X) + abs(vec.Y);
 
 
                 short w;
 
-                DSWActor *camactor = mirror[cnt].cameraActor;
-                assert(camactor);
+                camactor = mirror[cnt].cameraActor;
+                if (!camactor) continue;
 
                 // Calculate the angle of the mirror wall
                 auto wal = mirror[cnt].mirrorWall;
@@ -561,7 +527,7 @@ void JS_DrawCameras(PLAYER* pp, const DVector3& campos, double smoothratio)
                         return;
                     }
 
-                    auto maxang = DAngle::fromBuild(SP_TAG6(camactor));
+                    auto maxang = mapangle(SP_TAG6(camactor));
                     // BOOL2 = Oscilate camera
                     if (TEST_BOOL2(camactor) && MoveSkip2 == 0)
                     {
@@ -572,7 +538,7 @@ void JS_DrawCameras(PLAYER* pp, const DVector3& campos, double smoothratio)
                             camactor->user.sang += oscillation_angle;
 
                             // TAG6 = Turn radius
-                            if (absangle(camactor->spr.angle, camactor->user.sang) >= maxang)
+                            if (absangle(camactor->spr.Angles.Yaw, camactor->user.sang) >= maxang)
                             {
                                 camactor->user.sang -= oscillation_angle;
                                 RESET_BOOL3(camactor);    // Reverse turn direction.
@@ -584,7 +550,7 @@ void JS_DrawCameras(PLAYER* pp, const DVector3& campos, double smoothratio)
                             camactor->user.sang -= oscillation_angle;
 
                             // TAG6 = Turn radius
-                            if (absangle(camactor->spr.angle, camactor->user.sang) >= maxang)
+                            if (absangle(camactor->spr.Angles.Yaw, camactor->user.sang) >= maxang)
                             {
                                 camactor->user.sang += oscillation_angle;
                                 SET_BOOL3(camactor);      // Reverse turn direction.
@@ -593,20 +559,19 @@ void JS_DrawCameras(PLAYER* pp, const DVector3& campos, double smoothratio)
                     }
                     else if (!TEST_BOOL2(camactor))
                     {
-                        camactor->user.sang = camactor->spr.angle;      // Copy sprite angle to tag5
+                        camactor->user.sang = camactor->spr.Angles.Yaw;      // Copy sprite angle to tag5
                     }
 
                     // Set the horizon value.
-                    auto camhoriz = q16horiz(clamp(IntToFixed(SP_TAG7(camactor) - 100), gi->playerHorizMin(), gi->playerHorizMax()));
+                    auto camhoriz = SP_TAG7(camactor);
 
                     // If player is dead still then update at MoveSkip4
                     // rate.
-                    if (pp->pos.X == pp->opos.X && pp->pos.Y == pp->opos.Y && pp->pos.Z == pp->opos.Z)
+                    if (pp->actor->spr.pos == pp->actor->opos)
                         DoCam = true;
 
 
                     // Set up the tile for drawing
-                    TileFiles.MakeCanvas(mirror[cnt].campic, 128, 128);
 
                     {
                         if (dist < MAXCAMDIST)
@@ -615,11 +580,11 @@ void JS_DrawCameras(PLAYER* pp, const DVector3& campos, double smoothratio)
 
                             if (TEST_BOOL11(camactor) && numplayers > 1)
                             {
-                                drawroomstotile(cp->pos, cp->angle.ang, cp->horizon.horiz, cp->cursector, mirror[cnt].campic, smoothratio);
+                                drawroomstotile(cp->actor->getPosWithOffsetZ(), cp->actor->spr.Angles.Yaw, cp->actor->spr.Angles.Pitch, cp->cursector, mirror[cnt].campic, smoothratio);
                             }
                             else
                             {
-                                drawroomstotile(camactor->spr.pos, camactor->user.sang, camhoriz, camactor->sector(), mirror[cnt].campic, smoothratio);
+                                drawroomstotile(camactor->spr.pos, camactor->user.sang, maphoriz(150 - (camhoriz == 0 ? 100 : camhoriz)), camactor->sector(), mirror[cnt].campic, smoothratio);
                             }
                         }
                     }
@@ -667,12 +632,10 @@ void DoAutoSize(tspritetype* tspr)
     case ICON_STAR:                     // 1793
         break;
     case ICON_UZI:                      // 1797
-        tspr->xrepeat = 43;
-        tspr->yrepeat = 40;
+		tspr->scale = DVector2(0.671875, 0.625);
         break;
     case ICON_UZIFLOOR:         // 1807
-        tspr->xrepeat = 43;
-        tspr->yrepeat = 40;
+		tspr->scale = DVector2(0.671875, 0.625);
         break;
     case ICON_LG_UZI_AMMO:              // 1799
         break;
@@ -687,8 +650,7 @@ void DoAutoSize(tspritetype* tspr)
     case ICON_ROCKET:                   // 1843
         break;
     case ICON_SHOTGUN:                  // 1794
-        tspr->xrepeat = 57;
-        tspr->yrepeat = 58;
+		tspr->scale = DVector2(0.890625, 0.90625);
         break;
     case ICON_LG_ROCKET:                // 1796
         break;
@@ -699,16 +661,14 @@ void DoAutoSize(tspritetype* tspr)
     case ICON_MICRO_BATTERY:            // 1800
         break;
     case ICON_GRENADE_LAUNCHER: // 1817
-        tspr->xrepeat = 54;
-        tspr->yrepeat = 52;
+		tspr->scale = DVector2(0.84375, 0.8125);
         break;
     case ICON_LG_GRENADE:               // 1831
         break;
     case ICON_LG_MINE:                  // 1842
         break;
     case ICON_RAIL_GUN:         // 1811
-        tspr->xrepeat = 50;
-        tspr->yrepeat = 54;
+		tspr->scale = DVector2(0.78125, 0.84375);
         break;
     case ICON_RAIL_AMMO:                // 1812
         break;
@@ -717,26 +677,21 @@ void DoAutoSize(tspritetype* tspr)
     case ICON_MEDKIT:                   // 1803
         break;
     case ICON_CHEMBOMB:
-        tspr->xrepeat = 64;
-        tspr->yrepeat = 47;
+		tspr->scale = DVector2(1, 0.734375);
         break;
     case ICON_FLASHBOMB:
-        tspr->xrepeat = 32;
-        tspr->yrepeat = 34;
+		tspr->scale = DVector2(0.5, 0.53125);
         break;
     case ICON_NUKE:
         break;
     case ICON_CALTROPS:
-        tspr->xrepeat = 37;
-        tspr->yrepeat = 30;
+		tspr->scale = DVector2(0.578125, 0.46875);
         break;
     case ICON_BOOSTER:                  // 1810
-        tspr->xrepeat = 30;
-        tspr->yrepeat = 38;
+		tspr->scale = DVector2(0.46875, 0.59375);
         break;
     case ICON_HEAT_CARD:                // 1819
-        tspr->xrepeat = 46;
-        tspr->yrepeat = 47;
+		tspr->scale = DVector2(0.71875, 0.734375);
         break;
     case ICON_REPAIR_KIT:               // 1813
         break;
@@ -749,8 +704,7 @@ void DoAutoSize(tspritetype* tspr)
     case ICON_CLOAK:                    // 1826
         break;
     case ICON_NIGHT_VISION:             // 3031
-        tspr->xrepeat = 59;
-        tspr->yrepeat = 71;
+		tspr->scale = DVector2(0.921875, 1.109375);
         break;
     case ICON_NAPALM:                   // 3046
         break;
@@ -763,8 +717,7 @@ void DoAutoSize(tspritetype* tspr)
     case ICON_GRENADE:                  // 3059
         break;
     case ICON_ARMOR:                    // 3030
-        tspr->xrepeat = 82;
-        tspr->yrepeat = 84;
+		tspr->scale = DVector2(1.28125, 1.3125);
         break;
     case BLUE_KEY:                      // 1766
         break;
@@ -778,20 +731,17 @@ void DoAutoSize(tspritetype* tspr)
     case RED_CARD:
     case GREEN_CARD:
     case YELLOW_CARD:
-        tspr->xrepeat = 36;
-        tspr->yrepeat = 33;
+		tspr->scale = DVector2(0.5625, 0.5155625);
         break;
     case GOLD_SKELKEY:
     case SILVER_SKELKEY:
     case BRONZE_SKELKEY:
     case RED_SKELKEY:
-        tspr->xrepeat = 39;
-        tspr->yrepeat = 45;
+		tspr->scale = DVector2(0.609375, 0.703125);
         break;
     case SKEL_LOCKED:
     case SKEL_UNLOCKED:
-        tspr->xrepeat = 47;
-        tspr->yrepeat = 40;
+		tspr->scale = DVector2(0.734375, 0.625);
         break;
     case RAMCARD_LOCKED:
     case RAMCARD_UNLOCKED:
@@ -816,39 +766,9 @@ void JAnalyzeSprites(tspritetype* tspr)
     // Take care of autosizing
     DoAutoSize(tspr);
 
-    if (md_tilehasmodel(tspr->picnum, 0) >= 0 && hw_models) return;
-
-    // Check for voxels
-    //if (bVoxelsOn)
-    if (r_voxels)
+    if (tspr->picnum == 764 && !tilehasmodelorvoxel(tspr->spritetexture(), 0))
     {
-        if (aVoxelArray[tspr->picnum].Voxel >= 0 && !(tspr->ownerActor->sprext.renderflags & SPREXT_NOTMD))
-        {
-            // Turn on voxels
-            tspr->picnum = aVoxelArray[tspr->picnum].Voxel;     // Get the voxel number
-            tspr->cstat |= CSTAT_SPRITE_ALIGNMENT_SLAB;          // Set stat to voxelize sprite
-        }
-    }
-    else
-    {
-        switch (tspr->picnum)
-        {
-        case 764: // Gun barrel
-
-            if (!r_voxels || (tspr->ownerActor->sprext.renderflags & SPREXT_NOTMD))
-            {
-                tspr->cstat |= CSTAT_SPRITE_ALIGNMENT_WALL;
-                break;
-            }
-
-            if (aVoxelArray[tspr->picnum].Voxel >= 0)
-            {
-                // Turn on voxels
-                tspr->picnum = aVoxelArray[tspr->picnum].Voxel;     // Get the voxel number
-                tspr->cstat |= CSTAT_SPRITE_ALIGNMENT_SLAB;          // Set stat to voxelize sprite
-            }
-            break;
-        }
+        tspr->cstat |= CSTAT_SPRITE_ALIGNMENT_WALL;
     }
 }
 

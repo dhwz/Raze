@@ -52,8 +52,13 @@ bool bCamera = false;
 // We cannot drag these through the entire event system... :(
 tspriteArray* mytspriteArray;
 
-// NOTE - not to be confused with Ken's analyzesprites()
-static void analyzesprites(tspriteArray& tsprites, int x, int y, int z, double const interpfrac)
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+static void analyzesprites(tspriteArray& tsprites, const DVector3& view, double const interpfrac)
 {
     mytspriteArray = &tsprites;
 
@@ -65,21 +70,21 @@ static void analyzesprites(tspriteArray& tsprites, int x, int y, int z, double c
         {
             // interpolate sprite position
             pTSprite->pos = pTSprite->ownerActor->interpolatedpos(interpfrac);
-            pTSprite->angle = pTSprite->ownerActor->interpolatedangle(interpfrac);
+            pTSprite->Angles.Yaw = pTSprite->ownerActor->interpolatedyaw(interpfrac);
         }
     }
 
     auto pPlayerActor = PlayerList[nLocalPlayer].pActor;
 
-    int var_38 = 20;
-    int var_2C = 30000;
+    double bestclose = 20;
+    double bestside = 30000;
 
 
     bestTarget = nullptr;
 
     auto pSector =pPlayerActor->sector();
 
-    int nAngle = (2048 - pPlayerActor->int_ang()) & kAngleMask;
+    DAngle nAngle = -pPlayerActor->spr.Angles.Yaw;
 
     for (int nTSprite = int(tsprites.Size()-1); nTSprite >= 0; nTSprite--)
     {
@@ -100,7 +105,8 @@ static void analyzesprites(tspriteArray& tsprites, int x, int y, int z, double c
         if ((pTSprite->picnum == kTorch1 || pTSprite->picnum == kTorch2) && (pTSprite->cstat & CSTAT_SPRITE_YCENTER) == 0)
         {
             pTSprite->cstat |= CSTAT_SPRITE_YCENTER;
-            double nTileY = (tileHeight(pTSprite->picnum) * pTSprite->yrepeat) * 2 * zinttoworld;
+            auto tex = TexMan.GetGameTexture(pTSprite->spritetexture());
+            double nTileY = (tex->GetDisplayHeight() * pTSprite->scale.Y) * 0.5;
             pTSprite->pos.Z -= nTileY;
         }
 
@@ -114,35 +120,32 @@ static void analyzesprites(tspriteArray& tsprites, int x, int y, int z, double c
 
             if ((pActor->spr.statnum < 150) && (pActor->spr.cstat & CSTAT_SPRITE_BLOCK_ALL) && (pActor != pPlayerActor))
             {
-                int xval = pActor->int_pos().X - x;
-                int yval = pActor->int_pos().Y - y;
+                DVector2 delta = pActor->spr.pos.XY() - view.XY();
 
-                int vcos = bcos(nAngle);
-                int vsin = bsin(nAngle);
-
-
-                int edx = ((vcos * yval) + (xval * vsin)) >> 14;
+                double vcos = nAngle.Cos();
+                double vsin = nAngle.Sin();
 
 
-                int ebx = abs(((vcos * xval) - (yval * vsin)) >> 14);
+                double fwd = ((vcos * delta.Y) + (delta.X * vsin));
+                double side = abs((vcos * delta.X) - (delta.Y * vsin));
 
-                if (!ebx)
+                if (!side)
                     continue;
 
-                edx = (abs(edx) * 32) / ebx;
-                if (ebx < 1000 && ebx < var_2C && edx < 10)
+                double close = (abs(fwd) * 32) / side;
+                if (side < 1000 / 16. && side < bestside && close < 10)
                 {
                     bestTarget = pActor;
-                    var_38 = edx;
-                    var_2C = ebx;
+                    bestclose = close;
+                    bestside = side;
                 }
-                else if (ebx < 30000)
+                else if (side < 30000 / 16.)
                 {
-                    int t = var_38 - edx;
-                    if (t > 3 || (ebx < var_2C && abs(t) < 5))
+                    double t = bestclose - close;
+                    if (t > 3 || (side < bestside && abs(t) < 5))
                     {
-                        var_38 = edx;
-                        var_2C = ebx;
+                        bestclose = close;
+                        bestside = side;
                         bestTarget = pActor;
                     }
                 }
@@ -154,7 +157,7 @@ static void analyzesprites(tspriteArray& tsprites, int x, int y, int z, double c
     {
         nCreepyTimer = kCreepyCount;
 
-        if (!cansee(x, y, z, pSector, targ->int_pos().X, targ->int_pos().Y, targ->int_pos().Z - GetActorHeight(targ), targ->sector()))
+        if (!cansee(view, pSector, targ->spr.pos.plusZ(-GetActorHeight(targ)), targ->sector()))
         {
             bestTarget = nullptr;
         }
@@ -164,30 +167,44 @@ static void analyzesprites(tspriteArray& tsprites, int x, int y, int z, double c
 
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void ResetView()
 {
     EraseScreen(0);
-#ifdef USE_OPENGL
     videoTintBlood(0, 0, 0);
-#endif
 }
 
 static TextOverlay subtitleOverlay;
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void DrawView(double interpfrac, bool sceneonly)
 {
     DExhumedActor* pEnemy = nullptr;
     int nEnemyPal = -1;
     sectortype* pSector = nullptr;
-    DAngle nCameraang, rotscrnang;
-    fixedhoriz nCamerapan = q16horiz(0);
+    DRotator nCameraangles{};
 
     DoInterpolations(interpfrac);
 
-    auto pPlayerActor = PlayerList[nLocalPlayer].pActor;
+    auto pPlayer = &PlayerList[nLocalPlayer];
+    auto pPlayerActor = pPlayer->pActor;
     auto nPlayerOldCstat = pPlayerActor->spr.cstat;
-    auto pDop = PlayerList[nLocalPlayer].pDoppleSprite;
+    auto pDop = pPlayer->pDoppleSprite;
     auto nDoppleOldCstat = pDop->spr.cstat;
+
+    // update render angles.
+    pPlayer->Angles.updateRenderAngles(interpfrac);
+    UpdatePlayerSpriteAngle(pPlayer);
 
     if (nSnakeCam >= 0 && !sceneonly)
     {
@@ -195,8 +212,7 @@ void DrawView(double interpfrac, bool sceneonly)
 
         nCamerapos = pActor->spr.pos;
         pSector = pActor->sector();
-        nCameraang = pActor->spr.angle;
-        rotscrnang = nullAngle;
+        nCameraangles.Yaw = pActor->spr.Angles.Yaw;
 
         SetGreenPal();
 
@@ -214,24 +230,13 @@ void DrawView(double interpfrac, bool sceneonly)
     }
     else
     {
-        nCamerapos = pPlayerActor->interpolatedpos(interpfrac).plusZ(interpolatedvalue(PlayerList[nLocalPlayer].oeyelevel, PlayerList[nLocalPlayer].eyelevel, interpfrac));
+        nCamerapos = pPlayerActor->getRenderPos(interpfrac);
 
         pSector = PlayerList[nLocalPlayer].pPlayerViewSect;
         updatesector(nCamerapos, &pSector);
         if (pSector == nullptr) pSector = PlayerList[nLocalPlayer].pPlayerViewSect;
 
-        if (!SyncInput())
-        {
-            nCamerapan = PlayerList[nLocalPlayer].horizon.sum();
-            nCameraang = PlayerList[nLocalPlayer].angle.sum();
-            rotscrnang = PlayerList[nLocalPlayer].angle.rotscrnang;
-        }
-        else
-        {
-            nCamerapan = PlayerList[nLocalPlayer].horizon.interpolatedsum(interpfrac);
-            nCameraang = PlayerList[nLocalPlayer].angle.interpolatedsum(interpfrac);
-            rotscrnang = PlayerList[nLocalPlayer].angle.interpolatedrotscrn(interpfrac);
-        }
+        nCameraangles = PlayerList[nLocalPlayer].Angles.getRenderAngles(interpfrac);
 
         if (!bCamera)
         {
@@ -243,25 +248,24 @@ void DrawView(double interpfrac, bool sceneonly)
             pPlayerActor->spr.cstat |= CSTAT_SPRITE_TRANSLUCENT;
             pDop->spr.cstat |= CSTAT_SPRITE_INVISIBLE;
         }
-        nCamerapan = q16horiz(clamp(nCamerapan.asq16(), gi->playerHorizMin(), gi->playerHorizMax()));
     }
 
     if (nSnakeCam >= 0 && !sceneonly)
     {
-        nCamerapan = q16horiz(0);
+        nCameraangles.Pitch = nullAngle;
     }
     else
     {
         nCamerapos.Z = min(nCamerapos.Z + nQuake[nLocalPlayer], pPlayerActor->sector()->floorz);
-        nCameraang += DAngle::fromDeg(fmod(nQuake[nLocalPlayer], 16.) * (45. / 128.));
+        nCameraangles.Yaw += DAngle::fromDeg(fmod(nQuake[nLocalPlayer], 16.) * (45. / 128.));
 
         if (bCamera)
         {
             nCamerapos.Z -= 10;
-            if (!calcChaseCamPos(nCamerapos, pPlayerActor, &pSector, nCameraang, nCamerapan, interpfrac))
+            if (!calcChaseCamPos(nCamerapos, pPlayerActor, &pSector, nCameraangles, interpfrac, 96.))
             {
                 nCamerapos.Z += 10;
-                calcChaseCamPos(nCamerapos, pPlayerActor, &pSector, nCameraang, nCamerapan, interpfrac);
+                calcChaseCamPos(nCamerapos, pPlayerActor, &pSector, nCameraangles, interpfrac, 96.);
             }
         }
     }
@@ -304,7 +308,7 @@ void DrawView(double interpfrac, bool sceneonly)
 
         if (!nFreeze && !sceneonly)
             DrawWeapons(interpfrac);
-        render_drawrooms(nullptr, nCamerapos, sectnum(pSector), nCameraang, nCamerapan, rotscrnang, interpfrac);
+        render_drawrooms(nullptr, nCamerapos, pSector, nCameraangles, interpfrac);
 
         if (HavePLURemap())
         {
@@ -332,11 +336,11 @@ void DrawView(double interpfrac, bool sceneonly)
 
                     pPlayerActor->spr.cstat |= CSTAT_SPRITE_INVISIBLE;
 
-                    auto ang2 = nCameraang - pPlayerActor->spr.angle;
+                    auto ang2 = nCameraangles.Yaw - pPlayerActor->spr.Angles.Yaw;
                     if (ang2.Degrees() < 0)
                         ang2 = -ang2;
 
-                    if (ang2 > DAngle::fromBuild(10))
+                    if (ang2 > mapangle(10))
                     {
                         inita -= ang2 * (1. / 8.);
                         return;
@@ -394,25 +398,29 @@ void DrawView(double interpfrac, bool sceneonly)
     flash = 0;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 bool GameInterface::GenerateSavePic()
 {
     DrawView(65536, true);
     return true;
 }
 
-void GameInterface::processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double interpfrac)
+void GameInterface::processSprites(tspriteArray& tsprites, const DVector3& view, DAngle viewang, double interpfrac)
 {
-    analyzesprites(tsprites, viewx, viewy, viewz, interpfrac);
+    analyzesprites(tsprites, view, interpfrac);
 }
 
 
-void NoClip()
-{
-}
-
-void Clip()
-{
-}
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void SerializeView(FSerializer& arc)
 {

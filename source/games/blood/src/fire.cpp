@@ -75,7 +75,7 @@ void DoFireFrame(void)
 		memcpy(FrameBuffer + 16896 + i * 128, SeedBuffer[nRand], 128);
 	}
 	CellularFrame(FrameBuffer, 128, 132);
-	auto pData = TileFiles.tileMakeWritable(2342);
+	auto pData = GetWritablePixels(tileGetTextureID(2342));
 	uint8_t* pSource = FrameBuffer;
 	int x = fireSize;
 	do
@@ -119,14 +119,17 @@ void FireInit(void)
 
 void FireProcess(void)
 {
-	// This assumes a smooth high frame rate. Ugh...
-	static int lastUpdate;
-	int clock = I_GetBuildTime() / 2;
-	if (clock < lastUpdate || lastUpdate + 2 < clock)
+	auto tex = tileGetTexture(2342);
+	if (tex->isSeen(true))
 	{
-		DoFireFrame();
-		lastUpdate = clock;
-		TileFiles.InvalidateTile(2342);
+		// This assumes a smooth high frame rate. Ugh...
+		static int lastUpdate;
+		int clock = I_GetBuildTime() / 2;
+		if (clock < lastUpdate || lastUpdate + 2 < clock)
+		{
+			DoFireFrame();
+			lastUpdate = clock;
+		}
 	}
 }
 

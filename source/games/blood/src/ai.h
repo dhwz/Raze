@@ -85,11 +85,7 @@ void aiMoveForward(DBloodActor*pXSprite);
 void aiMoveTurn(DBloodActor*pXSprite);
 void aiMoveDodge(DBloodActor *actor);
 void aiActivateDude(DBloodActor *actor);
-void aiSetTarget(DBloodActor* pXSprite, int x, int y, int z);
-inline void aiSetTarget(DBloodActor* ac, const DVector3& pos)
-{
-	aiSetTarget(ac, int(pos.X * worldtoint), int(pos.Y * worldtoint), int(pos.Z * zworldtoint));
-}
+void aiSetTarget(DBloodActor* ac, const DVector3& pos);
 void aiSetTarget(DBloodActor* actor, DBloodActor* target);
 int aiDamageSprite(DBloodActor* source, DBloodActor* actor, DAMAGE_TYPE nDmgType, int nDamage);
 void aiThinkTarget(DBloodActor* actor);
@@ -97,10 +93,6 @@ void aiLookForTarget(DBloodActor* actor);
 void aiProcessDudes(void);
 void aiInit(void);
 void aiInitSprite(DBloodActor* pSprite);
-bool CanMove(DBloodActor* pSprite, DBloodActor* target, int nAngle, int nRange);
-inline bool CanMove(DBloodActor* pSprite, DBloodActor* target, DAngle nAngle, int nRange)
-{
-	return CanMove(pSprite, target, nAngle.Buildang(), nRange);
-}
+bool CanMove(DBloodActor* pSprite, DBloodActor* target, DAngle nAngle, double nRange);
 
 END_BLD_NS

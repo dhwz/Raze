@@ -28,6 +28,12 @@ BEGIN_PS_NS
 
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void DestroyGrenade(DExhumedActor* pActor)
 {
     runlist_DoSubRunRec(pActor->nPhase);
@@ -37,17 +43,27 @@ void DestroyGrenade(DExhumedActor* pActor)
     DeleteActor(pActor);
 }
 
-void BounceGrenade(DExhumedActor* pActor, int nAngle)
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+void BounceGrenade(DExhumedActor* pActor, DAngle nAngle)
 {
     pActor->nTurn >>= 1;
 
-    pActor->x = bcos(nAngle, -5) * pActor->nTurn;
-    pActor->y = bsin(nAngle, -5) * pActor->nTurn;
-
+    pActor->vec = nAngle.ToVector() * pActor->nTurn / 512.;
     D3PlayFX(StaticSound[kSound3], pActor);
 }
 
-void ThrowGrenade(int nPlayer, int, int, int ecx, int push1)
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+void ThrowGrenade(int nPlayer, double dz, double push1)
 {
     if (PlayerList[nPlayer].pPlayerGrenade == nullptr)
         return;
@@ -55,27 +71,29 @@ void ThrowGrenade(int nPlayer, int, int, int ecx, int push1)
     DExhumedActor* pActor = PlayerList[nPlayer].pPlayerGrenade;
     auto pPlayerActor = PlayerList[nPlayer].pActor;
 
-    int nAngle = pPlayerActor->int_ang();
+    DAngle nAngle = pPlayerActor->spr.Angles.Yaw;
 
     ChangeActorSect(pActor, PlayerList[nPlayer].pPlayerViewSect);
 
     pActor->spr.pos = pPlayerActor->spr.pos;
 
-    if (nAngle < 0) {
-        nAngle = pPlayerActor->int_ang();
+    if (nAngle < nullAngle) {
+        nAngle = pPlayerActor->spr.Angles.Yaw;
     }
 
     pActor->spr.cstat &= ~CSTAT_SPRITE_INVISIBLE;
-    pActor->set_int_ang(nAngle);
+    pActor->spr.Angles.Yaw = nAngle;
 
-    if (push1 >= -3000)
+    if (push1 <= 23.4375)
     {
         int nVel = PlayerList[nPlayer].totalvel << 5;
 
         pActor->nTurn = ((90 - pActor->nIndex2) * (90 - pActor->nIndex2)) + nVel;
-        pActor->set_int_zvel((-64 * push1) - 4352);
+        pActor->vel.Z = ((32. * push1) - 17);
 
-        auto nMov = movesprite(pActor, bcos(nAngle) * (pPlayerActor->native_clipdist() << 3), bsin(nAngle) * (pPlayerActor->native_clipdist() << 3), ecx, 0, 0, CLIPMASK1);
+
+        DVector2 vec = nAngle.ToVector() * pPlayerActor->clipdist *2; // == << 14 + 3 + 2 - 18
+        auto nMov = movesprite(pActor, vec, dz, 0, CLIPMASK1);
         if (nMov.type == kHitWall)
         {
             nAngle = GetWallNormal(nMov.hitWall);
@@ -88,13 +106,18 @@ void ThrowGrenade(int nPlayer, int, int, int ecx, int push1)
 		pActor->vel.Z = pPlayerActor->vel.Z;
     }
 
-    pActor->x = bcos(nAngle, -4) * pActor->nTurn;
-    pActor->y = bsin(nAngle, -4) * pActor->nTurn;
+    pActor->vec = nAngle.ToVector() * pActor->nTurn / 256;
 
     PlayerList[nPlayer].pPlayerGrenade = nullptr;
 
     return;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void BuildGrenade(int nPlayer)
 {
@@ -104,15 +127,14 @@ void BuildGrenade(int nPlayer)
 
 	pActor->spr.pos = pPlayerActor->spr.pos.plusZ(-15);
     pActor->spr.shade = -64;
-    pActor->spr.xrepeat = 20;
-    pActor->spr.yrepeat = 20;
+    pActor->spr.scale = DVector2(0.34375, 0.3125);
     pActor->spr.cstat = CSTAT_SPRITE_INVISIBLE;
     pActor->spr.picnum = 1;
     pActor->spr.pal = 0;
-    pActor->set_const_clipdist(30);
+	pActor->clipdist = 7.5;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->spr.angle = pPlayerActor->spr.angle;
+    pActor->spr.Angles.Yaw = pPlayerActor->spr.Angles.Yaw;
     pActor->spr.intowner = nPlayer;
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
@@ -136,9 +158,16 @@ void BuildGrenade(int nPlayer)
     PlayerList[nPlayer].pPlayerGrenade = pActor;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void ExplodeGrenade(DExhumedActor* pActor)
 {
-    int var_28, var_20;
+    int var_28;
+	double scale;
 
     int nPlayer = pActor->spr.intowner;
     auto pGrenadeSect = pActor->sector();
@@ -148,13 +177,13 @@ void ExplodeGrenade(DExhumedActor* pActor)
     if (pGrenadeSect->Flag & kSectUnderwater)
     {
         var_28 = 75;
-        var_20 = 60;
+        scale = 0.9375;
     }
     else
     {
         if (pActor->spr.pos.Z < pGrenadeSect->floorz)
         {
-            var_20 = 200;
+            scale = 3.125;
             var_28 = 36;
 
 // TODO		MonoOut("GRENPOW\n");
@@ -162,7 +191,7 @@ void ExplodeGrenade(DExhumedActor* pActor)
         else
         {
             var_28 = 34;
-            var_20 = 150;
+            scale = 2.3475;
 
 // TODO		MonoOut("GRENBOOM\n");
         }
@@ -171,7 +200,7 @@ void ExplodeGrenade(DExhumedActor* pActor)
     if (pActor->nTurn < 0)
     {
         auto pPlayerActor = PlayerList[nPlayer].pActor;
-        auto nAngle = pPlayerActor->spr.angle;
+        auto nAngle = pPlayerActor->spr.Angles.Yaw;
 		
 		DVector2 vect = nAngle.ToVector() * 32;
 		pActor->spr.pos = pPlayerActor->spr.pos + vect;
@@ -191,11 +220,17 @@ void ExplodeGrenade(DExhumedActor* pActor)
 
     runlist_RadialDamageEnemy(pActor, nDamage, BulletInfo[kWeaponGrenade].nRadius);
 
-    BuildAnim(nullptr, var_28, 0, pActor->spr.pos, pActor->sector(), var_20, 4);
+    BuildAnim(nullptr, var_28, 0, pActor->spr.pos, pActor->sector(), scale, 4);
     AddFlash(pActor->sector(), pActor->spr.pos, 128);
 
     DestroyGrenade(pActor);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIGrenade::Draw(RunListEvent* ev)
 {
@@ -206,6 +241,12 @@ void AIGrenade::Draw(RunListEvent* ev)
     seq_PlotSequence(ev->nParam, nSeq, pActor->nHealth >> 8, 1);
 }
 
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIGrenade::Tick(RunListEvent* ev)
 {
@@ -277,10 +318,10 @@ void AIGrenade::Tick(RunListEvent* ev)
             return;
         }
 
-        int zVel = pActor->int_zvel();
+        double zVel = pActor->vel.Z;
 
         Gravity(pActor);
-        auto nMov = movesprite(pActor, pActor->x, pActor->y, pActor->int_zvel(), pActor->native_clipdist() >> 1, pActor->native_clipdist() >> 1, CLIPMASK1);
+        auto nMov = movesprite(pActor, pActor->vec, pActor->vel.Z, pActor->clipdist / 128., CLIPMASK1);
 
         if (!nMov.type && !nMov.exbits)
             return;
@@ -299,7 +340,7 @@ void AIGrenade::Tick(RunListEvent* ev)
 
                 D3PlayFX(StaticSound[kSound3], pActor);
 
-                pActor->set_int_zvel(-(zVel >> 1));
+                pActor->vel.Z = -zVel * 0.5;
 
                 if (pActor->vel.Z > -5)
                 {
@@ -312,8 +353,7 @@ void AIGrenade::Tick(RunListEvent* ev)
             }
 
             pActor->nCount = 255 - (RandomByte() * 2);
-            pActor->x -= (pActor->x >> 4);
-            pActor->y -= (pActor->y >> 4);
+            pActor->vec *= (15./16.);
         }
 
         // loc_2CF60:
@@ -323,12 +363,18 @@ void AIGrenade::Tick(RunListEvent* ev)
         }
         else if (nMov.type == kHitSprite)
         {
-            BounceGrenade(pActor, nMov.actor()->int_ang());
+            BounceGrenade(pActor, nMov.actor()->spr.Angles.Yaw);
         }
 
         pActor->nHealth = 0;
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIGrenade::RadialDamage(RunListEvent* ev)
 {

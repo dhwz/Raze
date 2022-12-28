@@ -151,6 +151,12 @@ const char *SeqNames[kMaxSEQFiles] =
 int16_t SeqOffsets[kMaxSEQFiles];
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int seq_ReadSequence(const char *seqName)
 {
     int i;
@@ -295,6 +301,12 @@ int seq_ReadSequence(const char *seqName)
     return nSeqs;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int seq_GetFirstSeqPicnum(int nSeq)
 {
     int i = SeqOffsets[nSeq];
@@ -304,6 +316,12 @@ int seq_GetFirstSeqPicnum(int nSeq)
 
     return i;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void seq_LoadSequences()
 {
@@ -359,10 +377,22 @@ void seq_LoadSequences()
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int16_t seq_GetFrameFlag(int16_t val, int16_t nFrame)
 {
     return FrameFlag[SeqBase[val] + nFrame];
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void seq_DrawPilotLightSeq(double xOffset, double yOffset)
 {
@@ -384,20 +414,19 @@ void seq_DrawPilotLightSeq(double xOffset, double yOffset)
             double x = ChunkXpos[nFrameBase] + (160 + xOffset);
             double y = ChunkYpos[nFrameBase] + (100 + yOffset);
 
-            hud_drawsprite(x, y, 65536, fmod(-2 * PlayerList[nLocalPlayer].angle.ang.Buildfang(), kAngleMask + 1), nTile, 0, 0, 1);
+            hud_drawsprite(x, y, 65536, PlayerList[nLocalPlayer].pActor->spr.Angles.Yaw.Normalized180().Degrees() * 2., nTile, 0, 0, 1);
             nFrameBase++;
         }
     }
 }
 
-/*
-    6 parameters
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
-    arg0 - shade?
-
-*/
-
-int seq_DrawGunSequence(int nSeqOffset, int16_t dx, double xOffs, double yOffs, int nShade, int nPal, bool align)
+int seq_DrawGunSequence(int nSeqOffset, int16_t dx, double xOffs, double yOffs, int nShade, int nPal, DAngle angle, bool align)
 {
     int nFrame = SeqBase[nSeqOffset] + dx;
     int nFrameBase = FrameBase[nFrame];
@@ -432,7 +461,7 @@ int seq_DrawGunSequence(int nSeqOffset, int16_t dx, double xOffs, double yOffs, 
             alpha = 0.3;
         }
 
-        hud_drawsprite(x + xOffs, y + yOffs, 65536, 0, nTile, nShade, nPal, stat, alpha);
+        hud_drawsprite(x + xOffs, y + yOffs, 65536, angle.Degrees(), nTile, nShade, nPal, stat, alpha);
         nFrameBase++;
     }
 
@@ -443,6 +472,12 @@ int seq_GetFrameSound(int val, int edx)
 {
     return FrameSound[SeqBase[val] + edx];
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void seq_MoveSequence(DExhumedActor* actor, int16_t nSeq, int16_t bx)
 {
@@ -461,11 +496,23 @@ void seq_MoveSequence(DExhumedActor* actor, int16_t nSeq, int16_t bx)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int seq_GetSeqPicnum2(int16_t nSeq, int16_t nFrame)
 {
     int16_t nBase = FrameBase[SeqBase[nSeq] + nFrame];
     return ChunkPict[nBase];
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int seq_GetSeqPicnum(int16_t nSeq, int16_t edx, int16_t ebx)
 {
@@ -476,12 +523,18 @@ int seq_GetSeqPicnum(int16_t nSeq, int16_t edx, int16_t ebx)
     return ChunkPict[c];
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int seq_PlotArrowSequence(int nSprite, int16_t nSeq, int nVal)
 {
     tspritetype* pTSprite = mytspriteArray->get(nSprite);
-    int nAngle = getangle(nCamerapos.XY() - pTSprite->pos.XY());
+    DAngle nAngle = (nCamerapos.XY() - pTSprite->pos.XY()).Angle();
 
-    int nSeqOffset = ((((pTSprite->int_ang() + 512) - nAngle) + 128) & kAngleMask) >> 8;
+    int nSeqOffset = (((pTSprite->Angles.Yaw + DAngle90 + DAngle22_5 - nAngle).Buildang()) & kAngleMask) >> 8;
 
     int16_t nFrame = SeqBase[nSeqOffset + nSeq] + nVal;
 
@@ -524,11 +577,15 @@ int seq_PlotArrowSequence(int nSprite, int16_t nSeq, int nVal)
     return ChunkPict[nFrameBase];
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 int seq_PlotSequence(int nSprite, int16_t edx, int16_t nFrame, int16_t ecx)
 {
     tspritetype* pTSprite = mytspriteArray->get(nSprite);
-    int nAngle = getangle(nCamerapos.XY() - pTSprite->pos.XY());
-
 
     int val;
 
@@ -538,7 +595,8 @@ int seq_PlotSequence(int nSprite, int16_t edx, int16_t nFrame, int16_t ecx)
     }
     else
     {
-        val = (((pTSprite->int_ang() - nAngle) + 128) & kAngleMask) >> 8;
+        DAngle nAngle = (nCamerapos.XY() - pTSprite->pos.XY()).Angle();
+        val = (((pTSprite->Angles.Yaw + DAngle22_5 - nAngle).Buildang()) & kAngleMask) >> 8;
     }
 
     int eax = SeqBase[edx] + nFrame;
@@ -585,9 +643,8 @@ int seq_PlotSequence(int nSprite, int16_t edx, int16_t nFrame, int16_t ecx)
 
         tsp->shade = shade;
         tsp->pal = pTSprite->pal;
-        tsp->xrepeat = pTSprite->xrepeat;
-        tsp->yrepeat = pTSprite->yrepeat;
-        tsp->angle = pTSprite->angle;
+        tsp->scale = pTSprite->scale;
+        tsp->Angles.Yaw = pTSprite->Angles.Yaw;
         tsp->ownerActor = pTSprite->ownerActor;
         tsp->sectp = pTSprite->sectp;
         tsp->cstat = pTSprite->cstat |= CSTAT_SPRITE_YCENTER;
@@ -619,7 +676,7 @@ int seq_PlotSequence(int nSprite, int16_t edx, int16_t nFrame, int16_t ecx)
         auto pSector =pTSprite->sectp;
         double nFloorZ = pSector->floorz;
 
-        if (nFloorZ <= PlayerList[nLocalPlayer].eyelevel + initpos.Z) {
+        if (nFloorZ <= PlayerList[nLocalPlayer].pActor->viewzoffset + initpos.Z) {
             pTSprite->ownerActor = nullptr;
         }
         else
@@ -633,8 +690,7 @@ int seq_PlotSequence(int nSprite, int16_t edx, int16_t nFrame, int16_t ecx)
 
             pTSprite->cstat = CSTAT_SPRITE_ALIGNMENT_FLOOR | CSTAT_SPRITE_TRANSLUCENT;
             pTSprite->pos.Z = pSector->floorz;
-            pTSprite->yrepeat = (uint8_t)edx;
-            pTSprite->xrepeat = (uint8_t)edx;
+			pTSprite->scale = DVector2(edx * REPEAT_SCALE, edx * REPEAT_SCALE);
             pTSprite->statnum = -3;
             pTSprite->pal = 0;
         }
@@ -642,6 +698,12 @@ int seq_PlotSequence(int nSprite, int16_t edx, int16_t nFrame, int16_t ecx)
 
     return nPict;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void SerializeSequence(FSerializer& arc)
 {

@@ -23,7 +23,8 @@ struct GameInterface : public ::GameInterface
 {
 	const char* Name() override { return "Duke"; }
 	void app_init() override;
-	void loadPalette();
+	void loadPalette() override;
+	void SetupSpecialTextures(TilesetBuildInfo& info) override;
 	void clearlocalinputstate() override;
 	bool GenerateSavePic() override;
 	void PlayHudSound() override;
@@ -37,7 +38,6 @@ struct GameInterface : public ::GameInterface
 	void SerializeGameState(FSerializer& arc) override;
 	std::pair<DVector3, DAngle> GetCoordinates() override;
 	void ExitFromMenu() override;
-	ReservedSpace GetReservedScreenSpace(int viewsize) override;
 	void DrawPlayerSprite(const DVector2& origin, bool onteam) override;
 	void GetInput(ControlInfo* const hidInput, double const scaleAdjust, InputPacket* packet = nullptr) override;
 	void UpdateSounds() override;
@@ -51,19 +51,19 @@ struct GameInterface : public ::GameInterface
 	void NewGame(MapRecord* map, int skill, bool) override;
 	void LevelCompleted(MapRecord* map, int skill) override;
 	bool DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac) override;
-	int playerKeyMove() override { return 40; }
-	void WarpToCoords(double x, double y, double z, DAngle ang, int horz) override;
+	void WarpToCoords(double x, double y, double z, DAngle ang) override;
 	void ToggleThirdPerson() override;
 	void SwitchCoopView() override;
 	void ToggleShowWeapon() override;
-	DVector3 chaseCamPos(DAngle ang, fixedhoriz horiz) { return DVector3(-ang.ToVector() * 64., horiz.asbuildf() * 0.5); }
-	void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double interpfrac) override;
+	void processSprites(tspriteArray& tsprites, const DVector3& view, DAngle viewang, double interpfrac) override;
 	void UpdateCameras(double smoothratio) override;
 	void EnterPortal(DCoreActor* viewer, int type) override;
 	void LeavePortal(DCoreActor* viewer, int type) override;
 	bool GetGeoEffect(GeoEffect* eff, sectortype* viewsector) override;
 	void AddExcludedEpisode(const FString& episode) override;
 	int GetCurrentSkill() override;
+	bool WantEscape() override;
+	void StartSoundEngine() override;
 
 };
 
@@ -71,36 +71,30 @@ struct Dispatcher
 {
 	// sectors_?.cpp
 	void (*think)();
+	void (*movetransports)();
 	void (*initactorflags)();
-	bool (*isadoorwall)(int dapic);
 	void (*animatewalls)();
-	void (*operaterespawns)(int low);
 	void (*operateforcefields)(DDukeActor* act, int low);
 	bool (*checkhitswitch)(int snum, walltype* w, DDukeActor* act);
 	void (*activatebysector)(sectortype* sect, DDukeActor* j);
-	void (*checkhitwall)(DDukeActor* spr, walltype* dawall, const DVector3& pos, int atwith);
-	bool (*checkhitceiling)(sectortype* sn);
 	void (*checkhitsprite)(DDukeActor* i, DDukeActor* sn);
+	void (*checkhitdefault)(DDukeActor* i, DDukeActor* sn);
 	void (*checksectors)(int low);
 	DDukeActor* (*spawninit)(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* actors);
 
-	bool (*ceilingspace)(sectortype* sectp);
-	bool (*floorspace)(sectortype* sectp);
-	void (*addweapon)(player_struct *p, int weapon);
+	void (*addweapon)(player_struct *p, int weapon, bool wswitch);
 	void (*hitradius)(DDukeActor* i, int  r, int  hp1, int  hp2, int  hp3, int  hp4);
 	void (*lotsofmoney)(DDukeActor *s, int n);
 	void (*lotsofmail)(DDukeActor *s, int n);
 	void (*lotsofpaper)(DDukeActor *s, int n);
-	void (*guts)(DDukeActor* s, int gtype, int n, int p);
 	int  (*ifhitbyweapon)(DDukeActor* sectnum);
 	void (*fall)(DDukeActor* actor, int g_p);
-	bool (*spawnweapondebris)(int picnum, int dnum);
-	void (*respawnhitag)(DDukeActor* g_sp);
+	bool (*spawnweapondebris)(int picnum);
 	void (*move)(DDukeActor* i, int g_p, int g_x);
 
 	// player
 	void (*incur_damage)(player_struct* p);
-	void (*shoot)(DDukeActor*, int);
+	void (*shoot)(DDukeActor*, int, PClass* cls);
 	void (*selectweapon)(int snum, int j);
 	int (*doincrements)(player_struct* p);
 	void (*checkweapons)(player_struct* p);
@@ -108,7 +102,7 @@ struct Dispatcher
 	void (*displayweapon)(int snum, double interpfrac);
 	void (*displaymasks)(int snum, int p, double interpfrac);
 
-	void (*animatesprites)(tspriteArray& tsprites, int x, int y, int a, double interpfrac);
+	void (*animatesprites)(tspriteArray& tsprites, const DVector2& viewVec, DAngle viewang, double interpfrac);
 
 
 };
@@ -117,8 +111,22 @@ extern Dispatcher fi;
 
 void CallInitialize(DDukeActor* actor);
 void CallTick(DDukeActor* actor);
+bool CallOperate(DDukeActor* actor, int plnum);
 void CallAction(DDukeActor* actor);
+void CallOnHit(DDukeActor* actor, DDukeActor* hitter);
+void CallOnHurt(DDukeActor* actor, player_struct* hitter);
+void CallOnTouch(DDukeActor* actor, player_struct* hitter);
+bool CallOnUse(DDukeActor* actor, player_struct* user);
+void CallOnMotoSmash(DDukeActor* actor, player_struct* hitter);
+void CallOnRespawn(DDukeActor* actor, int low);
+bool CallAnimate(DDukeActor* actor, tspritetype* hitter);
+bool CallShootThis(DDukeActor* clsdef, DDukeActor* actor, int pn, const DVector3& spos, DAngle sang);
+void CallStaticSetup(DDukeActor* actor);
+void CallPlayFTASound(DDukeActor* actor);
+void CallStandingOn(DDukeActor* actor, player_struct* p);
+void CallRunState(DDukeActor* actor);
 
+extern FTextureID mirrortex, foftex;
 
 END_DUKE_NS
 

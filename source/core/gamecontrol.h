@@ -34,18 +34,19 @@ extern MapRecord* g_nextmap;
 extern int g_nextskill;	
 extern int g_bossexit;
 
-extern FStringCVar* const CombatMacros[];
+extern FStringCVarRef* const CombatMacros[];
 void CONFIG_ReadCombatMacros();
 
 int GameMain();
 int GetAutomapZoom(int gZoom);
 
-void DrawCrosshair(int deftile, int health, double xdelta, double ydelta, double scale, PalEntry color = 0xffffffff);
+void DrawCrosshair(int deftile, int health, double xdelta, double ydelta, double scale, DAngle angle, PalEntry color = 0xffffffff);
 void updatePauseStatus();
 void DeferredStartGame(MapRecord* map, int skill, bool nostopsound = false);
 void ChangeLevel(MapRecord* map, int skill, bool bossexit = false);
 void CompleteLevel(MapRecord* map);
 bool CheckCheatmode(bool printmsg = true, bool sponly = false);
+void setVideoMode();
 
 void TITLE_InformName(const char* newname);
 
@@ -145,9 +146,6 @@ struct GrpEntry
 	GrpInfo FileInfo;
 };
 extern int g_gameType;
-const char* G_DefaultDefFile(void);
-const char* G_DefFile(void);
-void LoadDefinitions();
 
 // game check shortcuts
 inline bool isNam()
@@ -197,6 +195,11 @@ inline bool isShareware()
 
 inline bool isDukeLike()
 {
+	return g_gameType & (GAMEFLAG_NAM | GAMEFLAG_NAPALM | GAMEFLAG_WW2GI | GAMEFLAG_DUKE);
+}
+
+inline bool isDukeEngine()
+{
 	return g_gameType & (GAMEFLAG_NAM | GAMEFLAG_NAPALM | GAMEFLAG_WW2GI | GAMEFLAG_DUKE | GAMEFLAG_RRALL);
 }
 
@@ -220,8 +223,6 @@ TArray<GrpEntry> GrpScan();
 void S_PauseSound(bool notmusic, bool notsfx);
 void S_ResumeSound(bool notsfx);
 void S_SetSoundPaused(int state);
-
-const int MaxSmoothRatio = FRACUNIT;
 
 FString G_GetDemoPath();
 
@@ -267,18 +268,3 @@ enum gameaction_t : int
 };
 extern gameaction_t		gameaction;
 
-struct SpawnRec
-{
-	FName clsname;
-	PClass* cls;
-	int param;
-
-	PClass* Class()
-	{
-		if (!cls && clsname != NAME_None) cls = PClass::FindClass(clsname);
-		clsname = NAME_None;
-		return cls;
-	}
-};
-using SpawnMap = TMap<int, SpawnRec>;
-inline SpawnMap spawnMap;

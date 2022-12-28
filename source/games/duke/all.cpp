@@ -1,4 +1,5 @@
 #include "src/actors.cpp"
+#include "src/animatesprites.cpp"
 #include "src/ccmds.cpp"
 #include "src/cheats.cpp"
 #include "src/d_menu.cpp"
@@ -20,4 +21,3 @@
 #include "src/sectors.cpp"
 #include "src/spawn.cpp"
 #include "src/vmexports.cpp"
-#include "src/vmiterators.cpp"

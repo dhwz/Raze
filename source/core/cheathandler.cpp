@@ -101,9 +101,9 @@ static bool CheatAddKey (cheatseq_t *cheat, uint8_t key, bool *eat)
 //
 //--------------------------------------------------------------------------
 
-bool Cheat_Responder (event_t *ev)
+int Cheat_Responder (event_t *ev)
 {
-	bool eat = false;
+	bool eat = false, done = false;
 
 	if (nocheats)
 	{
@@ -120,11 +120,11 @@ bool Cheat_Responder (event_t *ev)
 			{
 				if (cheats->DontCheck || !CheckCheatmode ())
 				{
+					done = true;
 					if (cheats->Handler)
 						eat |= cheats->Handler (cheats);
 					else if (cheats->ccmd)
 					{
-						eat = true;
 						C_DoCommand(cheats->ccmd);
 					}
 				}
@@ -136,7 +136,7 @@ bool Cheat_Responder (event_t *ev)
 			}
 		}
 	}
-	return eat;
+	return done? -1 :  eat? 1 : 0;
 }
 
 bool SendGenericCheat(cheatseq_t* cheat)
@@ -146,21 +146,38 @@ bool SendGenericCheat(cheatseq_t* cheat)
 	return true;
 }
 
-void PlaybackCheat(const char *p)
+bool PlaybackCheat(const char *p)
 {
+	bool success = false;
 	if (!CheckCheatmode(true))
 	{
 		event_t ev = { EV_KeyDown, 0, 0, -1 };
 		Cheat_Responder(&ev);   // Reset the parser by passing a non-existent key.
+
+		// little hack to allow 'sw...' cheats from the chat display in SW.
+		if ((g_gameType & GAMEFLAG_SW) && tolower(*p) == 's')
+		{
+			ev.data2 = 'l';
+			int result = Cheat_Responder(&ev);
+			p++;
+		}
+
+
 		for (; *p; p++)
 		{
 			// just play the cheat command through the event parser
 			ev.data2 = *p;
-			Cheat_Responder(&ev);
+			int result = Cheat_Responder(&ev);
+			if (result == -1)
+			{
+				success = true;
+				break;
+			}
 		}
 		ev.data2 = -1;
 		Cheat_Responder(&ev);
 	}
+	return success;
 }
 
 CCMD(activatecheat)

@@ -23,6 +23,11 @@ class RazeStatusBar : StatusBarCore
 	{
 	}
 
+	virtual int, int GetReservedScreenSpace(int viewsize)
+	{
+		return 0, 0;
+	}
+	
 	virtual void Tick() {}
 	virtual void Reset() {}
 	virtual void UpdateStatusBar(SummaryInfo info) {}
@@ -219,5 +224,16 @@ class RazeStatusBar : StatusBarCore
 		int width = int(screen.GetWidth() * 1.333 / screenratio);
 		int left = (screen.GetWidth() - width) / 2;
 		screen.SetClipRect(left, 0, width, screen.GetHeight());
+	}
+
+	//============================================================================
+	//
+	//
+	//
+	//============================================================================
+
+	virtual void GetAllStats(HudStats stats)
+	{
+		stats.Clear();
 	}
 }

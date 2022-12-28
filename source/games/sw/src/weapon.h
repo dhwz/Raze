@@ -31,16 +31,16 @@ BEGIN_SW_NS
 
 #define NEW_ELECTRO 1
 #define HORIZ_MULT 128
-constexpr double HORIZ_MULTF = 0.5;
+constexpr double HORIZ_MULTF = 64.;
 
 inline DAngle AngToSprite(DSWActor* actor, DSWActor* other)
 {
-    return VecToAngle(actor->spr.pos - other->spr.pos);
+    return (actor->spr.pos - other->spr.pos).Angle();
 }
 
 inline DAngle AngToPlayer(PLAYER* player, DSWActor* other)
 {
-    return VecToAngle(player->pos - other->spr.pos);
+    return (player->actor->getPosWithOffsetZ() - other->spr.pos).Angle();
 }
 
 
@@ -81,7 +81,7 @@ extern int LoWangsQueueHead;
 extern TObjPtr<DSWActor*> LoWangsQueue[MAX_LOWANGS_QUEUE];
 
 void ChangeState(DSWActor* actor, STATE* statep);
-void DoPlayerBeginRecoil(PLAYER* pp, short pix_amt);
+void DoPlayerBeginRecoil(PLAYER* pp, double pix_amt);
 SECTOR_OBJECT* DetectSectorObject(sectortype*);
 SECTOR_OBJECT* DetectSectorObjectByWall(walltype*);
 void ScaleSpriteVector(DSWActor* actor, int scale);
@@ -137,11 +137,12 @@ constexpr double SKEL_ELECTRO_VELOCITY   = (850 / 16.);
 constexpr double COOLG_FIRE_VELOCITY     = (400 / 16.);
 constexpr int GORO_FIREBALL_VELOCITY = 50;
 
-#define GRENADE_RECOIL_AMT      (12)
-#define ROCKET_RECOIL_AMT       (7)
-#define RAIL_RECOIL_AMT       (7)
-#define SHOTGUN_RECOIL_AMT      (12)
-//#define MICRO_RECOIL_AMT        (15)
+// Recoil speeds in pitch/degrees.
+constexpr double GRENADE_RECOIL_AMT = 5.356;
+constexpr double ROCKET_RECOIL_AMT = 3.13;
+constexpr double RAIL_RECOIL_AMT = 3.13;
+constexpr double SHOTGUN_RECOIL_AMT = 5.356;
+constexpr double NUKE_RECOIL_AMT = 33.275;
 
 // Damage amounts that determine the type of player death
 // The standard flip over death is default
@@ -157,7 +158,7 @@ extern int WeaponIsAmmo;
 
 inline double CloseRangeDist(DSWActor* a1, DSWActor* a2, double fudge = 25)
 {
-	return a1->fClipdist() + a2->fClipdist() + fudge;
+	return a1->clipdist + a2->clipdist + fudge;
 }
 
 extern short target_ang;

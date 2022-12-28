@@ -22,7 +22,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //-------------------------------------------------------------------------
 #pragma once
 
+#include <stdint.h>
 #include "mapstructs.h"
+#include "texturemanager.h"
 
 BEGIN_BLD_NS
 
@@ -80,15 +82,16 @@ extern const char* gAmmoText[];
 extern const char* gWeaponText[];
 extern int gSkyCount;
 
-void GetSpriteExtents(spritetypebase const* const pSprite, int* top, int* bottom)
+void GetSpriteExtents(spritetypebase const* const pSprite, double* top, double* bottom)
 {
-	*top = *bottom = pSprite->int_pos().Z;
+	*top = *bottom = pSprite->pos.Z;
 	if ((pSprite->cstat & CSTAT_SPRITE_ALIGNMENT_MASK) != CSTAT_SPRITE_ALIGNMENT_FLOOR)
 	{
-		int height = tileHeight(pSprite->picnum);
-		int center = height / 2 + tileTopOffset(pSprite->picnum);
-		*top -= (pSprite->yrepeat << 2) * center;
-		*bottom += (pSprite->yrepeat << 2) * (height - center);
+		auto tex = TexMan.GetGameTexture(pSprite->spritetexture());
+		double height = tex->GetDisplayHeight();
+		double center = height / 2 + tex->GetDisplayTopOffset();
+		*top -= pSprite->scale.Y * center;
+		*bottom += pSprite->scale.Y * (height - center);
 	}
 }
 
@@ -101,7 +104,7 @@ DBloodActor* InsertSprite(sectortype* pSector, int nStat);
 int DeleteSprite(DBloodActor* actor);
 
 unsigned int dbReadMapCRC(const char* pPath);
-void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, int* pSector, unsigned int* pCRC, BloodSpawnSpriteDef& sprites);
+void dbLoadMap(const char* pPath, DVector3& pos, short* pAngle, sectortype** pSector, unsigned int* pCRC, BloodSpawnSpriteDef& sprites);
 
 
 END_BLD_NS

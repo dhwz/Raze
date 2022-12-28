@@ -52,10 +52,10 @@ void zombfHackSeqCallback(int, DBloodActor* actor)
 	if (!actor->ValidateTarget(__FUNCTION__)) return;
 	auto target = actor->GetTarget();
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	int height = (pDudeInfo->eyeHeight * actor->spr.yrepeat);
+	double height = pDudeInfo->eyeHeight * actor->spr.scale.Y * 0.25;
 	DUDEINFO* pDudeInfoT = getDudeInfo(target->spr.type);
-	int height2 = (pDudeInfoT->eyeHeight * target->spr.yrepeat);
-	actFireVector(actor, 0, 0, bcos(actor->int_ang()), bsin(actor->int_ang()), height - height2, kVectorCleaver);
+	double height2 = pDudeInfoT->eyeHeight * target->spr.scale.Y * 0.25;
+	actFireVector(actor, 0, 0, DVector3(actor->spr.Angles.Yaw.ToVector() * 64, height - height2), kVectorCleaver);
 }
 
 void PukeSeqCallback(int, DBloodActor* actor)
@@ -64,20 +64,20 @@ void PukeSeqCallback(int, DBloodActor* actor)
 	auto target = actor->GetTarget();
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
 	DUDEINFO* pDudeInfoT = getDudeInfo(target->spr.type);
-	int height = (pDudeInfo->eyeHeight * actor->spr.yrepeat);
-	int height2 = (pDudeInfoT->eyeHeight * target->spr.yrepeat);
-	int tx = actor->xspr.int_TargetPos().X - actor->int_pos().X;
-	int ty = actor->xspr.int_TargetPos().Y - actor->int_pos().Y;
-	int nAngle = getangle(tx, ty);
-	int dx = bcos(nAngle);
-	int dy = bsin(nAngle);
+
+	DVector2 dv = (actor->xspr.TargetPos.XY() - actor->spr.pos.XY()).Resized(64);
+
+	double height = (pDudeInfo->eyeHeight * actor->spr.scale.Y);
+	double height2 = (pDudeInfoT->eyeHeight * target->spr.scale.Y);
+	double z = (height - height2) * 0.25;
+
 	sfxPlay3DSound(actor, 1203, 1, 0);
-	actFireMissile(actor, 0, -(height - height2), dx, dy, 0, kMissilePukeGreen);
+	actFireMissile(actor, 0, -z, DVector3(dv, 0), kMissilePukeGreen);
 }
 
 void ThrowSeqCallback(int, DBloodActor* actor)
 {
-	actFireMissile(actor, 0, -getDudeInfo(actor->spr.type)->eyeHeight, bcos(actor->int_ang()), bsin(actor->int_ang()), 0, kMissileButcherKnife);
+	actFireMissile(actor, 0, 0, DVector3(actor->spr.Angles.Yaw.ToVector(), 0), kMissileButcherKnife);
 }
 
 static void zombfThinkSearch(DBloodActor* actor)
@@ -91,10 +91,10 @@ static void zombfThinkGoto(DBloodActor* actor)
 	assert(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax);
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
-	int nAngle = getangle(dvec);
-	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
-	if (nDist < 512 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
+	DAngle nAngle = dvec.Angle();
+	double nDist = dvec.Length();
+	aiChooseDirection(actor, nAngle);
+	if (nDist < 32 && absangle(actor->spr.Angles.Yaw, nAngle) < pDudeInfo->Periphery())
 		aiNewState(actor, &zombieFSearch);
 	aiThinkTarget(actor);
 }
@@ -111,9 +111,9 @@ static void zombfThinkChase(DBloodActor* actor)
 	if (!actor->ValidateTarget(__FUNCTION__)) return;
 	auto target = actor->GetTarget();
 
-	int dx = target->int_pos().X - actor->int_pos().X;
-	int dy = target->int_pos().Y - actor->int_pos().Y;
-	aiChooseDirection(actor, VecToAngle(dx, dy));
+	auto dv = target->spr.pos - actor->spr.pos;
+	auto nAngle = dv.Angle();
+	aiChooseDirection(actor, nAngle);
 	if (target->xspr.health == 0)
 	{
 		aiNewState(actor, &zombieFSearch);
@@ -124,19 +124,19 @@ static void zombfThinkChase(DBloodActor* actor)
 		aiNewState(actor, &zombieFSearch);
 		return;
 	}
-	int nDist = approxDist(dx, dy);
-	if (nDist <= pDudeInfo->seeDist)
+	double nDist = dv.Length();
+	if (nDist <= pDudeInfo->SeeDist())
 	{
-		int nDeltaAngle = getincangle(actor->int_ang(), getangle(dx, dy));
-		double height = (pDudeInfo->eyeHeight * actor->spr.yrepeat) * REPEAT_SCALE;
+		DAngle nDeltaAngle = absangle(actor->spr.Angles.Yaw, nAngle);
+		double height = (pDudeInfo->eyeHeight * actor->spr.scale.Y);
 		if (cansee(target->spr.pos, target->sector(), actor->spr.pos.plusZ(-height), actor->sector()))
 		{
-			if (abs(nDeltaAngle) <= pDudeInfo->periphery)
+			if (nDeltaAngle <= pDudeInfo->Periphery())
 			{
 				aiSetTarget(actor, actor->GetTarget());
-				if (nDist < 0x1400 && nDist > 0xe00 && abs(nDeltaAngle) < 85)
+				if (nDist < 0x100 && nDist > 0xe0 && abs(nDeltaAngle) < DAngle15)
 				{
-					int hit = HitScan(actor, actor->spr.pos.Z, dx, dy, 0, CLIPMASK1, 0);
+					int hit = HitScan(actor, actor->spr.pos.Z, DVector3(dv, 0), CLIPMASK1, 0);
 					switch (hit)
 					{
 					case -1:
@@ -153,9 +153,9 @@ static void zombfThinkChase(DBloodActor* actor)
 						break;
 					}
 				}
-				else if (nDist < 0x1400 && nDist > 0x600 && abs(nDeltaAngle) < 85)
+				else if (nDist < 0x140 && nDist > 0x60 && nDeltaAngle < DAngle15)
 				{
-					int hit = HitScan(actor, actor->spr.pos.Z, dx, dy, 0, CLIPMASK1, 0);
+					int hit = HitScan(actor, actor->spr.pos.Z, DVector3(dv, 0), CLIPMASK1, 0);
 					switch (hit)
 					{
 					case -1:
@@ -172,9 +172,9 @@ static void zombfThinkChase(DBloodActor* actor)
 						break;
 					}
 				}
-				else if (nDist < 0x400 && abs(nDeltaAngle) < 85)
+				else if (nDist < 0x40 && nDeltaAngle < DAngle15)
 				{
-					int hit = HitScan(actor, actor->spr.pos.Z, dx, dy, 0, CLIPMASK1, 0);
+					int hit = HitScan(actor, actor->spr.pos.Z, DVector3(dv, 0), CLIPMASK1, 0);
 					switch (hit)
 					{
 					case -1:

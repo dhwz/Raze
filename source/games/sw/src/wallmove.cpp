@@ -59,7 +59,7 @@ void SOwallmove(SECTOR_OBJECT* sop, DSWActor* actor, walltype* find_wallp, doubl
     {
 
         // move all walls in sectors back to the original position
-        for (auto& wal : wallsofsector(*sectp))
+        for (auto& wal : (*sectp)->walls)
         {
             // find the one wall we want to adjust
             if (&wal == find_wallp)
@@ -88,20 +88,21 @@ void SOwallmove(SECTOR_OBJECT* sop, DSWActor* actor, walltype* find_wallp, doubl
 
 int DoWallMove(DSWActor* actor)
 {
-    short shade1,shade2,picnum1,picnum2;
+    short shade1, shade2;
+    FTextureID texid1, texid2;
     bool found = false;
     bool SOsprite = false;
 
     double dist = SP_TAG13(actor) * maptoworld;
-    DAngle ang = DAngle::fromBuild(SP_TAG4(actor));
-    picnum1 = SP_TAG5(actor);
-    picnum2 = SP_TAG6(actor);
+    DAngle ang = mapangle(SP_TAG4(actor));
+    texid1 = actor->texparam;
+    texid2 = actor->texparam2;
     shade1 = SP_TAG7(actor);
     shade2 = SP_TAG8(actor);
     int dang = ((int)SP_TAG10(actor)) << 3;
 
     if (dang)
-        ang += DAngle::fromBuild(RandomRange(dang) - dang/2);
+        ang += mapangle(RandomRange(dang) - dang/2);
 
     DVector2 nvec = dist * ang.ToVector();
 
@@ -127,15 +128,15 @@ int DoWallMove(DSWActor* actor)
 
             if (shade1)
                 wal.shade = int8_t(shade1);
-            if (picnum1)
-                wal.picnum = picnum1;
+            if (texid1.isValid())
+                wal.setwalltexture(texid1);
 
             // find the previous wall
             auto prev_wall = PrevWall(&wal);
             if (shade2)
                 prev_wall->shade = int8_t(shade2);
-            if (picnum2)
-                prev_wall->picnum = picnum2;
+            if (texid2.isValid())
+                prev_wall->setwalltexture(texid2);
         }
     }
 

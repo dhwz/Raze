@@ -49,6 +49,7 @@ Prepared for public release: 03/28/2005 - Charlie Wiederhold, 3D Realms
 #include "i_interface.h"
 #include "psky.h"
 #include "startscreen.h"
+#include "tilesetbuilder.h"
 
 
 
@@ -209,22 +210,40 @@ int ThemeTrack[6];
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 #define x(a, b) registerName(#a, b);
-static void SetTileNames()
+static void SetTileNames(TilesetBuildInfo& info)
 {
-    auto registerName = [](const char* name, int index)
+    auto registerName = [&](const char* name, int index)
     {
-        TexMan.AddAlias(name, tileGetTexture(index));
-        TileFiles.addName(name, index);
+        info.addName(name, index);
     };
 #include "namelist.h"
 }
 #undef x
 
-void GameInterface::LoadGameTextures()
+void GameInterface::LoadTextureInfo(TilesetBuildInfo& info)
 {
-    LoadKVXFromScript("swvoxfil.txt");    // Load voxels from script file
+    LoadKVXFromScript(info, "swvoxfil.txt");    // Load voxels from script file
 }
 
+enum
+{
+    FAF_PLACE_MIRROR_PIC = 341,
+    FAF_MIRROR_PIC = 2356
+};
+
+void GameInterface::SetupSpecialTextures(TilesetBuildInfo& info)
+{
+    info.Delete(MIRROR); // mirror
+    info.Delete(MIRRORLABEL);
+    for (int i = 0; i < MAXMIRRORS; i++)
+    {
+        info.MakeCanvas(CAMSPRITE + i, 128, 114);
+    }
+    // make these two unique, they are empty by default.
+    info.Delete(FAF_MIRROR_PIC);
+    info.Delete(FAF_MIRROR_PIC + 1);
+    SetTileNames(info);
+}
 //---------------------------------------------------------------------------
 //
 //
@@ -233,6 +252,12 @@ void GameInterface::LoadGameTextures()
 
 void GameInterface::app_init()
 {
+    // these are frequently checked markers.
+    FAFPlaceMirrorPic[0] = tileGetTextureID(FAF_PLACE_MIRROR_PIC);
+    FAFPlaceMirrorPic[1] = tileGetTextureID(FAF_PLACE_MIRROR_PIC + 1);
+    FAFMirrorPic[0] = tileGetTextureID(FAF_MIRROR_PIC);
+    FAFMirrorPic[1] = tileGetTextureID(FAF_MIRROR_PIC + 1);
+
     GC::AddMarkerFunc(markgcroots);
 
     GameTicRate = TICS_PER_SEC / synctics;
@@ -268,7 +293,7 @@ void GameInterface::app_init()
 
     //Connect();
     SortBreakInfo();
-    defineSky(DEFAULTPSKY, 1, nullptr);
+    defineSky(nullptr, 1, nullptr);
 
     memset(Track, 0, sizeof(Track));
     memset(Player, 0, sizeof(Player));
@@ -279,7 +304,6 @@ void GameInterface::app_init()
     if (!SW_SHAREWARE)
         LoadCustomInfoFromScript("swcustom.txt");   // Load user customisation information
 
-    SetTileNames();
     userConfig.AddDefs.reset();
     InitFX();
 }
@@ -355,7 +379,7 @@ void spawnactors(SpawnSpriteDef& sprites)
         }
         auto sprt = &sprites.sprites[i];
         auto actor = insertActor(sprt->sectp, sprt->statnum);
-        actor->spr = sprites.sprites[i];
+		actor->initFromSprite(&sprites.sprites[i]);
         actor->time = i;
         if (sprites.sprext.Size()) actor->sprext = sprites.sprext[i];
         else actor->sprext = {};
@@ -404,18 +428,16 @@ void InitLevel(MapRecord *maprec)
 
     int16_t ang;
     currentLevel = maprec;
-    int cursect;
+    sectortype* cursect;
     SpawnSpriteDef sprites;
     DVector3 ppos;
     loadMap(maprec->fileName, SW_SHAREWARE ? 1 : 0, &ppos, &ang, &cursect, sprites);
-    Player[0].pos = ppos;
     spawnactors(sprites);
-    Player[0].cursector = &sector[cursect];
+    Player[0].cursector = cursect;
 
     SECRET_SetMapName(currentLevel->DisplayName(), currentLevel->name);
     STAT_NewLevel(currentLevel->fileName);
     TITLE_InformName(currentLevel->name);
-    Player[0].angle.ang = DAngle::fromBuild(ang);
 
     auto vissect = &sector[0]; // hack alert!
     if (vissect->extra != -1)
@@ -433,9 +455,9 @@ void InitLevel(MapRecord *maprec)
     InitAllPlayers();
 
     QueueReset();
+    InitMultiPlayerInfo(ppos, mapangle(ang));
+    InitAllPlayerSprites(ppos, mapangle(ang));
     PreMapCombineFloors();
-    InitMultiPlayerInfo();
-    InitAllPlayerSprites();
 
     //
     // Do setup for sprite, track, panel, sector, etc
@@ -558,6 +580,9 @@ void TerminateLevel(void)
     {
         PLAYER* pp = &Player[pnum];
 
+        if (pp->Flags & PF_DEAD)
+            PlayerDeathReset(pp);
+
         // Free panel sprites for players
         pClearSpriteList(pp);
 
@@ -575,6 +600,7 @@ void TerminateLevel(void)
         pp->DoPlayerAction = nullptr;
 
         pp->actor = nullptr;
+        pp->Angles = {};
 
         pp->PlayerUnderActor = nullptr;
 
@@ -626,6 +652,7 @@ void GameInterface::LevelCompleted(MapRecord* map, int skill)
     info.secrets = Player[screenpeek].SecretsFound;
     info.maxsecrets = LevelSecrets;
     info.time = PlayClock / 120;
+
 
     ShowIntermission(currentLevel, map, &info, [=](bool)
         {
@@ -804,11 +831,6 @@ int StdRandomRange(int range)
 //
 //---------------------------------------------------------------------------
 
-ReservedSpace GameInterface::GetReservedScreenSpace(int viewsize)
-{
-    return { 0, 48 };
-}
-
 ::GameInterface* CreateInterface()
 {
 	return new GameInterface;
@@ -824,11 +846,6 @@ void GameInterface::FreeLevelData()
 {
     TerminateLevel();
     ::GameInterface::FreeLevelData();
-}
-
-int GameInterface::Voxelize(int sprnum) 
-{ 
-    return (aVoxelArray[sprnum].Voxel);
 }
 
 END_SW_NS

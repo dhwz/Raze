@@ -44,8 +44,6 @@ AISTATE houndBurn = { kAiStateChase, 7, nHoundBurnClient, 60, NULL, NULL, NULL, 
 
 void houndBiteSeqCallback(int, DBloodActor* actor)
 {
-	int dx = bcos(actor->int_ang());
-	int dy = bsin(actor->int_ang());
 	if (!(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax)) {
 		Printf(PRINT_HIGH, "actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax");
 		return;
@@ -53,18 +51,14 @@ void houndBiteSeqCallback(int, DBloodActor* actor)
 
 	if (!actor->ValidateTarget(__FUNCTION__)) return;
 	auto target = actor->GetTarget();
-#ifdef NOONE_EXTENSIONS
+	DVector3 vec(actor->spr.Angles.Yaw.ToVector() * 64, target->spr.pos.Z - actor->spr.pos.Z);
 	if (target->IsPlayerActor() || gModernMap) // allow to hit non-player targets
-		actFireVector(actor, 0, 0, dx, dy, target->int_pos().Z - actor->int_pos().Z, kVectorHoundBite);
-#else
-	if (target->IsPlayerActor())
-		actFireVector(actor, 0, 0, dx, dy, target->spr.z - actor->spr.z, kVectorHoundBite);
-#endif
+		actFireVector(actor, 0, 0, vec, kVectorHoundBite);
 }
 
 void houndBurnSeqCallback(int, DBloodActor* actor)
 {
-	actFireMissile(actor, 0, 0, bcos(actor->int_ang()), bsin(actor->int_ang()), 0, kMissileFlameHound);
+	actFireMissile(actor, 0, 0, DVector3(actor->spr.Angles.Yaw.ToVector(), 0), kMissileFlameHound);
 }
 
 static void houndThinkSearch(DBloodActor* actor)
@@ -82,10 +76,10 @@ static void houndThinkGoto(DBloodActor* actor)
 
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
-	int nAngle = getangle(dvec);
-	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
-	if (nDist < 512 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
+	DAngle nAngle = dvec.Angle();
+	double nDist = dvec.Length();
+	aiChooseDirection(actor, nAngle);
+	if (nDist < 32 && absangle(actor->spr.Angles.Yaw, nAngle) < pDudeInfo->Periphery())
 		aiNewState(actor, &houndSearch);
 	aiThinkTarget(actor);
 }
@@ -105,9 +99,9 @@ static void houndThinkChase(DBloodActor* actor)
 	auto target = actor->GetTarget();
 
 	auto dvec = target->spr.pos.XY() - actor->spr.pos.XY();
-	int nAngle = getangle(dvec);
-	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
+	DAngle nAngle = dvec.Angle();
+	double nDist = dvec.Length();
+	aiChooseDirection(actor, nAngle);
 	if (target->xspr.health == 0)
 	{
 		aiNewState(actor, &houndSearch);
@@ -119,18 +113,18 @@ static void houndThinkChase(DBloodActor* actor)
 		return;
 	}
 
-	if (nDist <= pDudeInfo->seeDist)
+	if (nDist <= pDudeInfo->SeeDist())
 	{
-		int nDeltaAngle = getincangle(actor->int_ang(), nAngle);
-		double height = (pDudeInfo->eyeHeight * actor->spr.yrepeat) * REPEAT_SCALE;
+		DAngle nDeltaAngle = absangle(actor->spr.Angles.Yaw, nAngle);
+		double height = (pDudeInfo->eyeHeight * actor->spr.scale.Y);
 		if (cansee(target->spr.pos, target->sector(), actor->spr.pos.plusZ(-height), actor->sector()))
 		{
-			if (nDist < pDudeInfo->seeDist && abs(nDeltaAngle) <= pDudeInfo->periphery)
+			if (nDist < pDudeInfo->SeeDist() && abs(nDeltaAngle) <= pDudeInfo->Periphery())
 			{
 				aiSetTarget(actor, actor->GetTarget());
-				if (nDist < 0xb00 && nDist > 0x500 && abs(nDeltaAngle) < 85)
+				if (nDist < 0xb0 && nDist > 0x50 && nDeltaAngle < DAngle15)
 					aiNewState(actor, &houndBurn);
-				else if (nDist < 0x266 && abs(nDeltaAngle) < 85)
+				else if (nDist < 38.375 && nDeltaAngle < DAngle15)
 					aiNewState(actor, &houndBite);
 				return;
 			}

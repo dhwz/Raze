@@ -5,22 +5,13 @@
 class FSerializer;
 struct IntRect;
 
-void render_drawrooms(DCoreActor* playersprite, const DVector3& position, int sectnum, DAngle angle, fixedhoriz horizon, DAngle rollang, double interpfrac, float fov = -1);
-void render_camtex(DCoreActor* playersprite, const DVector3& position, sectortype* sect, DAngle angle, fixedhoriz horizon, DAngle rollang, FGameTexture* camtex, IntRect& rect, double interpfrac);
-
-inline void render_drawrooms(DCoreActor* playersprite, const vec3_t& position, int sectnum, DAngle angle, fixedhoriz horizon, DAngle rollang, double smoothratio, float fov = -1)
-{
-	render_drawrooms(playersprite, DVector3(position.X * inttoworld, position.Y * inttoworld, position.Z * zinttoworld), sectnum, angle, horizon, rollang, smoothratio * (1. / MaxSmoothRatio), fov);
-}
-inline void render_camtex(DCoreActor* playersprite, const vec3_t& position, sectortype* sect, DAngle angle, fixedhoriz horizon, DAngle rollang, FGameTexture* camtex, IntRect& rect, double smoothratio)
-{
-	render_camtex(playersprite, DVector3(position.X* inttoworld, position.Y * inttoworld, position.Z* zinttoworld), sect, angle, horizon, rollang, camtex, rect, smoothratio * (1. / MaxSmoothRatio));
-}
+void render_drawrooms(DCoreActor* playersprite, const DVector3& position, sectortype* sectnum, const DRotator& angles, double interpfrac, float fov = -1);
+void render_camtex(DCoreActor* playersprite, const DVector3& position, sectortype* sect, const DRotator& angles, FGameTexture* camtex, IntRect& rect, double interpfrac);
 
 struct PortalDesc
 {
 	int type;
-	int dx, dy, dz;
+	DVector3 delta;
 	TArray<int> targets;
 };
 
@@ -39,9 +30,7 @@ inline int portalAdd(int type, int target, const DVector3& offset)
 	auto& pt = allPortals[allPortals.Reserve(1)];
 	pt.type = type;
 	if (target >= 0) pt.targets.Push(target);
-	pt.dx = offset.X * worldtoint;
-	pt.dy = offset.Y * worldtoint;
-	pt.dz = offset.Z * zworldtoint;
+	pt.delta = offset;
 	return allPortals.Size() - 1;
 }
 
@@ -61,7 +50,7 @@ inline void mergePortals()
 				for (unsigned j = i + 1; j < allPortals.Size(); j++)
 				{
 					auto& pt2 = allPortals[j];
-					if (pt1.type != pt2.type || pt1.dx != pt2.dx || pt1.dy != pt2.dy || pt1.dz != pt2.dz) continue;
+					if (pt1.type != pt2.type || pt1.delta != pt2.delta) continue;
 					for (unsigned s = 0; s < pt1.targets.Size() && pt2.targets.Size(); s++)
 					{
 						for (unsigned t = 0; t < pt2.targets.Size(); t++)

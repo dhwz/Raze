@@ -45,6 +45,8 @@
 #include "gamecontrol.h"
 #include "hw_sections.h"
 #include "coreactor.h"
+#include "texinfo.h"
+#include "buildtiles.h"
 
 //#define DEBUG_CLIPPER
 //==========================================================================
@@ -53,15 +55,15 @@
 //
 //==========================================================================
 
-void BunchDrawer::Init(HWDrawInfo *_di, Clipper* c, vec2_t& view, angle_t a1, angle_t a2)
+void BunchDrawer::Init(HWDrawInfo *_di, Clipper* c, const DVector2& view, angle_t a1, angle_t a2)
 {
 	ang1 = a1;
 	ang2 = a2;
 	angrange = ang2 - ang1;
 	di = _di;
 	clipper = c;
-	viewx = view.X * (1/ 16.f);
-	viewy = view.Y * -(1/ 16.f);
+	viewx = view.X;
+	viewy = view.Y;
 	viewz = (float)di->Viewpoint.Pos.Z;
 
 	StartScene();
@@ -72,7 +74,9 @@ void BunchDrawer::Init(HWDrawInfo *_di, Clipper* c, vec2_t& view, angle_t a1, an
 	for (auto& w : wall)
 	{
 		// Precalculate the clip angles to avoid doing this repeatedly during level traversal.
-		auto vv = w.wall_int_pos() - view;
+		DVector2 vv;
+		vv.X = w.pos.X - view.X;
+		vv.Y = w.pos.Y + view.Y; // beware of different coordinate systems!
 		w.clipangle = RAD2BAM(atan2(vv.Y, vv.X));
 	}
 	memset(sectionstartang.Data(), -1, sectionstartang.Size() * sizeof(sectionstartang[0]));
@@ -381,14 +385,14 @@ int BunchDrawer::WallInFront(int line1, int line2)
 	int wall2s = sectionLines[line2].startpoint;
 	int wall2e = sectionLines[line2].endpoint;
 
-	double x1s = WallStartX(wall1s);
-	double y1s = WallStartY(wall1s);
-	double x1e = WallStartX(wall1e);
-	double y1e = WallStartY(wall1e);
-	double x2s = WallStartX(wall2s);
-	double y2s = WallStartY(wall2s);
-	double x2e = WallStartX(wall2e);
-	double y2e = WallStartY(wall2e);
+	double x1s = wall[wall1s].pos.X;
+	double y1s = -wall[wall1s].pos.Y;
+	double x1e = wall[wall1e].pos.X;
+	double y1e = -wall[wall1e].pos.Y;
+	double x2s = wall[wall2s].pos.X;
+	double y2s = -wall[wall2s].pos.Y;
+	double x2e = wall[wall2e].pos.X;
+	double y2e = -wall[wall2e].pos.Y;
 
 retry:
 	double dx1 = x1e - x1s;
@@ -673,7 +677,7 @@ void BunchDrawer::ProcessSection(int sectionnum, bool portal)
 		CoreSectIterator it(sectnum);
 		while (auto actor = it.Next())
 		{
-			if ((actor->spr.cstat & CSTAT_SPRITE_INVISIBLE) || actor->spr.xrepeat == 0 || actor->spr.yrepeat == 0) // skip invisible sprites
+			if ((actor->spr.cstat & CSTAT_SPRITE_INVISIBLE) || actor->spr.scale.X == 0 || actor->spr.scale.Y == 0) // skip invisible sprites
 				continue;
 
 			auto viewvec = actor->spr.pos.XY() - DVector2(viewx, -viewy); // note that viewy is in render coordinates
@@ -682,9 +686,8 @@ void BunchDrawer::ProcessSection(int sectionnum, bool portal)
 			//if ((actor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) || (hw_models && tile2model[actor->spr.picnum].modelid >= 0) || ((sx * gcosang) + (sy * gsinang) > 0)) 
 			{
 				if ((actor->spr.cstat & (CSTAT_SPRITE_ONE_SIDE | CSTAT_SPRITE_ALIGNMENT_MASK)) != (CSTAT_SPRITE_ONE_SIDE | CSTAT_SPRITE_ALIGNMENT_WALL) ||
-					(r_voxels && tiletovox[actor->spr.picnum] >= 0 && voxmodels[tiletovox[actor->spr.picnum]]) ||
-					(r_voxels && gi->Voxelize(actor->spr.picnum) > -1) ||
-					(actor->spr.angle.Cos() * viewvec.X) + (actor->spr.angle.Sin() * viewvec.Y) < 0)
+					tilehasvoxel(actor->spr.spritetexture()) ||
+					(actor->spr.Angles.Yaw.Cos() * viewvec.X) + (actor->spr.Angles.Yaw.Sin() * viewvec.Y) < 0)
 					if (!renderAddTsprite(di->tsprites, actor))
 						break;
 			}

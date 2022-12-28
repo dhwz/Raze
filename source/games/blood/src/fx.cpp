@@ -32,19 +32,19 @@ BEGIN_BLD_NS
 CFX gFX;
 
 struct FXDATA {
-	CALLBACK_ID funcID; // callback
-	uint8_t detail; // detail
-	int16_t seq; // seq
-	int16_t flags; // flags
-	int32_t gravity; // gravity
+	CALLBACK_ID funcID;
+	uint8_t detail;
+	int16_t seq;
+	int16_t flags;
+	int32_t gravity;
 	int32_t drag; // air drag
-	int32_t ate;
-	int16_t picnum; // picnum
-	uint8_t xrepeat; // xrepeat
-	uint8_t yrepeat; // yrepeat
-	ESpriteFlags cstat; // cstat
-	int8_t shade; // shade
-	uint8_t pal; // pal
+	int32_t defangle;
+	int16_t picnum;
+	uint8_t xrepeat;
+	uint8_t yrepeat;
+	ESpriteFlags cstat;
+	int8_t shade;
+	uint8_t pal;
 };
 
 FXDATA gFXData[] = {
@@ -135,13 +135,7 @@ void CFX::remove(DBloodActor* actor)
 //
 //---------------------------------------------------------------------------
 
-DBloodActor* CFX::fxSpawnActor(FX_ID nFx, sectortype* pSector, int x, int y, int z, unsigned int a6)
-{
-	DVector3 pos(x * inttoworld, y * inttoworld, z * zinttoworld);
-	return fxSpawnActor(nFx, pSector, pos, a6);
-}
-
-DBloodActor* CFX::fxSpawnActor(FX_ID nFx, sectortype* pSector, const DVector3& pos, unsigned int a6)
+DBloodActor* CFX::fxSpawnActor(FX_ID nFx, sectortype* pSector, const DVector3& pos, DAngle angle)
 {
 	if (pSector == nullptr)
 		return nullptr;
@@ -178,9 +172,9 @@ DBloodActor* CFX::fxSpawnActor(FX_ID nFx, sectortype* pSector, const DVector3& p
 	actor->spr.pal = pFX->pal;
 	actor->spr.detail = pFX->detail;
 	if (pFX->xrepeat > 0)
-		actor->spr.xrepeat = pFX->xrepeat;
+		actor->spr.scale.X = (pFX->xrepeat * REPEAT_SCALE);
 	if (pFX->yrepeat > 0)
-		actor->spr.yrepeat = pFX->yrepeat;
+		actor->spr.scale.Y = (pFX->yrepeat * REPEAT_SCALE);
 	if ((pFX->flags & 1) && Chance(0x8000))
 		actor->spr.cstat |= CSTAT_SPRITE_XFLIP;
 	if ((pFX->flags & 2) && Chance(0x8000))
@@ -190,10 +184,10 @@ DBloodActor* CFX::fxSpawnActor(FX_ID nFx, sectortype* pSector, const DVector3& p
 		actor->addX();
 		seqSpawn(pFX->seq, actor, -1);
 	}
-	if (a6 == 0)
-		a6 = pFX->ate;
-	if (a6)
-		evPostActor(actor, a6 + Random2(a6 >> 1), kCallbackRemove);
+	if (angle == nullAngle)
+		angle = mapangle(pFX->defangle);
+	if (angle != nullAngle)
+		evPostActor(actor, angle.Buildang() + Random2(angle.Buildang() >> 1), kCallbackRemove);
 	return actor;
 }
 
@@ -214,7 +208,7 @@ void CFX::fxProcess(void)
 		assert(actor->spr.type < kFXMax);
 		FXDATA* pFXData = &gFXData[actor->spr.type];
 		actAirDrag(actor, pFXData->drag);
-		actor->add_int_pos({ actor->int_vel().X >> 12, actor->int_vel().Y >> 12, actor->int_vel().Z >> 8 });
+		actor->spr.pos += actor->vel;
 		// Weird...
 		if (actor->vel.X != 0 || (actor->vel.Y != 0 && actor->spr.pos.Z >= actor->sector()->floorz))
 		{
@@ -224,7 +218,7 @@ void CFX::fxProcess(void)
 				remove(actor);
 				continue;
 			}
-			if (getflorzofslopeptr(actor->sector(), actor->spr.pos) <= actor->int_pos().Z)
+			if (getflorzofslopeptr(actor->sector(), actor->spr.pos) <= actor->spr.pos.Z)
 			{
 				if (pFXData->funcID < 0 || pFXData->funcID >= kCallbackMax)
 				{
@@ -240,16 +234,16 @@ void CFX::fxProcess(void)
 				ChangeActorSect(actor, pSector);
 			}
 		}
-		if (actor->vel.X != 0 || actor->vel.Y != 0 || actor->int_vel().Z)
+		if (!actor->vel.isZero())
 		{
-			int32_t floorZ, ceilZ;
-			getzsofslopeptr(pSector, actor->spr.pos, &ceilZ, &floorZ);
-			if (ceilZ > actor->int_pos().Z && !(pSector->ceilingstat & CSTAT_SECTOR_SKY))
+			double floorZ, ceilZ;
+			calcSlope(pSector, actor->spr.pos, &ceilZ, &floorZ);
+			if (ceilZ > actor->spr.pos.Z && !(pSector->ceilingstat & CSTAT_SECTOR_SKY))
 			{
 				remove(actor);
 				continue;
 			}
-			if (floorZ < actor->int_pos().Z)
+			if (floorZ < actor->spr.pos.Z)
 			{
 				if (pFXData->funcID < 0 || pFXData->funcID >= kCallbackMax)
 				{
@@ -260,7 +254,7 @@ void CFX::fxProcess(void)
 				continue;
 			}
 		}
-		actor->add_int_bvel_z(pFXData->gravity);
+		actor->vel.Z += FixedToFloat(pFXData->gravity);
 	}
 }
 
@@ -279,10 +273,10 @@ void fxSpawnBlood(DBloodActor* actor, int)
 	if (!pSector) return;
 	if (adult_lockout && gGameOptions.nGameType <= 0)
 		return;
-	auto bloodactor = gFX.fxSpawnActor(FX_27, actor->sector(), actor->spr.pos, 0);
+	auto bloodactor = gFX.fxSpawnActor(FX_27, actor->sector(), actor->spr.pos);
 	if (bloodactor)
 	{
-		bloodactor->set_int_ang(1024);
+		bloodactor->spr.Angles.Yaw = DAngle180;
 		bloodactor->vel.X = Random2F(0x6aaaa);
 		bloodactor->vel.Y = Random2F(0x6aaaa);
 		bloodactor->vel.Z = -Random2F(0x10aaaa) - FixedToFloat(100);
@@ -307,12 +301,12 @@ void fxSpawnPodStuff(DBloodActor* actor, int)
 		return;
 	DBloodActor* spawnactor;
 	if (actor->spr.type == kDudePodGreen)
-		spawnactor = gFX.fxSpawnActor(FX_53, actor->sector(), actor->spr.pos, 0);
+		spawnactor = gFX.fxSpawnActor(FX_53, actor->sector(), actor->spr.pos);
 	else
-		spawnactor = gFX.fxSpawnActor(FX_54, actor->sector(), actor->spr.pos, 0);
+		spawnactor = gFX.fxSpawnActor(FX_54, actor->sector(), actor->spr.pos);
 	if (spawnactor)
 	{
-		spawnactor->set_int_ang(1024);
+		spawnactor->spr.Angles.Yaw = DAngle180;
 		spawnactor->vel.X = Random2F(0x6aaaa);
 		spawnactor->vel.Y = Random2F(0x6aaaa);
 		spawnactor->vel.Z = -Random2F(0x10aaaa) - FixedToFloat(100);
@@ -326,22 +320,19 @@ void fxSpawnPodStuff(DBloodActor* actor, int)
 //
 //---------------------------------------------------------------------------
 
-void fxSpawnEjectingBrass(DBloodActor* actor, int z, int a3, int a4)
+void fxSpawnEjectingBrass(DBloodActor* actor, double z, double dist, int rdist)
 {
-	int x = actor->int_pos().X + MulScale(actor->native_clipdist() - 4, Cos(actor->int_ang()), 28);
-	int y = actor->int_pos().Y + MulScale(actor->native_clipdist() - 4, Sin(actor->int_ang()), 28);
-	x += MulScale(a3, Cos(actor->int_ang() + 512), 30);
-	y += MulScale(a3, Sin(actor->int_ang() + 512), 30);
-	auto pBrass = gFX.fxSpawnActor((FX_ID)(FX_37 + Random(3)), actor->sector(), x, y, z, 0);
+	DVector3 pos(actor->spr.pos.XY() + actor->clipdist * actor->spr.Angles.Yaw.ToVector() + (actor->spr.Angles.Yaw + DAngle90).ToVector() * dist, z); 
+
+	auto pBrass = gFX.fxSpawnActor((FX_ID)(FX_37 + Random(3)), actor->sector(), pos);
 	if (pBrass)
 	{
 		if (!VanillaMode())
-			pBrass->set_int_ang(Random(2047));
-		int nDist = (a4 << 18) / 120 + Random2(((a4 / 4) << 18) / 120);
-		int nAngle = actor->int_ang() + Random2(56) + 512;
-		pBrass->set_int_bvel_x(MulScale(nDist, Cos(nAngle), 30));
-		pBrass->set_int_bvel_y(MulScale(nDist, Sin(nAngle), 30));
-		pBrass->set_int_bvel_z(actor->int_vel().Z - (0x20000 + (Random2(40) << 18) / 120));
+			pBrass->spr.Angles.Yaw = RandomAngle();
+		double nDist = rdist / 30. + Random2F(((rdist / 4) << 18) / 120, 4);
+		DAngle nAngle = actor->spr.Angles.Yaw + Random2A(56) + DAngle90;
+		pBrass->vel.XY() = nAngle.ToVector() * nDist;
+		pBrass->vel.Z = actor->vel.Z - 2 - Random2(40) / 30.;
 	}
 }
 
@@ -351,22 +342,19 @@ void fxSpawnEjectingBrass(DBloodActor* actor, int z, int a3, int a4)
 //
 //---------------------------------------------------------------------------
 
-void fxSpawnEjectingShell(DBloodActor* actor, int z, int a3, int a4)
+void fxSpawnEjectingShell(DBloodActor* actor, double z, double dist, int rdist)
 {
-	int x = actor->int_pos().X + MulScale(actor->native_clipdist() - 4, Cos(actor->int_ang()), 28);
-	int y = actor->int_pos().Y + MulScale(actor->native_clipdist() - 4, Sin(actor->int_ang()), 28);
-	x += MulScale(a3, Cos(actor->int_ang() + 512), 30);
-	y += MulScale(a3, Sin(actor->int_ang() + 512), 30);
-	auto pShell = gFX.fxSpawnActor((FX_ID)(FX_40 + Random(3)), actor->sector(), x, y, z, 0);
+	DVector3 pos(actor->spr.pos.XY() + actor->clipdist * actor->spr.Angles.Yaw.ToVector() + (actor->spr.Angles.Yaw + DAngle90).ToVector() * dist, z);
+
+	auto pShell = gFX.fxSpawnActor((FX_ID)(FX_40 + Random(3)), actor->sector(), pos);
 	if (pShell)
 	{
 		if (!VanillaMode())
-			pShell->set_int_ang(Random(2047));
-		int nDist = (a4 << 18) / 120 + Random2(((a4 / 4) << 18) / 120);
-		int nAngle = actor->int_ang() + Random2(56) + 512;
-		pShell->set_int_bvel_x(MulScale(nDist, Cos(nAngle), 30));
-		pShell->set_int_bvel_y(MulScale(nDist, Sin(nAngle), 30));
-		pShell->set_int_bvel_z(actor->int_vel().Z - (0x20000 + (Random2(20) << 18) / 120));
+			pShell->spr.Angles.Yaw = RandomAngle();
+		double nDist = rdist / 30. + Random2F(((rdist / 4) << 18) / 120, 4);
+		DAngle nAngle = actor->spr.Angles.Yaw + Random2A(56) + DAngle90;
+		pShell->vel.XY() = nAngle.ToVector() * nDist;
+		pShell->vel.Z = actor->vel.Z - 2 - Random2(28) / 30.;
 	}
 }
 

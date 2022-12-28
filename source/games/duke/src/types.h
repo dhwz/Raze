@@ -4,6 +4,7 @@
 #include "packet.h"
 #include "d_net.h"
 #include "gameinput.h"
+#include "texturemanager.h"
 
 BEGIN_DUKE_NS
 
@@ -21,17 +22,13 @@ struct STATUSBARTYPE
 	bool gotweapon[MAX_WEAPONS];
 };
 
-struct FireProj
-{
-	vec3_t vel;
-};
-
 // Todo - put more state in here
 struct ActorInfo
 {
 	uint32_t scriptaddress;
 	EDukeFlags1 flags;
 	EDukeFlags2 flags2;
+	EDukeFlags3 flags3;
 	int aimoffset;
 	int falladjustz;
 	int gutsoffset;
@@ -46,10 +43,13 @@ public:
 
 	uint8_t cgg;
 	uint8_t spriteextra;	// moved here for easier maintenance. This was originally a hacked in field in the sprite structure called 'filler'.
-	short attackertype, hitang, hitextra, movflag;
-	short tempang, dispicnum, basepicnum;
-	short timetosleep;
-	vec2_t ovel;
+	uint16_t movflag;
+	short attackertype, hitextra;
+	short tempval, basepicnum;
+	unsigned short timetosleep;
+	bool mapSpawned;
+	DVector2 ovel;
+	DAngle hitang;
 	double floorz, ceilingz;
 	union
 	{
@@ -62,8 +62,8 @@ public:
 	// Some SE's stored indices in temp_data. For purposes of clarity avoid that. These variables are meant to store these elements now
 	walltype* temp_walls[2]; // SE20 + SE128
 	sectortype* temp_sect, *actorstayput;
-	DAngle temp_angle; // only used by TRIPBOMB
-	DVector3 temp_pos; // used by TRIPBOMB, SE_26 and FIREBALL.
+	DAngle temp_angle;
+	DVector3 temp_pos, temp_pos2;
 
 	TObjPtr<DDukeActor*> temp_actor, seek_actor;
 
@@ -71,9 +71,11 @@ public:
 
 	EDukeFlags1 flags1;
 	EDukeFlags2 flags2;
+	EDukeFlags3 flags3;
 
-	// Todo: Once we start assigning subclasses to actors, this one needs to be moved to the proper FIREBALL subclass.
-	FireProj fproj;
+	// these two variables are only valid while RunState is executed. They are explicitly nulled right afterward and only accessible throgh the CON emulation interface.
+	struct player_struct* state_player;
+	double state_dist;
 
 	DDukeActor() = default;
 	size_t PropagateMark() override;
@@ -98,17 +100,6 @@ public:
 	inline void SetHitOwner(DDukeActor* a)
 	{
 		hitOwnerActor = a;
-	}
-
-	inline bool IsActiveCrane()
-	{
-		return spr.intowner == -2;
-	}
-
-	inline void SetActiveCrane(bool yes)
-	{
-		ownerActor = nullptr;
-		spr.intowner = yes ? -2 : -1;
 	}
 
 	int PlayerIndex() const
@@ -136,7 +127,8 @@ public:
 	
 	void setClipDistFromTile()
 	{
-		set_native_clipdist(MulScale(spr.xrepeat, tileWidth(spr.picnum), 7));
+		auto tex = TexMan.GetGameTexture(spr.spritetexture());
+		clipdist = spr.scale.X * tex->GetDisplayWidth() * 0.125;
 	}
 
 };
@@ -151,10 +143,9 @@ struct animwalltype
 	int tag;
 };
 
-// for now just flags not related to actors, may get more info later.
+// legacy CON baggage which needs to be refactored later.
 struct TileInfo
 {
-	int flags;
 	int loadeventscriptptr;
 };
 
@@ -163,6 +154,7 @@ struct user_defs
 	uint8_t god, cashman, eog;
 	uint8_t clipping;
 	uint8_t user_pals[MAXPLAYERS];
+	uint8_t ufospawnsminion;
 
 	short from_bonus;
 	short last_level, secretlevel;
@@ -170,16 +162,17 @@ struct user_defs
 
 	int const_visibility;
 
-	int runkey_mode;
-
 	int shadows;
-	int coords, levelstats, m_coop, coop;
+	int coords, m_coop, coop;
 	int wchoice[MAXPLAYERS][MAX_WEAPONS];
 
 	int respawn_monsters, respawn_items, respawn_inventory, recstat, monsters_off, brightness;
 	int m_respawn_items, m_respawn_monsters, m_respawn_inventory, m_recstat, m_monsters_off;
 	int m_ffire, ffire, m_player_skill, multimode;
 	int player_skill, marker;
+	int chickenplant;							// readonly - used to trigger some special behavior if a special item is found in a map.
+	int earthquaketime;
+	bool joe9000;	// this was formerly a static local variable inside a function, but needs to be properly maintained and serialized.
 
 	TObjPtr<DDukeActor*> cameraactor;
 
@@ -188,26 +181,19 @@ struct user_defs
 struct player_orig
 {
 	DVector3 opos;
-	short oa;
+	DAngle oa;
 	sectortype* os;
 };
 
-struct CraneDef
+struct player_struct
 {
-	DVector3 pos;
-	DVector2 pole;
-	TObjPtr<DDukeActor*> poleactor;
-};
-
-struct player_struct 
-{
-	vec3_t vel;
-	DVector3 pos, opos;
+	DVector3 vel;
 	DVector2 bobpos;
+	DVector2 fric;
+	DVector2 Exit;
 
 	// player's horizon and angle structs.
-	PlayerHorizon horizon;
-	PlayerAngle angle;
+	PlayerAngles Angles;
 
 	uint16_t frags[MAXPLAYERS];
 
@@ -217,7 +203,7 @@ struct player_struct
 	PalEntry pals;
 
 	// this was a global variable originally.
-	vec2_t fric, exit, loogie[64];
+	DVector2 loogie[64];
 
 	// weapon drawer variables and their interpolation counterparts.
 	int weapon_sway;
@@ -262,7 +248,7 @@ struct player_struct
 	short extra_extra8, quick_kick, last_quick_kick;
 	short heat_amount, timebeforeexit, customexitsound;
 
-	short weaprecs[256], weapreccnt;
+	short weaprecs[32], weapreccnt;
 	unsigned int interface_toggle_flag;
 
 	short dead_flag, show_empty_weapon;
@@ -294,8 +280,8 @@ struct player_struct
 	// Items were reordered by size.
 	int stairs;
 	int detonate_count; // at57e
-	vec2_t noise;
-	int noise_radius; // at286, at28a, at290
+	DVector2 noise;
+	double noise_radius; // at286, at28a, at290
 	int drink_timer; // at58e
 	int eat_timer; // at592
 	int SlotWin;
@@ -334,15 +320,15 @@ struct player_struct
 	DDukeActor* GetActor();
 	int GetPlayerNum();
 
-	void apply_seasick(double factor);
+	void apply_seasick();
 	void backuppos(bool noclipping = false);
 	void backupweapon();
 	void checkhardlanding();
-	void playerweaponsway(int xvel);
+	void playerweaponsway(double xvel);
 
-	float adjustavel(float avel)
+	DAngle adjustavel(float avel)
 	{
-		return (psectlotag == ST_2_UNDERWATER)? avel * 0.875f : avel;
+		return DAngle::fromDeg((psectlotag == ST_2_UNDERWATER)? avel * 0.875f : avel);
 	}
 
 	void setCursector(sectortype* sect)
@@ -355,63 +341,9 @@ struct player_struct
 		return cursector != nullptr;
 	}
 
-	void backupxyz()
-	{
-		opos = pos;
-	}
-
-	void restorexyz()
-	{
-		pos = opos;
-	}
-
-	void backupxy()
-	{
-		opos.X = pos.X;
-		opos.Y = pos.Y;
-	}
-
-	void backupz()
-	{
-		opos.Z = pos.Z;
-	}
-
 	void setbobpos()
 	{
-		bobpos = pos.XY();
-	}
-
-	void getposfromactor(DCoreActor* actor, double addz = 0)
-	{
-		pos = actor->spr.pos;
-		if (addz) pos.Z  += addz;
-	}
-
-	void getxyfromactor(DCoreActor* actor)
-	{
-		pos.X = actor->spr.pos.X;
-		pos.Y = actor->spr.pos.Y;
-	}
-
-	vec3_t player_int_pos() const
-	{
-		return { int(pos.X * worldtoint), int(pos.Y * worldtoint), int(pos.Z * zworldtoint) };
-	}
-
-	vec3_t player_int_opos() const
-	{
-		return { int(opos.X * worldtoint), int(opos.Y * worldtoint), int(opos.Z * zworldtoint) };
-	}
-
-	void player_add_int_z(int z)
-	{
-		pos.Z  += z * zinttoworld;
-	}
-
-	void player_add_int_xy(const vec2_t& v)
-	{
-		pos.X  += v.X * inttoworld;
-		pos.Y  += v.Y * inttoworld;
+		bobpos = GetActor()->spr.pos.XY();
 	}
 };
 
@@ -425,6 +357,10 @@ struct Cycler
 	bool state;
 };
 
+struct AmbientTags
+{
+	int lo, hi;
+};
 
 struct DukeLevel
 {

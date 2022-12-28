@@ -41,19 +41,15 @@ not load" error messages.
 #include "sounds.h"
 #include "network.h"
 #include "precache.h"
+#include "texinfo.h"
 
 BEGIN_SW_NS
-
-// Run the game with the -CACHEPRINT option and redirect to a file.
-// It will save out the tile and sound number every time one caches.
-//
-// sw -map $bullet -cacheprint > foofile
 
 void PreCacheRange(int start_pic, int end_pic, int pal = 0)
 {
 	for (int j = start_pic; j <= end_pic; j++)
 	{
-		markTileForPrecache(j, pal);
+		markTextureForPrecache(tileGetTextureID(j), pal);
 	}
 }
 
@@ -68,44 +64,7 @@ void PreCacheOverride(void)
 	SWStatIterator it(STAT_CEILING_FLOOR_PIC_OVERRIDE);
 	while (auto actor = it.Next())
 	{
-		int j = SP_TAG2(actor);
-		if(j >= 0 && j <= MAXTILES)
-			markTileForPrecache(j, 0);
-	}
-}
-
-//---------------------------------------------------------------------------
-//
-// 
-//
-//---------------------------------------------------------------------------
-
-void precacheMap(void)
-{
-	int i;
-	int j;
-	sectortype* sectp;
-	walltype* wp;
-
-	for(auto& sec: sector)
-	{
-		j = sec.ceilingpicnum;
-		markTileForPrecache(j, sec.ceilingpal);
-
-		j = sec.floorpicnum;
-		markTileForPrecache(j, sec.floorpal);
-	}
-
-	for (auto& wal : wall)
-	{
-		j = wal.picnum;
-		markTileForPrecache(j, wal.pal);
-
-		if (wal.overpicnum > 0 && wal.overpicnum < MAXTILES)
-		{
-			j = wal.overpicnum;
-			markTileForPrecache(j, wal.pal);
-		}
+		markTextureForPrecache(actor->texparam, 0);
 	}
 }
 
@@ -456,7 +415,7 @@ void PreCacheActor(void)
 			break;
 
 		default:
-			markTileForPrecache(pic, pal);
+			markTextureForPrecache(tileGetTextureID(pic), pal);
 		}
 	}
 }

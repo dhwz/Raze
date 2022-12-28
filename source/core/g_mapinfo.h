@@ -39,15 +39,42 @@
 #include "sc_man.h"
 #include "file_zip.h"
 
+struct SpawnRec
+{
+	PClassActor* cls;
+	int basetex, brokentex;
+	FSoundID breaksound;
+	int8_t fullbright, clipdist;
+	int16_t flags;
+
+	PClassActor* Class(int pn)
+	{
+		return cls;
+	}
+};
+using SpawnMap = TMap<int, SpawnRec>;
+inline SpawnMap spawnMap;
+
+struct BreakWallRec
+{
+	FTextureID brokentex;
+	FSoundID breaksound;
+	VMFunction* handler;
+	int flags;
+};
+using BreakWallMap = TMap<int, BreakWallRec>;
+inline BreakWallMap breakWallMap;
+inline BreakWallMap breakCeilingMap;
+
 struct FMapInfoParser
 {
 	FScanner sc;
 	bool Internal;
 	MapRecord* defaultinfoptr;
 
-	FMapInfoParser(bool internal = false)
+	FMapInfoParser(FScanner* parent = nullptr) 
+		: sc(parent? &parent->GetSymbols() : nullptr)
 	{
-		Internal = internal;
 	}
 
 	bool CheckLegacyMapDefinition(FString& mapname);
@@ -63,6 +90,12 @@ struct FMapInfoParser
 	void ParseEpisodeInfo ();
 	void ParseCutsceneInfo();
 	void ParseGameInfo();
+	void ParseSpawnClasses();
+	void ParseBreakWall();
+	void ParseBreakCeiling();
+	void ParseTextureFlags();
+	void ParseSurfaceTypes();
+	void ParseConstants();
 	void ParseMapInfo (int lump, MapRecord &gamedefaults, MapRecord &defaultinfo);
 
 	void ParseOpenBrace();

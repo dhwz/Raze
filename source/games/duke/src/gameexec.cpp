@@ -80,7 +80,7 @@ struct ParseState
 	void parseifelse(int condition);
 };
 
-int furthestcanseepoint(DDukeActor* i, DDukeActor* ts, int* dax, int* day);
+int furthestcanseepoint(DDukeActor* i, DDukeActor* ts, DVector2& pos);
 bool ifsquished(DDukeActor* i, int p);
 void fakebubbaspawn(DDukeActor* actor, int g_p);
 void tearitup(sectortype* sect);
@@ -102,7 +102,7 @@ sectortype* toSect(int index)
 
 int fromSect(sectortype* sect)
 {
-	return sect ? sectnum(sect) : -1;
+	return sect ? sectindex(sect) : -1;
 }
 
 walltype* toWall(int index)
@@ -112,7 +112,7 @@ walltype* toWall(int index)
 
 int fromWall(walltype* sect)
 {
-	return sect ? wallnum(sect) : -1;
+	return sect ? wallindex(sect) : -1;
 }
 
 static void DoUserDef(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, int sPlayer, int lParm2)
@@ -296,23 +296,23 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_EXITX:
-		if (bSet) ps[iPlayer].exit.X = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].exit.X, sActor, sPlayer);
+		if (bSet) ps[iPlayer].Exit.X = lValue * maptoworld;
+		else SetGameVarID(lVar2, int(ps[iPlayer].Exit.X / maptoworld), sActor, sPlayer);
 		break;
 
 	case PLAYER_EXITY:
-		if (bSet) ps[iPlayer].exit.Y = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].exit.Y, sActor, sPlayer);
+		if (bSet) ps[iPlayer].Exit.Y = lValue * maptoworld;
+		else SetGameVarID(lVar2, int(ps[iPlayer].Exit.Y / maptoworld), sActor, sPlayer);
 		break;
 
 	case PLAYER_LOOGIEX:
 		if (bSet) ps[iPlayer].loogie[lParm2].X = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].loogie[lParm2].X, sActor, sPlayer);
+		else SetGameVarID(lVar2, (int)ps[iPlayer].loogie[lParm2].X, sActor, sPlayer);
 		break;
 
 	case PLAYER_LOOGIEY:
 		if (bSet) ps[iPlayer].loogie[lParm2].Y = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].loogie[lParm2].Y, sActor, sPlayer);
+		else SetGameVarID(lVar2, (int)ps[iPlayer].loogie[lParm2].Y, sActor, sPlayer);
 		break;
 
 	case PLAYER_NUMLOOGS:
@@ -326,15 +326,15 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_POSX: // oh, my... :( Writing to these has been disabled until I know how to do it without the engine shitting all over itself.
-		if (!bSet) SetGameVarID(lVar2, ps[iPlayer].pos.X * (1/maptoworld), sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, int(ps[iPlayer].GetActor()->spr.pos.X * (1/maptoworld)), sActor, sPlayer);
 		break;
 
 	case PLAYER_POSY:
-		if (!bSet) SetGameVarID(lVar2, ps[iPlayer].pos.Y * (1 / maptoworld), sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, int(ps[iPlayer].GetActor()->spr.pos.Y * (1 / maptoworld)), sActor, sPlayer);
 		break;
 
 	case PLAYER_POSZ:
-		if (!bSet) SetGameVarID(lVar2, ps[iPlayer].pos.Z * (1 / zmaptoworld), sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, int(ps[iPlayer].GetActor()->getOffsetZ() * (1 / zmaptoworld)), sActor, sPlayer);
 		break;
 
 	case PLAYER_HORIZ:
@@ -344,22 +344,22 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 			{
 				ps[iPlayer].sync.actions &= ~SB_CENTERVIEW;
 			}
-			ps[iPlayer].horizon.settarget(buildhoriz(lValue));
+			ps[iPlayer].GetActor()->spr.Angles.Pitch = maphoriz(-lValue);
 		}
-		else SetGameVarID(lVar2, ps[iPlayer].horizon.horiz.asbuild(), sActor, sPlayer);
+		else SetGameVarID(lVar2, int(ps[iPlayer].GetActor()->spr.Angles.Pitch.Tan() * -128.), sActor, sPlayer);
 		break;
 
 	case PLAYER_OHORIZ:
-		if (!bSet) SetGameVarID(lVar2, ps[iPlayer].horizon.ohoriz.asbuild(), sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, int(ps[iPlayer].GetActor()->PrevAngles.Pitch.Tan() * -128.), sActor, sPlayer);
 		break;
 
 	case PLAYER_HORIZOFF:
-		if (bSet) ps[iPlayer].horizon.horizoff = buildhoriz(lValue);
-		else SetGameVarID(lVar2, ps[iPlayer].horizon.horizoff.asbuild(), sActor, sPlayer);
+		if (bSet) ps[iPlayer].Angles.ViewAngles.Pitch = maphoriz(-lValue);
+		else SetGameVarID(lVar2, int(ps[iPlayer].Angles.ViewAngles.Pitch.Tan() * -128.), sActor, sPlayer);
 		break;
 
 	case PLAYER_OHORIZOFF:
-		if (!bSet) SetGameVarID(lVar2, ps[iPlayer].horizon.ohorizoff.asbuild(), sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, int(ps[iPlayer].Angles.PrevViewAngles.Pitch.Tan() * -128.), sActor, sPlayer);
 		break;
 
 	case PLAYER_INVDISPTIME:
@@ -369,52 +369,52 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 
 	case PLAYER_BOBPOSX:
 		if (bSet) ps[iPlayer].bobpos.X = lValue * maptoworld;
-		else SetGameVarID(lVar2, ps[iPlayer].bobpos.X * (1/maptoworld), sActor, sPlayer);
+		else SetGameVarID(lVar2, int(ps[iPlayer].bobpos.X * (1/maptoworld)), sActor, sPlayer);
 		break;
 
 	case PLAYER_BOBPOSY:
 		if (bSet) ps[iPlayer].bobpos.Y = lValue * maptoworld;
-		else SetGameVarID(lVar2, ps[iPlayer].bobpos.Y * (1/maptoworld), sActor, sPlayer);
+		else SetGameVarID(lVar2, int(ps[iPlayer].bobpos.Y * (1/maptoworld)), sActor, sPlayer);
 		break;
 
 	case PLAYER_OPOSX:
-		if (bSet) ps[iPlayer].opos.X = lValue * maptoworld;
-		else SetGameVarID(lVar2, ps[iPlayer].opos.X * (1/maptoworld), sActor, sPlayer);
+		if (bSet) ps[iPlayer].GetActor()->opos.X = lValue * maptoworld;
+		else SetGameVarID(lVar2, int(ps[iPlayer].GetActor()->opos.X * (1/maptoworld)), sActor, sPlayer);
 		break;
 
 	case PLAYER_OPOSY:
-		if (bSet) ps[iPlayer].opos.Y = lValue * maptoworld;
-		else SetGameVarID(lVar2, ps[iPlayer].opos.Y * (1 / maptoworld), sActor, sPlayer);
+		if (bSet) ps[iPlayer].GetActor()->opos.Y = lValue * maptoworld;
+		else SetGameVarID(lVar2, int(ps[iPlayer].GetActor()->opos.Y * (1 / maptoworld)), sActor, sPlayer);
 		break;
 
 	case PLAYER_OPOSZ:
-		if (bSet) ps[iPlayer].opos.Z = lValue * zmaptoworld;
-		else SetGameVarID(lVar2, ps[iPlayer].opos.Z * (1 / zmaptoworld), sActor, sPlayer);
+		if (bSet) ps[iPlayer].GetActor()->opos.Z = (lValue * zmaptoworld) + gs.playerheight;
+		else SetGameVarID(lVar2, int(ps[iPlayer].GetActor()->getPrevOffsetZ() * (1 / zmaptoworld)), sActor, sPlayer);
 		break;
 
 	case PLAYER_PYOFF:
 		if (bSet) ps[iPlayer].pyoff = lValue * zmaptoworld;
-		else SetGameVarID(lVar2, ps[iPlayer].pyoff / zmaptoworld, sActor, sPlayer);
+		else SetGameVarID(lVar2, int(ps[iPlayer].pyoff / zmaptoworld), sActor, sPlayer);
 		break;
 
 	case PLAYER_OPYOFF:
 		if (bSet) ps[iPlayer].opyoff = lValue * zmaptoworld;
-		else SetGameVarID(lVar2, ps[iPlayer].opyoff / zmaptoworld, sActor, sPlayer);
+		else SetGameVarID(lVar2, int(ps[iPlayer].opyoff / zmaptoworld), sActor, sPlayer);
 		break;
 
 	case PLAYER_POSXV:
-		if (bSet) ps[iPlayer].vel.X = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].vel.X, sActor, sPlayer);
+		if (bSet) ps[iPlayer].vel.X = FixedToFloat<18>(lValue);
+		else SetGameVarID(lVar2, FloatToFixed<18>(ps[iPlayer].vel.X), sActor, sPlayer);
 		break;
 
 	case PLAYER_POSYV:
-		if (bSet) ps[iPlayer].vel.Y = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].vel.Y, sActor, sPlayer);
+		if (bSet) ps[iPlayer].vel.Y = FixedToFloat<18>(lValue);
+		else SetGameVarID(lVar2, FloatToFixed<18>(ps[iPlayer].vel.Y), sActor, sPlayer);
 		break;
 
 	case PLAYER_POSZV:
-		if (bSet) ps[iPlayer].vel.Z = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].vel.Z, sActor, sPlayer);
+		if (bSet) ps[iPlayer].vel.Z = lValue * zmaptoworld;
+		else SetGameVarID(lVar2, int(ps[iPlayer].vel.Z / zmaptoworld), sActor, sPlayer);
 		break;
 
 	case PLAYER_LAST_PISSED_TIME:
@@ -424,12 +424,12 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 
 	case PLAYER_TRUEFZ:
 		if (bSet) ps[iPlayer].truefz = lValue * zmaptoworld;
-		else SetGameVarID(lVar2, ps[iPlayer].truefz * (1/zmaptoworld), sActor, sPlayer);
+		else SetGameVarID(lVar2, int(ps[iPlayer].truefz * (1/zmaptoworld)), sActor, sPlayer);
 		break;
 
 	case PLAYER_TRUECZ:
 		if (bSet) ps[iPlayer].truecz = lValue * zmaptoworld;
-		else SetGameVarID(lVar2, ps[iPlayer].truecz * (1 / zmaptoworld), sActor, sPlayer);
+		else SetGameVarID(lVar2, int(ps[iPlayer].truecz * (1 / zmaptoworld)), sActor, sPlayer);
 		break;
 
 	case PLAYER_PLAYER_PAR:
@@ -472,12 +472,12 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_ANG:
-		if (bSet) ps[iPlayer].angle.settarget(DAngle::fromBuild(lValue));
-		else SetGameVarID(lVar2, ps[iPlayer].angle.ang.Buildang(), sActor, sPlayer);
+		if (bSet) ps[iPlayer].GetActor()->spr.Angles.Yaw = mapangle(lValue);
+		else SetGameVarID(lVar2, ps[iPlayer].GetActor()->spr.Angles.Yaw.Buildang(), sActor, sPlayer);
 		break;
 
 	case PLAYER_OANG:
-		if (!bSet) SetGameVarID(lVar2, ps[iPlayer].angle.oang.Buildang(), sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, ps[iPlayer].GetActor()->PrevAngles.Yaw.Buildang(), sActor, sPlayer);
 		break;
 
 	case PLAYER_ANGVEL: // This no longer exists.
@@ -490,8 +490,8 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_LOOK_ANG:
-		if (bSet) ps[iPlayer].angle.look_ang = DAngle::fromBuild(lValue);
-		else SetGameVarID(lVar2, ps[iPlayer].angle.look_ang.Buildang(), sActor, sPlayer);
+		if (bSet) ps[iPlayer].Angles.ViewAngles.Yaw = mapangle(lValue);
+		else SetGameVarID(lVar2, ps[iPlayer].Angles.ViewAngles.Yaw.Buildang(), sActor, sPlayer);
 		break;
 
 	case PLAYER_LAST_EXTRA:
@@ -650,8 +650,8 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_ONE_EIGHTY_COUNT:
-		if (bSet) ps[iPlayer].angle.spin = DAngle::fromBuild(lValue);
-		else SetGameVarID(lVar2, ps[iPlayer].angle.spin.Buildang(), sActor, sPlayer);
+		if (bSet) ps[iPlayer].Angles.YawSpin = mapangle(lValue);
+		else SetGameVarID(lVar2, ps[iPlayer].Angles.YawSpin.Buildang(), sActor, sPlayer);
 		break;
 
 	case PLAYER_CHEAT_PHASE:
@@ -710,8 +710,8 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_ROTSCRNANG:
-		if (bSet) ps[iPlayer].angle.orotscrnang = ps[iPlayer].angle.rotscrnang = DAngle::fromBuild(lValue);
-		else SetGameVarID(lVar2, ps[iPlayer].angle.rotscrnang.Buildang(), sActor, sPlayer);
+		if (bSet) ps[iPlayer].Angles.PrevViewAngles.Roll = ps[iPlayer].Angles.ViewAngles.Roll = -mapangle(lValue);
+		else SetGameVarID(lVar2, -ps[iPlayer].Angles.ViewAngles.Roll.Buildang(), sActor, sPlayer);
 		break;
 
 	case PLAYER_DEAD_FLAG:
@@ -925,7 +925,7 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 
 	case PLAYER_RETURN_TO_CENTER:
 		if (bSet) ps[iPlayer].sync.actions |= SB_CENTERVIEW;
-		else SetGameVarID(lVar2, ps[iPlayer].sync.actions & SB_CENTERVIEW ? abs(int(ps[iPlayer].horizon.horiz.asq16() * (9. / gi->playerHorizMax()))) : 0, sActor, sPlayer);
+		else SetGameVarID(lVar2, ps[iPlayer].sync.actions & SB_CENTERVIEW ? int(abs((ps[iPlayer].GetActor()->spr.Angles.Pitch * (DAngle::fromDeg(9.) / GetMaxPitch())).Degrees())) : 0, sActor, sPlayer);
 		break;
 
 	default:
@@ -953,10 +953,10 @@ void DoWall(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, i
 	switch (lLabelID)
 	{
 	case WALL_X:
-		if (!bSet) SetGameVarID(lVar2, wallp->wall_int_pos().X, sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, int(wallp->pos.X / maptoworld), sActor, sPlayer);
 		break;
 	case WALL_Y:
-		if (bSet) SetGameVarID(lVar2, wallp->wall_int_pos().Y, sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, int(wallp->pos.Y / maptoworld), sActor, sPlayer);
 		break;
 	case WALL_POINT2:
 		if (!bSet) SetGameVarID(lVar2, wallp->point2, sActor, sPlayer);
@@ -972,12 +972,12 @@ void DoWall(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, i
 		else SetGameVarID(lVar2, wallp->cstat, sActor, sPlayer);
 		break;
 	case WALL_PICNUM:
-		if (bSet) wallp->picnum = lValue;
-		else SetGameVarID(lVar2, wallp->picnum, sActor, sPlayer);
+		if (bSet) wallp->setwalltexture(tileGetTextureID(lValue));
+		else SetGameVarID(lVar2, legacyTileNum(wallp->walltexture()), sActor, sPlayer);
 		break;
 	case WALL_OVERPICNUM:
-		if (bSet) wallp->overpicnum = lValue;
-		else SetGameVarID(lVar2, wallp->overpicnum, sActor, sPlayer);
+		if (bSet) wallp->setovertexture(tileGetTextureID(lValue));
+		else SetGameVarID(lVar2, legacyTileNum(wallp->overtexture()), sActor, sPlayer);
 		break;
 	case WALL_SHADE:
 		if (bSet) wallp->shade = lValue;
@@ -1052,10 +1052,10 @@ void DoSector(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 	switch (lLabelID)
 	{
 	case SECTOR_WALLPTR:
-		if (!bSet) SetGameVarID(lVar2, sectp->wallptr, sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, wallindex(sectp->walls.Data()), sActor, sPlayer);
 		break;
 	case SECTOR_WALLNUM:
-		if (!bSet) SetGameVarID(lVar2, sectp->wallnum, sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, sectp->walls.Size(), sActor, sPlayer);
 		break;
 	case SECTOR_CEILINGZ:
 		if (bSet) sectp->setceilingz(lValue * zmaptoworld);
@@ -1074,8 +1074,8 @@ void DoSector(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		else SetGameVarID(lVar2, sectp->floorstat, sActor, sPlayer);
 		break;
 	case SECTOR_CEILINGPICNUM:
-		if (bSet) sectp->ceilingpicnum = lValue;
-		else SetGameVarID(lVar2, sectp->ceilingpicnum, sActor, sPlayer);
+		if (bSet) sectp->setceilingtexture(tileGetTextureID(lValue));
+		else SetGameVarID(lVar2, legacyTileNum(sectp->ceilingtexture), sActor, sPlayer);
 		break;
 	case SECTOR_CEILINGSLOPE:
 		if (bSet) sectp->setceilingslope(lValue);
@@ -1098,8 +1098,8 @@ void DoSector(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		else SetGameVarID(lVar2, sectp->ceilingypan(), sActor, sPlayer);
 		break;
 	case SECTOR_FLOORPICNUM:
-		if (bSet) sectp->floorpicnum = lValue;
-		else SetGameVarID(lVar2, sectp->floorpicnum, sActor, sPlayer);
+		if (bSet) sectp->setfloortexture(tileGetTextureID(lValue));
+		else SetGameVarID(lVar2, legacyTileNum(sectp->floortexture), sActor, sPlayer);
 		break;
 	case SECTOR_FLOORSLOPE:
 		if (bSet) sectp->setfloorslope(lValue);
@@ -1168,16 +1168,13 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 	switch (lLabelID)
 	{
 	case ACTOR_X:
-		/*if (bSet) act->int_pos().X = lValue;
-		else*/ SetGameVarID(lVar2, act->int_pos().X, sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, int(act->spr.pos.X / maptoworld), sActor, sPlayer);
 		break;
 	case ACTOR_Y:
-		/*if (bSet) act->int_pos().Y = lValue;
-		else*/ SetGameVarID(lVar2, act->int_pos().Y, sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, int(act->spr.pos.Y / maptoworld), sActor, sPlayer);
 		break;
 	case ACTOR_Z:
-		/*if (bSet) act->int_pos().Z = lValue;
-		else*/ SetGameVarID(lVar2, act->int_pos().Z, sActor, sPlayer);
+		if (!bSet) SetGameVarID(lVar2, int(act->spr.pos.Z / zmaptoworld), sActor, sPlayer);
 		break;
 	case ACTOR_CSTAT:
 		if (bSet) act->spr.cstat = ESpriteFlags::FromInt(lValue);
@@ -1196,20 +1193,20 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 		else SetGameVarID(lVar2, act->spr.pal, sActor, sPlayer);
 		break;
 	case ACTOR_CLIPDIST:
-		if (bSet) act->set_native_clipdist(lValue);
-		else SetGameVarID(lVar2, act->native_clipdist(), sActor, sPlayer);
+		if (bSet) act->clipdist = lValue * 0.25;
+		else SetGameVarID(lVar2, int(act->clipdist * 4), sActor, sPlayer);
 		break;
 	case ACTOR_DETAIL:
 		if (bSet) act->spriteextra = lValue;
 		else SetGameVarID(lVar2, act->spriteextra, sActor, sPlayer);
 		break;
 	case ACTOR_XREPEAT:
-		if (bSet) act->spr.xrepeat = lValue;
-		else SetGameVarID(lVar2, act->spr.xrepeat, sActor, sPlayer);
+		if (bSet) act->spr.scale.X = (lValue * REPEAT_SCALE);
+		else SetGameVarID(lVar2, int(act->spr.scale.X * INV_REPEAT_SCALE), sActor, sPlayer);
 		break;
 	case ACTOR_YREPEAT:
-		if (bSet) act->spr.yrepeat = lValue;
-		else SetGameVarID(lVar2, act->spr.yrepeat, sActor, sPlayer);
+		if (bSet) act->spr.scale.Y = (lValue * REPEAT_SCALE);
+		else SetGameVarID(lVar2, int(act->spr.scale.Y * INV_REPEAT_SCALE), sActor, sPlayer);
 		break;
 	case ACTOR_XOFFSET:
 		if (bSet) act->spr.xoffset = lValue;
@@ -1228,8 +1225,8 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 		else*/ SetGameVarID(lVar2, act->spr.statnum, sActor, sPlayer);
 		break;
 	case ACTOR_ANG:
-		if (bSet) act->set_int_ang(lValue);
-		else SetGameVarID(lVar2, act->int_ang(), sActor, sPlayer);
+		if (bSet) act->spr.Angles.Yaw = DAngle::fromBuild(lValue);
+		else SetGameVarID(lVar2, act->spr.Angles.Yaw.Buildang(), sActor, sPlayer);
 		break;
 	case ACTOR_OWNER:
 		// there is no way to handle this well because we do not know whether this is an actor or not. Pity.
@@ -1237,16 +1234,16 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 		else SetGameVarID(lVar2, act->spr.intowner, sActor, sPlayer);
 		break;
 	case ACTOR_XVEL:
-		if (bSet) act->set_int_xvel(lValue);
-		else SetGameVarID(lVar2, act->int_xvel(), sActor, sPlayer);
+		if (bSet) act->vel.X = lValue * maptoworld;
+		else SetGameVarID(lVar2, int(act->vel.X / maptoworld), sActor, sPlayer);
 		break;
 	case ACTOR_YVEL:
 		if (bSet) act->spr.yint = lValue;
 		else SetGameVarID(lVar2, act->spr.yint, sActor, sPlayer);
 		break;
 	case ACTOR_ZVEL:
-		if (bSet) act->set_int_zvel(lValue);
-		else SetGameVarID(lVar2, act->int_zvel(), sActor, sPlayer);
+		if (bSet) act->vel.Z = lValue * zmaptoworld;
+		else SetGameVarID(lVar2, int(act->vel.Z / zmaptoworld), sActor, sPlayer);
 		break;
 	case ACTOR_LOTAG:
 		if (bSet) act->spr.lotag = lValue;
@@ -1270,8 +1267,8 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 		else SetGameVarID(lVar2, act->attackertype, sActor, sPlayer);
 		break;
 	case ACTOR_HTANG:
-		if (bSet) act->hitang = lValue;
-		else SetGameVarID(lVar2, act->hitang, sActor, sPlayer);
+		if (bSet) act->hitang = mapangle(lValue);
+		else SetGameVarID(lVar2, act->hitang.Buildang(), sActor, sPlayer);
 		break;
 	case ACTOR_HTEXTRA:
 		if (bSet) act->hitextra = lValue;
@@ -1286,8 +1283,8 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 		else SetGameVarID(lVar2, act->movflag, sActor, sPlayer);
 		break;
 	case ACTOR_HTTEMPANG:
-		if (bSet) act->tempang = lValue;
-		else SetGameVarID(lVar2, act->tempang, sActor, sPlayer);
+		if (bSet) act->tempval = lValue;
+		else SetGameVarID(lVar2, act->tempval, sActor, sPlayer);
 		break;
 	case ACTOR_HTACTORSTAYPUT:
 		if (bSet) act->actorstayput = toSect(lValue);
@@ -1303,19 +1300,19 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 		break;
 	case ACTOR_HTFLOORZ:
 		if (bSet) act->floorz = lValue * zmaptoworld;
-		else SetGameVarID(lVar2, act->floorz * (1/zmaptoworld), sActor, sPlayer);
+		else SetGameVarID(lVar2, int(act->floorz * (1/zmaptoworld)), sActor, sPlayer);
 		break;
 	case ACTOR_HTCEILINGZ:
 		if (bSet) act->ceilingz = lValue * zmaptoworld;
-		else SetGameVarID(lVar2, act->ceilingz * (1/zmaptoworld), sActor, sPlayer);
+		else SetGameVarID(lVar2, int(act->ceilingz * (1/zmaptoworld)), sActor, sPlayer);
 		break;
 	case ACTOR_HTLASTVX:
-		if (bSet) act->ovel.X = lValue;
-		else SetGameVarID(lVar2, act->ovel.X, sActor, sPlayer);
+		if (bSet) act->ovel.X = lValue * maptoworld;
+		else SetGameVarID(lVar2, int(act->ovel.X / maptoworld), sActor, sPlayer);
 		break;
 	case ACTOR_HTLASTVY:
-		if (bSet) act->ovel.Y = lValue;
-		else SetGameVarID(lVar2, act->ovel.Y, sActor, sPlayer);
+		if (bSet) act->ovel.Y = lValue * maptoworld;
+		else SetGameVarID(lVar2, int(act->ovel.Y / maptoworld), sActor, sPlayer);
 		break;
 	case ACTOR_HTG_T0:
 		if (bSet) act->temp_data[0] = lValue;
@@ -1346,6 +1343,31 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 		break;
 	}
 	return;
+}
+
+//---------------------------------------------------------------------------
+//
+// what a lousy hack job... :(
+//
+//---------------------------------------------------------------------------
+
+int CheckWeapRec(player_struct* p, DDukeActor* g_ac, int testonly)
+{
+	int j;
+	for (j = 0; j < p->weapreccnt; j++)
+		if (p->weaprecs[j] == g_ac->spr.picnum)
+			break;
+
+	if (testonly)
+	{
+		return (j < p->weapreccnt && g_ac->GetOwner() == g_ac);
+	}
+	else if (p->weapreccnt < 32)
+	{
+		p->weaprecs[p->weapreccnt++] = g_ac->spr.picnum;
+		return (g_ac->GetOwner() == g_ac);
+	}
+	return false;
 }
 
 //---------------------------------------------------------------------------
@@ -1384,58 +1406,61 @@ void ParseState::parseifelse(int condition)
 
 static int ifcanshoottarget(DDukeActor *actor, int g_p, int g_x)
 {
-	int j;
 	if (g_x > 1024)
 	{
-		int sclip, angdif;
+		double sclip;
+		DAngle angdif;
 
-		if (badguy(actor) && actor->spr.xrepeat > 56)
+		if (badguy(actor) && actor->spr.scale.X > 0.875)
 		{
-			sclip = 3084;
-			angdif = 48;
+			sclip = 3084 / 16.;
+			angdif = DAngle22_5 * 3 / 8;
 		}
 		else
 		{
-			sclip = 768;
-			angdif = 16;
+			sclip = 48;
+			angdif = DAngle22_5 / 8;
 		}
 
 		DDukeActor* hit;
-		j = hitasprite(actor, &hit);
-		if (j == (1 << 30))
+		double hs = hitasprite(actor, &hit);
+		if (hs == INT_MAX)
 		{
 			return 1;
 		}
-		if (j > sclip)
+		if (hs > sclip)
 		{
 			if (hit != nullptr && hit->spr.picnum == actor->spr.picnum)
-				j = 0;
+				return 0;
 			else
 			{
-				actor->add_int_ang(angdif); j = hitasprite(actor, &hit); actor->add_int_ang(-angdif);
-				if (j > sclip)
+				actor->spr.Angles.Yaw += angdif;
+				hs = hitasprite(actor, &hit);
+				actor->spr.Angles.Yaw -= angdif;
+				if (hs > sclip)
 				{
 					if (hit != nullptr && hit->spr.picnum == actor->spr.picnum)
-						j = 0;
+						return 0;
 					else
 					{
-						actor->add_int_ang(-angdif); j = hitasprite(actor, &hit); actor->add_int_ang(angdif);
-						if (j > 768)
+						actor->spr.Angles.Yaw += angdif;
+						hs = hitasprite(actor, &hit);
+						actor->spr.Angles.Yaw -= angdif;
+						if (hs > 48)
 						{
 							if (hit != nullptr && hit->spr.picnum == actor->spr.picnum)
-								j = 0;
-							else j = 1;
+								return 0;
+							return 1;
 						}
-						else j = 0;
+						else return 0;
 					}
 				}
-				else j = 0;
+				else return 0;
 			}
 		}
-		else j = 0;
+		return 0;
 	}
-	else j = 1;
-	return j;
+	return 1;
 }
 
 //---------------------------------------------------------------------------
@@ -1473,14 +1498,13 @@ static bool ifcansee(DDukeActor* actor, int pnum)
 	{
 		// search around for target player
 		// also modifies 'target' x&y if found.
-		j = furthestcanseepoint(actor, tosee, &actor->ovel.X, &actor->ovel.Y);
+		j = furthestcanseepoint(actor, tosee, actor->ovel);
 	}
 	else
 	{
 		// else, they did see it.
 		// save where we were looking..
-		actor->ovel.X = tosee->int_pos().X;
-		actor->ovel.Y = tosee->int_pos().Y;
+		actor->ovel = tosee->spr.pos;
 	}
 
 	if (j == 1 && (actor->spr.statnum == STAT_ACTOR || actor->spr.statnum == STAT_STANDABLE))
@@ -1518,12 +1542,12 @@ int ParseState::parse(void)
 		parseifelse(ifcanshoottarget(g_ac, g_p, g_x));
 		break;
 	case concmd_ifcanseetarget:
-		j = cansee(g_ac->spr.pos.plusZ(krand() & 41), g_ac->sector(), ps[g_p].pos, ps[g_p].GetActor()->sector());
+		j = cansee(g_ac->spr.pos.plusZ(krand() & 41), g_ac->sector(), ps[g_p].GetActor()->getPosWithOffsetZ(), ps[g_p].GetActor()->sector());
 		parseifelse(j);
 		if (j) g_ac->timetosleep = SLEEPTIME;
 		break;
 	case concmd_ifnocover:
-		j = cansee(g_ac->spr.pos, g_ac->sector(), ps[g_p].pos, ps[g_p].GetActor()->sector());
+		j = cansee(g_ac->spr.pos, g_ac->sector(), ps[g_p].GetActor()->getPosWithOffsetZ(), ps[g_p].GetActor()->sector());
 		parseifelse(j);
 		if (j) g_ac->timetosleep = SLEEPTIME;
 		break;
@@ -1557,7 +1581,7 @@ int ParseState::parse(void)
 		g_ac->spr.hitag = ScriptCode[g_t[5] + 2];	  // Ai
 		g_t[0] = g_t[2] = g_t[3] = 0;
 		if (g_ac->spr.hitag & random_angle)
-			g_ac->set_int_ang(krand() & 2047);
+			g_ac->spr.Angles.Yaw = randomAngle();
 		insptr++;
 		break;
 	case concmd_action:
@@ -1597,10 +1621,10 @@ int ParseState::parse(void)
 		switch (krand() & 1)
 		{
 		case 0:
-			g_ac->set_int_ang((+512 + g_ac->int_ang() + (krand() & 511)) & 2047);
+			g_ac->spr.Angles.Yaw += DAngle90 + randomAngle(90);
 			break;
 		case 1:
-			g_ac->set_int_ang((-512 + g_ac->int_ang() - (krand() & 511)) & 2047);
+			g_ac->spr.Angles.Yaw -= DAngle90 + randomAngle(90);
 			break;
 		}
 		insptr++;
@@ -1611,12 +1635,12 @@ int ParseState::parse(void)
 		break;
 
 	case concmd_rndmove:
-		g_ac->set_int_ang(krand() & 2047);
-		g_ac->set_int_xvel(25);
+		g_ac->spr.Angles.Yaw = randomAngle();
+		g_ac->vel.X = 25/16.;
 		insptr++;
 		break;
 	case concmd_mamatrigger:
-		operateactivators(667, g_p);
+		operateactivators(667, &ps[g_p]);
 		insptr++;
 		break;
 	case concmd_mamaspawn:
@@ -1625,9 +1649,9 @@ int ParseState::parse(void)
 		break;
 	case concmd_mamaquake:
 		if (g_ac->spr.pal == 31)
-			earthquaketime = 4;
+			ud.earthquaketime = 4;
 		else if (g_ac->spr.pal == 32)
-			earthquaketime = 6;
+			ud.earthquaketime = 6;
 		insptr++;
 		break;
 	case concmd_garybanjo:
@@ -1666,19 +1690,7 @@ int ParseState::parse(void)
 
 		if (ud.coop >= 1 && ud.multimode > 1)
 		{
-			if (*insptr == 0)
-			{
-				for (j = 0; j < ps[g_p].weapreccnt; j++)
-					if (ps[g_p].weaprecs[j] == g_ac->spr.picnum)
-						break;
-
-				parseifelse(j < ps[g_p].weapreccnt&& g_ac->GetOwner() == g_ac);
-			}
-			else if (ps[g_p].weapreccnt < 16)
-			{
-				ps[g_p].weaprecs[ps[g_p].weapreccnt++] = g_ac->spr.picnum;
-				parseifelse(g_ac->GetOwner() == g_ac);
-			}
+			parseifelse(CheckWeapRec(&ps[g_p], g_ac, !*insptr));
 		}
 		else parseifelse(0);
 		break;
@@ -1694,9 +1706,9 @@ int ParseState::parse(void)
 				ps[connecthead].max_actors_killed++; //revive the egg
 				g_ac->temp_data[5] = 0;
 			}
-			g_ac->spr.pal = (uint8_t)g_ac->tempang;
+			g_ac->spr.pal = (uint8_t)g_ac->tempval;
 		}
-		g_ac->tempang = 0;
+		g_ac->tempval = 0;
 		break;
 	case concmd_tossweapon:
 		insptr++;
@@ -1722,58 +1734,63 @@ int ParseState::parse(void)
 			ps[g_p].quick_kick = 14;
 		break;
 	case concmd_sizeto:
+	{
 		insptr++;
 
-		// JBF 20030805: As I understand it, if xrepeat becomes 0 it basically kills the
+		// JBF 20030805: As I understand it, if repeat becomes 0 it basically kills the
 		// sprite, which is why the "sizeto 0 41" calls in 1.3d became "sizeto 4 41" in
 		// 1.4, so instead of patching the CONs I'll surruptitiously patch the code here
 		//if (!isPlutoPak() && *insptr == 0) *insptr = 4;
 
-		j = ((*insptr) - g_ac->spr.xrepeat) << 1;
-		g_ac->spr.xrepeat += Sgn(j);
+		double siz = ((*insptr) * REPEAT_SCALE - g_ac->spr.scale.X);
+		g_ac->spr.scale.X = (clamp(g_ac->spr.scale.X + Sgn(siz) * REPEAT_SCALE, 0., 4.));
 
 		insptr++;
 
-		if ((g_ac->isPlayer() && g_ac->spr.yrepeat < 36) || *insptr < g_ac->spr.yrepeat || (g_ac->spr.yrepeat * (tileHeight(g_ac->spr.picnum) + 8) * REPEAT_SCALE) < g_ac->floorz - g_ac->ceilingz)
+		auto scale = g_ac->spr.scale.Y;
+		auto tex = TexMan.GetGameTexture(g_ac->spr.spritetexture());
+		if ((g_ac->isPlayer() && scale < 0.5626) || *insptr * REPEAT_SCALE < scale || (scale * (tex->GetDisplayHeight() + 8)) < g_ac->floorz - g_ac->ceilingz)
 		{
-			j = ((*insptr) - g_ac->spr.yrepeat) << 1;
-			if (abs(j)) g_ac->spr.yrepeat += Sgn(j);
+			siz = ((*insptr) * REPEAT_SCALE - g_ac->spr.scale.Y);
+			g_ac->spr.scale.Y = (clamp(g_ac->spr.scale.Y + Sgn(siz) * REPEAT_SCALE, 0., 4.));
 		}
 
 		insptr++;
 
 		break;
+
+	}
 	case concmd_sizeat:
 		insptr++;
-		g_ac->spr.xrepeat = (uint8_t)*insptr;
+		g_ac->spr.scale.X = ((uint8_t)*insptr * REPEAT_SCALE);
 		insptr++;
-		g_ac->spr.yrepeat = (uint8_t)*insptr;
+		g_ac->spr.scale.Y = ((uint8_t)*insptr * REPEAT_SCALE);
 		insptr++;
 		break;
 	case concmd_shoot:
 		insptr++;
-		fi.shoot(g_ac, (short)*insptr);
+		fi.shoot(g_ac, (short)*insptr, nullptr);
 		insptr++;
 		break;
 	case concmd_ifsoundid:
 		insptr++;
-		parseifelse((short)*insptr == ambientlotag[g_ac->spr.detail]);
+		parseifelse((short)*insptr == ambienttags.SafeGet(g_ac->spr.detail, {}).lo);
 		break;
 	case concmd_ifsounddist:
 		insptr++;
 		if (*insptr == 0)
-			parseifelse(ambienthitag[g_ac->spr.detail] > g_x);
+			parseifelse(ambienttags.SafeGet(g_ac->spr.detail, {}).hi > g_x);
 		else if (*insptr == 1)
-			parseifelse(ambienthitag[g_ac->spr.detail] < g_x);
+			parseifelse(ambienttags.SafeGet(g_ac->spr.detail, {}).hi < g_x);
 		break;
 	case concmd_soundtag:
 		insptr++;
-		S_PlayActorSound(ambientlotag[g_ac->spr.detail], g_ac);
+		S_PlayActorSound(ambienttags.SafeGet(g_ac->spr.detail, {}).lo, g_ac);
 		break;
 	case concmd_soundtagonce:
 		insptr++;
-		if (!S_CheckActorSoundPlaying(g_ac, ambientlotag[g_ac->spr.detail]))
-			S_PlayActorSound(ambientlotag[g_ac->spr.detail], g_ac);
+		if (!S_CheckActorSoundPlaying(g_ac, ambienttags.SafeGet(g_ac->spr.detail, {}).lo))
+			S_PlayActorSound(ambienttags.SafeGet(g_ac->spr.detail, {}).lo, g_ac);
 		break;
 	case concmd_soundonce:
 		insptr++;
@@ -1859,8 +1876,8 @@ int ParseState::parse(void)
 		}
 		addammo( *insptr, &ps[g_p], *(insptr+1) );
 		if(ps[g_p].curr_weapon == KNEE_WEAPON)
-			if( ps[g_p].gotweapon[*insptr] )
-				fi.addweapon( &ps[g_p], *insptr );
+			if( ps[g_p].gotweapon[*insptr] && (WeaponSwitch(g_p) & 1))
+				fi.addweapon(&ps[g_p], *insptr, true);
 		insptr += 2;
 		break;
 	case concmd_money:
@@ -1908,7 +1925,7 @@ int ParseState::parse(void)
 		break;
 	case concmd_addweapon:
 		insptr++;
-		if( ps[g_p].gotweapon[*insptr] == 0 ) fi.addweapon( &ps[g_p], *insptr );
+		if( ps[g_p].gotweapon[*insptr] == 0 ) fi.addweapon( &ps[g_p], *insptr, !!(WeaponSwitch(g_p) & 1));
 		else if( ps[g_p].ammo_amount[*insptr] >= gs.max_ammo_amount[*insptr] )
 		{
 				killit_flag = 2;
@@ -1916,8 +1933,8 @@ int ParseState::parse(void)
 		}
 		addammo( *insptr, &ps[g_p], *(insptr+1) );
 		if(ps[g_p].curr_weapon == KNEE_WEAPON)
-			if( ps[g_p].gotweapon[*insptr] )
-				fi.addweapon( &ps[g_p], *insptr );
+			if( ps[g_p].gotweapon[*insptr] && (WeaponSwitch(g_p) & 1))
+				fi.addweapon(&ps[g_p], *insptr, true);
 		insptr+=2;
 		break;
 	case concmd_debug:
@@ -1969,15 +1986,15 @@ int ParseState::parse(void)
 		break;
 	case concmd_strafeleft:
 		insptr++;
-		movesprite_ex(g_ac, -bsin(g_ac->int_ang(), -10), bcos(g_ac->int_ang(), -10), g_ac->int_zvel(), CLIPMASK0, coll);
+		movesprite_ex(g_ac, DVector3(-g_ac->spr.Angles.Yaw.Sin(), g_ac->spr.Angles.Yaw.Cos(), g_ac->vel.Z), CLIPMASK0, coll);
 		break;
 	case concmd_straferight:
 		insptr++;
-		movesprite_ex(g_ac, bsin(g_ac->int_ang(), -10), -bcos(g_ac->int_ang(), -10), g_ac->int_zvel(), CLIPMASK0, coll);
+		movesprite_ex(g_ac, DVector3(g_ac->spr.Angles.Yaw.Sin(), -g_ac->spr.Angles.Yaw.Cos(), g_ac->vel.Z), CLIPMASK0, coll);
 		break;
 	case concmd_larrybird:
 		insptr++;
-		ps[g_p].GetActor()->spr.pos.Z = ps[g_p].pos.Z = ps[g_p].GetActor()->sector()->ceilingz;
+		ps[g_p].GetActor()->spr.pos.Z = ps[g_p].GetActor()->sector()->ceilingz;
 		break;
 	case concmd_destroyit:
 		insptr++;
@@ -2042,9 +2059,8 @@ int ParseState::parse(void)
 		if(!isRR() && ps[g_p].newOwner != nullptr)
 		{
 			ps[g_p].newOwner = nullptr;
-			ps[g_p].restorexyz();
-			ps[g_p].angle.restore();
-			updatesector(ps[g_p].pos, &ps[g_p].cursector);
+			ps[g_p].GetActor()->restoreloc();
+			updatesector(ps[g_p].GetActor()->getPosWithOffsetZ(), &ps[g_p].cursector);
 
 			DukeStatIterator it(STAT_ACTOR);
 			while (auto actj = it.Next())
@@ -2118,7 +2134,7 @@ int ParseState::parse(void)
 		g_ac->spr.hitag = *insptr;
 		insptr++;
 		if(g_ac->spr.hitag&random_angle)
-			g_ac->set_int_ang(krand()&2047);
+			g_ac->spr.Angles.Yaw = randomAngle();
 		break;
 	case concmd_spawn:
 		insptr++;
@@ -2149,35 +2165,43 @@ int ParseState::parse(void)
 		break;
 	case concmd_debris:
 	{
-			int dnum;
+		insptr++;
+		int dnum = *insptr - gs.firstdebris;
+		if (dnum < 0 || dnum >= ScrapMax) break;	// this code only works with scrap and nothing else.
+		insptr++;
+		int count = *insptr;
+		bool weap = fi.spawnweapondebris(g_ac->spr.picnum);
 
-			insptr++;
-			dnum = *insptr;
-			insptr++;
-			bool weap = fi.spawnweapondebris(g_ac->spr.picnum, dnum);
 
-			if(g_ac->insector())
-				for(j=(*insptr)-1;j>=0;j--)
+		if(g_ac->insector())
+			for(j = count; j >= 0; j--)
+		{
+			if(weap)
+				s = 0;
+			else s = (krand()%3);
+			DVector3 offs;
+			offs.X = krandf(16) - 8;
+			offs.Y = krandf(16) - 8;
+			offs.Z = -krandf(16) - 8;
+
+			auto a = randomAngle();
+			auto vel = krandf(8) + 2;
+			auto zvel = -krandf(8);
+			DVector2 scale(0.5 + (krand() & 15) * REPEAT_SCALE, 0.5 + (krand() & 15) * REPEAT_SCALE);
+
+			auto spawned = CreateActor(g_ac->sector(), g_ac->spr.pos + offs, PClass::FindActor("DukeScrap"), g_ac->spr.shade, scale, a, vel, zvel, g_ac, STAT_MISC);
+			if (spawned)
 			{
-				if(weap)
-					s = 0;
-				else s = (krand()%3);
-
-				auto spawned = EGS(g_ac->sector(),
-					g_ac->int_pos().X + (krand() & 255) - 128, g_ac->int_pos().Y + (krand() & 255) - 128, g_ac->int_pos().Z - (8 << 8) - (krand() & 8191),
-					dnum + s, g_ac->spr.shade, 32 + (krand() & 15), 32 + (krand() & 15),
-					krand() & 2047, (krand() & 127) + 32, -(krand() & 2047), g_ac, 5);
-				if (spawned)
-				{
-					if (weap)
-						spawned->spr.yint = gs.weaponsandammosprites[j % 14];
-					else spawned->spr.yint = -1;
-					spawned->spr.pal = g_ac->spr.pal;
-				}
+				spawned->spriteextra = dnum + s;
+				if (weap)
+					spawned->spr.yint = (j % 15) + 1;
+				else spawned->spr.yint = -1;
+				spawned->spr.pal = g_ac->spr.pal;
 			}
-			insptr++;
 		}
-		break;
+		insptr++;
+	}
+	break;
 	case concmd_count:
 		insptr++;
 		g_t[0] = (short) *insptr;
@@ -2190,7 +2214,7 @@ int ParseState::parse(void)
 		break;
 	case concmd_clipdist:
 		insptr++;
-		g_ac->set_native_clipdist( (uint8_t) *insptr);
+		g_ac->clipdist = ((uint8_t) *insptr) * 0.25;
 		insptr++;
 		break;
 	case concmd_cstat:
@@ -2219,28 +2243,27 @@ int ParseState::parse(void)
 		{
 			// I am not convinced this is even remotely smart to be executed from here..
 			pickrandomspot(g_p);
-			g_ac->spr.pos = ps[g_p].pos;
-			ps[g_p].backupxyz();
+			g_ac->spr.pos = ps[g_p].GetActor()->getPosWithOffsetZ();
+			ps[g_p].GetActor()->backuppos();
 			ps[g_p].setbobpos();
 			g_ac->backuppos();
-			updatesector(ps[g_p].pos, &ps[g_p].cursector);
-			SetActor(ps[g_p].GetActor(), ps[g_p].pos.plusZ(gs.playerheight ));
+			updatesector(ps[g_p].GetActor()->getPosWithOffsetZ(), &ps[g_p].cursector);
+			SetActor(ps[g_p].GetActor(), ps[g_p].GetActor()->spr.pos);
 			g_ac->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
 
 			g_ac->spr.shade = -12;
-			g_ac->set_const_clipdist(64);
-			g_ac->spr.xrepeat = 42;
-			g_ac->spr.yrepeat = 36;
+			g_ac->clipdist = 16;
+			g_ac->spr.scale = DVector2(0.65625, 0.5625);
 			g_ac->SetOwner(g_ac);
 			g_ac->spr.xoffset = 0;
 			g_ac->spr.pal = ps[g_p].palookup;
 
 			ps[g_p].last_extra = g_ac->spr.extra = gs.max_player_health;
 			ps[g_p].wantweaponfire = -1;
-			ps[g_p].horizon.ohoriz = ps[g_p].horizon.horiz = q16horiz(0);
+			ps[g_p].GetActor()->PrevAngles.Pitch = ps[g_p].GetActor()->spr.Angles.Pitch = nullAngle;
 			ps[g_p].on_crane = nullptr;
 			ps[g_p].frag_ps = g_p;
-			ps[g_p].horizon.ohorizoff = ps[g_p].horizon.horizoff = q16horiz(0);
+			ps[g_p].Angles.PrevViewAngles.Pitch = ps[g_p].Angles.ViewAngles.Pitch = nullAngle;
 			ps[g_p].opyoff = 0;
 			ps[g_p].wackedbyactor = nullptr;
 			ps[g_p].shield_amount = gs.max_armour_amount;
@@ -2251,7 +2274,7 @@ int ParseState::parse(void)
 			ps[g_p].weapreccnt = 0;
 			ps[g_p].ftq = 0;
 			ps[g_p].vel.X = ps[g_p].vel.Y = 0;
-			if (!isRR()) ps[g_p].angle.orotscrnang = ps[g_p].angle.rotscrnang = nullAngle;
+			if (!isRR()) ps[g_p].Angles.PrevViewAngles.Roll = ps[g_p].Angles.ViewAngles.Roll = nullAngle;
 
 			ps[g_p].falling_counter = 0;
 
@@ -2259,7 +2282,7 @@ int ParseState::parse(void)
 
 			g_ac->cgg = 0;
 			g_ac->movflag = 0;
-			g_ac->tempang = 0;
+			g_ac->tempval = 0;
 			g_ac->actorstayput = nullptr;
 			g_ac->dispicnum = 0;
 			g_ac->SetHitOwner(ps[g_p].GetActor());
@@ -2273,7 +2296,7 @@ int ParseState::parse(void)
 		parseifelse(ud.coop || numplayers > 2);
 		break;
 	case concmd_ifonmud:
-		parseifelse(abs(g_ac->spr.pos.Z - g_ac->sector()->floorz) < 32 && g_ac->sector()->floorpicnum == 3073); // eew, hard coded tile numbers.. :?
+		parseifelse(abs(g_ac->spr.pos.Z - g_ac->sector()->floorz) < 32 && (tilesurface(g_ac->sector()->floortexture) == TSURF_MUDDY) != 0);
 		break;
 	case concmd_ifonwater:
 		parseifelse( abs(g_ac->spr.pos.Z-g_ac->sector()->floorz) < 32 && g_ac->sector()->lotag == ST_1_ABOVE_WATER);
@@ -2288,9 +2311,9 @@ int ParseState::parse(void)
 		parseifelse(ps[g_p].OnBoat == 1);
 		break;
 	case concmd_ifsizedown:
-		g_ac->spr.xrepeat--;
-		g_ac->spr.yrepeat--;
-		parseifelse(g_ac->spr.xrepeat <= 5);
+		g_ac->spr.scale.X -= REPEAT_SCALE;
+		g_ac->spr.scale.Y -= REPEAT_SCALE;
+		parseifelse(g_ac->spr.scale.X <= 5 * REPEAT_SCALE);
 		break;
 	case concmd_ifwind:
 		parseifelse(WindTime > 0);
@@ -2383,30 +2406,30 @@ int ParseState::parse(void)
 			l = *insptr;
 			j = 0;
 
-			s = g_ac->int_xvel();
+			double vel = g_ac->vel.X;
 
 			// sigh.. this was yet another place where number literals were used as bit masks for every single value, making the code totally unreadable.
 			if( (l& pducking) && ps[g_p].on_ground && PlayerInput(g_p, SB_CROUCH))
 					j = 1;
-			else if( (l& pfalling) && ps[g_p].jumping_counter == 0 && !ps[g_p].on_ground &&	ps[g_p].vel.Z > 2048 )
+			else if( (l& pfalling) && ps[g_p].jumping_counter == 0 && !ps[g_p].on_ground &&	ps[g_p].vel.Z > 8 )
 					j = 1;
 			else if( (l& pjumping) && ps[g_p].jumping_counter > 348 )
 					j = 1;
-			else if( (l& pstanding) && s >= 0 && s < 8)
+			else if( (l& pstanding) && vel >= 0 && vel < 0.5)
 					j = 1;
-			else if( (l& pwalking) && s >= 8 && !(PlayerInput(g_p, SB_RUN)) )
+			else if( (l& pwalking) && vel >= 0.5 && !(PlayerInput(g_p, SB_RUN)) )
 					j = 1;
-			else if( (l& prunning) && s >= 8 && PlayerInput(g_p, SB_RUN) )
+			else if( (l& prunning) && vel >= 0.5 && PlayerInput(g_p, SB_RUN) )
 					j = 1;
-			else if( (l& phigher) && ps[g_p].pos.Z < g_ac->spr.pos.Z - 48)
+			else if( (l& phigher) && ps[g_p].GetActor()->getOffsetZ() < g_ac->spr.pos.Z - 48)
 					j = 1;
-			else if( (l& pwalkingback) && s <= -8 && !(PlayerInput(g_p, SB_RUN)) )
+			else if( (l& pwalkingback) && vel <= -0.5 && !(PlayerInput(g_p, SB_RUN)) )
 					j = 1;
-			else if( (l& prunningback) && s <= -8 && (PlayerInput(g_p, SB_RUN)) )
+			else if( (l& prunningback) && vel <= -0.5 && (PlayerInput(g_p, SB_RUN)) )
 					j = 1;
 			else if( (l& pkicking) && ( ps[g_p].quick_kick > 0 || ( ps[g_p].curr_weapon == KNEE_WEAPON && ps[g_p].kickback_pic > 0 ) ) )
 					j = 1;
-			else if( (l& pshrunk) && ps[g_p].GetActor()->spr.xrepeat < (isRR() ? 8 : 32))
+			else if( (l& pshrunk) && ps[g_p].GetActor()->spr.scale.X < (isRR() ? 0.125 : 0.5))
 					j = 1;
 			else if( (l& pjetpack) && ps[g_p].jetpack_on )
 					j = 1;
@@ -2414,21 +2437,19 @@ int ParseState::parse(void)
 					j = 1;
 			else if( (l& ponground) && ps[g_p].on_ground)
 					j = 1;
-			else if( (l& palive) && ps[g_p].GetActor()->spr.xrepeat > (isRR() ? 8 : 32) && ps[g_p].GetActor()->spr.extra > 0 && ps[g_p].timebeforeexit == 0 )
+			else if( (l& palive) && ps[g_p].GetActor()->spr.scale.X > (isRR() ? 0.125 : 0.5) && ps[g_p].GetActor()->spr.extra > 0 && ps[g_p].timebeforeexit == 0)
 					j = 1;
 			else if( (l& pdead) && ps[g_p].GetActor()->spr.extra <= 0)
 					j = 1;
 			else if( (l& pfacing) )
 			{
+				DAngle ang;
 				if (g_ac->isPlayer() && ud.multimode > 1)
-					j = getincangle(ps[otherp].angle.ang.Buildang(), getangle(ps[g_p].pos.XY() - ps[otherp].pos.XY()));
+					ang = absangle(ps[otherp].GetActor()->spr.Angles.Yaw, (ps[g_p].GetActor()->spr.pos.XY() - ps[otherp].GetActor()->spr.pos.XY()).Angle());
 				else
-					j = getincangle(ps[g_p].angle.ang.Buildang(), getangle(g_ac->spr.pos.XY() - ps[g_p].pos.XY()));
+					ang = absangle(ps[g_p].GetActor()->spr.Angles.Yaw, (g_ac->spr.pos.XY() - ps[g_p].GetActor()->spr.pos.XY()).Angle());
 
-				if( j > -128 && j < 128 )
-					j = 1;
-				else
-					j = 0;
+				j = ang < DAngle22_5;
 			}
 
 			parseifelse( j);
@@ -2440,15 +2461,21 @@ int ParseState::parse(void)
 		parseifelse(g_ac->spr.extra <= *insptr);
 		break;
 	case concmd_guts:
+	{
 		insptr += 2;
-		fi.guts(g_ac,*(insptr-1),*insptr,g_p);
+		auto info = spawnMap.CheckKey(*(insptr - 1));
+		if (info)
+		{
+			auto clstype = static_cast<PClassActor*>(info->Class(*(insptr - 1)));
+			if (clstype) spawnguts(g_ac, clstype, *insptr);
+		}
 		insptr++;
 		break;
+	}
 	case concmd_slapplayer:
 		insptr++;
 		forceplayerangle(g_p);
-		ps[g_p].vel.X -= ps[g_p].angle.ang.Cos() * (1 << 21);
-		ps[g_p].vel.Y -= ps[g_p].angle.ang.Sin() * (1 << 21);
+		ps[g_p].vel.XY() -= ps[g_p].GetActor()->spr.Angles.Yaw.ToVector() * 8;
 		return 0;
 	case concmd_wackplayer:
 		insptr++;
@@ -2456,8 +2483,7 @@ int ParseState::parse(void)
 			forceplayerangle(g_p);
 		else
 		{
-			ps[g_p].vel.X -= ps[g_p].angle.ang.Cos() * (1 << 24);
-			ps[g_p].vel.Y -= ps[g_p].angle.ang.Sin() * (1 << 24);
+			ps[g_p].vel.XY() -= ps[g_p].GetActor()->spr.Angles.Yaw.ToVector() * 64;
 			ps[g_p].jumping_counter = 767;
 			ps[g_p].jumping_toggle = 1;
 		}
@@ -2480,7 +2506,7 @@ int ParseState::parse(void)
 		if( g_ac->sector()->lotag == 0 )
 		{
 			HitInfo hit{};
-			neartag({ g_ac->int_pos().X, g_ac->int_pos().Y, g_ac->int_pos().Z - (32 << 8) }, g_ac->sector(), g_ac->int_ang(), hit, 768, 1);
+			neartag(g_ac->spr.pos.plusZ(-32), g_ac->sector(), g_ac->spr.Angles.Yaw, hit, 48, NT_Lotag | NT_NoSpriteCheck);
 			auto sectp = hit.hitSector;
 			if (sectp)
 			{
@@ -2492,7 +2518,7 @@ int ParseState::parse(void)
 							DDukeActor* a2;
 							while ((a2 = it.Next()))
 							{
-								if (a2->spr.picnum == ACTIVATOR)
+								if (isactivator(a2))
 									break;
 							}
 							if (a2 == nullptr)
@@ -2502,13 +2528,13 @@ int ParseState::parse(void)
 		}
 		break;
 	case concmd_ifinspace:
-		parseifelse(fi.ceilingspace(g_ac->sector()));
+		parseifelse(ceilingspace(g_ac->sector()));
 		break;
 
 	case concmd_spritepal:
 		insptr++;
 		if(!g_ac->isPlayer())
-			g_ac->tempang = g_ac->spr.pal;
+			g_ac->tempval = g_ac->spr.pal;
 		g_ac->spr.pal = *insptr;
 		insptr++;
 		break;
@@ -2786,8 +2812,8 @@ int ParseState::parse(void)
 		}
 	case concmd_pstomp:
 		insptr++;
-		if( ps[g_p].knee_incs == 0 && ps[g_p].GetActor()->spr.xrepeat >= (isRR()? 9: 40) )
-			if (cansee(g_ac->spr.pos.plusZ(-4), g_ac->sector(), ps[g_p].pos.plusZ(16), ps[g_p].GetActor()->sector()))
+		if( ps[g_p].knee_incs == 0 && ps[g_p].GetActor()->spr.scale.X >= (isRR()? 0.140625 : 0.625) )
+			if (cansee(g_ac->spr.pos.plusZ(-4), g_ac->sector(), ps[g_p].GetActor()->getPosWithOffsetZ().plusZ(16), ps[g_p].GetActor()->sector()))
 		{
 			ps[g_p].knee_incs = 1;
 			if(ps[g_p].weapon_pos == 0)
@@ -2799,23 +2825,7 @@ int ParseState::parse(void)
 	{
 		auto s1 = g_ac->sector();
 
-		j = 0;
-
-		updatesector(g_ac->int_pos().X + 108, g_ac->int_pos().Y + 108, &s1);
-		if (s1 == g_ac->sector())
-		{
-			updatesector(g_ac->int_pos().X - 108, g_ac->int_pos().Y - 108, &s1);
-			if (s1 == g_ac->sector())
-			{
-				updatesector(g_ac->int_pos().X + 108, g_ac->int_pos().Y - 108, &s1);
-				if (s1 == g_ac->sector())
-				{
-					updatesector(g_ac->int_pos().X - 108, g_ac->int_pos().Y + 108, &s1);
-					if (s1 == g_ac->sector())
-						j = 1;
-				}
-			}
-		}
+		j = isAwayFromWall(g_ac, 6.75);
 		parseifelse(j);
 		break;
 	}
@@ -2826,14 +2836,14 @@ int ParseState::parse(void)
 		insptr++;
 		break;
 	case concmd_ifinouterspace:
-		parseifelse( fi.floorspace(g_ac->sector()));
+		parseifelse( floorspace(g_ac->sector()));
 		break;
 	case concmd_ifnotmoving:
-		parseifelse( (g_ac->movflag&kHitTypeMask) > kHitSector );
+		parseifelse( g_ac->movflag > kHitSector );
 		break;
 	case concmd_respawnhitag:
 		insptr++;
-		fi.respawnhitag(g_ac);
+		respawnhitag(g_ac);
 		break;
 	case concmd_ifspritepal:
 		insptr++;
@@ -2841,10 +2851,12 @@ int ParseState::parse(void)
 		break;
 
 	case concmd_ifangdiffl:
+		{
 		insptr++;
-		j = abs(getincangle(ps[g_p].angle.ang.Buildang(),g_ac->int_ang()));
-		parseifelse( j <= *insptr);
+		auto ang = absangle(ps[g_p].GetActor()->spr.Angles.Yaw, g_ac->spr.Angles.Yaw);
+		parseifelse( ang <= mapangle(*insptr));
 		break;
+		}
 
 	case concmd_ifnosounds:
 		parseifelse(!S_CheckAnyActorSoundPlaying(g_ac));
@@ -2921,8 +2933,8 @@ int ParseState::parse(void)
 		int lType;
 		int lMaxDist;
 		int lVarID;
-		int lTemp;
-		int lDist;
+		double lTemp;
+		double lDist;
 
 		insptr++;
 
@@ -2931,14 +2943,14 @@ int ParseState::parse(void)
 		lVarID = *(insptr++);
 
 		DDukeActor* lFound = nullptr;
-		lDist = 32767;	// big number
+		lDist = 1000000;	// big number
 
 		DukeStatIterator it(STAT_ACTOR);
 		while (auto actj = it.Next())
 		{
 			if (actj->spr.picnum == lType)
 			{
-				lTemp = ldist(g_ac, actj);
+				lTemp = (g_ac->spr.pos.XY() - actj->spr.pos.XY()).Length();
 				if (lTemp < lMaxDist)
 				{
 					if (lTemp < lDist)
@@ -2964,8 +2976,8 @@ int ParseState::parse(void)
 		int lMaxDistVar;
 		int lMaxDist;
 		int lVarID;
-		int lTemp;
-		int lDist;
+		double lTemp;
+		double lDist;
 
 		insptr++;
 
@@ -2974,14 +2986,14 @@ int ParseState::parse(void)
 		lVarID = *(insptr++);
 		lMaxDist = GetGameVarID(lMaxDistVar, g_ac, g_p).safeValue();
 		DDukeActor* lFound = nullptr;
-		lDist = 32767;	// big number
+		lDist = 1000000;	// big number
 
 		DukeStatIterator it(STAT_ACTOR);
 		while (auto actj = it.Next())
 		{
 			if (actj->spr.picnum == lType)
 			{
-				lTemp = ldist(g_ac, actj);
+				lTemp = (g_ac->spr.pos.XY() - actj->spr.pos.XY()).Length();
 				if (lTemp < lMaxDist)
 				{
 					if (lTemp < lDist)
@@ -3118,14 +3130,11 @@ int ParseState::parse(void)
 	}
 	case concmd_getangletotarget:
 	{
-		int i;
-		int ang;
-
 		insptr++;
-		i = *(insptr++);	// ID of def
+		int i = *(insptr++);	// ID of def
 
 		// g_ac->lastvx and lastvy are last known location of target.
-		ang = getangle(g_ac->ovel.X - g_ac->int_pos().X, g_ac->ovel.Y - g_ac->int_pos().Y);
+		int ang = (g_ac->ovel - g_ac->spr.pos.XY()).Angle().Buildang();
 		SetGameVarID(i, ang, g_ac, g_p);
 		break;
 	}
@@ -3142,7 +3151,7 @@ int ParseState::parse(void)
 		int i;
 		insptr++;
 		i = *(insptr++);	// ID of def
-		SetGameVarID(i, ps[g_p].angle.ang.Buildang(), g_ac, g_p);
+		SetGameVarID(i, ps[g_p].GetActor()->spr.Angles.Yaw.Buildang(), g_ac, g_p);
 		break;
 	}
 	case concmd_setplayerangle:
@@ -3150,7 +3159,7 @@ int ParseState::parse(void)
 		int i;
 		insptr++;
 		i = *(insptr++);	// ID of def
-		ps[g_p].angle.ang = DAngle::fromBuild(GetGameVarID(i, g_ac, g_p).safeValue() & 2047);
+		ps[g_p].GetActor()->spr.Angles.Yaw = mapangle(GetGameVarID(i, g_ac, g_p).safeValue() & 2047);
 		break;
 	}
 	case concmd_getactorangle:
@@ -3158,7 +3167,7 @@ int ParseState::parse(void)
 		int i;
 		insptr++;
 		i = *(insptr++);	// ID of def
-		SetGameVarID(i, g_ac->int_ang(), g_ac, g_p);
+		SetGameVarID(i, g_ac->spr.Angles.Yaw.Buildang(), g_ac, g_p);
 		break;
 	}
 	case concmd_setactorangle:
@@ -3166,7 +3175,7 @@ int ParseState::parse(void)
 		int i;
 		insptr++;
 		i = *(insptr++);	// ID of def
-		g_ac->set_int_ang(GetGameVarID(i, g_ac, g_p).safeValue() & 2047);
+		g_ac->spr.Angles.Yaw = DAngle::fromBuild(GetGameVarID(i, g_ac, g_p).safeValue() & 2047);
 		break;
 	}
 	case concmd_randvar:
@@ -3413,7 +3422,7 @@ int ParseState::parse(void)
 		int lValue;
 		insptr++;
 		i = *(insptr++);	// ID of def
-		lValue = bsin(GetGameVarID(*insptr, g_ac, g_p).safeValue());
+		lValue = int(16384 * BobVal(GetGameVarID(*insptr, g_ac, g_p).safeValue()));
 		SetGameVarID(i, lValue, g_ac, g_p);
 		insptr++;
 		break;
@@ -3446,7 +3455,7 @@ int ParseState::parse(void)
 	case concmd_gettexturefloor:
 	{
 		insptr++;
-		SetGameVarID(g_iTextureID, g_ac->sector()->floorpicnum, g_ac, g_p);
+		SetGameVarID(g_iTextureID, legacyTileNum(g_ac->sector()->floortexture), g_ac, g_p);
 		break;
 	}
 
@@ -3583,7 +3592,7 @@ int ParseState::parse(void)
 	case concmd_gettextureceiling:
 	{
 		insptr++;
-		SetGameVarID(g_iTextureID, g_ac->sector()->ceilingpicnum, g_ac, g_p);
+		SetGameVarID(g_iTextureID, legacyTileNum(g_ac->sector()->ceilingtexture), g_ac, g_p);
 		break;
 	}
 	case concmd_ifvarvarand:
@@ -3664,6 +3673,7 @@ void LoadActor(DDukeActor *actor, int p, int x)
 	s.g_ac = actor;
 	s.g_t = &s.g_ac->temp_data[0];	// Sprite's 'extra' data
 
+	if (actor->spr.picnum < 0 || actor->spr.picnum >= MAXTILES) return;
 	auto addr = gs.tileinfo[actor->spr.picnum].loadeventscriptptr;
 	if (addr == 0) return;
 
@@ -3671,7 +3681,7 @@ void LoadActor(DDukeActor *actor, int p, int x)
 
 	if(!actor->insector())
 	{
-		deletesprite(actor);
+		actor->Destroy();
 		return;
 	}
 	do
@@ -3686,7 +3696,7 @@ void LoadActor(DDukeActor *actor, int p, int x)
 			if (ps[p].actorsqu == actor)
 				ps[p].actorsqu = nullptr;
 		}
-		deletesprite(actor);
+		actor->Destroy();
 	}
 	else
 	{
@@ -3696,7 +3706,7 @@ void LoadActor(DDukeActor *actor, int p, int x)
 		{
 			if (badguy(actor))
 			{
-				if (actor->spr.xrepeat > 60) return;
+				if (actor->spr.scale.X > 0.9375 ) return;
 				if (ud.respawn_monsters == 1 && actor->spr.extra <= 0) return;
 			}
 			else if (ud.respawn_items == 1 && (actor->spr.cstat & CSTAT_SPRITE_INVISIBLE)) return;
@@ -3716,29 +3726,29 @@ void LoadActor(DDukeActor *actor, int p, int x)
 //
 //---------------------------------------------------------------------------
 
-void execute(DDukeActor *actor,int p,int x)
+bool execute(DDukeActor *actor,int p,double xx)
 {
-	if (gs.actorinfo[actor->spr.picnum].scriptaddress == 0) return;
+	if (gs.actorinfo[actor->spr.picnum].scriptaddress == 0) return false;
 
 	int done;
 
 	ParseState s;
 	s.g_p = p;	// Player ID
-	s.g_x = x;	// ??
+	s.g_x = int(xx / maptoworld);	// ??
 	s.g_ac = actor;
 	s.g_t = &actor->temp_data[0];	// Sprite's 'extra' data
 
-	if (gs.actorinfo[actor->spr.picnum].scriptaddress == 0) return;
 	s.insptr = &ScriptCode[4 + (gs.actorinfo[actor->spr.picnum].scriptaddress)];
 
 	s.killit_flag = 0;
 
+	// this must go away.
 	if(!actor->insector())
 	{
 		if(badguy(actor))
 			ps[p].actors_killed++;
-		deletesprite(actor);
-		return;
+		actor->Destroy();
+		return true;
 	}
 
 	if (s.g_t[4])
@@ -3773,13 +3783,13 @@ void execute(DDukeActor *actor,int p,int x)
 	}
 	else
 	{
-		fi.move(actor, p, x);
+		fi.move(actor, p, int(xx / maptoworld));
 
 		if (actor->spr.statnum == STAT_ACTOR)
 		{
 			if (badguy(actor))
 			{
-				if (actor->spr.xrepeat > 60) goto quit;
+				if (actor->spr.scale.X > 0.9375 ) goto quit;
 				if (ud.respawn_monsters == 1 && actor->spr.extra <= 0) goto quit;
 			}
 			else if (ud.respawn_items == 1 && (actor->spr.cstat & CSTAT_SPRITE_INVISIBLE)) goto quit;
@@ -3794,8 +3804,9 @@ void execute(DDukeActor *actor,int p,int x)
 		}
 	}
 quit:
-	if (killthesprite) deletesprite(actor);
+	if (killthesprite) actor->Destroy();
 	killthesprite = false;
+	return true;
 }
 
 

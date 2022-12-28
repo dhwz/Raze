@@ -60,20 +60,20 @@ struct PACKINFO
 
 struct POSTURE
 {
-	int frontAccel;
-	int sideAccel;
-	int backAccel;
+	double frontAccel;
+	double sideAccel;
+	double backAccel;
 	int pace[2];
-	int bobV;
-	int bobH;
-	int swayV;
-	int swayH;
-	int eyeAboveZ;
-	int weaponAboveZ;
-	int xOffset;
-	int zOffset;
-	int normalJumpZ;
-	int pwupJumpZ;
+	double bobV;
+	double bobH;
+	double swayV;
+	double swayH;
+	double eyeAboveZ;
+	double weaponAboveZ;
+	double xOffset;
+	double zOffset;
+	double normalJumpZ;
+	double pwupJumpZ;
 };
 
 extern POSTURE gPostureDefaults[kModeMax][kPostureMax];
@@ -83,8 +83,7 @@ struct PLAYER
 	DBloodActor* actor;
 	DUDEINFO* pDudeInfo;
 	InputPacket         input;
-	PlayerHorizon       horizon;
-	PlayerAngle         angle;
+	PlayerAngles        Angles;
 	uint8_t             newWeapon;
 	int                 used1;  // something related to game checksum
 	int                 weaponQav;
@@ -92,22 +91,28 @@ struct PLAYER
 	bool                isRunning;
 	int                 posture;   // stand, crouch, swim
 	int                 sceneQav;  // by NoOne: used to keep qav id
-	int                 bobPhase;
+	double              bobPhase;
 	int                 bobAmp;
-	int                 bobHeight;
-	int                 bobWidth;
+	double              bobHeight;
+	double              bobWidth;
+	double              obobHeight;
+	double              obobWidth;
 	int                 swayPhase;
 	int                 swayAmp;
-	int                 swayHeight;
-	int                 swayWidth;
+	double              swayHeight;
+	double              swayWidth;
+	double              oswayHeight;
+	double              oswayWidth;
 	int                 nPlayer;  // Connect id
 	int                 lifeMode;
 	int                 bloodlust;  // ---> useless
-	int                 zView;
-	int                 zViewVel;
-	int                 zWeapon;
-	int                 zWeaponVel;
-	int                 slope;
+	double              zView;
+	double              ozView;
+	double              zViewVel;
+	double              zWeapon;
+	double              ozWeapon;
+	double              zWeaponVel;
+	double              slope;
 	bool                isUnderwater;
 	bool                hasKey[8];
 	int8_t              hasFlag;
@@ -128,13 +133,11 @@ struct PLAYER
 	int                 qavTimer;
 	int                 fuseTime;
 	int                 throwTime;
-	int                 throwPower;
-	Aim                 aim;  // world
-	//int               at1c6;
-	Aim                 relAim;  // relative
-	//int               relAim;
-	//int               at1ce;
-	//int               at1d2;
+	double              throwPower;
+	DVector3            aim;  // world
+	DVector3            relAim;  // relative
+	DVector3 flt_aim() const { return aim; }
+	DVector3 flt_relAim() const { return relAim; }
 	TObjPtr<DBloodActor*>        aimTarget;  // aim target sprite
 	int                 aimTargetsCount;
 	TObjPtr<DBloodActor*>        aimTargets[16];
@@ -195,7 +198,6 @@ struct POWERUPINFO
 void playerResetPosture(PLAYER* pPlayer);
 
 extern PLAYER gPlayer[kMaxPlayers];
-extern PLAYER* gMe, * gView;
 
 extern bool gBlueFlagDropped;
 extern bool gRedFlagDropped;
@@ -220,19 +222,19 @@ bool packItemActive(PLAYER* pPlayer, int nPack);
 void packUseItem(PLAYER* pPlayer, int nPack);
 void packPrevItem(PLAYER* pPlayer);
 void packNextItem(PLAYER* pPlayer);
-bool        playerSeqPlaying(PLAYER* pPlayer, int nSeq);
+bool playerSeqPlaying(PLAYER* pPlayer, int nSeq);
 void playerSetRace(PLAYER* pPlayer, int nLifeMode);
 void playerSetGodMode(PLAYER* pPlayer, bool bGodMode);
 void playerResetInertia(PLAYER* pPlayer);
-void        playerCorrectInertia(PLAYER* pPlayer, vec3_t const* oldpos);
-void        playerStart(int nPlayer, int bNewLevel = 0);
+void playerCorrectInertia(PLAYER* pPlayer, const DVector3& oldpos);
+void playerStart(int nPlayer, int bNewLevel = 0);
 void playerReset(PLAYER* pPlayer);
 void playerInit(int nPlayer, unsigned int a2);
 void CheckPickUp(PLAYER* pPlayer);
 void ProcessInput(PLAYER* pPlayer);
 void playerProcess(PLAYER* pPlayer);
-DBloodActor* playerFireMissile(PLAYER* pPlayer, int a2, int a3, int a4, int a5, int a6);
-DBloodActor* playerFireThing(PLAYER* pPlayer, int a2, int a3, int thingType, int a5);
+DBloodActor* playerFireMissile(PLAYER* pPlayer, double xyoff, const DVector3& vec, int nType);
+DBloodActor* playerFireThing(PLAYER* pPlayer, double xyoff, double zvel, int thingType, double nSpeed);
 void playerFrag(PLAYER* pKiller, PLAYER* pVictim);
 int playerDamageArmor(PLAYER* pPlayer, DAMAGE_TYPE nType, int nDamage);
 int playerDamageSprite(DBloodActor* nSource, PLAYER* pPlayer, DAMAGE_TYPE nDamageType, int nDamage);

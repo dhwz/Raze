@@ -32,18 +32,20 @@ BEGIN_BLD_NS
 static void sub_72580(DBloodActor*);
 static void sub_725A4(DBloodActor*);
 static void sub_72850(DBloodActor*);
-static void sub_72934(DBloodActor*);
+static void tchernobogThinkChase(DBloodActor*);
 
 
 AISTATE tchernobogIdle = { kAiStateIdle, 0, -1, 0, NULL, NULL, sub_725A4, NULL };
 AISTATE tchernobogSearch = { kAiStateSearch, 8, -1, 1800, NULL, aiMoveForward, sub_72580, &tchernobogIdle };
-AISTATE tchernobogChase = { kAiStateChase, 8, -1, 0, NULL, aiMoveForward, sub_72934, NULL };
+AISTATE tchernobogChase = { kAiStateChase, 8, -1, 0, NULL, aiMoveForward, tchernobogThinkChase, NULL };
 AISTATE tchernobogRecoil = { kAiStateRecoil, 5, -1, 0, NULL, NULL, NULL, &tchernobogSearch };
 AISTATE tcherno13A9B8 = { kAiStateMove, 8, -1, 600, NULL, aiMoveForward, sub_72850, &tchernobogIdle };
 AISTATE tcherno13A9D4 = { kAiStateMove, 6, dword_279B54, 60, NULL, NULL, NULL, &tchernobogChase };
 AISTATE tcherno13A9F0 = { kAiStateChase, 6, dword_279B58, 60, NULL, NULL, NULL, &tchernobogChase };
 AISTATE tcherno13AA0C = { kAiStateChase, 7, dword_279B5C, 60, NULL, NULL, NULL, &tchernobogChase };
 AISTATE tcherno13AA28 = { kAiStateChase, 8, -1, 60, NULL, aiMoveTurn, NULL, &tchernobogChase };
+
+static constexpr double Tchernnobog_XYOff = 350. / 16;
 
 void sub_71A90(int, DBloodActor* actor)
 {
@@ -56,143 +58,117 @@ void sub_71A90(int, DBloodActor* actor)
 		aiNewState(actor, &tcherno13A9D4);
 }
 
-void sub_71BD4(int, DBloodActor* actor)
+void tchernobogBurnSeqCallback(int, DBloodActor* actor)
 {
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	int height = actor->spr.yrepeat * pDudeInfo->eyeHeight;
+	double height = actor->spr.scale.Y * pDudeInfo->eyeHeight * 0.25;
 	if (!actor->ValidateTarget(__FUNCTION__)) return;
-	int x = actor->int_pos().X;
-	int y = actor->int_pos().Y;
-	int z = height;
-	TARGETTRACK tt = { 0x10000, 0x10000, 0x100, 0x55, 0x100000 };
-	Aim aim;
-	aim.dx = bcos(actor->int_ang());
-	aim.dy = bsin(actor->int_ang());
-	aim.dz = actor->dudeSlope;
-	int nClosest = 0x7fffffff;
+	DVector3 pos(actor->spr.pos.XY(), height);
+
+	DVector3 Aim(actor->spr.Angles.Yaw.ToVector(), actor->dudeSlope);
+	double nClosest = 0x7fffffff;
+
 	BloodStatIterator it(kStatDude);
 	while (auto actor2 = it.Next())
 	{
 		if (actor == actor2 || !(actor2->spr.flags & 8))
 			continue;
-		int x2 = actor2->int_pos().X;
-		int y2 = actor2->int_pos().Y;
-		int z2 = actor2->int_pos().Z;
-		int nDist = approxDist(x2 - x, y2 - y);
-		if (nDist == 0 || nDist > 0x2800)
+
+		auto pos2 = actor2->spr.pos;
+		double nDist = (pos2 - pos).Length();
+		if (nDist == 0 || nDist > 0x280)
 			continue;
-		if (tt.at10)
-		{
-			int t = DivScale(nDist, tt.at10, 12);
-			x2 += (actor->int_vel().X * t) >> 12;
-			y2 += (actor->int_vel().Y * t) >> 12;
-			z2 += (actor->int_vel().Z * t) >> 8;
-		}
-		int tx = x + MulScale(Cos(actor->int_ang()), nDist, 30);
-		int ty = y + MulScale(Sin(actor->int_ang()), nDist, 30);
-		int tz = z + MulScale(actor->dudeSlope, nDist, 10);
-		int tsr = MulScale(9460, nDist, 10);
-		int top, bottom;
+
+		pos += actor2->vel * nDist * (65536. / 0x1aaaaa);
+
+		DVector3 tvec = pos;
+		tvec.XY() += actor->spr.Angles.Yaw.ToVector() * nDist;
+		tvec.Z += actor->dudeSlope * nDist;
+
+		double tsr = nDist * 9.23828125;
+		double top, bottom;
 		GetActorExtents(actor2, &top, &bottom);
-		if (tz - tsr > bottom || tz + tsr < top)
+		if (tvec.Z - tsr > bottom || tvec.Z + tsr < top)
 			continue;
-		int dx = (tx - x2) >> 4;
-		int dy = (ty - y2) >> 4;
-		int dz = (tz - z2) >> 8;
-		int nDist2 = ksqrt(dx * dx + dy * dy + dz * dz);
+
+		double nDist2 = (tvec - pos2).Length();
 		if (nDist2 < nClosest)
 		{
-			int nAngle = getangle(x2 - x, y2 - y);
-			int nDeltaAngle = ((nAngle - actor->int_ang() + 1024) & 2047) - 1024;
-			if (abs(nDeltaAngle) <= tt.at8)
+			DAngle nAngle = (pos2.XY() - pos.XY()).Angle();
+			DAngle nDeltaAngle = absangle(nAngle, actor->spr.Angles.Yaw);
+			if (nDeltaAngle <= DAngle45)
 			{
-				int tz1 = actor2->int_pos().Z - actor->int_pos().Z;
-				if (cansee(x, y, z, actor->sector(), x2, y2, z2, actor2->sector()))
+				double tz1 = actor2->spr.pos.Z - actor->spr.pos.Z;
+
+				if (cansee(pos, actor->sector(), pos2, actor2->sector()))
 				{
 					nClosest = nDist2;
-					aim.dx = bcos(nAngle);
-					aim.dy = bsin(nAngle);
-					aim.dz = DivScale(tz1, nDist, 10);
+					Aim.XY() = nAngle.ToVector();
+					Aim.Z = tz1 / nDist;
 				}
 				else
-					aim.dz = tz1;
+					Aim.Z = tz1 / nDist;
 			}
 		}
 	}
-	actFireMissile(actor, -350, 0, aim.dx, aim.dy, aim.dz, kMissileFireballTchernobog);
-	actFireMissile(actor, 350, 0, aim.dx, aim.dy, aim.dz, kMissileFireballTchernobog);
+	actFireMissile(actor, -Tchernnobog_XYOff, 0., Aim, kMissileFireballTchernobog);
+	actFireMissile(actor, Tchernnobog_XYOff, 0., Aim, kMissileFireballTchernobog);
 }
 
-void sub_720AC(int, DBloodActor* actor)
+void tchernobogBurnSeqCallback2(int, DBloodActor* actor)
 {
 	if (!actor->ValidateTarget(__FUNCTION__)) return;
 
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
-	int height = actor->spr.yrepeat * pDudeInfo->eyeHeight;
-	int ax, ay, az;
-	ax = bcos(actor->int_ang());
-	ay = bsin(actor->int_ang());
-	int x = actor->int_pos().X;
-	int y = actor->int_pos().Y;
-	int z = height;
-	TARGETTRACK tt = { 0x10000, 0x10000, 0x100, 0x55, 0x100000 };
-	Aim aim;
-	aim.dx = ax;
-	aim.dy = ay;
-	aim.dz = actor->dudeSlope;
-	int nClosest = 0x7fffffff;
-	az = 0;
+	double height = actor->spr.scale.Y * pDudeInfo->eyeHeight * 0.25;
+	
+	DVector3 pos(actor->spr.pos.XY(), height);
+	DVector3 Aim(actor->spr.Angles.Yaw.ToVector(), -actor->dudeSlope);
+	DVector3 Aim2(Aim.XY(), 0);
+	double nClosest = 0x7fffffff;
+
 	BloodStatIterator it(kStatDude);
 	while (auto actor2 = it.Next())
 	{
-		if (actor == actor2 || !(actor2->spr.flags & 8))
+		auto pos2 = actor2->spr.pos;
+		double nDist = (pos2 - pos).Length();
+		if (nDist == 0 || nDist > 0x280)
 			continue;
-		int x2 = actor2->int_pos().X;
-		int y2 = actor2->int_pos().Y;
-		int z2 = actor2->int_pos().Z;
-		int nDist = approxDist(x2 - x, y2 - y);
-		if (nDist == 0 || nDist > 0x2800)
-			continue;
-		if (tt.at10)
-		{
-			int t = DivScale(nDist, tt.at10, 12);
-			x2 += (actor->int_vel().X * t) >> 12;
-			y2 += (actor->int_vel().Y * t) >> 12;
-			z2 += (actor->int_vel().Z * t) >> 8;
-		}
-		int tx = x + MulScale(Cos(actor->int_ang()), nDist, 30);
-		int ty = y + MulScale(Sin(actor->int_ang()), nDist, 30);
-		int tz = z + MulScale(actor->dudeSlope, nDist, 10);
-		int tsr = MulScale(9460, nDist, 10);
-		int top, bottom;
+
+		pos += actor2->vel * nDist * (65536. / 0x1aaaaa);
+
+		DVector3 tvec = pos;
+		tvec.XY() += actor->spr.Angles.Yaw.ToVector() * nDist;
+		tvec.Z += actor->dudeSlope * nDist;
+
+		double tsr = nDist * 9.23828125;
+		double top, bottom;
 		GetActorExtents(actor2, &top, &bottom);
-		if (tz - tsr > bottom || tz + tsr < top)
+		if (tvec.Z - tsr > bottom || tvec.Z + tsr < top)
 			continue;
-		int dx = (tx - x2) >> 4;
-		int dy = (ty - y2) >> 4;
-		int dz = (tz - z2) >> 8;
-		int nDist2 = ksqrt(dx * dx + dy * dy + dz * dz);
+
+		double nDist2 = (tvec - pos2).Length();
 		if (nDist2 < nClosest)
 		{
-			int nAngle = getangle(x2 - x, y2 - y);
-			int nDeltaAngle = ((nAngle - actor->int_ang() + 1024) & 2047) - 1024;
-			if (abs(nDeltaAngle) <= tt.at8)
+			DAngle nAngle = (pos2.XY() - pos.XY()).Angle();
+			DAngle nDeltaAngle = absangle(nAngle, actor->spr.Angles.Yaw);
+			if (nDeltaAngle <= DAngle45)
 			{
-				int tz1 = actor2->int_pos().Z - actor->int_pos().Z;
-				if (cansee(x, y, z, actor->sector(), x2, y2, z2, actor2->sector()))
+				double tz1 = actor2->spr.pos.Z - actor->spr.pos.Z;
+
+				if (cansee(pos, actor->sector(), pos2, actor2->sector()))
 				{
 					nClosest = nDist2;
-					aim.dx = bcos(nAngle);
-					aim.dy = bsin(nAngle);
-					aim.dz = DivScale(tz1, nDist, 10);
+					Aim.XY() = nAngle.ToVector();
+					Aim.Z = -tz1 / nDist;
 				}
 				else
-					aim.dz = tz1;
+					Aim.Z = -tz1 / nDist;
 			}
 		}
 	}
-	actFireMissile(actor, 350, 0, aim.dx, aim.dy, -aim.dz, kMissileFireballTchernobog);
-	actFireMissile(actor, -350, 0, ax, ay, az, kMissileFireballTchernobog);
+	actFireMissile(actor, Tchernnobog_XYOff, 0, Aim, kMissileFireballTchernobog);
+	actFireMissile(actor, -Tchernnobog_XYOff, 0, Aim2, kMissileFireballTchernobog);
 }
 
 static void sub_72580(DBloodActor* actor)
@@ -228,20 +204,22 @@ static void sub_725A4(DBloodActor* actor)
 			auto ppos = pPlayer->actor->spr.pos;
 			auto dvect = ppos.XY() - actor->spr.pos;
 			auto pSector = pPlayer->actor->sector();
-			int nDist = approxDist(dvect);
-			if (nDist > pDudeInfo->seeDist && nDist > pDudeInfo->hearDist)
+			DAngle nAngle = dvect.Angle();
+			double nDist = dvect.Length();
+
+			if (nDist > pDudeInfo->SeeDist() && nDist > pDudeInfo->HearDist())
 				continue;
-			double height = (pDudeInfo->eyeHeight * actor->spr.yrepeat) * REPEAT_SCALE;
+			double height = (pDudeInfo->eyeHeight * actor->spr.scale.Y);
 			if (cansee(ppos, pSector, actor->spr.pos.plusZ(-height), actor->sector()))
 				continue;
-			int nDeltaAngle = getincangle(actor->int_ang(), getangle(dvect));
-			if (nDist < pDudeInfo->seeDist && abs(nDeltaAngle) <= pDudeInfo->periphery)
+			DAngle nDeltaAngle = absangle(actor->spr.Angles.Yaw, nAngle);
+			if (nDist < pDudeInfo->SeeDist() && abs(nDeltaAngle) <= pDudeInfo->Periphery())
 			{
 				pDudeExtraE->thinkTime = 0;
 				aiSetTarget(actor, pPlayer->actor);
 				aiActivateDude(actor);
 			}
-			else if (nDist < pDudeInfo->hearDist)
+			else if (nDist < pDudeInfo->HearDist())
 			{
 				pDudeExtraE->thinkTime = 0;
 				aiSetTarget(actor, ppos);
@@ -262,15 +240,15 @@ static void sub_72850(DBloodActor* actor)
 	}
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
 	auto dvec = actor->xspr.TargetPos.XY() - actor->spr.pos.XY();
-	int nAngle = getangle(dvec);
-	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
-	if (nDist < 512 && abs(actor->int_ang() - nAngle) < pDudeInfo->periphery)
+	DAngle nAngle = dvec.Angle();
+	double nDist = dvec.Length();
+	aiChooseDirection(actor, nAngle);
+	if (nDist < 32 && absangle(actor->spr.Angles.Yaw, nAngle) < pDudeInfo->Periphery())
 		aiNewState(actor, &tchernobogSearch);
 	aiThinkTarget(actor);
 }
 
-static void sub_72934(DBloodActor* actor)
+static void tchernobogThinkChase(DBloodActor* actor)
 {
 	if (actor->GetTarget() == nullptr)
 	{
@@ -286,9 +264,9 @@ static void sub_72934(DBloodActor* actor)
 	auto target = actor->GetTarget();
 
 	auto dvec = target->spr.pos.XY() - actor->spr.pos.XY();
-	int nAngle = getangle(dvec);
-	int nDist = approxDist(dvec);
-	aiChooseDirection(actor, DAngle::fromBuild(nAngle));
+	DAngle nAngle = dvec.Angle();
+	double nDist = dvec.Length();
+	aiChooseDirection(actor, nAngle);
 	if (target->xspr.health == 0)
 	{
 		aiNewState(actor, &tchernobogSearch);
@@ -300,20 +278,20 @@ static void sub_72934(DBloodActor* actor)
 		return;
 	}
 
-	if (nDist <= pDudeInfo->seeDist)
+	if (nDist <= pDudeInfo->SeeDist())
 	{
-		int nDeltaAngle = getincangle(actor->int_ang(), nAngle);
-		double height = (pDudeInfo->eyeHeight * actor->spr.yrepeat) * REPEAT_SCALE;
+		DAngle nDeltaAngle = absangle(actor->spr.Angles.Yaw, nAngle);
+		double height = (pDudeInfo->eyeHeight * actor->spr.scale.Y);
 		if (cansee(target->spr.pos, target->sector(), actor->spr.pos.plusZ(-height), actor->sector()))
 		{
-			if (nDist < pDudeInfo->seeDist && abs(nDeltaAngle) <= pDudeInfo->periphery)
+			if (nDist < pDudeInfo->SeeDist() && abs(nDeltaAngle) <= pDudeInfo->Periphery())
 			{
 				aiSetTarget(actor, actor->GetTarget());
-				if (nDist < 0x1f00 && nDist > 0xd00 && abs(nDeltaAngle) < 85)
+				if (nDist < 0x1f0 && nDist > 0xd0 && nDeltaAngle < DAngle15)
 					aiNewState(actor, &tcherno13AA0C);
-				else if (nDist < 0xd00 && nDist > 0xb00 && abs(nDeltaAngle) < 85)
+				else if (nDist < 0xd0 && nDist > 0xb0 && nDeltaAngle < DAngle15)
 					aiNewState(actor, &tcherno13A9D4);
-				else if (nDist < 0xb00 && nDist > 0x500 && abs(nDeltaAngle) < 85)
+				else if (nDist < 0xb0 && nDist > 0x50 && nDeltaAngle < DAngle15)
 					aiNewState(actor, &tcherno13A9F0);
 				return;
 			}

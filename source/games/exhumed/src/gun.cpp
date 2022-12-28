@@ -51,6 +51,12 @@ static const uint8_t nMinAmmo[] = { 0, 24, 51, 50, 1, 0, 0 };
 int isRed = 0;
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void SerializeGun(FSerializer& arc)
 {
     if (arc.BeginObject("gun"))
@@ -61,6 +67,12 @@ void SerializeGun(FSerializer& arc)
 
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void RestoreMinAmmo(int nPlayer)
 {
@@ -81,6 +93,12 @@ void RestoreMinAmmo(int nPlayer)
     CheckClip(nPlayer);
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void FillWeapons(int nPlayer)
 {
     PlayerList[nPlayer].nPlayerWeapons = 0xFFFF; // turn on all bits
@@ -94,6 +112,12 @@ void FillWeapons(int nPlayer)
 
     CheckClip(nPlayer);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void ResetPlayerWeapons(int nPlayer)
 {
@@ -114,6 +138,12 @@ void InitWeapons()
 {
     for (auto& p : PlayerList) p.pPlayerGrenade = nullptr;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void SetNewWeapon(int nPlayer, int nWeapon)
 {
@@ -156,6 +186,12 @@ void SetNewWeapon(int nPlayer, int nWeapon)
     PlayerList[nPlayer].nNextWeapon = nWeapon;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void SetNewWeaponImmediate(int nPlayer, int nWeapon)
 {
     SetNewWeapon(nPlayer, nWeapon);
@@ -172,6 +208,12 @@ void SetNewWeaponIfBetter(int nPlayer, int nWeapon)
         SetNewWeapon(nPlayer, nWeapon);
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void SelectNewWeapon(int nPlayer)
 {
@@ -201,6 +243,12 @@ void SelectNewWeapon(int nPlayer)
     SetNewWeapon(nPlayer, nWeapon);
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void StopFiringWeapon(int nPlayer)
 {
     PlayerList[nPlayer].bIsFiring = false;
@@ -216,6 +264,12 @@ void FireWeapon(int nPlayer)
 void SetWeaponStatus(int nPlayer)
 {
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 uint8_t WeaponCanFire(int nPlayer)
 {
@@ -241,14 +295,18 @@ void ResetSwordSeqs()
     WeaponInfo[kWeaponSword].b[3] = 7;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 Collision CheckCloseRange(int nPlayer, DVector3& pos, sectortype* *ppSector)
 {
     auto pActor = PlayerList[nPlayer].pActor;
 
-    int ang = pActor->int_ang();
-
     HitInfo hit{};
-    hitscan(pos, *ppSector, DVector3(pActor->spr.angle.ToVector() * 1024, 0 ), hit, CLIPMASK1);
+    hitscan(pos, *ppSector, DVector3(pActor->spr.Angles.Yaw.ToVector() * 1024, 0 ), hit, CLIPMASK1);
 
 	const double ecx = 56.84; // bsin(150, -3)
 	double sqrtNum = (hit.hitpos.XY() - pos.XY()).LengthSquared();
@@ -266,11 +324,17 @@ Collision CheckCloseRange(int nPlayer, DVector3& pos, sectortype* *ppSector)
         c.setSprite(hit.actor());
     }
     if (hit.hitWall) {
-        c.setWall(wallnum(hit.hitWall));
+        c.setWall(wallindex(hit.hitWall));
     }
 
     return c;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void CheckClip(int nPlayer)
 {
@@ -286,6 +350,12 @@ void CheckClip(int nPlayer)
     // Reset pistol's clip amount.
     PlayerList[nPlayer].nPistolClip = PlayerList[nPlayer].nAmmo[kWeaponPistol] % 6;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void MoveWeapons(int nPlayer)
 {
@@ -632,41 +702,23 @@ loc_flag:
             }
 
             int nAmmoType = WeaponInfo[nWeapon].nAmmoType;
-            DAngle nAngle = pPlayerActor->spr.angle;
+            DAngle nAngle = pPlayerActor->spr.Angles.Yaw;
 			auto thePos = pPlayerActor->spr.pos;
 
-            int ebp = nAngle.Cos() * (1 << 14) * (pPlayerActor->native_clipdist() << 3);
-            int ebx = nAngle.Sin() * (1 << 14) * (pPlayerActor->native_clipdist() << 3);
-
-            if (WeaponInfo[nWeapon].c)
-            {
-                int ecx;
-
-                int theVal = (totalmoves + 101) & (WeaponInfo[nWeapon].c - 1);
-                if (theVal & 1)
-                    ecx = -theVal;
-                else
-                    ecx = theVal;
-
-                DAngle var_44 = (nAngle + DAngle90).Normalized360();
-                ebp += var_44.Cos() * (1 << 3) * ecx;
-                ebx += var_44.Sin() * (1 << 3) * ecx;
-            }
-
-            int nHeight = (-GetActorHeight(pPlayerActor)) >> 1;
+            double nHeight = GetActorHeight(pPlayerActor) * -0.5;
 
             if (nAction < 6)
             {
-                nHeight -= 1792;
+                nHeight -= 7;
             }
             else
             {
                 if (!var_38)
                 {
-                    nHeight += 1024;
+                    nHeight += 4;
                 }
                 else {
-                    nHeight -= 2560;
+                    nHeight -= 10;
                 }
             }
 
@@ -677,9 +729,9 @@ loc_flag:
                 // loc_27266:
                 case kWeaponSword:
                 {
-                    nHeight += -PlayerList[nLocalPlayer].horizon.horiz.asq16() >> 10;
+                    nHeight += PlayerList[nLocalPlayer].pActor->spr.Angles.Pitch.Tan() * 32.;
 
-                    thePos.Z += nHeight * zinttoworld;
+                    thePos.Z += nHeight;
 
                     int var_28;
 
@@ -725,7 +777,7 @@ loc_flag:
                                     else if (pActor2->spr.statnum == 102)
                                     {
                                         // loc_27370:
-                                        BuildAnim(nullptr, 12, 0, thePos, pSectorB, 30, 0);
+                                        BuildAnim(nullptr, 12, 0, thePos, pSectorB, 0.46875, 0);
                                     }
                                     else if (pActor2->spr.statnum == kStatExplodeTrigger) {
                                         var_28 += 2;
@@ -737,7 +789,7 @@ loc_flag:
                                 else
                                 {
                                     // loc_27370:
-                                    BuildAnim(nullptr, 12, 0, thePos, pSectorB, 30, 0);
+                                    BuildAnim(nullptr, 12, 0, thePos, pSectorB, 0.46875, 0);
                                 }
                             }
                         }
@@ -761,10 +813,10 @@ loc_flag:
                     else
                     {
                         if (var_38) {
-                            nHeight += 768;
+                            nHeight += 3;
                         }
                         else {
-                            nHeight -= 2560;
+                            nHeight -= 10;
                         }
 
                         // fall through to case 1 (kWeaponPistol)
@@ -782,8 +834,8 @@ loc_flag:
                 }
                 case kWeaponPistol:
                 {
-                    int h = PlayerList[nLocalPlayer].horizon.horiz.asq16() >> 14;
-                    nHeight -= h;
+                    double h = PlayerList[nLocalPlayer].pActor->spr.Angles.Pitch.Tan() * 2.;
+                    nHeight += h;
 
                     DExhumedActor* target = nullptr;
                     if (sPlayerInput[nPlayer].pTarget != nullptr && Autoaim(nPlayer))
@@ -791,8 +843,8 @@ loc_flag:
                         DExhumedActor* t = sPlayerInput[nPlayer].pTarget;
                         // only autoaim if target is in front of the player.
 						assert(t->sector());
-                        DAngle angletotarget = VecToAngle(t->spr.pos - pPlayerActor->spr.pos);
-                        DAngle anglediff = absangle(pPlayerActor->spr.angle, angletotarget);
+                        DAngle angletotarget = (t->spr.pos - pPlayerActor->spr.pos).Angle();
+                        DAngle anglediff = absangle(pPlayerActor->spr.Angles.Yaw, angletotarget);
                         if (anglediff < DAngle90)
                         {
                             target = t;
@@ -800,13 +852,13 @@ loc_flag:
                         }
                     }
 
-                    BuildBullet(pPlayerActor, nAmmoType, nHeight, nAngle, target, var_1C, h);
+                    BuildBullet(pPlayerActor, nAmmoType, nHeight, nAngle, target, var_1C, -int(h * zworldtoint));
                     break;
                 }
 
                 case kWeaponGrenade:
                 {
-                    ThrowGrenade(nPlayer, ebp, ebx, nHeight - 2560, FixedToInt(PlayerList[nLocalPlayer].horizon.horiz.asq16()));
+                    ThrowGrenade(nPlayer, nHeight - 10, PlayerList[nLocalPlayer].pActor->spr.Angles.Pitch.Tan());
                     break;
                 }
                 case kWeaponStaff:
@@ -814,8 +866,7 @@ loc_flag:
                     BuildSnake(nPlayer, nHeight);
                     nQuake[nPlayer] = 2.;
 
-                    PlayerList[nPlayer].nDamage.X -= bcos(pPlayerActor->int_ang(), 9);
-                    PlayerList[nPlayer].nDamage.Y -= bsin(pPlayerActor->int_ang(), 9);
+                    PlayerList[nPlayer].nThrust -= pPlayerActor->spr.Angles.Yaw.ToVector() * 2;
                     break;
                 }
                 case kWeaponRing:
@@ -869,6 +920,12 @@ loc_flag:
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void DrawWeapons(double interpfrac)
 {
     if (bCamera) {
@@ -910,7 +967,7 @@ void DrawWeapons(double interpfrac)
 
         if (cl_hudinterpolation)
         {
-            nBobAngle = interpolatedvalue<double>(obobangle, bobangle, interpfrac) * BAngToDegree;
+            nBobAngle = interpolatedvalue<double>(obobangle, bobangle, interpfrac);
             nVal = interpolatedvalue<double>(PlayerList[nLocalPlayer].ototalvel, PlayerList[nLocalPlayer].totalvel, interpfrac);
         }
         else
@@ -919,11 +976,11 @@ void DrawWeapons(double interpfrac)
             nVal = PlayerList[nLocalPlayer].totalvel;
         }
 
-        yOffset = nVal * fabs(g_sindeg(nBobAngle)) * (1. / 16.);
+        yOffset = nVal * fabs(BobVal(nBobAngle)) * (1. / 16.);
 
         if (var_34 == 1)
         {
-            xOffset = nVal * g_cosdeg(nBobAngle) * (1. / 8.);
+            xOffset = nVal * BobVal(nBobAngle + 512) * (1. / 8.);
         }
     }
     else
@@ -943,13 +1000,12 @@ void DrawWeapons(double interpfrac)
         nShade = PlayerList[nLocalPlayer].pActor->spr.shade;
     }
 
-    double const look_anghalf = PlayerList[nLocalPlayer].angle.look_anghalf(interpfrac);
-    double const looking_arc = PlayerList[nLocalPlayer].angle.looking_arc(interpfrac);
+    const auto weaponOffsets = PlayerList[nLocalPlayer].Angles.getWeaponOffsets(interpfrac);
+    const auto angle = weaponOffsets.second;
+    xOffset += weaponOffsets.first.X;
+    yOffset += weaponOffsets.first.Y;
 
-    xOffset -= look_anghalf;
-    yOffset += looking_arc;
-
-    seq_DrawGunSequence(var_28, PlayerList[nLocalPlayer].nSeqSize2, xOffset, yOffset, nShade, nPal, screenalign);
+    seq_DrawGunSequence(var_28, PlayerList[nLocalPlayer].nSeqSize2, xOffset, yOffset, nShade, nPal, angle, screenalign);
 
     if (nWeapon != kWeaponM60)
         return;
@@ -985,7 +1041,7 @@ void DrawWeapons(double interpfrac)
                 nSeqOffset = var_30 + 4;
             }
 
-            seq_DrawGunSequence(nSeqOffset, PlayerList[nLocalPlayer].nSeqSize2, xOffset, yOffset, nShade, nPal);
+            seq_DrawGunSequence(nSeqOffset, PlayerList[nLocalPlayer].nSeqSize2, xOffset, yOffset, nShade, nPal, angle);
             return;
         }
         case 1:
@@ -998,25 +1054,25 @@ void DrawWeapons(double interpfrac)
                 return;
             }
 
-            seq_DrawGunSequence(var_30 + 8, edx, xOffset, yOffset, nShade, nPal);
+            seq_DrawGunSequence(var_30 + 8, edx, xOffset, yOffset, nShade, nPal, angle);
 
             if (nClip <= 3) {
                 return;
             }
 
-            seq_DrawGunSequence(var_30 + 9, edx, xOffset, yOffset, nShade, nPal);
+            seq_DrawGunSequence(var_30 + 9, edx, xOffset, yOffset, nShade, nPal, angle);
 
             if (nClip <= 6) {
                 return;
             }
 
-            seq_DrawGunSequence(var_30 + 10, edx, xOffset, yOffset, nShade, nPal);
+            seq_DrawGunSequence(var_30 + 10, edx, xOffset, yOffset, nShade, nPal, angle);
 
             if (nClip <= 25) {
                 return;
             }
 
-            seq_DrawGunSequence(var_30 + 11, edx, xOffset, yOffset, nShade, nPal);
+            seq_DrawGunSequence(var_30 + 11, edx, xOffset, yOffset, nShade, nPal, angle);
             return;
         }
         case 2:
@@ -1029,25 +1085,25 @@ void DrawWeapons(double interpfrac)
                 return;
             }
 
-            seq_DrawGunSequence(var_30 + 8, dx, xOffset, yOffset, nShade, nPal);
+            seq_DrawGunSequence(var_30 + 8, dx, xOffset, yOffset, nShade, nPal, angle);
 
             if (nClip <= 3) {
                 return;
             }
 
-            seq_DrawGunSequence(var_30 + 9, dx, xOffset, yOffset, nShade, nPal);
+            seq_DrawGunSequence(var_30 + 9, dx, xOffset, yOffset, nShade, nPal, angle);
 
             if (nClip <= 6) {
                 return;
             }
 
-            seq_DrawGunSequence(var_30 + 10, dx, xOffset, yOffset, nShade, nPal);
+            seq_DrawGunSequence(var_30 + 10, dx, xOffset, yOffset, nShade, nPal, angle);
 
             if (nClip <= 25) {
                 return;
             }
 
-            seq_DrawGunSequence(var_30 + 11, dx, xOffset, yOffset, nShade, nPal);
+            seq_DrawGunSequence(var_30 + 11, dx, xOffset, yOffset, nShade, nPal, angle);
             return;
         }
 
@@ -1084,7 +1140,7 @@ void DrawWeapons(double interpfrac)
                 nSeqOffset = var_30 + 17;
             }
 
-            seq_DrawGunSequence(nSeqOffset, ax, xOffset, yOffset, nShade, nPal);
+            seq_DrawGunSequence(nSeqOffset, ax, xOffset, yOffset, nShade, nPal, angle);
             return;
         }
     }

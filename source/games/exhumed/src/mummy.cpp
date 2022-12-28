@@ -37,6 +37,12 @@ static actionSeq MummySeq[] = {
 };
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void BuildMummy(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, DAngle nAngle)
 {
     if (pActor == nullptr)
@@ -46,22 +52,21 @@ void BuildMummy(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector,
     }
     else
     {
-        nAngle = pActor->spr.angle;
+        nAngle = pActor->spr.Angles.Yaw;
         ChangeActorStat(pActor, 102);
     }
 
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     pActor->spr.shade = -12;
-    pActor->set_const_clipdist(32);
+    pActor->clipdist = 8;
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
     pActor->vel.Z = 0;
-    pActor->spr.xrepeat = 42;
-    pActor->spr.yrepeat = 42;
+	pActor->spr.scale = DVector2(0.65625, 0.65625);
     pActor->spr.pal = pActor->sector()->ceilingpal;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->spr.angle = nAngle;
+    pActor->spr.Angles.Yaw = nAngle;
     pActor->spr.picnum = 1;
     pActor->spr.hitag = 0;
     pActor->spr.lotag = runlist_HeadRun() + 1;
@@ -82,6 +87,12 @@ void BuildMummy(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector,
 
     nCreaturesTotal++;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void CheckMummyRevive(DExhumedActor* pActor)
 {
@@ -108,6 +119,12 @@ void CheckMummyRevive(DExhumedActor* pActor)
         }
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIMummy::Tick(RunListEvent* ev)
 {
@@ -200,8 +217,8 @@ void AIMummy::Tick(RunListEvent* ev)
             {
                 if (RandomBit() && pTarget)
                 {
-                    if (cansee(pActor->spr.pos.plusZ(-GetActorHeightF(pActor)), pActor->sector(),
-                        pTarget->spr.pos.plusZ(-GetActorHeightF(pTarget)), pTarget->sector()))
+                    if (cansee(pActor->spr.pos.plusZ(-GetActorHeight(pActor)), pActor->sector(),
+                        pTarget->spr.pos.plusZ(-GetActorHeight(pTarget)), pTarget->sector()))
                     {
                         pActor->nAction = 3;
                         pActor->nFrame = 0;
@@ -224,14 +241,14 @@ void AIMummy::Tick(RunListEvent* ev)
         {
             if (pActor->vel.X > 0)
             {
-                pActor->add_int_xvel(-1024);
+                pActor->vel.X -= 64;
                 if (pActor->vel.X < 0) {
                     pActor->vel.X = 0;
                 }
             }
             else if (pActor->vel.X < 0)
             {
-                pActor->add_int_xvel( 1024);
+                pActor->vel.X += 64;
                 if (pActor->vel.X > 0) {
                     pActor->vel.X = 0;
                 }
@@ -257,7 +274,7 @@ void AIMummy::Tick(RunListEvent* ev)
         {
         case kHitWall:
         {
-            pActor->set_int_ang((pActor->int_ang() + ((RandomWord() & 0x3FF) + 1024)) & kAngleMask);
+            pActor->spr.Angles.Yaw += DAngle180 + mapangle(RandomWord() & 0x3FF);
             pActor->VelFromAngle(-2);
             return;
         }
@@ -266,8 +283,8 @@ void AIMummy::Tick(RunListEvent* ev)
         {
             if (nMov.actor() == pTarget)
             {
-				auto nAngDiff = AngleDiff(pActor->spr.angle, VecToAngle(pTarget->spr.pos - pActor->spr.pos));
-				if (nAngDiff < 64)
+                auto nAngDiff = absangle(pActor->spr.Angles.Yaw, (pTarget->spr.pos - pActor->spr.pos).Angle());
+                if (nAngDiff < DAngle22_5 / 2)
                 {
                     pActor->nAction = 2;
                     pActor->nFrame = 0;
@@ -292,7 +309,7 @@ void AIMummy::Tick(RunListEvent* ev)
         }
         else
         {
-            if (PlotCourseToSprite(pActor, pTarget) >= 1024)
+            if (PlotCourseToSprite(pActor, pTarget) >= 64)
             {
                 pActor->nAction = 1;
                 pActor->nFrame = 0;
@@ -320,7 +337,7 @@ void AIMummy::Tick(RunListEvent* ev)
             SetQuake(pActor, 100);
 
             // low 16 bits of returned var contains the sprite index, the high 16 the bullet number
-            auto pBullet = BuildBullet(pActor, 9, -15360, pActor->spr.angle, pTarget, 1);
+            auto pBullet = BuildBullet(pActor, 9, -60, pActor->spr.Angles.Yaw, pTarget, 1);
             CheckMummyRevive(pActor);
 
             if (pBullet)
@@ -390,6 +407,12 @@ void AIMummy::Tick(RunListEvent* ev)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AIMummy::Draw(RunListEvent* ev)
 {
     auto pActor = ev->pObjActor;
@@ -399,6 +422,12 @@ void AIMummy::Draw(RunListEvent* ev)
     seq_PlotSequence(ev->nParam, SeqOffsets[kSeqMummy] + MummySeq[nAction].a, pActor->nFrame, MummySeq[nAction].b);
     return;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIMummy::RadialDamage(RunListEvent* ev)
 {
@@ -412,7 +441,13 @@ void AIMummy::RadialDamage(RunListEvent* ev)
     Damage(ev);
 }
 
-void AIMummy::Damage(RunListEvent* ev) 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+void AIMummy::Damage(RunListEvent* ev)
 {
     auto pActor = ev->pObjActor;
     if (!pActor) return;

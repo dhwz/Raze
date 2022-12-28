@@ -630,9 +630,8 @@ int SetupZilla(DSWActor* actor)
 
     EnemyDefaults(actor, &ZillaActionSet, &ZillaPersonality);
 
-    actor->set_const_clipdist((512) >> 2);
-    actor->spr.xrepeat = 97;
-    actor->spr.yrepeat = 79;
+    actor->clipdist = 32;
+    actor->spr.scale = DVector2(1.515625, 1.23475);
 
     return 0;
 }
@@ -645,7 +644,7 @@ int SetupZilla(DSWActor* actor)
 
 int NullZilla(DSWActor* actor)
 {
-    getzsofslopeptr(actor->sector(), actor->spr.pos, &actor->user.hiz, &actor->user.loz);
+    calcSlope(actor->sector(), actor->spr.pos, &actor->user.hiz, &actor->user.loz);
     actor->user.lo_sectp = actor->sector();
     actor->user.hi_sectp = actor->sector();
     actor->user.lowActor = nullptr;
@@ -732,7 +731,7 @@ int DoZillaDeathMelt(DSWActor* actor)
     }
 
     //KeepActorOnFloor(actor);
-    getzsofslopeptr(actor->sector(), actor->spr.pos, &actor->user.hiz, &actor->user.loz);
+    calcSlope(actor->sector(), actor->spr.pos, &actor->user.hiz, &actor->user.loz);
     actor->user.lo_sectp = actor->sector();
     actor->user.hi_sectp = actor->sector();
     actor->user.lowActor = nullptr;

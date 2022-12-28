@@ -37,6 +37,8 @@
 #include "hw_renderstate.h"
 #include "sectorgeometry.h"
 #include "hw_sections.h"
+#include "texturemanager.h"
+#include "buildtiles.h"
 
 #ifdef _DEBUG
 CVAR(Int, gl_breaksec, -1, 0)
@@ -133,18 +135,16 @@ void HWFlat::MakeVertices(HWDrawInfo* di)
 		float y = !(Sprite->cstat & CSTAT_SPRITE_YFLIP) ? 0.f : 1.f;
 		if (Sprite->clipdist & TSPR_SLOPESPRITE)
 		{
-			int posx = int(di->Viewpoint.Pos.X * 16.f);
-			int posy = int(di->Viewpoint.Pos.Y * -16.f);
-			int posz = int(di->Viewpoint.Pos.Z * -256.f);
+			DVector3 posi = { di->Viewpoint.Pos.X, -di->Viewpoint.Pos.Y, -di->Viewpoint.Pos.Z };
 
 			// Make adjustments for poorly aligned slope sprites on floors or ceilings
 			constexpr float ONPLANE_THRESHOLD = 3.f;
-			if (spriteGetZOfSlope(Sprite, posx, posy, tspriteGetSlope(Sprite)) < posz)
+			if (spriteGetZOfSlopef(Sprite, posi.XY(), tspriteGetSlope(Sprite)) < posi.Z)
 			{
 				float maxofs = -FLT_MAX, minofs = FLT_MAX;
 				for (int i = 0; i < 4; i++)
 				{
-					float vz = -getceilzofslopeptrf(Sprite->sectp, pos[i].X, pos[i].Y);
+					float vz = -getceilzofslopeptr(Sprite->sectp, posi);
 					float sz = z - ofsz[i];
 					int diff = vz - sz;
 					if (diff > maxofs) maxofs = diff;
@@ -157,7 +157,7 @@ void HWFlat::MakeVertices(HWDrawInfo* di)
 				float maxofs = -FLT_MAX, minofs = FLT_MAX;
 				for (int i = 0; i < 4; i++)
 				{
-					float vz = -getflorzofslopeptrf(Sprite->sectp, pos[i].X, pos[i].Y);
+					float vz = -getflorzofslopeptr(Sprite->sectp, posi);
 					float sz = z - ofsz[i];
 					int diff = vz - sz;
 					if (diff > maxofs) maxofs = diff;
@@ -225,7 +225,7 @@ void HWFlat::DrawFlat(HWDrawInfo *di, FRenderState &state, bool translucent)
 	}
 
 #ifdef _DEBUG
-	if (sectnum(sec) == gl_breaksec)
+	if (sectindex(sec) == gl_breaksec)
 	{
 		int a = 0;
 	}
@@ -305,7 +305,7 @@ void HWFlat::PutFlat(HWDrawInfo *di, int whichplane)
 void HWFlat::ProcessSector(HWDrawInfo *di, sectortype * frontsector, int section_, int which)
 {
 #ifdef _DEBUG
-	if (sectnum(sec) == gl_breaksec)
+	if (sectindex(sec) == gl_breaksec)
 	{
 		int a = 0;
 	}
@@ -353,10 +353,8 @@ void HWFlat::ProcessSector(HWDrawInfo *di, sectortype * frontsector, int section
 
 		if (alpha != 0.f)
 		{
-			int tilenum = frontsector->floorpicnum;
-			gotpic.Set(tilenum);
-			tileUpdatePicnum(&tilenum);
-			texture = tileGetTexture(tilenum);
+			auto texid = frontsector->floortexture;
+			texture = TexMan.GetGameTexture(texid, true);
 			if (texture && texture->isValid())
 			{
 				//iboindex = frontsector->iboindex[sector_t::floor];
@@ -397,10 +395,8 @@ void HWFlat::ProcessSector(HWDrawInfo *di, sectortype * frontsector, int section
 		{
 			//iboindex = frontsector->iboindex[sector_t::ceiling];
 
-			int tilenum = frontsector->ceilingpicnum;
-			gotpic.Set(tilenum);
-			tileUpdatePicnum(&tilenum);
-			texture = tileGetTexture(tilenum);
+			auto texid = frontsector->ceilingtexture;
+			texture = TexMan.GetGameTexture(texid, true);
 			if (texture && texture->isValid())
 			{
 				//iboindex = frontsector->iboindex[sector_t::floor];
@@ -418,8 +414,7 @@ void HWFlat::ProcessSector(HWDrawInfo *di, sectortype * frontsector, int section
 
 void HWFlat::ProcessFlatSprite(HWDrawInfo* di, tspritetype* sprite, sectortype* sector)
 {
-	int tilenum = sprite->picnum;
-	texture = tileGetTexture(tilenum);
+	texture = TexMan.GetGameTexture(sprite->spritetexture());
 	bool belowfloor = false;
 	if (sprite->pos.Z > sprite->sectp->floorz)
 	{
@@ -435,8 +430,9 @@ void HWFlat::ProcessFlatSprite(HWDrawInfo* di, tspritetype* sprite, sectortype* 
 	// Weird Build logic that really makes no sense.
 	if ((sprite->cstat & CSTAT_SPRITE_ONE_SIDE) != 0)
 	{
-		double myz = !(sprite->clipdist & TSPR_SLOPESPRITE) ? z :
-			spriteGetZOfSlope(sprite, int(di->Viewpoint.Pos.X * 16), int(di->Viewpoint.Pos.Y * -16), tspriteGetSlope(sprite)) * -(1. / 256.);
+		DVector2 pos = { di->Viewpoint.Pos.X, -di->Viewpoint.Pos.Y };
+
+		double myz = !(sprite->clipdist & TSPR_SLOPESPRITE) ? z : -spriteGetZOfSlopef(sprite, pos, tspriteGetSlope(sprite));
 		if ((di->Viewpoint.Pos.Z < myz) == ((sprite->cstat & CSTAT_SPRITE_YFLIP) == 0))
 			return;
 	}

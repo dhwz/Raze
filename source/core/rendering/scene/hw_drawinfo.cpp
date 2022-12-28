@@ -29,7 +29,7 @@
 #include "build.h"
 #include "hw_renderstate.h"
 #include "hw_drawinfo.h"
-//#include "models.h"
+#include "models/modeldata.h"
 #include "hw_clock.h"
 #include "hw_cvars.h"
 #include "hw_viewpointbuffer.h"
@@ -43,6 +43,9 @@
 #include "automap.h"
 #include "hw_voxels.h"
 #include "coreactor.h"
+#include "tiletexture.h"
+
+#include "buildtiles.h"
 
 EXTERN_CVAR(Float, r_visibility)
 CVAR(Bool, gl_no_skyclear, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
@@ -146,7 +149,6 @@ void HWDrawInfo::StartScene(FRenderViewpoint& parentvp, HWViewpointUniforms* uni
 		VPUniforms.mClipLine.X = -10000000.0f;
 		VPUniforms.mShadowmapFilter = gl_shadowmap_filter;
 	}
-	vec2_t view = { int(Viewpoint.Pos.X * 16), int(Viewpoint.Pos.Y * -16) };
 
 	ClearBuffers();
 
@@ -276,53 +278,52 @@ void HWDrawInfo::DispatchSprites()
 	for (unsigned i = 0; i < tsprites.Size(); i++)
 	{
 		auto tspr = tsprites.get(i);
-		int tilenum = tspr->picnum;
 		auto actor = tspr->ownerActor;
+		auto texid = tspr->spritetexture();
 
-		if (actor == nullptr || tspr->xrepeat == 0 || tspr->yrepeat == 0 || (unsigned)tilenum >= MAXTILES)
+		if (actor == nullptr || tspr->scale.X == 0 || tspr->scale.Y == 0)
 			continue;
+
+		if (!texid.isValid()) return;
 
 		actor->spr.cstat2 |= CSTAT2_SPRITE_MAPPED;
 
-		if ((tspr->cstat & CSTAT_SPRITE_ALIGNMENT_MASK) != CSTAT_SPRITE_ALIGNMENT_SLAB)
-			tileUpdatePicnum(&tilenum, false, (actor->GetIndex() & 16383));
-		tspr->picnum = tilenum;
-		gotpic.Set(tilenum);
-
-		if (!(actor->sprext.renderflags & SPREXT_NOTMD))
+		if (!(tspr->cstat2 & CSTAT2_SPRITE_NOANIMATE))
 		{
-			int pt = Ptile2tile(tilenum, tspr->pal);
-			if (hw_models && tile2model[pt].modelid >= 0 && tile2model[pt].framenum >= 0)
+			tileUpdatePicnum(texid, (actor->GetIndex() & 16383));
+		}
+		if (tspr->cstat2 & CSTAT2_SPRITE_FULLBRIGHT)
+			tspr->shade = -127;
+		tspr->picnum = legacyTileNum(texid);
+		int tilenum = tspr->picnum;
+
+		if (!(actor->sprext.renderflags & SPREXT_NOTMD) && !(tspr->cstat2 & CSTAT2_SPRITE_NOMODEL))
+		{
+			auto pt = modelManager.GetModel(tspr->picnum, tspr->pal);
+			if (hw_models && pt && pt->modelid >= 0 && pt->framenum >= 0)
 			{
 				//HWSprite hwsprite;
 				//if (hwsprite.ProcessModel(pt, tspr)) continue;
 			}
 			if (r_voxels)
 			{
-				if ((tspr->cstat & CSTAT_SPRITE_ALIGNMENT_MASK) != CSTAT_SPRITE_ALIGNMENT_SLAB && tiletovox[tilenum] >= 0 && voxmodels[tiletovox[tilenum]])
+				auto vox = GetExtInfo(texid).tiletovox;
+				if (vox >= 0 && voxmodels[vox])
 				{
 					HWSprite hwsprite;
-					int num = tiletovox[tilenum];
-					if (hwsprite.ProcessVoxel(this, voxmodels[num], tspr, tspr->sectp, voxrotate[num])) 
+					if (hwsprite.ProcessVoxel(this, voxmodels[vox], tspr, tspr->sectp, voxrotate[vox])) 
 						continue;
-				}
-				else if ((tspr->cstat & CSTAT_SPRITE_ALIGNMENT_MASK) == CSTAT_SPRITE_ALIGNMENT_SLAB && tspr->picnum < MAXVOXELS && voxmodels[tilenum])
-				{
-					HWSprite hwsprite;
-					int num = tilenum;
-					hwsprite.ProcessVoxel(this, voxmodels[tspr->picnum], tspr, tspr->sectp, voxrotate[num]);
-					continue;
 				}
 			}
 		}
 
 		if (actor->sprext.renderflags & SPREXT_AWAY1)
 		{
-			tspr->pos.XY() += tspr->angle.ToVector() * 0.125;
+			tspr->pos.XY() += tspr->Angles.Yaw.ToVector() * 0.125;
 		}
 		else if (actor->sprext.renderflags & SPREXT_AWAY2)
 		{
-			tspr->pos.XY() -= tspr->angle.ToVector() * 0.125;
+			tspr->pos.XY() -= tspr->Angles.Yaw.ToVector() * 0.125;
 		}
 
 		switch (tspr->cstat & CSTAT_SPRITE_ALIGNMENT_MASK)
@@ -380,19 +381,18 @@ void HWDrawInfo::CreateScene(bool portal)
 	ingeo = false;
 	geoofs = { 0,0 };
 
-	vec2_t view = { int(vp.Pos.X * 16), int(vp.Pos.Y * -16) };
-
 	if(!portal) mClipper->SetVisibleRange(vp.RotAngle, a1);
 
-	if (a1 != 0xffffffff) mDrawer.Init(this, mClipper, view, vp.RotAngle - a1, vp.RotAngle + a1);
-	else mDrawer.Init(this, mClipper, view, 0, 0);
+	if (a1 != 0xffffffff) mDrawer.Init(this, mClipper, vp.Pos, vp.RotAngle - a1, vp.RotAngle + a1);
+	else mDrawer.Init(this, mClipper, vp.Pos, 0, 0);
 	if (vp.SectNums)
 		mDrawer.RenderScene(vp.SectNums, vp.SectCount, portal);
 	else
 		mDrawer.RenderScene(&vp.SectCount, 1, portal);
 
 	SetupSprite.Clock();
-	gi->processSprites(tsprites, view.X, view.Y, vp.Pos.Z * -256, DAngle::fromBam(vp.RotAngle), vp.TicFrac);
+	// vp is in render space, so we must convert back.
+	gi->processSprites(tsprites, DVector3(vp.Pos.X, -vp.Pos.Y, -vp.Pos.Z), DAngle::fromBam(vp.RotAngle), vp.TicFrac);
 	DispatchSprites();
 	SetupSprite.Unclock();
 
@@ -410,9 +410,9 @@ void HWDrawInfo::CreateScene(bool portal)
 		for (int i = 0; i < eff.geocnt; i++)
 		{
 			auto sect = eff.geosectorwarp[i];
-			for (auto w = 0; w < sect->wallnum; w++)
+			for (unsigned w = 0; w < sect->walls.Size(); w++)
 			{
-				auto wal = sect->firstWall() + w;
+				auto wal = &sect->walls[w];
 				wal->pos.X += eff.geox[i];
 				wal->pos.Y += eff.geoy[i];
 			}
@@ -420,18 +420,18 @@ void HWDrawInfo::CreateScene(bool portal)
 			if (eff.geosector[i] == drawsectp) drawsectp = eff.geosectorwarp[i];
 		}
 
-		if (a1 != 0xffffffff) mDrawer.Init(this, mClipper, view, vp.RotAngle - a1, vp.RotAngle + a1);
-		else mDrawer.Init(this, mClipper, view, 0, 0);
+		if (a1 != 0xffffffff) mDrawer.Init(this, mClipper, vp.Pos, vp.RotAngle - a1, vp.RotAngle + a1);
+		else mDrawer.Init(this, mClipper, vp.Pos, 0, 0);
 
-		int drawsect = sectnum(drawsectp);
+		int drawsect = sectindex(drawsectp);
 		mDrawer.RenderScene(&drawsect, 1, false);
 
 		for (int i = 0; i < eff.geocnt; i++)
 		{
 			auto sect = eff.geosectorwarp[i];
-			for (auto w = 0; w < sect->wallnum; w++)
+			for (unsigned w = 0; w < sect->walls.Size(); w++)
 			{
-				auto wal = sect->firstWall() + w;
+				auto wal = &sect->walls[w];
 				wal->pos.X -= eff.geox[i];
 				wal->pos.Y -= eff.geoy[i];
 			}
@@ -442,9 +442,9 @@ void HWDrawInfo::CreateScene(bool portal)
 		for (int i = 0; i < eff.geocnt; i++)
 		{
 			auto sect = eff.geosectorwarp2[i];
-			for (auto w = 0; w < sect->wallnum; w++)
+			for (unsigned w = 0; w < sect->walls.Size(); w++)
 			{
-				auto wal = sect->firstWall() + w;
+				auto wal = &sect->walls[w];
 				wal->pos.X += eff.geox2[i];
 				wal->pos.Y += eff.geoy2[i];
 			}
@@ -452,17 +452,17 @@ void HWDrawInfo::CreateScene(bool portal)
 			if (eff.geosector[i] == orgdrawsectp) drawsectp = eff.geosectorwarp2[i];
 		}
 
-		if (a1 != 0xffffffff) mDrawer.Init(this, mClipper, view, vp.RotAngle - a1, vp.RotAngle + a1);
-		else mDrawer.Init(this, mClipper, view, 0, 0);
-		drawsect = sectnum(drawsectp);
+		if (a1 != 0xffffffff) mDrawer.Init(this, mClipper, vp.Pos, vp.RotAngle - a1, vp.RotAngle + a1);
+		else mDrawer.Init(this, mClipper, vp.Pos, 0, 0);
+		drawsect = sectindex(drawsectp);
 		mDrawer.RenderScene(&drawsect, 1, false);
 
 		for (int i = 0; i < eff.geocnt; i++)
 		{
 			auto sect = eff.geosectorwarp2[i];
-			for (auto w = 0; w < sect->wallnum; w++)
+			for (unsigned w = 0; w < sect->walls.Size(); w++)
 			{
-				auto wal = sect->firstWall() + w;
+				auto wal = &sect->walls[w];
 				wal->pos.X -= eff.geox2[i];
 				wal->pos.Y -= eff.geoy2[i];
 			}

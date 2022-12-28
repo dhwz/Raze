@@ -63,6 +63,7 @@ void CopyQuakeSpotToOn(DSWActor* actor)
     auto actorNew = insertActor(actor->sector(), STAT_QUAKE_SPOT);
 
     actorNew->spr = actor->spr;
+	actorNew->clipdist = actor->clipdist;
     actorNew->spr.cstat = 0;
     actorNew->spr.extra = 0;
 
@@ -194,7 +195,7 @@ void QuakeViewChange(PLAYER* pp, DVector3& tpos, DAngle& tang)
     SWStatIterator it(STAT_QUAKE_ON);
 	while ((actor = it.Next()))
 	{
-        auto dist = (pp->pos - actor->spr.pos).Length();
+        auto dist = (pp->actor->getPosWithOffsetZ() - actor->spr.pos).Length();
 
         // shake whole level
         if (QUAKE_TestDontTaper(actor))
@@ -223,7 +224,7 @@ void QuakeViewChange(PLAYER* pp, DVector3& tpos, DAngle& tang)
     tposdiff.Z = StdRandomRange(QUAKE_Zamt(actor)) - (QUAKE_Zamt(actor)/2);
 
     int ang_amt = QUAKE_AngAmt(actor) * 4L;
-    tangdiff = DAngle::fromBuild(StdRandomRange(ang_amt) - (ang_amt/2));
+    tangdiff = mapangle(StdRandomRange(ang_amt) - (ang_amt/2));
 
     int pos_amt = QUAKE_PosAmt(actor) * 4L;
     tposdiff.XY() = DVector2(StdRandomRange(pos_amt) - (pos_amt/2), StdRandomRange(pos_amt) - (pos_amt/2)) * (1. / 4.);
@@ -276,7 +277,7 @@ void SpawnQuake(sectortype* sect, const DVector3& pos, int tics, int amt, int ra
 
 bool SetQuake(PLAYER* pp, short tics, short amt)
 {
-    SpawnQuake(pp->cursector, pp->pos,  tics, amt, 30000);
+    SpawnQuake(pp->cursector, pp->actor->getPosWithOffsetZ(),  tics, amt, 30000);
     return false;
 }
 
@@ -294,7 +295,7 @@ int SetGunQuake(DSWActor* actor)
 
 int SetPlayerQuake(PLAYER* pp)
 {
-    SpawnQuake(pp->cursector, pp->pos,  40, 8, 40000);
+    SpawnQuake(pp->cursector, pp->actor->getPosWithOffsetZ(),  40, 8, 40000);
     return 0;
 }
 

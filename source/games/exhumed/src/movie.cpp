@@ -92,6 +92,12 @@ public:
         return false;
     }
 
+    //---------------------------------------------------------------------------
+    //
+    //
+    //
+    //---------------------------------------------------------------------------
+
     int ReadFrame(FileReader& fp)
     {
         nFrame++;
@@ -133,7 +139,6 @@ public:
             }
             case kFrameSound:
             {
-                auto sfxx = soundEngine->GetSounds();
                 auto buffer = fp.Read(nSize);
                 assert(buffer.Size() == kSampleSize);
                 auto wbuffer = audio.samples + audio.nWrite * kSampleSize;
@@ -187,6 +192,11 @@ public:
         }
     }
 
+    //---------------------------------------------------------------------------
+    //
+    //
+    //
+    //---------------------------------------------------------------------------
 
     static bool StreamCallbackFunc(SoundStream* stream, void* buff, int len, void* userdata)
     {
@@ -219,6 +229,12 @@ public:
         return animtex.GetFrameID();
     }
 };
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 int IdentifyLMF(const FString* fn)
 {

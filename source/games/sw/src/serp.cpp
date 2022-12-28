@@ -718,16 +718,14 @@ int SetupSerp(DSWActor* actor)
     if (actor->spr.pal == 16)
     {
         actor->user.Health = 1000;
-        actor->spr.yrepeat = 74;
-        actor->spr.xrepeat = 74;
+        actor->spr.scale = DVector2(1.15625, 1.15625);
     }
     else
     {
-        actor->spr.yrepeat = 100;
-        actor->spr.xrepeat = 128;
+        actor->spr.scale = DVector2(1.5625, 2);
     }
 
-    actor->set_const_clipdist((512) >> 2);
+    actor->clipdist = 32;
     actor->user.Flags |= (SPR_XFLIP_TOGGLE|SPR_ELECTRO_TOLERANT);
 
     actor->user.loz = actor->spr.pos.Z;

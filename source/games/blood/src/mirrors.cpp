@@ -44,26 +44,18 @@ MIRROR mirror[16]; // only needed by Polymost.
 void InitMirrors(void)
 {
 	mirrorcnt = 0;
-	tileDelete(504);
 	portalClear();
 
-	for (int i = 0; i < 16; i++)
-	{
-		tileDelete(4080 + i);
-	}
 	for (int i = (int)wall.Size() - 1; i >= 0; i--)
 	{
 		auto pWalli = &wall[i];
 		if (mirrorcnt == 16)
 			break;
-		int nTile = 4080 + mirrorcnt;
-		if (pWalli->overpicnum == 504)
+		if (pWalli->overtexture() == mirrortile)
 		{
 			if (pWalli->extra > 0 && pWalli->type == kWallStack)
 			{
-				pWalli->overpicnum = nTile;
-
-				mirror[mirrorcnt].wallnum = i;
+				mirror[mirrorcnt].mynum = i;
 				mirror[mirrorcnt].type = 0;
 				pWalli->cstat |= CSTAT_WALL_1WAY;
 				int tmp = pWalli->xw().data;
@@ -96,11 +88,10 @@ void InitMirrors(void)
 			}
 			continue;
 		}
-		if (pWalli->picnum == 504)
+		if (pWalli->walltexture() == mirrortile)
 		{
 			mirror[mirrorcnt].link = i;
-			mirror[mirrorcnt].wallnum = i;
-			pWalli->picnum = nTile;
+			mirror[mirrorcnt].mynum = i;
 			mirror[mirrorcnt].type = 0;
 			pWalli->cstat |= CSTAT_WALL_1WAY;
 			pWalli->portalflags = PORTAL_WALL_MIRROR;
@@ -114,7 +105,7 @@ void InitMirrors(void)
 			break;
 
 		auto secti = &sector[i];
-		if (secti->floorpicnum == 504)
+		if (secti->floortexture == mirrortile)
 		{
 			auto link = barrier_cast<DBloodActor*>(secti->upperLink);
 			if (link == nullptr)
@@ -124,22 +115,20 @@ void InitMirrors(void)
 				continue;
 
 			auto sectj = link2->sector();
-			int j = sectnum(sectj);
-			if (sectj->ceilingpicnum != 504)
+			int j = sectindex(sectj);
+			if (sectj->ceilingtexture != mirrortile)
 				I_Error("Lower link sector %d doesn't have mirror picnum\n", j);
 			mirror[mirrorcnt].type = 2;
 			mirror[mirrorcnt].diff = link2->spr.pos - link->spr.pos;
-			mirror[mirrorcnt].wallnum = i;
+			mirror[mirrorcnt].mynum = i;
 			mirror[mirrorcnt].link = j;
-			secti->floorpicnum = 4080 + mirrorcnt;
 			secti->portalflags = PORTAL_SECTOR_FLOOR;
 			secti->portalnum = portalAdd(PORTAL_SECTOR_FLOOR, j, mirror[mirrorcnt].diff);
 			mirrorcnt++;
 			mirror[mirrorcnt].type = 1;
 			mirror[mirrorcnt].diff = link->spr.pos - link2->spr.pos;
-			mirror[mirrorcnt].wallnum = j;
+			mirror[mirrorcnt].mynum = j;
 			mirror[mirrorcnt].link = i;
-			sectj->ceilingpicnum = 4080 + mirrorcnt;
 			sectj->portalflags = PORTAL_SECTOR_CEILING;
 			sectj->portalnum = portalAdd(PORTAL_SECTOR_CEILING, i, mirror[mirrorcnt].diff);
 			mirrorcnt++;
@@ -162,7 +151,7 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, MIRROR& w, MIRROR*
 		arc("type", w.type)
 			("link", w.link)
 			("diff", w.diff)
-			("wallnum", w.wallnum)
+			("wallnum", w.mynum)
 			.EndObject();
 	}
 	return arc;
@@ -181,17 +170,6 @@ void SerializeMirrors(FSerializer& arc)
 		arc("mirrorcnt", mirrorcnt)
 			.Array("mirror", mirror, countof(mirror))
 			.EndObject();
-	}
-
-	if (arc.isReading())
-	{
-
-		tileDelete(504);
-
-		for (int i = 0; i < 16; i++)
-		{
-			tileDelete(4080 + i);
-		}
 	}
 }
 

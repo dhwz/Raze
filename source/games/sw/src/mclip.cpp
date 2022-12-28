@@ -59,15 +59,13 @@ Collision MultiClipMove(PLAYER* pp, double zz, double floordist)
     {
         // move the box to position instead of using offset- this prevents small rounding errors
         // allowing you to move through wall
-        DAngle ang = (pp->angle.ang + sop->clipbox_ang[i]);
-        DVector3 spos(pp->pos, zz);
+        DAngle ang = (pp->actor->spr.Angles.Yaw + sop->clipbox_ang[i]);
+        DVector3 spos(pp->actor->getPosWithOffsetZ(), zz);
 
-        DVector2 vect = ang.ToVector() * 1024 * sop->clipbox_vdist[i];
+        DVector2 vect = ang.ToVector() * sop->clipbox_vdist[i];
         Collision coll;
 
-        int xvect = vect.X * 16 * worldtoint; // note: this means clipmove input is Q18.14!
-        int yvect = vect.Y * 16 * worldtoint;
-        clipmove(spos, &pp->cursector, xvect, yvect, (int)sop->clipbox_dist[i], 4., floordist, CLIPMASK_PLAYER, coll, 1);
+        clipmove(spos, &pp->cursector, vect, sop->clipbox_dist[i], 4., floordist, CLIPMASK_PLAYER, coll, 1);
 
         if (coll.type != kHitNone)
         {
@@ -75,7 +73,7 @@ Collision MultiClipMove(PLAYER* pp, double zz, double floordist)
             min_dist = 0;
             min_ndx = i;
             // ox is where it should be
-            opos[i].XY() = pp->pos + ang.ToVector() * sop->clipbox_vdist[i];
+            opos[i].XY() = pp->actor->getPosWithOffsetZ() + ang.ToVector() * sop->clipbox_vdist[i];
 
             // spos.x is where it hit
             pos[i].XY() = spos.XY();
@@ -98,7 +96,7 @@ Collision MultiClipMove(PLAYER* pp, double zz, double floordist)
             pos[i].Z = zz;
 
             // move the box
-            clipmove(pos[i], &pp->cursector, FloatToFixed<18>(pp->vect.X), FloatToFixed<18>(pp->vect.Y), (int)sop->clipbox_dist[i], 4., floordist, CLIPMASK_PLAYER, coll);
+            clipmove(pos[i], &pp->cursector, pp->vect, sop->clipbox_dist[i], 4., floordist, CLIPMASK_PLAYER, coll);
 
             // save the dist moved
             dist = (pos[i].XY() - opos[i].XY()).Length();
@@ -113,7 +111,7 @@ Collision MultiClipMove(PLAYER* pp, double zz, double floordist)
     }
 
     // put posx and y off from offset
-    pp->pos.XY() += pos[min_ndx].XY() - opos[min_ndx].XY();
+    pp->actor->spr.pos.XY() += pos[min_ndx].XY() - opos[min_ndx].XY();
 
     return min_ret;
 }
@@ -135,12 +133,12 @@ int MultiClipTurn(PLAYER* pp, DAngle new_ang, double zz, double floordist)
     {
         DAngle ang = new_ang + sop->clipbox_ang[i];
 
-        DVector3 spos(pp->pos, zz);
+        DVector3 spos(pp->actor->getPosWithOffsetZ(), zz);
 
-        DVector2 vect = ang.ToVector() * 1024 * sop->clipbox_vdist[i];
+        DVector2 vect = ang.ToVector() * sop->clipbox_vdist[i];
         Collision coll;
 
-        clipmove(spos, &cursect, FloatToFixed<18>(vect.X), FixedToFloat<18>(vect.Y), (int)sop->clipbox_dist[i], 4., floordist, CLIPMASK_PLAYER, coll);
+        clipmove(spos, &cursect, vect, sop->clipbox_dist[i], 4., floordist, CLIPMASK_PLAYER, coll);
 
         ASSERT(cursect);
 
@@ -209,7 +207,7 @@ int RectClipMove(PLAYER* pp, DVector2* qpos)
     //Given the 4 points: x[4], y[4]
     if (testquadinsect(&point_num, xy, pp->cursector))
     {
-        pp->pos += pvect;
+        pp->actor->spr.pos.XY() += pvect;
         return true;
     }
 
@@ -225,7 +223,7 @@ int RectClipMove(PLAYER* pp, DVector2* qpos)
         }
         if (testquadinsect(&point_num, xy, pp->cursector))
         {
-            pp->pos.XY() += { -pvect.X * 0.5, pvect.X * 0.5 };
+            pp->actor->spr.pos.XY() += { -pvect.X * 0.5, pvect.X * 0.5 };
         }
 
         return false;
@@ -240,29 +238,13 @@ int RectClipMove(PLAYER* pp, DVector2* qpos)
         }
         if (testquadinsect(&point_num, xy, pp->cursector))
         {
-            pp->pos.XY() += { pvect.X * 0.5, -pvect.X * 0.5 };
+            pp->actor->spr.pos.XY() += { pvect.X * 0.5, -pvect.X * 0.5 };
         }
 
         return false;
     }
 
     return false;
-}
-
-//---------------------------------------------------------------------------
-//
-// 
-//
-//---------------------------------------------------------------------------
-
-int testpointinquad(const DVector2& pt, const DVector2* quad)
-{
-    for (int i = 0; i < 4; i++)
-    {
-        double dist = PointOnLineSide(pt.X, pt.Y, quad[i].X, quad[i].Y, quad[(i + 1) & 3].X - quad[i].X, quad[(i + 1) & 3].Y - quad[i].Y);
-        if (dist > 0) return false;
-    }
-    return true;
 }
 
 //---------------------------------------------------------------------------
@@ -282,7 +264,7 @@ short RectClipTurn(PLAYER* pp, DAngle new_angl, DVector2* qpos, DVector2* opos)
     rot_angl = new_angl + sop->spin_ang - sop->ang_orig;
     for (i = 0; i < 4; i++)
     {
-        xy[i] = rotatepoint(pp->pos.XY(), opos[i], rot_angl);
+        xy[i] = rotatepoint(pp->actor->spr.pos.XY(), opos[i], rot_angl);
         // cannot use sop->xmid and ymid because the SO is off the map at this point
     }
 

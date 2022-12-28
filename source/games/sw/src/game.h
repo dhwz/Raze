@@ -47,6 +47,7 @@ Prepared for public release: 03/28/2005 - Charlie Wiederhold, 3D Realms
 #include "packet.h"
 #include "gameinput.h"
 #include "serialize_obj.h"
+#include "texturemanager.h"
 
 EXTERN_CVAR(Bool, sw_ninjahack)
 EXTERN_CVAR(Bool, sw_darts)
@@ -202,24 +203,23 @@ constexpr int NORM_ANGLE(int ang) { return ((ang) & 2047); }
 int StdRandomRange(int range);
 
 
-inline double GetSpriteSizeZ(const spritetypebase* sp)
-{
-	return (tileHeight(sp->picnum) * sp->yrepeat) * REPEAT_SCALE;
-}
-
 
 // actual Z for TOS and BOS - handles both WYSIWYG and old style
 inline double GetSpriteZOfTop(const spritetypebase* sp)
 {
+    auto tex = TexMan.GetGameTexture(sp->spritetexture());
+    auto sizez = tex->GetDisplayHeight() * sp->scale.Y;
     return (sp->cstat & CSTAT_SPRITE_YCENTER) ?
-        sp->pos.Z - ((GetSpriteSizeZ(sp) * 0.5) + tileTopOffset(sp->picnum)) :
-        sp->pos.Z - GetSpriteSizeZ(sp);
+        sp->pos.Z - ((sizez * 0.5) + tex->GetDisplayTopOffset()) :
+        sp->pos.Z - sizez;
 }
 
 inline double GetSpriteZOfBottom(const spritetypebase* sp)
 {
+    auto tex = TexMan.GetGameTexture(sp->spritetexture());
+    auto sizez = tex->GetDisplayHeight() * sp->scale.Y;
     return (sp->cstat & CSTAT_SPRITE_YCENTER) ?
-        sp->pos.Z + ((GetSpriteSizeZ(sp) * 0.5) - tileTopOffset(sp->picnum)) :
+        sp->pos.Z + ((sizez * 0.5) - tex->GetDisplayTopOffset()) :
         sp->pos.Z;
 }
 
@@ -533,189 +533,6 @@ struct REMOTE_CONTROL
     DVector3 pos;
     SECTOR_OBJECT* sop_control;
 };
-
-struct PLAYER
-{
-    // variable that fit in the sprite or user structure
-
-    DVector3 pos, opos, oldpos;
-
-    DSWActor* actor;    // this may not be a TObjPtr!
-    TObjPtr<DSWActor*> lowActor, highActor;
-    TObjPtr<DSWActor*> remoteActor;
-    TObjPtr<DSWActor*> PlayerUnderActor;
-    TObjPtr<DSWActor*> KillerActor;  //who killed me
-    TObjPtr<DSWActor*> HitBy;                    // Sprite num of whatever player was last hit by
-    TObjPtr<DSWActor*> last_camera_act;
-
-    // holds last valid move position
-    DVector3 lv;
-
-    REMOTE_CONTROL remote;
-    SECTOR_OBJECT* sop_remote;
-    SECTOR_OBJECT* sop;  // will either be sop_remote or sop_control
-
-    double hiz, loz;
-    double opbob_amt, pbob_amt;
-
-    int jump_count, jump_speed;     // jumping
-    double z_speed;
-    int climb_ndx;
-    double p_ceiling_dist,p_floor_dist;
-    sectortype* hi_sectp, *lo_sectp;
-
-    double circle_camera_dist;
-    DVector3 si; // save player interp position for PlayerSprite
-    DAngle siang;
-
-    DVector2 vect, ovect, slide_vect; // these need floatification, but must be done together. vect is in 14.18 format!
-
-    int friction;
-    int16_t slide_ang; // todo: floatify
-    int slide_dec;
-    float drive_avel;
-
-    DAngle circle_camera_ang;
-    int16_t camera_check_time_delay;
-
-
-    sectortype
-        * cursector,
-        * lastcursector,
-        * lv_sector;
-
-    void setcursector(sectortype* s) { cursector = s; }
-    bool insector() const { return cursector != nullptr; }
-
-    // variables that do not fit into sprite structure
-    PlayerHorizon horizon;
-    PlayerAngle angle;
-    int16_t recoil_amt;
-    int16_t recoil_speed;
-    int16_t recoil_ndx;
-    fixed_t recoil_ohorizoff, recoil_horizoff;
-
-    DVector3 Revolve;
-    DAngle RevolveDeltaAng;
-    DAngle RevolveAng;
-
-    int16_t pnum; // carry along the player number
-
-    sectortype* LadderSector;
-    DVector2 LadderPosition; // ladder x and y
-
-    int16_t JumpDuration;
-    int16_t WadeDepth;
-    int16_t bob_ndx;
-    int16_t bcnt; // bob count
-    double bob_z, obob_z;
-
-    //Multiplayer variables
-    InputPacket input;
-    InputPacket lastinput;
-
-    // must start out as 0
-    int playerreadyflag;
-
-    PLAYER_ACTION_FUNCp DoPlayerAction;
-    int Flags, Flags2;
-    ESyncBits KeyPressBits;
-
-    SECTOR_OBJECT* sop_control; // sector object pointer
-    SECTOR_OBJECT* sop_riding; // sector object pointer
-
-    struct
-    {
-        PANEL_SPRITE* Next, *Prev;
-    } PanelSpriteList;
-
-    // hack stuff to get a working pointer to this list element without running into type punning warnings with GCC.
-    // The list uses itself as sentinel element despite the type mismatch.
-    PANEL_SPRITE* GetPanelSpriteList()
-    {
-        void* p = &PanelSpriteList;
-        return reinterpret_cast<PANEL_SPRITE*>(p);
-    }
-
-    // Key stuff
-    uint8_t HasKey[8];
-
-    // Weapon stuff
-    int16_t SwordAng;
-    int WpnGotOnceFlags; // for no respawn mode where weapons are allowed grabbed only once
-    int WpnFlags;
-    int16_t WpnAmmo[MAX_WEAPONS];
-    int16_t WpnNum;
-    PANEL_SPRITE* CurWpn;
-    PANEL_SPRITE* Wpn[MAX_WEAPONS];
-    PANEL_SPRITE* Chops;
-    uint8_t WpnRocketType; // rocket type
-    uint8_t WpnRocketHeat; // 5 to 0 range
-    uint8_t WpnRocketNuke; // 1, you have it, or you don't
-    uint8_t WpnFlameType; // Guardian weapons fire
-    uint8_t WpnFirstType; // First weapon type - Sword/Shuriken
-    uint8_t WeaponType; // for weapons with secondary functions
-    int16_t FirePause; // for sector objects - limits rapid firing
-    //
-    // Inventory Vars
-    //
-    int16_t InventoryNum;
-    int16_t InventoryBarTics;
-    int16_t InventoryTics[MAX_INVENTORY];
-    int16_t InventoryPercent[MAX_INVENTORY];
-    int8_t InventoryAmount[MAX_INVENTORY];
-    bool InventoryActive[MAX_INVENTORY];
-
-    int16_t DiveTics;
-    int16_t DiveDamageTics;
-
-    // Death stuff
-    uint16_t DeathType;
-    int16_t Kills;
-    int16_t KilledPlayer[MAX_SW_PLAYERS_REG];
-    int16_t SecretsFound;
-
-    // Health
-    int16_t Armor;
-    int16_t MaxHealth;
-
-    char PlayerName[32];
-
-    uint8_t UziShellLeftAlt;
-    uint8_t UziShellRightAlt;
-    uint8_t TeamColor;  // used in team play and also used in regular mulit-play for show
-
-    // palette fading up and down for player hit and get items
-    int16_t FadeTics;                 // Tics between each fade cycle
-    int16_t FadeAmt;                  // Current intensity of fade
-    bool NightVision;               // Is player's night vision active?
-    uint8_t StartColor;       // Darkest color in color range being used
-    //short electro[64];
-    bool IsAI;                      // Is this and AI character?
-    int16_t fta,ftq;                  // First time active and first time quote, for talking in multiplayer games
-    int16_t NumFootPrints;            // Number of foot prints left to lay down
-    uint8_t WpnUziType;                // Toggle between single or double uzi's if you own 2.
-    uint8_t WpnShotgunType;            // Shotgun has normal or fully automatic fire
-    uint8_t WpnShotgunAuto;            // 50-0 automatic shotgun rounds
-    uint8_t WpnShotgunLastShell;       // Number of last shell fired
-    uint8_t WpnRailType;               // Normal Rail Gun or EMP Burst Mode
-    bool Bloody;                    // Is player gooey from the slaughter?
-    bool InitingNuke;
-    bool TestNukeInit;
-    bool NukeInitialized;           // Nuke already has counted down
-    int16_t FistAng;                  // KungFu attack angle
-    uint8_t WpnKungFuMove;             // KungFu special moves
-    int16_t Reverb;                   // Player's current reverb setting
-    int16_t Heads;                    // Number of Accursed Heads orbiting player
-    int PlayerVersion;
-
-    char cookieQuote[256];          // Should be an FString but must be POD for now so that PLAYER remains POD.
-    int cookieTime;
-
-    uint8_t WpnReloadState;
-};
-
-extern PLAYER Player[MAX_SW_PLAYERS_REG+1];
 
 
 //
@@ -1065,6 +882,16 @@ enum
     SPRX_BOOL10 = (BIT(15)),
 };
 
+enum ETexFlags
+{
+    TFLAG_BUNNYFRIENDLY = 1, // bunnies like to stay in sectors with this as floor.
+};
+
+enum ESurfType
+{
+    TSURF_WATER         = 1,
+    TSURF_LAVA          = 2,
+};
 
 // User->Flags flags
 enum
@@ -1409,8 +1236,8 @@ struct SECTOR_OBJECT
            bob_amt;        // bob amount max in z coord
 
     // variables set by mappers for drivables
-    int    drive_angspeed,
-           drive_angslide,
+    double drive_angspeed;
+    int    drive_angslide,
            drive_speed,
            drive_slide,
            flags;
@@ -1429,26 +1256,11 @@ struct SECTOR_OBJECT
             track,          // the track # 0 to 20
             point,          // the point on the track that the sector object is headed toward
             vel_rate,       // rate at which velocity aproaches target
-            dir,            // direction traveling on the track
-            clipdist,       // cliping distance for operational sector objects
-            clipbox_dist[MAX_CLIPBOX]; // mult-clip box variables (clipdist equivalent)
+            dir;            // direction traveling on the track
+    double  clipdist;       // cliping distance for operational sector objects
+    double  clipbox_dist[MAX_CLIPBOX]; // mult-clip box variables (clipdist equivalent)
     double  clipbox_vdist[MAX_CLIPBOX]; // mult-clip box variables
     DAngle  clipbox_ang[MAX_CLIPBOX]; // mult-clip box variables
-
-    int int_i_ang() const { return ang.Buildang(); }
-    int int_i_ang_moving() const { return ang_moving.Buildang(); }
-    int int_i_ang_tgt() const { return ang_tgt.Buildang(); }
-    int int_i_ang_orig() const { return ang_orig.Buildang(); }
-    int int_i_last_ang() const { return last_ang.Buildang(); }
-    int int_i_spin_ang() const { return spin_ang.Buildang(); }
-    int int_i_spin_speed() const { return spin_speed.Buildang(); }
-    void set_int_i_spin_speed(int i) { spin_speed = DAngle::fromBuild(i); }
-    void set_int_i_last_ang(int i) { last_ang = DAngle::fromBuild(i); }
-    void set_int_i_spin_ang(int i) { spin_ang = DAngle::fromBuild(i); }
-    void set_int_i_ang(int i) { ang = DAngle::fromBuild(i); }
-    void set_int_i_ang_tgt(int i) { ang_tgt = DAngle::fromBuild(i); }
-    void set_int_i_ang_moving(int i) { ang_moving = DAngle::fromBuild(i); }
-    void set_int_i_ang_orig(int i) { ang_orig = DAngle::fromBuild(i); }
 
 
     int16_t clipbox_num;
@@ -1624,10 +1436,10 @@ void RefreshInfoLine(PLAYER* pp);
 void DoAnim(int numtics);
 void AnimDelete(int animtype, int animindex, DSWActor*);
 short AnimGetGoal(int animtype, int animindex, DSWActor*);
-int AnimSet(int animtype, int animindex, DSWActor* animactor, double thegoal, int thevel);
-int AnimSet(int animtype, sectortype* animindex, double thegoal, int thevel)
+int AnimSet(int animtype, int animindex, DSWActor* animactor, double thegoal, double thevel);
+int AnimSet(int animtype, sectortype* animindex, double thegoal, double thevel)
 {
-    return AnimSet(animtype, sectnum(animindex), nullptr, thegoal, thevel);
+    return AnimSet(animtype, sectindex(animindex), nullptr, thegoal, thevel);
 }
 
 short AnimSetCallback(short anim_ndx, ANIM_CALLBACKp call, SECTOR_OBJECT* data);
@@ -1635,27 +1447,13 @@ short AnimSetVelAdj(short anim_ndx, double vel_adj);
 
 void EnemyDefaults(DSWActor* actor, ACTOR_ACTION_SET* action, PERSONALITY* person);
 
-void getzrangepoint(int x, int y, int z, sectortype* sect, int32_t* ceilz, Collision* ceilhit, int32_t* florz, Collision* florhit);
-
-inline void getzrangepoint(const DVector3& pos, sectortype* sect, double* hiz, Collision* ceilhit, double* loz, Collision* florhit)
-{
-	int32_t hi, lo;
-	getzrangepoint(int(pos.X * worldtoint), int(pos.Y * worldtoint), int(pos.Z * zworldtoint), sect, &hi, ceilhit, &lo, florhit);
-	*hiz = hi * zinttoworld;
-	*loz = lo * zinttoworld;
-}
+void getzrangepoint(const DVector3& pos, sectortype* sect, double* hiz, Collision* ceilhit, double* loz, Collision* florhit);
 
 Collision move_sprite(DSWActor* actor, const DVector3& change, double ceildist, double flordist, uint32_t cliptype, int numtics);
 Collision move_missile(DSWActor* actor, const DVector3& change, double ceildist, double flordist, uint32_t cliptype, int numtics);
 
 
 DSWActor* DoPickTarget(DSWActor*, DAngle max_delta_ang, int skip_targets);
-
-[[deprecated]]
-DSWActor* DoPickTarget(DSWActor* a, uint32_t max_delta_ang, int skip_targets)
-{
-    return DoPickTarget(a, DAngle::fromBuild(max_delta_ang), skip_targets);
-}
 
 void change_actor_stat(DSWActor* actor, int stat, bool quick = false);
 void SetOwner(DSWActor*, DSWActor*, bool flag = true);
@@ -1667,20 +1465,17 @@ void CollectPortals();
 
 int SpawnBlood(DSWActor* actor, DSWActor* weapActor, DAngle hit_angle = nullAngle, const DVector3* hitpos = nullptr);
 
-enum
-{
-    FAF_PLACE_MIRROR_PIC = 341,
-    FAF_MIRROR_PIC = 2356
-};
+inline FTextureID FAFPlaceMirrorPic[2];
+inline FTextureID FAFMirrorPic[2];
 
 inline bool FAF_ConnectCeiling(sectortype* sect)
 {
-    return (sect && sect->ceilingpicnum == FAF_MIRROR_PIC);
+    return (sect && sect->ceilingtexture == FAFMirrorPic[0]);
 }
 
 inline bool FAF_ConnectFloor(sectortype* sect)
 {
-    return (sect && sect->floorpicnum == FAF_MIRROR_PIC);
+    return (sect && sect->floortexture == FAFMirrorPic[0]);
 }
 
 inline bool FAF_ConnectArea(sectortype* sect)
@@ -1691,7 +1486,7 @@ inline bool FAF_ConnectArea(sectortype* sect)
 
 void FAFhitscan(const DVector3& start, sectortype* sect, const DVector3& vect, HitInfo& hit, int32_t clipmask);
 bool FAFcansee(const DVector3& start, sectortype* sects, const DVector3& end, sectortype* secte);
-void FAFgetzrange(const DVector3& pos, sectortype* sect, double* hiz, Collision* ceilhit, double* loz, Collision* florhit, int32_t clipdist, int32_t clipmask);
+void FAFgetzrange(const DVector3& pos, sectortype* sect, double* hiz, Collision* ceilhit, double* loz, Collision* florhit, double clipdist, int32_t clipmask);
 void FAFgetzrangepoint(const DVector3& pos, sectortype* sect, double* hiz, Collision* ceilhit, double* loz, Collision* florhit);
 
 
@@ -1730,19 +1525,17 @@ enum
     TICSPERMOVEMENT = synctics,
     ACTOR_GRAVITY = 8,
     // subtract value from clipdist on getzrange calls
-    GETZRANGE_CLIP_ADJ = 8,
     STAT_DAMAGE_LIST_SIZE = 20,
     COLOR_PAIN  = 128,  // Light red range
-
-    NTAG_SEARCH_LO = 1,
-    NTAG_SEARCH_HI = 2,
-    NTAG_SEARCH_LO_HI = 3,
 
     ANIM_SERP = 1,
     ANIM_SUMO  =2,
     ANIM_ZILLA  =3
 
 };
+
+constexpr double GETZRANGE_CLIP_ADJ = 0.5;
+
 
 extern int *lastpacket2clock;
 
@@ -1801,7 +1594,7 @@ double GetZadjustment(sectortype* sect,short hitag);  // rooms.c
 
 void InitSetup(void);   // setup.c
 
-void LoadKVXFromScript(const char *filename); // scrip2.c
+void LoadKVXFromScript(TilesetBuildInfo& info, const char *filename); // scrip2.c
 void LoadCustomInfoFromScript(const char *filename);  // scrip2.c
 
 int PlayerInitChemBomb(PLAYER* pp); // jweapon.c
@@ -1871,8 +1664,9 @@ struct GameInterface : public ::GameInterface
 {
     const char* Name() override { return "ShadowWarrior"; }
     void app_init() override;
-    void LoadGameTextures();
-    void loadPalette();
+    void LoadTextureInfo(TilesetBuildInfo& info) override;
+    void SetupSpecialTextures(TilesetBuildInfo& info) override;
+    void loadPalette() override;
     void clearlocalinputstate() override;
     void FreeLevelData() override;
     bool GenerateSavePic() override;
@@ -1883,7 +1677,6 @@ struct GameInterface : public ::GameInterface
     void SerializeGameState(FSerializer& arc);
     void SetAmbience(bool on) override { if (on) StartAmbientSound(); else StopAmbientSound(); }
     std::pair<DVector3, DAngle> GetCoordinates() override;
-    ReservedSpace GetReservedScreenSpace(int viewsize) override;
     void UpdateSounds() override;
     void ErrorCleanup() override;
     void GetInput(ControlInfo* const hidInput, double const scaleAdjust, InputPacket* input = nullptr) override;
@@ -1898,18 +1691,16 @@ struct GameInterface : public ::GameInterface
 	void NextLevel(MapRecord *map, int skill) override;
 	void NewGame(MapRecord *map, int skill, bool) override;
     bool DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac) override;
-    int playerKeyMove() override { return 35; }
-    void WarpToCoords(double x, double y, double z, DAngle ang, int horz) override;
+    void WarpToCoords(double x, double y, double z, DAngle ang) override;
     void ToggleThirdPerson() override;
     void SwitchCoopView() override;
-    DVector3 chaseCamPos(DAngle ang, fixedhoriz horiz) { return DVector3(-ang.ToVector() * 128., horiz.asbuildf()); }
-    void processSprites(tspriteArray& tsprites, int viewx, int viewy, int viewz, DAngle viewang, double smoothRatio) override;
+    void processSprites(tspriteArray& tsprites, const DVector3& view, DAngle viewang, double smoothRatio) override;
     void UpdateCameras(double smoothratio) override;
     void EnterPortal(DCoreActor* viewer, int type) override;
     void LeavePortal(DCoreActor* viewer, int type) override;
-    int Voxelize(int sprnum);
     void ExitFromMenu() override;
     int GetCurrentSkill() override;
+    void StartSoundEngine() override;
 
 
     GameStats getStats() override;
@@ -1921,6 +1712,196 @@ END_SW_NS
 #include "swactor.h"
 
 BEGIN_SW_NS
+
+struct PLAYER
+{
+    DSWActor* actor;    // this may not be a TObjPtr!
+    TObjPtr<DSWActor*> lowActor, highActor;
+    TObjPtr<DSWActor*> remoteActor;
+    TObjPtr<DSWActor*> PlayerUnderActor;
+    TObjPtr<DSWActor*> KillerActor;  //who killed me
+    TObjPtr<DSWActor*> HitBy;                    // Sprite num of whatever player was last hit by
+    TObjPtr<DSWActor*> last_camera_act;
+
+    // holds last valid move position
+    DVector3 lv;
+
+    REMOTE_CONTROL remote;
+    SECTOR_OBJECT* sop_remote;
+    SECTOR_OBJECT* sop;  // will either be sop_remote or sop_control
+
+    double hiz, loz;
+    double opbob_amt, pbob_amt;
+
+    int jump_count, jump_speed;     // jumping
+    double z_speed;
+    int climb_ndx;
+    double p_ceiling_dist,p_floor_dist;
+    sectortype* hi_sectp, *lo_sectp;
+
+    double circle_camera_dist;
+    DVector3 si; // save player interp position for PlayerSprite
+    DAngle siang;
+
+    DVector2 vect, ovect, slide_vect; // these need floatification, but must be done together. vect is in 14.18 format!
+
+    int friction;
+    int16_t slide_ang; // todo: floatify
+    int slide_dec;
+    float drive_avel;
+
+    DAngle circle_camera_ang;
+    int16_t camera_check_time_delay;
+
+
+    sectortype
+        * cursector,
+        * lastcursector,
+        * lv_sector;
+
+    void setcursector(sectortype* s) { cursector = s; }
+    bool insector() const { return cursector != nullptr; }
+
+    // variables that do not fit into sprite structure
+    PlayerAngles Angles;
+    double recoil_amt;
+    int16_t recoil_speed;
+    int16_t recoil_ndx;
+    DAngle recoil_ohorizoff, recoil_horizoff;
+
+    DVector3 Revolve;
+    DAngle RevolveDeltaAng;
+    DAngle RevolveAng;
+
+    int16_t pnum; // carry along the player number
+
+    sectortype* LadderSector;
+    DVector2 LadderPosition; // ladder x and y
+
+    int16_t JumpDuration;
+    int16_t WadeDepth;
+    int16_t bob_ndx;
+    int16_t bcnt; // bob count
+    double bob_z, obob_z;
+
+    //Multiplayer variables
+    InputPacket input;
+    InputPacket lastinput;
+
+    // must start out as 0
+    int playerreadyflag;
+
+    PLAYER_ACTION_FUNCp DoPlayerAction;
+    int Flags, Flags2;
+    ESyncBits KeyPressBits;
+
+    SECTOR_OBJECT* sop_control; // sector object pointer
+    SECTOR_OBJECT* sop_riding; // sector object pointer
+
+    struct
+    {
+        PANEL_SPRITE* Next, *Prev;
+    } PanelSpriteList;
+
+    // hack stuff to get a working pointer to this list element without running into type punning warnings with GCC.
+    // The list uses itself as sentinel element despite the type mismatch.
+    PANEL_SPRITE* GetPanelSpriteList()
+    {
+        void* p = &PanelSpriteList;
+        return reinterpret_cast<PANEL_SPRITE*>(p);
+    }
+
+    // Key stuff
+    uint8_t HasKey[8];
+
+    // Weapon stuff
+    int16_t SwordAng;
+    int WpnGotOnceFlags; // for no respawn mode where weapons are allowed grabbed only once
+    int WpnFlags;
+    int16_t WpnAmmo[MAX_WEAPONS];
+    int16_t WpnNum;
+    PANEL_SPRITE* CurWpn;
+    PANEL_SPRITE* Wpn[MAX_WEAPONS];
+    PANEL_SPRITE* Chops;
+    uint8_t WpnRocketType; // rocket type
+    uint8_t WpnRocketHeat; // 5 to 0 range
+    uint8_t WpnRocketNuke; // 1, you have it, or you don't
+    uint8_t WpnFlameType; // Guardian weapons fire
+    uint8_t WpnFirstType; // First weapon type - Sword/Shuriken
+    uint8_t WeaponType; // for weapons with secondary functions
+    int16_t FirePause; // for sector objects - limits rapid firing
+    //
+    // Inventory Vars
+    //
+    int16_t InventoryNum;
+    int16_t InventoryBarTics;
+    int16_t InventoryTics[MAX_INVENTORY];
+    int16_t InventoryPercent[MAX_INVENTORY];
+    int8_t InventoryAmount[MAX_INVENTORY];
+    bool InventoryActive[MAX_INVENTORY];
+
+    int16_t DiveTics;
+    int16_t DiveDamageTics;
+
+    // Death stuff
+    uint16_t DeathType;
+    int16_t Kills;
+    int16_t KilledPlayer[MAX_SW_PLAYERS_REG];
+    int16_t SecretsFound;
+
+    // Health
+    int16_t Armor;
+    int16_t MaxHealth;
+
+    char PlayerName[32];
+
+    uint8_t UziShellLeftAlt;
+    uint8_t UziShellRightAlt;
+    uint8_t TeamColor;  // used in team play and also used in regular mulit-play for show
+
+    // palette fading up and down for player hit and get items
+    int16_t FadeTics;                 // Tics between each fade cycle
+    int16_t FadeAmt;                  // Current intensity of fade
+    bool NightVision;               // Is player's night vision active?
+    uint8_t StartColor;       // Darkest color in color range being used
+    //short electro[64];
+    bool IsAI;                      // Is this and AI character?
+    int16_t fta,ftq;                  // First time active and first time quote, for talking in multiplayer games
+    int16_t NumFootPrints;            // Number of foot prints left to lay down
+    uint8_t WpnUziType;                // Toggle between single or double uzi's if you own 2.
+    uint8_t WpnShotgunType;            // Shotgun has normal or fully automatic fire
+    uint8_t WpnShotgunAuto;            // 50-0 automatic shotgun rounds
+    uint8_t WpnShotgunLastShell;       // Number of last shell fired
+    uint8_t WpnRailType;               // Normal Rail Gun or EMP Burst Mode
+    bool Bloody;                    // Is player gooey from the slaughter?
+    bool InitingNuke;
+    bool TestNukeInit;
+    bool NukeInitialized;           // Nuke already has counted down
+    int16_t FistAng;                  // KungFu attack angle
+    uint8_t WpnKungFuMove;             // KungFu special moves
+    int16_t Reverb;                   // Player's current reverb setting
+    int16_t Heads;                    // Number of Accursed Heads orbiting player
+    int PlayerVersion;
+
+    char cookieQuote[256];          // Should be an FString but must be POD for now so that PLAYER remains POD.
+    int cookieTime;
+    double height;
+
+    uint8_t WpnReloadState;
+
+    double getViewHeightDiff()
+    {
+        return actor->viewzoffset + height;
+    }
+
+    void posZset(const double val)
+    {
+        actor->spr.pos.Z = val - actor->viewzoffset;
+    }
+};
+
+extern PLAYER Player[MAX_SW_PLAYERS_REG+1];
+
 
 // OVER and UNDER water macros
 inline bool SectorIsDiveArea(sectortype* sect)
@@ -1935,12 +1916,12 @@ inline bool SectorIsUnderwaterArea(sectortype* sect)
 
 inline bool PlayerFacingRange(PLAYER* pp, DSWActor* a, DAngle range)
 {
-    return absangle(VecToAngle(a->spr.pos - pp->pos), pp->angle.ang) < range;
+    return absangle((a->spr.pos.XY() - pp->actor->spr.pos.XY()).Angle(), pp->actor->spr.Angles.Yaw) < range;
 }
 
 inline bool FacingRange(DSWActor* a1, DSWActor* a2, DAngle range)
 {
-    return absangle(VecToAngle(a1->spr.pos - a2->spr.pos), a2->spr.angle) < range;
+    return absangle((a1->spr.pos - a2->spr.pos).Angle(), a2->spr.Angles.Yaw) < range;
 }
 inline void SET_BOOL1(DSWActor* sp) { sp->spr.extra |= SPRX_BOOL1; }
 inline void SET_BOOL2(DSWActor* sp) { sp->spr.extra |= SPRX_BOOL2; }
@@ -2010,6 +1991,11 @@ inline double ActorZOfBottom(DSWActor* actor)
     return GetSpriteZOfBottom(&actor->spr);
 }
 
+inline DVector3 ActorVectOfBottom(DSWActor* actor)
+{
+	return DVector3(actor->spr.pos.XY(), ActorZOfBottom(actor));
+}
+
 inline double ActorZOfMiddle(DSWActor* actor)
 {
 	return (ActorZOfTop(actor) + ActorZOfBottom(actor)) * 0.5;
@@ -2022,7 +2008,8 @@ inline DVector3 ActorVectOfMiddle(DSWActor* actor)
 
 inline double ActorSizeZ(DSWActor* actor)
 {
-    return (tileHeight(actor->spr.picnum) * actor->spr.yrepeat) / 64.;
+    auto tex = TexMan.GetGameTexture(actor->spr.spritetexture());
+    return (tex->GetDisplayHeight() * actor->spr.scale.Y);
 }
 
 inline double ActorUpperZ(DSWActor* actor)
@@ -2048,23 +2035,26 @@ inline DVector3 ActorLowerVect(DSWActor* actor)
 // Z size of top (TOS) and bottom (BOS) part of sprite
 inline double ActorSizeToTop(DSWActor* a)
 {
-    return (ActorSizeZ(a) + tileTopOffset(a->spr.picnum)) * 0.5;
+    auto tex = TexMan.GetGameTexture(a->spr.spritetexture());
+    return (ActorSizeZ(a) + tex->GetDisplayTopOffset()) * 0.5;
 }
 
 inline void SetActorSizeX(DSWActor* sp)
 {
-    sp->set_native_clipdist(MulScale(tileWidth(sp->spr.picnum), sp->spr.xrepeat, 6));
+    auto tex = TexMan.GetGameTexture(sp->spr.spritetexture());
+    sp->clipdist = tex->GetDisplayWidth() * sp->spr.scale.X * 0.25;
 }
 
 inline bool Facing(DSWActor* actor1, DSWActor* actor2)
 {
-    return absangle(VecToAngle(actor1->spr.pos - actor2->spr.pos), actor2->spr.angle) < DAngle90;
+    return absangle((actor1->spr.pos - actor2->spr.pos).Angle(), actor2->spr.Angles.Yaw) < DAngle90;
 }
 
 // Given a z height and sprite return the correct y repeat value
 inline int GetRepeatFromHeight(DSWActor* sp, double zh)
 {
-    return int(zh * 64) / tileHeight(sp->spr.picnum);
+    auto tex = TexMan.GetGameTexture(sp->spr.spritetexture());
+    return int(zh * 64) / int(tex->GetDisplayHeight());
 }
 
 inline bool SpriteInDiveArea(DSWActor* a)
@@ -2138,7 +2128,7 @@ struct ANIM
             animactor->user.pos.Z = value;
 			break;
         case ANIM_SUdepth:
-            sector[animindex].depth_fixed = value;
+            sector[animindex].depth_fixed = (int)value;
         default:
             return;
         }

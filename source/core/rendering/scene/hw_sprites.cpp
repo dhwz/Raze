@@ -30,6 +30,7 @@
 #include "vectors.h"
 #include "texturemanager.h"
 #include "basics.h"
+#include "texinfo.h"
 
 //#include "hw_models.h"
 #include "hw_drawstructs.h"
@@ -45,6 +46,7 @@
 #include "hw_models.h"
 #include "hw_viewpointbuffer.h"
 #include "hw_voxels.h"
+#include "buildtiles.h"
 
 //==========================================================================
 //
@@ -153,8 +155,9 @@ void HWSprite::DrawSprite(HWDrawInfo* di, FRenderState& state, bool translucent)
 			model->BuildVertexBuffer(&mr);
 			bool mirrored = ((Sprite->cstat & CSTAT_SPRITE_XFLIP) != 0) ^ ((Sprite->cstat & CSTAT_SPRITE_YFLIP) != 0) ^ portalState.isMirrored();
 			mr.BeginDrawModel(RenderStyle, nullptr, rotmat, mirrored);
-			mr.SetupFrame(model, 0, 0, 0);
-			model->RenderFrame(&mr, TexMan.GetGameTexture(model->GetPaletteTexture()), 0, 0, 0.f, TRANSLATION(Translation_Remap + curbasepal, palette), nullptr);
+			TArray<VSMatrix> a;
+			mr.SetupFrame(model, 0, 0, 0, a, 0);
+			model->RenderFrame(&mr, TexMan.GetGameTexture(model->GetPaletteTexture()), 0, 0, 0.f, TRANSLATION(Translation_Remap + curbasepal, palette), nullptr, a, 0);
 			mr.EndDrawModel(RenderStyle, nullptr);
 			state.SetDepthFunc(DF_Less);
 			state.SetVertexBuffer(screen->mVertexData);
@@ -317,7 +320,7 @@ void HWSprite::Process(HWDrawInfo* di, tspritetype* spr, sectortype* sector, int
 	if (spr == nullptr)
 		return;
 
-	auto tex = tileGetTexture(spr->picnum);
+	auto tex = TexMan.GetGameTexture(spr->spritetexture());
 	if (!tex || !tex->isValid()) return;
 
 	texture = tex;
@@ -342,15 +345,16 @@ void HWSprite::Process(HWDrawInfo* di, tspritetype* spr, sectortype* sector, int
 	if (modelframe == 0)
 	{
 		int flags = spr->cstat;
-		int tilenum = spr->picnum;
 
 		int xsize, ysize, tilexoff, tileyoff;
-		if (hw_hightile && TileFiles.tiledata[tilenum].hiofs.xsize)
+		const TileOffs* tofs;
+
+		if (hw_hightile && (tofs = GetHiresOffset(spr->spritetexture())))
 		{
-			xsize = TileFiles.tiledata[tilenum].hiofs.xsize;
-			ysize = TileFiles.tiledata[tilenum].hiofs.ysize;
-			tilexoff = TileFiles.tiledata[tilenum].hiofs.xoffs;
-			tileyoff = TileFiles.tiledata[tilenum].hiofs.yoffs;
+			xsize = tofs->xsize;
+			ysize = tofs->ysize;
+			tilexoff = tofs->xoffs;
+			tileyoff = tofs->yoffs;
 		}
 		else
 		{
@@ -370,17 +374,19 @@ void HWSprite::Process(HWDrawInfo* di, tspritetype* spr, sectortype* sector, int
 		}
 
 		// convert to render space.
-		float width = (xsize * spr->xrepeat) * (0.2f / 16.f); // weird Build fuckery. Face sprites are rendered at 80% width only.
-		float height = (ysize * spr->yrepeat) * (0.25f / 16.f);
-		float xoff = (tilexoff * spr->xrepeat) * (0.2f / 16.f);
-		float yoff = (tileyoff * spr->yrepeat) * (0.25f / 16.f);
+		float sx = (float)spr->scale.X * 0.8f; // weird Build fuckery. Face sprites are rendered at 80% width only.
+		float sy = (float)spr->scale.Y;
+		float width = xsize * sx;
+		float height = ysize * sy;
+		float xoff = tilexoff * sx;
+		float yoff = tileyoff * sy;
 
-		if (xsize & 1) xoff -= spr->xrepeat * (0.1f / 16.f);  // Odd xspans (taken from polymost as-is)
+		if (xsize & 1) xoff -= sx * 0.5f;  // Odd xspans (taken from polymost as-is)
 
 		if (spr->cstat & CSTAT_SPRITE_YCENTER)
 		{
-			yoff -= height * 0.5;
-			if (ysize & 1) yoff -= spr->yrepeat * (0.125f / 16.f);  // Odd yspans (taken from polymost as-is)
+			yoff -= height * 0.5f;
+			if (ysize & 1) yoff -= sy * 0.5f;  // Odd yspans (taken from polymost as-is)
 		}
 
 		if (flags & CSTAT_SPRITE_XFLIP) xoff = -xoff;
@@ -459,11 +465,11 @@ bool HWSprite::ProcessVoxel(HWDrawInfo* di, voxmodel_t* vox, tspritetype* spr, s
 	visibility = sectorVisibility(sector);
 	voxel = vox;
 
-	auto ang = spr->int_ang() + ownerActor->sprext.angoff;
+	auto ang = spr->Angles.Yaw + ownerActor->sprext.rot.Yaw;
 	if ((spr->clipdist & TSPR_MDLROTATE) || rotate)
 	{
 		int myclock = (PlayClock << 3) + MulScale(4 << 3, (int)di->Viewpoint.TicFrac, 16);
-		ang = (ang + myclock) & 2047;
+		ang += DAngle::fromBuild(myclock);
 	}
 
 
@@ -475,13 +481,14 @@ bool HWSprite::ProcessVoxel(HWDrawInfo* di, voxmodel_t* vox, tspritetype* spr, s
 	FVector3 scalevec = { voxel->scale, voxel->scale, voxel->scale };
 	FVector3 translatevec = { 0, 0, voxel->zadd * voxel->scale };
 
-	float basescale = voxel->bscale / 64.f;
-	float sprxscale = (float)spr->xrepeat * (256.f / 320.f) * basescale;
+	float basescale = voxel->bscale;
+	float sprxscale = (float)spr->scale.X * 0.8f * basescale;
 	if ((spr->ownerActor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) == CSTAT_SPRITE_ALIGNMENT_WALL)
 	{
 		sprxscale *= 1.25f;
-		translatevec.Y -= spr->xoffset * bcosf(ownerActor->sprext.angoff, -20);
-		translatevec.X += spr->xoffset * bsinf(ownerActor->sprext.angoff, -20);
+		auto rvec = ownerActor->sprext.rot.Yaw.ToVector();
+		translatevec.Y -= spr->xoffset * rvec.X;
+		translatevec.X += spr->xoffset * rvec.Y;
 	}
 
 	if (spr->cstat & CSTAT_SPRITE_YFLIP) 
@@ -500,13 +507,13 @@ bool HWSprite::ProcessVoxel(HWDrawInfo* di, voxmodel_t* vox, tspritetype* spr, s
 	translatevec.X *= sprxscale; 
 	scalevec.Y *= sprxscale; 
 	translatevec.Y *= sprxscale;
-	float sprzscale = (float)spr->yrepeat * basescale;
+	float sprzscale = (float)spr->scale.Y * basescale;
 	scalevec.Z *= sprzscale; 
 	translatevec.Z *= sprzscale;
 
 	float zpos = (float)(spr->pos.Z + ownerActor->sprext.position_offset.Z);
-	float zscale = ((spr->cstat & CSTAT_SPRITE_YFLIP) && (spr->ownerActor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) != 0) ? -1.f/64.f : 1.f/64.f;
-	zpos -= (spr->yoffset * spr->yrepeat) * zscale * voxel->bscale;
+	float zscale = ((spr->cstat & CSTAT_SPRITE_YFLIP) && (spr->ownerActor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) != 0) ? -1.f : 1.f;
+	zpos -= (spr->yoffset * spr->scale.Y) * zscale * basescale;
 
 	x = (spr->pos.X + ownerActor->sprext.position_offset.X);
 	z = -zpos;
@@ -524,7 +531,7 @@ bool HWSprite::ProcessVoxel(HWDrawInfo* di, voxmodel_t* vox, tspritetype* spr, s
 
 	rotmat.loadIdentity();
 	rotmat.translate(x + translatevec.X, z - translatevec.Z, y - translatevec.Y);
-	rotmat.rotate(DAngle::fromBuild(ang).Degrees() - 90.f, 0, 1, 0);
+	rotmat.rotate(ang.Degrees() - 90., 0, 1, 0);
 	rotmat.scale(scalevec.X, scalevec.Z, scalevec.Y);
 	// Apply pivot last
 	rotmat.translate(-voxel->piv.X, zoff, voxel->piv.Y);

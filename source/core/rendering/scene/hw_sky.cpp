@@ -31,9 +31,11 @@
 #include "cmdlib.h"
 #include "psky.h"
 
+#include "buildtiles.h"
+
 CVAR(Bool,gl_noskyboxes, false, 0)
-FGameTexture* GetSkyTexture(int basetile, int lognumtiles, const int16_t* tilemap, int remap);
-FGameTexture* SkyboxReplacement(FTextureID picnum, int palnum);
+FGameTexture* GetSkyTexture(FTextureID texid, int lognumtiles, const int16_t* tilemap, int remap);
+FGameTexture* SkyboxReplacement(FTextureID texid, int palnum);
 
 //==========================================================================
 //
@@ -43,24 +45,25 @@ FGameTexture* SkyboxReplacement(FTextureID picnum, int palnum);
 
 void initSkyInfo(HWDrawInfo *di, HWSkyInfo* sky, sectortype* sector, int plane)
 {
-	int picnum = plane == plane_ceiling ? sector->ceilingpicnum : sector->floorpicnum;
-	tileUpdatePicnum(&picnum);
+	FTextureID otexid = plane == plane_ceiling ? sector->ceilingtexture : sector->floortexture;
+	auto tex = TexMan.GetGameTexture(otexid, true);
+	auto texid = tex->GetID();	// after animation
 	int palette = plane == plane_ceiling ? sector->ceilingpal : sector->floorpal;
 
-	FGameTexture* skytex = SkyboxReplacement(tileGetTexture(picnum)->GetID(), palette);
+	FGameTexture* skytex = SkyboxReplacement(texid, palette);
 	int realskybits = 0;
 	// todo: check for skybox replacement.
 	SkyDefinition skydef;
 	if (!skytex)
 	{
 		int remap = TRANSLATION(Translation_Remap + curbasepal, palette);
-		skydef = getSky(picnum);
-		int tw = tileWidth(picnum);
+		skydef = getSky(texid);
+		int tw = (int)tex->GetDisplayWidth();
 
-		skytex = GetSkyTexture(picnum, skydef.lognumtiles, skydef.offsets, remap);
+		skytex = GetSkyTexture(texid, skydef.lognumtiles, skydef.offsets, remap);
 		realskybits = skydef.lognumtiles;
 		if (skytex) skydef.lognumtiles = 0;
-		else skytex = tileGetTexture(picnum);
+		else skytex = tex;
 	}
 	else
 	{

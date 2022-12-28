@@ -45,9 +45,6 @@ sectortype* initsectp;
 
 int nCurChunkNum = 0;
 
-int movefifoend;
-int movefifopos;
-
 int Counters[kNumCounters];
 
 
@@ -75,7 +72,7 @@ static TArray<DExhumedActor*> spawnactors(SpawnSpriteDef& sprites)
         auto sprt = &sprites.sprites[i];
         auto actor = insertActor(sprt->sectp, sprt->statnum);
         spawns[j++] = actor;
-        actor->spr = sprites.sprites[i];
+		actor->initFromSprite(&sprites.sprites[i]);
         actor->time = i;
         if (sprites.sprext.Size()) actor->sprext = sprites.sprext[i];
         else actor->sprext = {};
@@ -85,6 +82,12 @@ static TArray<DExhumedActor*> spawnactors(SpawnSpriteDef& sprites)
     return spawns;
 }
 
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 uint8_t LoadLevel(MapRecord* map)
 {
@@ -140,12 +143,12 @@ uint8_t LoadLevel(MapRecord* map)
         nStopSound = 66;
     }
 
-    int initsect;
+    sectortype* initsect;
     SpawnSpriteDef spawned;
     int16_t mapang;
     loadMap(currentLevel->fileName, 0, &initpos, &mapang, &initsect, spawned);
     inita = DAngle::fromBuild(mapang);
-    initsectp = &sector[initsect];
+    initsectp = initsect;
     auto actors = spawnactors(spawned);
 
     int i;
@@ -153,6 +156,7 @@ uint8_t LoadLevel(MapRecord* map)
     for (i = 0; i < kMaxPlayers; i++)
     {
         PlayerList[i].pActor = nullptr;
+        PlayerList[i].Angles = {};
     }
 
     g_visibility = 1024;
@@ -162,6 +166,12 @@ uint8_t LoadLevel(MapRecord* map)
     LoadObjects(actors);
     return true;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void InitLevel(MapRecord* map)
 {
@@ -182,15 +192,17 @@ void InitLevel(MapRecord* map)
     ResetEngine();
     totalmoves = 0;
     GrabPalette();
-    ResetMoveFifo();
-    lPlayerXVel = 0;
-    lPlayerYVel = 0;
-    movefifopos = movefifoend;
 
     if (!mus_redbook && map->music.IsNotEmpty()) Mus_Play(map->music, true);    // Allow non-CD music if defined for the current level
     playCDtrack(map->cdSongId, true);
 	setLevelStarted(currentLevel);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void InitNewGame()
 {
@@ -208,34 +220,33 @@ void InitNewGame()
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void SnapSectors(sectortype* pSectorA, sectortype* pSectorB, int b)
 {
-	for(auto& wal1 : wallsofsector(pSectorA))
+	for(auto& wal1 : pSectorA->walls)
     {
-		int bestx = 0x7FFFFFF;
-        int besty = bestx;
-
-        int x = wal1.wall_int_pos().X;
-        int y = wal1.wall_int_pos().Y;
+        DVector2 bestxy = { 0x7FFFFFF, 0x7FFFFFF };
+        DVector2 w1pos = wal1.pos;
 
         walltype* bestwall = nullptr;
 
-        for(auto& wal2 : wallsofsector(pSectorB))
+        for(auto& wal2 : pSectorB->walls)
         {
-            int thisx = x - wal2.wall_int_pos().X;
-            int thisy = y - wal2.wall_int_pos().Y;
-            int thisdist = abs(thisx) + abs(thisy);
-			int bestdist = abs(bestx) + abs(besty);
+            DVector2 thisxy = w1pos - wal2.pos;
 
-            if (thisdist < bestdist)
+            if (thisxy.Sum() < bestxy.Sum())
             {
-                bestx = thisx;
-                besty = thisy;
+                bestxy = thisxy;
                 bestwall = &wal2;
             }
         }
 
-        dragpoint(bestwall, bestwall->wall_int_pos().X + bestx, bestwall->wall_int_pos().Y + besty);
+        dragpoint(bestwall, bestwall->pos + bestxy);
     }
 
     if (b) {
@@ -246,6 +257,12 @@ void SnapSectors(sectortype* pSectorA, sectortype* pSectorB, int b)
         SnapBobs(pSectorA, pSectorB);
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void ProcessSpriteTag(DExhumedActor* pActor, int nLotag, int nHitag)
 {
@@ -439,7 +456,7 @@ void ProcessSpriteTag(DExhumedActor* pActor, int nLotag, int nHitag)
             }
             case 116:
             {
-                BuildRat(pActor, nulvec, nullptr, DAngle::fromBam(unsigned(-1)));
+                BuildRat(pActor, nulvec, nullptr, -minAngle);
                 return;
             }
             case 115: // Rat (eating)
@@ -607,7 +624,7 @@ void ProcessSpriteTag(DExhumedActor* pActor, int nLotag, int nHitag)
             case 94: // water
             {
                 auto pSector = pActor->sector();
-                pSector->Depth = nHitag << 8;
+                pSector->Depth = nHitag;
 
                 DeleteActor(pActor);
                 return;
@@ -634,7 +651,7 @@ void ProcessSpriteTag(DExhumedActor* pActor, int nLotag, int nHitag)
             }
             case 88:
             {
-                AddFlow(pActor->sector(), nSpeed, 0, pActor->int_ang());
+                AddFlow(pActor->sector(), nSpeed, 0, pActor->spr.Angles.Yaw);
 
                 DeleteActor(pActor);
                 return;
@@ -649,7 +666,7 @@ void ProcessSpriteTag(DExhumedActor* pActor, int nLotag, int nHitag)
             }
             case 78:
             {
-                AddFlow(pActor->sector(), nSpeed, 1, pActor->int_ang());
+                AddFlow(pActor->sector(), nSpeed, 1, pActor->spr.Angles.Yaw);
 
                 auto pSector = pActor->sector();
                 pSector->Flag |= 0x8000;
@@ -717,6 +734,12 @@ void ProcessSpriteTag(DExhumedActor* pActor, int nLotag, int nHitag)
     DeleteActor(pActor);
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void ExamineSprites(TArray<DExhumedActor*>& actors)
 {
     nNetStartSprites = 0;
@@ -754,6 +777,12 @@ void ExamineSprites(TArray<DExhumedActor*>& actors)
         nNetStartSprites++;
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void LoadObjects(TArray<DExhumedActor*>& actors)
 {
@@ -813,6 +842,12 @@ void LoadObjects(TArray<DExhumedActor*>& actors)
 
     nCamerapos = initpos;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void SerializeInit(FSerializer& arc)
 {

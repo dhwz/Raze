@@ -96,7 +96,7 @@ SPRING_BOARD SpringBoard[20];
 
 void SetSectorWallBits(sectortype* sect, int bit_mask, bool set_sectwall, bool set_nextwall)
 {
-    auto start_wall = sect->firstWall();
+    auto start_wall = sect->walls.Data();
     auto wall_num = start_wall;
 
     do
@@ -191,11 +191,12 @@ void WallSetup(void)
 
     for (auto& wal : wall)
     {
-        if (wal.picnum == FAF_PLACE_MIRROR_PIC)
-            wal.picnum = FAF_MIRROR_PIC;
+        /*
+        if (wal.walltexture() == FAFPlaceMirrorPic[0])
+            wal.setwalltexture(FAFMirrorPic[0]);
 
-        if (wal.picnum == FAF_PLACE_MIRROR_PIC+1)
-            wal.picnum = FAF_MIRROR_PIC+1;
+        if (wal.walltexture() == FAFPlaceMirrorPic[1])
+            wal.setwalltexture(FAFMirrorPic[1]);*/
 
         // this overwrites the lotag so it needs to be called LAST - its down there
         // SetupWallForBreak(wp);
@@ -224,7 +225,7 @@ void WallSetup(void)
             }
             else
             {
-                Printf(PRINT_HIGH, "one-sided wall %d in loop setup\n", wallnum(&wal));
+                Printf(PRINT_HIGH, "one-sided wall %d in loop setup\n", wallindex(&wal));
             }
             break;
         }
@@ -238,7 +239,7 @@ void WallSetup(void)
             }
             else
             {
-                Printf(PRINT_HIGH, "one-sided wall %d in loop setup\n", wallnum(&wal));
+                Printf(PRINT_HIGH, "one-sided wall %d in loop setup\n", wallindex(&wal));
             }
             wal.lotag = 0;
             break;
@@ -356,27 +357,12 @@ void SectorLiquidSet(sectortype* sectp)
     //
     // ///////////////////////////////////
 
-    if (sectp->floorpicnum >= 300 && sectp->floorpicnum <= 307)
+    if (tilesurface(sectp->floortexture) == TSURF_WATER)
     {
         sectp->u_defined = true;
         sectp->extra |= (SECTFX_LIQUID_WATER);
     }
-    else if (sectp->floorpicnum >= 320 && sectp->floorpicnum <= 343)
-    {
-        sectp->u_defined = true;
-        sectp->extra |= (SECTFX_LIQUID_WATER);
-    }
-    else if (sectp->floorpicnum >= 780 && sectp->floorpicnum <= 794)
-    {
-        sectp->u_defined = true;
-        sectp->extra |= (SECTFX_LIQUID_WATER);
-    }
-    else if (sectp->floorpicnum >= 890 && sectp->floorpicnum <= 897)
-    {
-        sectp->u_defined = true;
-        sectp->extra |= (SECTFX_LIQUID_WATER);
-    }
-    else if (sectp->floorpicnum >= 175 && sectp->floorpicnum <= 182)
+    else if (tilesurface(sectp->floortexture) == TSURF_LAVA)
     {
         sectp->u_defined = true;
         sectp->extra |= (SECTFX_LIQUID_LAVA);
@@ -417,7 +403,9 @@ void SectorSetup(void)
         SectorObject[ndx].pmid.X = MAXSO;
         SectorObject[ndx].ang = SectorObject[ndx].ang_moving = SectorObject[ndx].ang_tgt = 
             SectorObject[ndx].ang_orig = SectorObject[ndx].last_ang = SectorObject[ndx].old_ang =
-            SectorObject[ndx].spin_speed = SectorObject[ndx].save_spin_speed = SectorObject[ndx].spin_ang = nullAngle;
+            SectorObject[ndx].spin_speed = SectorObject[ndx].save_spin_speed = SectorObject[ndx].spin_ang = SectorObject[ndx].morph_ang = nullAngle;
+
+        SectorObject[ndx].limit_ang_delta = SectorObject[ndx].limit_ang_center = DAngle360 - minAngle;
 
     }
 
@@ -451,7 +439,7 @@ void SectorSetup(void)
         if ((sectp->floorstat & CSTAT_SECTOR_SKY))
         {
             // don't do a z adjust for FAF area
-            if (sectp->floorpicnum != FAF_PLACE_MIRROR_PIC)
+            if (sectp->floortexture != FAFPlaceMirrorPic[0])
             {
                 sectp->extra |= (SECTFX_Z_ADJUST);
             }
@@ -460,7 +448,7 @@ void SectorSetup(void)
         if ((sectp->ceilingstat & CSTAT_SECTOR_SKY))
         {
             // don't do a z adjust for FAF area
-            if (sectp->ceilingpicnum != FAF_PLACE_MIRROR_PIC)
+            if (sectp->ceilingtexture != FAFPlaceMirrorPic[0])
             {
                 sectp->extra |= (SECTFX_Z_ADJUST);
             }
@@ -637,11 +625,11 @@ DVector3 SectorMidPoint(sectortype* sectp)
 {
     DVector3 sum(0,0,0);
 
-    for (auto& wal : wallsofsector(sectp))
+    for (auto& wal : sectp->walls)
     {
         sum += wal.pos;
     }
-    sum /= sectp->wallnum;
+    sum /= sectp->walls.Size();
     sum.Z = (sectp->floorz + sectp->ceilingz) * 0.5;
     return sum;
 }
@@ -702,7 +690,7 @@ void DoSpringBoardDown(void)
 
 sectortype* FindNextSectorByTag(sectortype* sect, int tag)
 {
-    for(auto& wal : wallsofsector(sect))
+    for(auto& wal : sect->walls)
     {
         if (wal.twoSided())
         {
@@ -912,20 +900,20 @@ void SectorExp(DSWActor* actor, sectortype* sectp, double zh)
     actor->spr.cstat &= ~(CSTAT_SPRITE_ALIGNMENT_WALL|CSTAT_SPRITE_ALIGNMENT_FLOOR);
     auto mid = SectorMidPoint(sectp);
     // randomize the explosions
-	actor->spr.angle = RandomAngle(45) + DAngle22_5;
+	actor->spr.Angles.Yaw = RandomAngle(45) + DAngle22_5;
     actor->spr.pos = { mid.X + RANDOM_P2F(16, 4) - 16, mid.Y + RANDOM_P2F(64, 4) - 64, zh };
     
     // setup vars needed by SectorExp
     ChangeActorSect(actor, sectp);
-    getzsofslopeptr(actor->sector(), actor->spr.pos.X, actor->spr.pos.Y, &actor->user.hiz, &actor->user.loz);
+    calcSlope(actor->sector(), actor->spr.pos.X, actor->spr.pos.Y, &actor->user.hiz, &actor->user.loz);
 
     // spawn explosion
     auto exp = SpawnSectorExp(actor);
     if (!exp) return;
 
-    exp->spr.xrepeat += (RANDOM_P2(32<<8)>>8) - 16;
-    exp->spr.yrepeat += (RANDOM_P2(32<<8)>>8) - 16;
-    exp->user.change.XY() = exp->spr.angle.ToVector(5.75);
+    exp->spr.scale.X += (((RANDOM_P2(32 << 8) >> 8) - 16) * REPEAT_SCALE);
+    exp->spr.scale.Y += (((RANDOM_P2(32 << 8) >> 8) - 16) * REPEAT_SCALE);
+    exp->user.change.XY() = exp->spr.Angles.Yaw.ToVector(5.75);
 }
 
 
@@ -1269,10 +1257,10 @@ void WeaponExplodeSectorInRange(DSWActor* wActor)
         // test to see if explosion is close to crack sprite
         double dist = (wActor->spr.pos - actor->spr.pos).Length();
 
-        if (actor->native_clipdist() == 0)
+        if (actor->clipdist == 0)
             continue;
 
-        double radius = actor->fClipdist() * 8;
+        double radius = actor->clipdist * 8;
 
 		if (dist > (wActor->user.fRadius()/2) + radius)
             continue;
@@ -1397,9 +1385,10 @@ void DoChangorMatch(short match)
         if (SP_TAG2(actor) != match)
             continue;
 
+        assert(SP_TAG4(actor) == -1 || tileGetTextureID(SP_TAG4(actor)) == actor->texparam); // this should catch items that evaded the property remapping somehow.
         if (TEST_BOOL1(actor))
         {
-            sectp->ceilingpicnum = SP_TAG4(actor);
+            sectp->setceilingtexture(actor->texparam);
             sectp->addceilingz(SP_TAG5(actor));
             sectp->ceilingheinum += SP_TAG6(actor);
 
@@ -1413,7 +1402,7 @@ void DoChangorMatch(short match)
         }
         else
         {
-            sectp->floorpicnum = SP_TAG4(actor);
+            sectp->setfloortexture(actor->texparam);
             sectp->addfloorz(SP_TAG5(actor));
             sectp->floorheinum += SP_TAG6(actor);
 
@@ -1547,7 +1536,7 @@ int OperateSprite(DSWActor* actor, short player_is_operating)
     {
         pp = GlobPlayerP;
 
-        if (!FAFcansee(pp->pos, pp->cursector, actor->spr.pos.plusZ(ActorSizeZ(actor) * -0.5), actor->sector()))
+        if (!FAFcansee(pp->actor->getPosWithOffsetZ(), pp->cursector, actor->spr.pos.plusZ(ActorSizeZ(actor) * -0.5), actor->sector()))
             return false;
     }
 
@@ -1937,7 +1926,7 @@ void TriggerSecret(sectortype* sectp, PLAYER* pp)
     if (pp == Player + myconnectindex)
         PlayerSound(DIGI_ANCIENTSECRET, v3df_dontpan | v3df_doppler | v3df_follow, pp);
 
-    SECRET_Trigger(sectnum(pp->cursector));
+    SECRET_Trigger(sectindex(pp->cursector));
 
     PutStringInfo(pp, GStrings("TXTS_SECRET"));
     // always give to the first player
@@ -2025,7 +2014,7 @@ void OperateTripTrigger(PLAYER* pp)
         {
             if (actor->user.Flags & (SPR_WAIT_FOR_TRIGGER))
             {
-                if ((actor->spr.pos.XY() - pp->pos.XY()).Length() < dist)
+                if ((actor->spr.pos.XY() - pp->actor->spr.pos.XY()).Length() < dist)
                 {
                     actor->user.targetActor = pp->actor;
                     actor->user.Flags &= ~(SPR_WAIT_FOR_TRIGGER);
@@ -2138,7 +2127,7 @@ bool NearThings(PLAYER* pp)
         return false;
     }
 
-    neartag(pp->pos, pp->cursector, pp->angle.ang, near, 1024, NTAG_SEARCH_LO_HI);
+    neartag(pp->actor->getPosWithOffsetZ(), pp->cursector, pp->actor->spr.Angles.Yaw, near, 64., NT_Lotag | NT_Hitag);
 
 
     // hit a sprite? Check to see if it has sound info in it!
@@ -2171,12 +2160,12 @@ bool NearThings(PLAYER* pp)
     {
         HitInfo hit{};
 
-        FAFhitscan(pp->pos.plusZ(-30), pp->cursector, DVector3(pp->angle.ang.ToVector() * 1024, 0), hit, CLIPMASK_MISSILE);
+        FAFhitscan(pp->actor->getPosWithOffsetZ().plusZ(-30), pp->cursector, DVector3(pp->actor->spr.Angles.Yaw.ToVector() * 1024, 0), hit, CLIPMASK_MISSILE);
 
         if (hit.hitSector == nullptr)
             return false;
 
-        if ((hit.hitpos.XY() - pp->pos.XY()).Length() > 93.75)
+        if ((hit.hitpos.XY() - pp->actor->spr.pos.XY()).Length() > 93.75)
             return false;
 
         // hit a sprite?
@@ -2211,7 +2200,7 @@ bool NearThings(PLAYER* pp)
 //
 //---------------------------------------------------------------------------
 
-short nti_cnt;
+static int nti_cnt;
 
 void NearTagList(NEAR_TAG_INFO* ntip, PLAYER* pp, double z, double dist, int type, int count)
 {
@@ -2219,7 +2208,7 @@ void NearTagList(NEAR_TAG_INFO* ntip, PLAYER* pp, double z, double dist, int typ
     HitInfo near;
 
 
-    neartag(DVector3(pp->pos.XY(), z), pp->cursector, pp->angle.ang, near, dist, type);
+    neartag(DVector3(pp->actor->spr.pos.XY(), z), pp->cursector, pp->actor->spr.Angles.Yaw, near, dist, type);
 
     if (near.hitSector != nullptr)
     {
@@ -2282,7 +2271,7 @@ void NearTagList(NEAR_TAG_INFO* ntip, PLAYER* pp, double z, double dist, int typ
         save_lotag = actor->spr.lotag;
         save_hitag = actor->spr.hitag;
 
-        ntip->Dist = near.hitpos.X;
+        ntip->Dist = near.hitpos.Y;
         ntip->sectp = nullptr;
         ntip->wallp = nullptr;
         ntip->actor = actor;
@@ -2321,7 +2310,7 @@ void NearTagList(NEAR_TAG_INFO* ntip, PLAYER* pp, double z, double dist, int typ
 //
 //---------------------------------------------------------------------------
 
-void BuildNearTagList(NEAR_TAG_INFO* ntip, int size, PLAYER* pp, double z, int dist, int type, int count)
+void BuildNearTagList(NEAR_TAG_INFO* ntip, int size, PLAYER* pp, double z, double dist, int type, int count)
 {
     memset(ntip, -1, size);
     nti_cnt = 0;
@@ -2344,7 +2333,7 @@ int DoPlayerGrabStar(PLAYER* pp)
         auto actor = StarQueue[i];
         if (actor != nullptr)
         {
-            if ((actor->spr.pos - pp->pos).plusZ(12).Length() < 31.25)
+            if ((actor->spr.pos - pp->actor->getPosWithOffsetZ()).plusZ(12).Length() < 31.25)
             {
                 break;
             }
@@ -2402,7 +2391,7 @@ void PlayerOperateEnv(PLAYER* pp)
                 NearThings(pp); // Check for player sound specified in a level sprite
             }
 
-            BuildNearTagList(nti, sizeof(nti), pp, pp->pos.Z, 128, NTAG_SEARCH_LO_HI, 8);
+            BuildNearTagList(nti, sizeof(nti), pp, pp->actor->getOffsetZ(), 128, NT_Lotag | NT_Hitag, 8);
 
             found = false;
 
@@ -2431,7 +2420,7 @@ void PlayerOperateEnv(PLAYER* pp)
 
                 for (unsigned i = 0; i < SIZ(z); i++)
                 {
-                    BuildNearTagList(nti, sizeof(nti), pp, z[i], 64 + 48, NTAG_SEARCH_LO_HI, 8);
+                    BuildNearTagList(nti, sizeof(nti), pp, z[i], 64 + 48, NT_Lotag | NT_Hitag, 8);
 
                     for (nt_ndx = 0; nti[nt_ndx].Dist >= 0; nt_ndx++)
                     {
@@ -2604,10 +2593,10 @@ void DoSineWaveFloor(void)
             if ((flags & SINE_SLOPED))
             {
                 walltype* wal;
-                if (sect->wallnum == 4)
+                if (sect->walls.Size() == 4)
                 {
                     //Set wal to the wall on the opposite side of the sector
-                    wal = sect->firstWall() + 2;
+                    wal = &sect->walls[2];
 
                     //Pass (Sector, x, y, z)
                     alignflorslope(sect,DVector3(wal->pos, wal->nextSector()->floorz));
@@ -2625,28 +2614,24 @@ void DoSineWaveFloor(void)
 
 void DoSineWaveWall(void)
 {
-    SINE_WALL *sw;
-    double New;
-    short sw_num;
-
-    for (sw_num = 0; sw_num < MAX_SINE_WALL; sw_num++)
+    for (short sw_num = 0; sw_num < MAX_SINE_WALL; sw_num++)
     {
-        for (sw = &SineWall[sw_num][0]; sw->wallp != nullptr && sw < &SineWall[sw_num][MAX_SINE_WALL_POINTS]; sw++)
+        for (SINE_WALL* sw = &SineWall[sw_num][0]; sw->wallp != nullptr && sw < &SineWall[sw_num][MAX_SINE_WALL_POINTS]; sw++)
         {
             auto wal = sw->wallp;
+            DVector2 newpos = wal->pos;
             // move through the sintable
             sw->sintable_ndx = NORM_ANGLE(sw->sintable_ndx + (synctics << sw->speed_shift));
 
             if (!sw->type)
             {
-                New = sw->origXY + sw->Range * BobVal(sw->sintable_ndx);
-                dragpoint(wal, DVector2(wal->pos.X, New));
+                newpos.Y = sw->origXY + sw->Range * BobVal(sw->sintable_ndx);
             }
             else
             {
-                New = sw->origXY + sw->Range * BobVal(sw->sintable_ndx);
-                dragpoint(wal, DVector2(New, wal->pos.Y));
+                newpos.X = sw->origXY + sw->Range * BobVal(sw->sintable_ndx);
             }
+            dragpoint(wal, newpos);
         }
     }
 }
@@ -2780,7 +2765,7 @@ void AnimDelete(int animtype, int animindex, DSWActor* animactor)
 //
 //---------------------------------------------------------------------------
 
-int AnimSet(int animtype, int animindex, DSWActor* animactor, double thegoal, int thevel)
+int AnimSet(int animtype, int animindex, DSWActor* animactor, double thegoal, double thevel)
 {
     int i, j;
 
@@ -2803,6 +2788,7 @@ int AnimSet(int animtype, int animindex, DSWActor* animactor, double thegoal, in
 	Anim[j].animactor = animactor;
     Anim[j].goal = thegoal;
     Anim[j].vel = thevel;
+    if (animtype != ANIM_SUdepth) Anim[j].vel /= 256.;
     Anim[j].vel_adj = 0;
     Anim[j].callback = nullptr;
     Anim[j].callbackdata = nullptr;
@@ -2868,8 +2854,8 @@ void DoPanning(void)
     {
         sectp = actor->sector();
 
-		nx = xs_CRoundToInt(actor->vel.X * actor->spr.angle.Cos() * 0.25);
-		ny = xs_CRoundToInt(actor->vel.X * actor->spr.angle.Sin() * 0.25);
+		nx = xs_CRoundToInt(actor->vel.X * actor->spr.Angles.Yaw.Cos() * 0.25);
+		ny = xs_CRoundToInt(actor->vel.X * actor->spr.Angles.Yaw.Sin() * 0.25);
 
         sectp->addfloorxpan((float)nx);
         sectp->addfloorypan((float)ny);
@@ -2880,8 +2866,8 @@ void DoPanning(void)
     {
         sectp = actor->sector();
 
-        nx = xs_CRoundToInt(actor->vel.X * actor->spr.angle.Cos() * 0.25);
-        ny = xs_CRoundToInt(actor->vel.X * actor->spr.angle.Sin() * 0.25);
+        nx = xs_CRoundToInt(actor->vel.X * actor->spr.Angles.Yaw.Cos() * 0.25);
+        ny = xs_CRoundToInt(actor->vel.X * actor->spr.Angles.Yaw.Sin() * 0.25);
 
         sectp->addceilingxpan((float)nx);
         sectp->addceilingypan((float)ny);
@@ -2892,8 +2878,8 @@ void DoPanning(void)
     {
         wallp = actor->tempwall;
 
-        nx = xs_CRoundToInt(actor->vel.X * actor->spr.angle.Cos() * 0.25);
-        ny = xs_CRoundToInt(actor->vel.X * actor->spr.angle.Sin() * 0.25);
+        nx = xs_CRoundToInt(actor->vel.X * actor->spr.Angles.Yaw.Cos() * 0.25);
+        ny = xs_CRoundToInt(actor->vel.X * actor->spr.Angles.Yaw.Sin() * 0.25);
 
         wallp->addxpan((float)nx);
         wallp->addypan((float)ny);
@@ -2936,7 +2922,7 @@ void DoSector(void)
             }
             else
             {
-				double dist = (pp->pos.XY() - sop->pmid.XY()).Length();
+				double dist = (pp->actor->spr.pos.XY() - sop->pmid.XY()).Length();
                 if (dist < min_dist)
                     min_dist = dist;
             }

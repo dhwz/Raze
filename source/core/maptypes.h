@@ -35,15 +35,19 @@ Prepared for public release: 03/21/2003 - Charlie Wiederhold, 3D Realms
 
 void MarkVerticesForSector(int sector);
 
-static constexpr double maptoworld = (1 / 16.);	// this for necessary conversions to convert map data to floating point representation.
-static constexpr double inttoworld = (1 / 16.); // this is for conversions needed to make floats coexist with existing code.
-static constexpr double worldtoint = 16.;
-
+// Build conversion factors
 static constexpr double zmaptoworld = (1 / 256.);	// this for necessary conversions to convert map data to floating point representation.
-static constexpr double zinttoworld = (1 / 256.); // this is for conversions needed to make floats coexist with existing code.
-static constexpr double zworldtoint = 256.;
-
+static constexpr double maptoworld = (1 / 16.);	// this for necessary conversions to convert map data to floating point representation.
 static constexpr double REPEAT_SCALE = (1 / 64.);	// map's 'repeat' values use 2.6 fixed point.
+static constexpr double INV_REPEAT_SCALE = 64;
+
+// These are refactoring markers that should be eliminated.
+static constexpr double zinttoworld = (1 / 256.); // this is for conversions needed to make floats coexist with existing code.
+static constexpr double inttoworld = (1 / 16.); // this is for conversions needed to make floats coexist with existing code.
+static constexpr double zworldtoint = 256.;
+static constexpr double worldtoint = 16.;
+static constexpr double scaletoint = 64;		// refactoring marker of the stuff above
+static constexpr double inttoscale = (1/64.);	// map's 'repeat' values use 2.6 fixed point.
 
 //=============================================================================
 //
@@ -180,6 +184,9 @@ enum ESpriteBits2
 	CSTAT2_SPRITE_MAPPED = 2,		// sprite was mapped for automap
 	CSTAT2_SPRITE_NOSHADOW = 4,		// cast no shadow.
 	CSTAT2_SPRITE_DECAL = 8,		// always attached to a wall.
+	CSTAT2_SPRITE_FULLBRIGHT = 16,	// always draw fullbright with shade -127
+	CSTAT2_SPRITE_NOANIMATE = 32,	// disable texture animation
+	CSTAT2_SPRITE_NOMODEL = 64,		// disable models and voxels for this tsprite
 };
 
 // tsprite flags use the otherwise unused clipdist field.
@@ -189,6 +196,9 @@ enum ETSprFlags
 	TSPR_FLAGS_DRAW_LAST = 2,	// Currently unused: checked by Polymost but never set.
 	TSPR_MDLROTATE = 4,			// rotate if this is a model or voxel.
 	TSPR_SLOPESPRITE = 8,       // render as sloped sprite
+	TSPR_ROTATE8FRAMES = 16,	// do an 8 frame rotation
+	TSPR_ROTATE12FRAMES = 32,	// do an 12 frame rotation
+	TSPR_NOFLOORPAL = 64,		// ignore the floorpal
 };
 
 
@@ -206,7 +216,91 @@ BEGIN_BLD_NS
 END_BLD_NS
 
 class DCoreActor;
-struct walltype;
+struct sectortype;
+
+
+//=============================================================================
+//
+// internal wall struct - no longer identical with on-disk format
+//
+//=============================================================================
+
+struct walltype
+{
+	DVector2 pos;
+
+	vec2_t wall_int_pos() const { return vec2_t(int(pos.X * worldtoint), int(pos.Y * worldtoint)); };
+	vec2_t int_delta() const { return point2Wall()->wall_int_pos() - wall_int_pos(); }
+
+	void setPosFromMap(int x, int y) { pos = { x * maptoworld, y * maptoworld }; }
+
+	int32_t point2;
+	int32_t nextwall;
+	int32_t sector;	// Build never had this...
+	int32_t nextsector;
+
+	// Again, panning fields extended for interpolation.
+	float xpan_;
+	float ypan_;
+
+	EWallFlags cstat;
+	int16_t wallpicnum;
+	int16_t overpicnum;
+	union { int16_t lotag, type; }; // type is for Blood
+	int16_t hitag;
+	int16_t extra;
+
+	int8_t shade;
+	uint8_t pal;
+	uint8_t xrepeat;
+	uint8_t yrepeat;
+
+	// extensions not from the binary map format.
+	angle_t clipangle;
+
+	uint16_t portalnum;
+	uint8_t portalflags;
+	uint8_t lengthflags;
+
+	// Blood is the only game which extends the wall struct.
+	Blood::XWALL* _xw;
+	DVector2 baseWall;
+	double length; // cached value to avoid calling sqrt repeatedly.
+
+	int xpan() const { return int(xpan_); }
+	int ypan() const { return int(ypan_); }
+	void setxpan(float add) { xpan_ = fmodf(add + 512, 256); } // +512 is for handling negative offsets
+	void setypan(float add) { ypan_ = fmodf(add + 512, 256); } // +512 is for handling negative offsets
+	void addxpan(float add) { xpan_ = fmodf(xpan_ + add + 512, 256); } // +512 is for handling negative offsets
+	void addypan(float add) { ypan_ = fmodf(ypan_ + add + 512, 256); } // +512 is for handling negative offsets
+	sectortype* nextSector() const;
+	sectortype* sectorp() const;
+	walltype* nextWall() const;
+	walltype* lastWall(bool fast = true) const;
+	walltype* point2Wall() const;
+	DVector2 delta() const { return point2Wall()->pos - pos; }
+	DVector2 center() const { return(point2Wall()->pos + pos) / 2; }
+	DAngle normalAngle() const { return delta().Angle() + DAngle90; }
+	bool twoSided() const { return nextsector >= 0; }
+	double Length();
+	void calcLength();	// this is deliberately not inlined and stored in a file where it can't be found at compile time.
+	void move(const DVector2& vec)
+	{
+		pos = vec;
+		moved();
+	}
+
+	void moved();
+
+	Blood::XWALL& xw() const { return *_xw; }
+	bool hasX() const { return _xw != nullptr; }
+	void allocX();
+
+	const FTextureID walltexture() const;
+	const FTextureID overtexture() const;
+	void setwalltexture(FTextureID tex);
+	void setovertexture(FTextureID tex);
+};
 
 // enable for running a compile-check to ensure that renderer-critical variables are not being written to directly.
 //#define SECTOR_HACKJOB
@@ -219,11 +313,17 @@ struct walltype;
 
 struct sectortype
 {
+	enum EWhich
+	{
+		ceiling = 0,
+		floor = 1,
+	};
 
 	// Fields were reordered by size, some also enlarged.
 	DCoreActor* firstEntry, * lastEntry;
 
-	int32_t wallptr;
+	TArrayView<walltype> walls;
+
 #ifdef SECTOR_HACKJOB
 	// Debug hack job for finding all places where ceilingz and floorz get written to.
 	// If the engine does not compile with this block on, we got a problem.
@@ -231,10 +331,6 @@ struct sectortype
 	const double floorz, ceilingz;
 	sectortype(double a = 0, double b = 0) : ceilingz(a), floorz(b) {}
 
-	void set_int_ceilingz(int cc, bool temp = false) {}
-	void set_int_floorz(int cc, bool temp = false) {}
-	void add_int_ceilingz(int cc, bool temp = false) {}
-	void add_int_floorz(int cc, bool temp = false) {}
 
 #else
 	// Do not change directly!
@@ -245,11 +341,6 @@ struct sectortype
 	void addceilingz(double cc, bool temp = false);
 	void addfloorz(double cc, bool temp = false);
 
-	void set_int_ceilingz(int cc, bool temp = false) { setceilingz(cc * zinttoworld, temp); }
-	void set_int_floorz(int cc, bool temp = false) { setfloorz(cc * zinttoworld, temp); }
-	void add_int_ceilingz(int cc, bool temp = false) { addceilingz(cc * zinttoworld, temp); }
-	void add_int_floorz(int cc, bool temp = false) { addfloorz(cc * zinttoworld, temp); }
-
 	void setzfrommap(int c, int f)
 	{
 		ceilingz = c * zmaptoworld;
@@ -258,22 +349,17 @@ struct sectortype
 
 #endif
 
-	int int_ceilingz() const { return ceilingz * zworldtoint; }
-	int int_floorz() const { return floorz * zworldtoint; }
-
-
 	// panning byte fields were promoted to full floats to enable panning interpolation.
 	float ceilingxpan_;
 	float ceilingypan_;
 	float floorxpan_;
 	float floorypan_;
+	FTextureID ceilingtexture;
+	FTextureID floortexture;
 
-	int16_t wallnum;
 	ESectorFlags ceilingstat;
 	ESectorFlags floorstat;
-	int16_t ceilingpicnum;
 	int16_t ceilingheinum;
-	int16_t floorpicnum;
 	int16_t floorheinum;
 	union { int16_t lotag, type; }; // type is for Blood.
 	int16_t hitag;
@@ -319,7 +405,7 @@ struct sectortype
 			sectortype* pSoundSect;
 			sectortype* pAbove;
 			sectortype* pBelow;
-			int   Depth;
+			double Depth;
 			short Sound;
 			short Flag;
 			short Damage;
@@ -357,9 +443,12 @@ struct sectortype
 	void setfloorslope(int heinum) { floorheinum = heinum; if (heinum) floorstat |= CSTAT_SECTOR_SLOPE; else floorstat &= ~CSTAT_SECTOR_SLOPE; }
 	int getfloorslope() const { return floorstat & CSTAT_SECTOR_SLOPE ? floorheinum : 0; }
 	int getceilingslope() const { return ceilingstat & CSTAT_SECTOR_SLOPE ? ceilingheinum : 0; }
-	walltype* firstWall() const;
-	walltype* lastWall() const;
 
+	// always go through these to alter the textures to ensure we can keep track of these things if engine improvements need it.
+	void setfloortexture(FTextureID tex) { floortexture = tex; }
+	void setceilingtexture(FTextureID tex) { ceilingtexture = tex; }
+	void swapfloortexture(FTextureID &tex) { std::swap(floortexture, tex); }
+	void swapceilingtexture(FTextureID &tex) { std::swap(ceilingtexture, tex); }
 
 	Blood::XSECTOR& xs() const { return *_xs;  }
 	bool hasX() const { return _xs != nullptr; } // 0 is invalid!
@@ -367,84 +456,6 @@ struct sectortype
 
 	// same for SW
 	bool hasU() const { return u_defined; }
-};
-
-//=============================================================================
-//
-// internal wall struct - no longer identical with on-disk format
-//
-//=============================================================================
-
-struct walltype
-{
-	DVector2 pos;
-
-	vec2_t wall_int_pos() const { return vec2_t(pos.X * worldtoint, pos.Y * worldtoint); };
-	vec2_t int_delta() const { return point2Wall()->wall_int_pos() - wall_int_pos(); }
-
-	void setPosFromMap(int x, int y) { pos = { x * maptoworld, y * maptoworld }; }
-
-	int32_t point2;
-	int32_t nextwall;
-	int32_t sector;	// Build never had this...
-	int32_t nextsector;
-
-	// Again, panning fields extended for interpolation.
-	float xpan_;
-	float ypan_;
-
-	EWallFlags cstat;
-	int16_t picnum;
-	int16_t overpicnum;
-	union { int16_t lotag, type; }; // type is for Blood
-	int16_t hitag;
-	int16_t extra;
-
-	int8_t shade;
-	uint8_t pal;
-	uint8_t xrepeat;
-	uint8_t yrepeat;
-
-	// extensions not from the binary map format.
-	angle_t clipangle;
-	int length; // cached value to avoid calling sqrt repeatedly.
-
-	uint16_t portalnum;
-	uint8_t portalflags;
-	uint8_t lengthflags;
-
-	// Blood is the only game which extends the wall struct.
-	Blood::XWALL* _xw;
-	DVector2 baseWall;
-
-	int xpan() const { return int(xpan_); }
-	int ypan() const { return int(ypan_); }
-	void setxpan(float add) { xpan_ = fmodf(add + 512, 256); } // +512 is for handling negative offsets
-	void setypan(float add) { ypan_ = fmodf(add + 512, 256); } // +512 is for handling negative offsets
-	void addxpan(float add) { xpan_ = fmodf(xpan_ + add + 512, 256); } // +512 is for handling negative offsets
-	void addypan(float add) { ypan_ = fmodf(ypan_ + add + 512, 256); } // +512 is for handling negative offsets
-	sectortype* nextSector() const;
-	sectortype* sectorp() const;
-	walltype* nextWall() const;
-	walltype* lastWall(bool fast  = true) const;
-	walltype* point2Wall() const;
-	DVector2 delta() const { return point2Wall()->pos - pos; }
-	DVector2 center() const { return(point2Wall()->pos + pos) / 2; }
-	bool twoSided() const { return nextsector >= 0; }
-	int Length();
-	void calcLength();	// this is deliberately not inlined and stored in a file where it can't be found at compile time.
-	void movexy(int newx, int newy);
-	void move(const DVector2& vec)
-	{
-		pos = vec;
-		moved();
-	}
-
-	void moved();
-
-	Blood::XWALL& xw() const { return *_xw; }
-	bool hasX() const { return _xw != nullptr; }
-	void allocX();
 };
 
 //=============================================================================
@@ -458,7 +469,8 @@ struct spritetypebase
 	DVector3 pos;
 
 	sectortype* sectp;
-	DAngle angle;
+	DRotator Angles;
+	DVector2 scale;
 
 	ESpriteFlags cstat;
 	int16_t picnum;
@@ -477,8 +489,6 @@ struct spritetypebase
 	uint8_t pal;
 	uint8_t clipdist;
 	uint8_t blend;
-	uint8_t xrepeat;
-	uint8_t yrepeat;
 	int8_t xoffset;
 	int8_t yoffset;
 
@@ -487,25 +497,7 @@ struct spritetypebase
 		pos = { x * maptoworld, y * maptoworld, z * zmaptoworld };
 	}
 
-	const vec3_t int_pos() const
-	{
-		return { int(pos.X * worldtoint), int(pos.Y * worldtoint), int(pos.Z * zworldtoint) };
-	}
-
-	constexpr int int_ang() const
-	{
- 		return angle.Buildang();
-	}
-
-	void set_int_ang(int a)
-	{
-		angle = DAngle::fromBuild(a);
-	}
-
-	void add_int_ang(int a)
-	{
-		angle += DAngle::fromBuild(a);
-	}
+	const FTextureID spritetexture() const;
 };
 
 
@@ -525,15 +517,6 @@ struct tspritetype : public spritetypebase
 {
 	DCoreActor* ownerActor;
 	int time;
-
-	void add_int_z(int x)
-	{
-		pos.Z += x * zinttoworld;
-	}
-	void set_int_z(int x)
-	{
-		pos.Z = x * zinttoworld;
-	}
 };
 
 class tspriteArray
@@ -594,9 +577,9 @@ inline bool validSectorIndex(int sectnum)
 	return (unsigned)sectnum < sector.Size();
 }
 
-inline bool validWallIndex(int wallnum)
+inline bool validWallIndex(int wallno)
 {
-	return (unsigned)wallnum < wall.Size();
+	return (unsigned)wallno < wall.Size();
 }
 
 inline sectortype* walltype::nextSector() const
@@ -634,31 +617,13 @@ inline walltype* walltype::point2Wall() const
 	return &::wall[point2]; // cannot be -1 in a proper map.
 }
 
-inline walltype* sectortype::firstWall() const
-{
-	return &wall[wallptr]; // cannot be -1 in a proper map
-}
-
-inline walltype* sectortype::lastWall() const
-{
-	return &wall[wallptr + wallnum - 1]; // cannot be -1 in a proper map
-}
-
 inline void walltype::moved() 
 {
 	lengthflags = 3;
 	sectorp()->dirty = EDirty::AllDirty;
 }
 
-inline void walltype::movexy(int newx, int newy)
-{
-	pos.X = newx * inttoworld;
-	pos.Y = newy * inttoworld;
-	lengthflags = 3;
-	sectorp()->dirty = EDirty::AllDirty;
-}
-
-inline int walltype::Length()
+inline double walltype::Length()
 {
 	if ((lengthflags & 1) || (point2Wall()->lengthflags & 2))
 	{
@@ -709,7 +674,7 @@ struct spriteext_t
 {
 	uint32_t mdanimtims;
 	int16_t mdanimcur;
-	int16_t angoff, pitch, roll;
+	DRotator rot;
 	vec3_t pivot_offset;
 	DVector3 position_offset;
 	uint8_t renderflags;
@@ -740,8 +705,19 @@ struct SpawnSpriteDef;
 void allocateMapArrays(int numwall, int numsector, int numsprites);
 void validateSprite(spritetype& spr, int secno, int index);
 void fixSectors();
-void loadMap(const char *filename, int flags, DVector3 *pos, int16_t *ang, int *cursectnum, SpawnSpriteDef& sprites);
+void loadMap(const char *filename, int flags, DVector3 *pos, int16_t *ang, sectortype** cursect, SpawnSpriteDef& sprites);
 TArray<walltype> loadMapWalls(const char* filename);
 void loadMapBackup(const char* filename);
 void loadMapHack(const char* filename, const uint8_t*, SpawnSpriteDef& sprites);
-void validateStartSector(const char* filename, const DVector3& pos, int* cursectnum, unsigned numsectors, bool noabort = false);
+void validateStartSector(const char* filename, const DVector3& pos, sectortype** cursectnum, unsigned numsectors, bool noabort = false);
+void PostProcessLevel(const uint8_t* checksum, const FString& mapname, SpawnSpriteDef& sprites);
+
+// should only be used to read angles from map-loaded data (for proper documentation)
+constexpr DAngle mapangle(int mapang)
+{
+	return DAngle::fromBuild(mapang);
+}
+inline DAngle maphoriz(double maphoriz)
+{
+	return DAngle::fromRad(g_atan2(maphoriz, 128.));
+}

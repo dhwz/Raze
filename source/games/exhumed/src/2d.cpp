@@ -42,7 +42,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "vm.h"
 #include "razefont.h"
 
-#include <string>
+#include "buildtiles.h"
+
 
 #include <assert.h>
 
@@ -59,12 +60,17 @@ void DrawAbs(int tile, double x, double y, int shade = 0)
     DrawTexture(twod, tileGetTexture(tile), x, y, DTA_FullscreenScale, FSMode_Fit320x200, DTA_TopLeft, true, DTA_Color, shadeToLight(shade), TAG_DONE);
 }
 
-void DrawRel(int tile, double x, double y, int shade)
+void DrawRel(FGameTexture* tex, double x, double y, int shade = 0)
 {
     // This is slightly different than what the backend does here, but critical for some graphics.
-    int offx = (tileWidth(tile) >> 1) + tileLeftOffset(tile);
-    int offy = (tileHeight(tile) >> 1) + tileTopOffset(tile);
-    DrawAbs(tile, x - offx, y - offy, shade);
+    int offx = (int(tex->GetDisplayWidth()) >> 1) + int(tex->GetDisplayLeftOffset());
+    int offy = (int(tex->GetDisplayHeight()) >> 1) + int(tex->GetDisplayTopOffset());
+    DrawTexture(twod, tex, x - offx, y - offy, DTA_FullscreenScale, FSMode_Fit320x200, DTA_TopLeft, true, DTA_Color, shadeToLight(shade), TAG_DONE);
+}
+
+void DrawRel(int tile, double x, double y, int shade)
+{
+    DrawRel(tileGetTexture(tile), x, y, shade);
 }
 
 //---------------------------------------------------------------------------
@@ -100,9 +106,10 @@ enum
 
 void menu_DoPlasma()
 {
-    auto nLogoTile = GameLogo();
-    int lw = tileWidth(nLogoTile);
-    int lh = tileHeight(nLogoTile);
+    auto nLogoTexid = GameLogo();
+    auto pLogoTex = TexMan.GetGameTexture(nLogoTexid);
+    int lw = (int)pLogoTex->GetDisplayWidth();
+    int lh = (int)pLogoTex->GetDisplayHeight();
 
     int ptile = nPlasmaTile;
     int pclock = I_GetBuildTime();
@@ -112,10 +119,10 @@ void menu_DoPlasma()
 
         if (!PlasmaBuffer)
         {
-            auto pixels = TileFiles.tileCreate(kTile4092, kPlasmaWidth, kPlasmaHeight);
+            auto pixels = GetWritablePixels(tileGetTextureID(kTile4092));
             memset(pixels, 96, kPlasmaWidth * kPlasmaHeight);
 
-            PlasmaBuffer = TileFiles.tileCreate(kTile4093, kPlasmaWidth, kPlasmaHeight);
+            PlasmaBuffer = GetWritablePixels(tileGetTextureID(kTile4093));
             memset(PlasmaBuffer, 96, kPlasmaWidth * kPlasmaHeight);
 
 
@@ -139,9 +146,9 @@ void menu_DoPlasma()
             }
         }
 
-        uint8_t* plasmapix = tileData(nPlasmaTile);
+        uint8_t* plasmapix = GetWritablePixels(tileGetTextureID(nPlasmaTile));
         uint8_t* r_ebx = plasmapix + 81;
-        const uint8_t* r_edx = tileData(nPlasmaTile ^ 1) + 81; // flip between value of 4092 and 4093 with xor
+        const uint8_t* r_edx = GetWritablePixels(tileGetTextureID(nPlasmaTile ^ 1)) + 81; // flip between value of 4092 and 4093 with xor
 
         for (int x = 0; x < kPlasmaWidth - 2; x++)
         {
@@ -231,7 +238,7 @@ void menu_DoPlasma()
             r_ebx += 2;
         }
 
-        auto logopix = tilePtr(nLogoTile);
+        auto logopix = GetRawPixels(nLogoTexid);
 
         for (int j = 0; j < 5; j++)
         {
@@ -292,8 +299,6 @@ void menu_DoPlasma()
             v28[nSmokeOffset] = 175;
         }
 
-        TileFiles.InvalidateTile(nPlasmaTile);
-
         // flip between tile 4092 and 4093
         if (nPlasmaTile == kTile4092) {
             nPlasmaTile = kTile4093;
@@ -303,7 +308,7 @@ void menu_DoPlasma()
         }
     }
     DrawAbs(ptile, 0, 0);
-    DrawRel(nLogoTile, 160, 40);
+    DrawRel(pLogoTex, 160, 40);
 
     // draw the fire urn/lamp thingies
     int dword_9AB5F = (pclock / 16) & 3;
@@ -437,10 +442,7 @@ void uploadCinemaPalettes()
 
 static int DoStatic(int a, int b)
 {
-    TileFiles.tileMakeWritable(kTileLoboLaptop);
-    auto tex = dynamic_cast<FRestorableTile*>(tileGetTexture(kTileLoboLaptop)->GetTexture()->GetImage());
-    if (tex) tex->Reload();
-        auto pixels = TileFiles.tileMakeWritable(kTileLoboLaptop);
+    auto pixels = GetWritablePixels(tileGetTextureID(kTileLoboLaptop), true);
 
     int y = 160 - a / 2;
     int left = 81 - b / 2;
@@ -449,8 +451,6 @@ static int DoStatic(int a, int b)
     int right = left + b;
 
     auto pTile = (pixels + (200 * y)) + left;
-
-        TileFiles.InvalidateTile(kTileLoboLaptop);
 
     for(;y < bottom; y++)
         {
@@ -467,10 +467,9 @@ static int DoStatic(int a, int b)
 
 static int UndoStatic()
 {
-        auto tex = dynamic_cast<FRestorableTile*>(tileGetTexture(kTileLoboLaptop)->GetTexture()->GetImage());
-        if (tex) tex->Reload();
-        TileFiles.InvalidateTile(kTileLoboLaptop);
-    return tileGetTexture(kTileLoboLaptop)->GetID().GetIndex();
+    auto texid = tileGetTextureID(kTileLoboLaptop);
+    GetWritablePixels(texid, true);
+    return texid.GetIndex();
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(DLastLevelCinema, DoStatic, DoStatic)

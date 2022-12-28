@@ -37,6 +37,8 @@
 #include "gamefuncs.h"
 #include "raze_sound.h"
 #include "vm.h"
+#include "texturemanager.h"
+#include "buildtiles.h"
 
 // Doubly linked ring list of Actors
 
@@ -249,7 +251,7 @@ static void AddSectTail(DCoreActor *actor, sectortype* sect)
 //
 //==========================================================================
 
-static void AddSectHead(DCoreActor *actor, sectortype* sect)
+static void AddSectHead(DCoreActor* actor, sectortype* sect)
 {
 	assert(actor->prevSect == nullptr && actor->nextSect == nullptr);
 
@@ -280,8 +282,8 @@ static void RemoveActorSect(DCoreActor* actor)
 		assert(actor->prevSect == nullptr && actor->nextSect == nullptr);
 		return;
 	}
-	DCoreActor *prev = actor->prevSect;
-	DCoreActor *next = actor->nextSect;
+	DCoreActor* prev = actor->prevSect;
+	DCoreActor* next = actor->nextSect;
 
 	auto& firstEntry = actor->link_sector->firstEntry;
 	auto& lastEntry = actor->link_sector->lastEntry;
@@ -345,9 +347,17 @@ void ChangeActorSect(DCoreActor* actor, sectortype* sect, bool tail)
 
 DCoreActor* InsertActor(PClass* type, sectortype* sector, int stat, bool tail)
 {
+	if (type == nullptr) return nullptr;
 	assert(type->IsDescendantOf(RUNTIME_CLASS(DCoreActor)));
+	if (!type->IsDescendantOf(RUNTIME_CLASS(DCoreActor)))
+	{
+		I_Error("Tried to spawn object of non - actor class %s", type->TypeName.GetChars());
+	}
 
 	auto actor = static_cast<DCoreActor*>(type->CreateNew());
+	auto defaults = GetDefaultByType(type);
+	auto actorinfo = static_cast<PClassActor*>(actor->GetClass())->ActorInfo();
+	if (actorinfo && actorinfo->DefaultFlags & DEFF_STATNUM) stat = defaults->spr.statnum;
 	GC::WriteBarrier(actor);
 
 	InsertActorStat(actor, stat, tail);
@@ -356,6 +366,44 @@ DCoreActor* InsertActor(PClass* type, sectortype* sector, int stat, bool tail)
 	Numsprites++;
 	actor->time = leveltimer++;
 	return actor;
+}
+
+void DCoreActor::initFromSprite(spritetype* mspr)
+{
+	auto actorinfo = static_cast<PClassActor*>(GetClass())->ActorInfo();
+
+	spr.cstat = (mspr->cstat & ~ESpriteFlags::FromInt(actorinfo->DefaultCstat)) | (spr.cstat & ESpriteFlags::FromInt(actorinfo->DefaultCstat));
+	spr.pos = mspr->pos;
+	spr.sectp = mspr->sectp;
+	spr.clipdist = mspr->clipdist;	// this has no associated property because it is needed for initialization of the real clipdist.
+
+	// only copy those values which have not been defaulted by the class definition.
+#define setter(flag, var) if (!(actorinfo->DefaultFlags & flag)) spr.var = mspr->var;
+
+	setter(DEFF_PICNUM, picnum);
+	setter(DEFF_ANG, Angles.Yaw);
+	setter(DEFF_INTANG, intangle);
+	setter(DEFF_XVEL, xint);
+	setter(DEFF_YVEL, yint);
+	setter(DEFF_ZVEL, inittype);
+	setter(DEFF_HITAG, hitag);
+	setter(DEFF_LOTAG, lotag);
+	setter(DEFF_EXTRA, extra);
+	setter(DEFF_DETAIL, detail);
+	setter(DEFF_SHADE, shade);
+	setter(DEFF_PAL, pal);
+	setter(DEFF_BLEND, blend);
+	setter(DEFF_XREPEAT, scale.X);
+	setter(DEFF_YREPEAT, scale.Y);
+	setter(DEFF_XOFFSET, xoffset);
+	setter(DEFF_YOFFSET, yoffset);
+	setter(DEFF_OWNER, intowner);
+
+#undef setter
+
+	if (!(actorinfo->DefaultFlags & DEFF_CLIPDIST)) clipdist = spr.clipdist * 0.25;
+	if (mspr->statnum != 0 && !(actorinfo->DefaultFlags & DEFF_STATNUM))
+		ChangeActorStat(this, mspr->statnum);
 }
 
 //==========================================================================
@@ -480,131 +528,12 @@ size_t DCoreActor::PropagateMark()
 }
 
 
-int DCoreActor::GetOffsetAndHeight(int& height)
+double DCoreActor::GetOffsetAndHeight(double& height)
 {
-	int yrepeat = spr.yrepeat << 2;
-	height = tileHeight(spr.picnum) * yrepeat;
-	int zofs = (spr.cstat & CSTAT_SPRITE_YCENTER)? height >> 1 : 0;
-	return zofs - tileTopOffset(spr.picnum) * yrepeat;
-}
-
-
-
-DEFINE_FIELD_NAMED(DCoreActor, spr.sectp, sector)
-DEFINE_FIELD_NAMED(DCoreActor, spr.cstat, cstat)
-DEFINE_FIELD_NAMED(DCoreActor, spr.cstat2, cstat2)
-DEFINE_FIELD_NAMED(DCoreActor, spr.picnum, picnum)
-DEFINE_FIELD_NAMED(DCoreActor, spr.statnum, statnum)
-//DEFINE_FIELD_NAMED(DCoreActor, spr.angle, angle)
-DEFINE_FIELD_NAMED(DCoreActor, spr.pos, pos)
-DEFINE_FIELD_NAMED(DCoreActor, spr.xint, xint)
-DEFINE_FIELD_NAMED(DCoreActor, spr.yint, yint)
-DEFINE_FIELD_NAMED(DCoreActor, spr.inittype, inittype)
-DEFINE_FIELD_NAMED(DCoreActor, spr.hitag, hitag)
-DEFINE_FIELD_NAMED(DCoreActor, spr.lotag, lotag)
-DEFINE_FIELD_NAMED(DCoreActor, spr.type, type)
-DEFINE_FIELD_NAMED(DCoreActor, spr.flags, flags) // need to be careful with this!
-DEFINE_FIELD_NAMED(DCoreActor, spr.extra, extra)
-DEFINE_FIELD_NAMED(DCoreActor, spr.detail, detail)
-DEFINE_FIELD_NAMED(DCoreActor, spr.shade, shade)
-DEFINE_FIELD_NAMED(DCoreActor, spr.pal, pal)
-DEFINE_FIELD_NAMED(DCoreActor, spr. clipdist, clipdist)
-DEFINE_FIELD_NAMED(DCoreActor, spr.blend, blend)
-DEFINE_FIELD_NAMED(DCoreActor, spr.xrepeat, xrepeat)
-DEFINE_FIELD_NAMED(DCoreActor, spr.yrepeat, yrepeat)
-DEFINE_FIELD_NAMED(DCoreActor, spr.xoffset, xoffset)
-DEFINE_FIELD_NAMED(DCoreActor, spr.yoffset, yoffset)
-DEFINE_FIELD_NAMED(DCoreActor, spr.intowner, owner)
-DEFINE_FIELD_NAMED(DCoreActor, sprext.mdanimtims, mdanimtims)
-DEFINE_FIELD_NAMED(DCoreActor, sprext.mdanimcur, mdanimcur)
-DEFINE_FIELD_NAMED(DCoreActor, sprext.angoff, angoff)
-DEFINE_FIELD_NAMED(DCoreActor, sprext.pitch, pitch)
-DEFINE_FIELD_NAMED(DCoreActor, sprext.roll, roll)
-DEFINE_FIELD_NAMED(DCoreActor, sprext.renderflags, renderflags)
-DEFINE_FIELD_NAMED(DCoreActor, sprext.alpha, alpha)
-DEFINE_FIELD_NAMED(DCoreActor, time, spawnindex)
-DEFINE_FIELD_NAMED(DCoreActor, spritesetindex, spritesetpic)
-
-void coreactor_setpos(DCoreActor* self, double x, double y, double z, int relink)
-{
-	self->spr.pos = { x, y, z };
-	// todo: SW needs to call updatesectorz here or have a separate function.
-	if (relink) SetActor(self, self->spr.pos);
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, setpos, coreactor_setpos)
-{
-	PARAM_SELF_PROLOGUE(DCoreActor);
-	PARAM_FLOAT(x);
-	PARAM_FLOAT(y);
-	PARAM_FLOAT(z);
-	PARAM_BOOL(relink);
-	coreactor_setpos(self, x, y, z, relink);
-	return 0;
-}
-
-void coreactor_copypos(DCoreActor* self, DCoreActor* other, int relink)
-{
-	if (!other) return;
-	self->spr.pos = other->spr.pos;
-	// todo: SW needs to call updatesectorz here or have a separate function.
-	if (relink) SetActor(self, self->spr.pos);
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, copypos, coreactor_setpos)
-{
-	PARAM_SELF_PROLOGUE(DCoreActor);
-	PARAM_POINTER(other, DCoreActor);
-	PARAM_BOOL(relink);
-	coreactor_copypos(self, other, relink);
-	return 0;
-}
-
-void coreactor_move(DCoreActor* self, double x, double y, double z, int relink)
-{
-	self->spr.pos += { x, y, z };
-	// todo: SW needs to call updatesectorz here or have a separate function.
-	if (relink) SetActor(self, self->spr.pos);
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, move, coreactor_move)
-{
-	PARAM_SELF_PROLOGUE(DCoreActor);
-	PARAM_FLOAT(x);
-	PARAM_FLOAT(y);
-	PARAM_FLOAT(z);
-	PARAM_BOOL(relink);
-	coreactor_move(self, x, y, z, relink);
-	return 0;
-}
-
-void coreactor_setSpritePic(DCoreActor* self, unsigned z)
-{
-	auto &spriteset = static_cast<PClassActor*>(self->GetClass())->ActorInfo()->SpriteSet;
-	if (z < spriteset.Size())
-	{
-		self->spritesetindex = z;
-		self->spr.picnum = spriteset[z];
-	}
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, setSpritePic, coreactor_setSpritePic)
-{
-	PARAM_SELF_PROLOGUE(DCoreActor);
-	PARAM_INT(z);
-	coreactor_setSpritePic(self, z);
-	return 0;
-}
-
-void coreactor_backuppos(DCoreActor* self)
-{
-	self->backuppos();
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, backuppos, coreactor_backuppos)
-{
-	PARAM_SELF_PROLOGUE(DCoreActor);
-	coreactor_backuppos(self);
-	return 0;
+	auto tex = TexMan.GetGameTexture(spr.spritetexture());
+	double yscale = spr.scale.Y;
+	height = tex->GetDisplayHeight() * yscale;
+	double zofs = (spr.cstat & CSTAT_SPRITE_YCENTER) ? height * 0.5 : 0;
+	return zofs - tex->GetDisplayTopOffset() * yscale;
 }
 

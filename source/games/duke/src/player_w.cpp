@@ -65,10 +65,10 @@ void DoFire(player_struct* p, int snum)
 
 	SetGameVarID(g_iWeaponVarID, p->curr_weapon, p->GetActor(), snum);
 	SetGameVarID(g_iWorksLikeVarID, aplWeaponWorksLike(p->curr_weapon, snum), p->GetActor(), snum);
-	fi.shoot(p->GetActor(), aplWeaponShoots(p->curr_weapon, snum));
+	fi.shoot(p->GetActor(), aplWeaponShoots(p->curr_weapon, snum), nullptr);
 	for (i = 1; i < aplWeaponShotsPerBurst(p->curr_weapon, snum); i++)
 	{
-		fi.shoot(p->GetActor(), aplWeaponShoots(p->curr_weapon, snum));
+		fi.shoot(p->GetActor(), aplWeaponShoots(p->curr_weapon, snum), nullptr);
 		if (aplWeaponFlags(p->curr_weapon, snum) & WEAPON_FLAG_AMMOPERSHOT)
 		{
 			p->ammo_amount[p->curr_weapon]--;
@@ -117,16 +117,16 @@ void DoSpawn(player_struct *p, int snum)
 	if((aplWeaponFlags(p->curr_weapon, snum) & WEAPON_FLAG_SPAWNTYPE2 ) )
 	{
 		// like shotgun shells
-		j->spr.angle += DAngle180;
+		j->spr.Angles.Yaw += DAngle180;
 		ssp(j,CLIPMASK0);
-		j->spr.angle += DAngle180;
+		j->spr.Angles.Yaw += DAngle180;
 //		p->kickback_pic++;
 	}
 	else if((aplWeaponFlags(p->curr_weapon, snum) & WEAPON_FLAG_SPAWNTYPE3 ) )
 	{
 		// like chaingun shells
-		j->set_int_ang((j->int_ang() + 1024) & 2047);
-		j->add_int_xvel( 32);
+		j->spr.Angles.Yaw += DAngle90;
+		j->vel.X += 2.;
 		j->spr.pos.Z += 3;
 		ssp(j,CLIPMASK0);
 	}
@@ -310,7 +310,6 @@ void operateweapon_ww(int snum, ESyncBits actions)
 {
 	auto p = &ps[snum];
 	auto pact = p->GetActor();
-	int i, k;
 
 	// already firing...
 	if (aplWeaponWorksLike(p->curr_weapon, snum) == HANDBOMB_WEAPON)
@@ -327,47 +326,47 @@ void operateweapon_ww(int snum, ESyncBits actions)
 		p->kickback_pic++;
 		if (p->kickback_pic == aplWeaponHoldDelay(p->curr_weapon, snum))
 		{
+			double zvel, vel;
+
 			p->ammo_amount[p->curr_weapon]--;
 
 			if (p->on_ground && (actions & SB_CROUCH))
 			{
-				k = 15;
-				i = MulScale(p->horizon.sum().asq16(), 20, 16);
+				vel = 15 / 16.;
+				setFreeAimVelocity(vel, zvel, p->Angles.getPitchWithView(), 10.);
 			}
 			else
 			{
-				k = 140;
-				i = -512 - MulScale(p->horizon.sum().asq16(), 20, 16);
+				vel = 140 / 16.;
+				setFreeAimVelocity(vel, zvel, p->Angles.getPitchWithView(), 10.);
+				zvel -= 4;
 			}
 
-			auto j = EGS(p->cursector,
-				p->player_int_pos().X + p->angle.ang.Cos() * (1 << 8),
-				p->player_int_pos().Y + p->angle.ang.Sin() * (1 << 8),
-				p->player_int_pos().Z, HEAVYHBOMB, -16, 9, 9,
-				p->angle.ang.Buildang(), (k + (p->hbomb_hold_delay << 5)), i, p->GetActor(), 1);
+			auto spawned = CreateActor(p->cursector, p->GetActor()->getPosWithOffsetZ() + p->GetActor()->spr.Angles.Yaw.ToVector() * 16, DTILE_HEAVYHBOMB, -16, DVector2(0.140625, 0.140625),
+				p->GetActor()->spr.Angles.Yaw, vel + p->hbomb_hold_delay * 2, zvel, pact, 1);
 
-			if (j)
+			if (spawned)
 			{
 				{
 					int lGrenadeLifetime = GetGameVar("GRENADE_LIFETIME", NAM_GRENADE_LIFETIME, nullptr, snum).value();
 					int lGrenadeLifetimeVar = GetGameVar("GRENADE_LIFETIME_VAR", NAM_GRENADE_LIFETIME_VAR, nullptr, snum).value();
 					// set timer.  blows up when at zero....
-					j->spr.extra = lGrenadeLifetime
+					spawned->spr.extra = lGrenadeLifetime
 						+ MulScale(krand(), lGrenadeLifetimeVar, 14)
 						- lGrenadeLifetimeVar;
 				}
 
-				if (k == 15)
+				if (vel == 15 / 16.)
 				{
-					j->spr.yint = 3;
-					j->spr.pos.Z += 8;
+					spawned->spr.yint = 3;
+					spawned->spr.pos.Z += 8;
 				}
 
-				k = hits(p->GetActor());
-				if (k < 512)
+				double hd = hits(p->GetActor());
+				if (hd < 32)
 				{
-					j->spr.angle += DAngle180;
-					j->vel *= 1./3.;
+					spawned->spr.Angles.Yaw += DAngle180;
+					spawned->vel *= 1./3.;
 				}
 
 				p->hbomb_on = 1;
@@ -406,7 +405,7 @@ void operateweapon_ww(int snum, ESyncBits actions)
 				}
 				SetGameVarID(g_iWeaponVarID, p->curr_weapon, p->GetActor(), snum);
 				SetGameVarID(g_iWorksLikeVarID, aplWeaponWorksLike(p->curr_weapon, snum), p->GetActor(), snum);
-				fi.shoot(p->GetActor(), aplWeaponShoots(p->curr_weapon, snum));
+				fi.shoot(p->GetActor(), aplWeaponShoots(p->curr_weapon, snum), nullptr);
 			}
 		}
 
@@ -415,7 +414,7 @@ void operateweapon_ww(int snum, ESyncBits actions)
 			p->okickback_pic = p->kickback_pic = 0;
 			/// WHAT THE HELL DOES THIS DO....?????????????
 			if (p->ammo_amount[TRIPBOMB_WEAPON] > 0)
-				fi.addweapon(p, TRIPBOMB_WEAPON);
+				fi.addweapon(p, TRIPBOMB_WEAPON, true);
 			else
 				checkavailweapon(p);
 		}
@@ -437,7 +436,7 @@ void operateweapon_ww(int snum, ESyncBits actions)
 		if (aplWeaponFlags(p->curr_weapon, snum) & WEAPON_FLAG_STANDSTILL
 			&& p->kickback_pic < (aplWeaponFireDelay(p->curr_weapon, snum) + 1))
 		{
-			p->pos.Z = p->opos.Z;
+			p->GetActor()->restorez();
 			p->vel.Z = 0;
 		}
 		if (p->kickback_pic == aplWeaponSound2Time(p->curr_weapon, snum))

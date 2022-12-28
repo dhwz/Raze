@@ -117,6 +117,11 @@ struct SW native
 		INVF_COUNT = 4
 	}
 
+	enum ETexFlags // texture flags
+	{
+		TFLAG_BUNNYFRIENDLY = 1,
+	};
+
 	native static void PlaySound(int sound, int flags, int channel = CHAN_AUTO, int cflags = 0);
 	native static void StopSound();
 	native static bool IsSoundPlaying(int channel); //  soundEngine.IsSourcePlayingSomething(SOURCE_None, nullptr, CHAN_VOICE))
@@ -206,10 +211,10 @@ struct SWPlayer native
     //native int /*cursectnum,*/lastcursectnum;
 
     // variables that do not fit into sprite structure
-    native int16 recoil_amt;
+    native double recoil_amt;
     native int16 recoil_speed;
     native int16 recoil_ndx;
-    native int recoil_horizoff;
+    native double recoil_horizoff;
 
     native double RevolveDeltaAng;
 

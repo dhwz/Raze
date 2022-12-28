@@ -76,14 +76,14 @@ int DoScaleSprite(DSWActor* actor)
             if (scale_value > actor->user.scale_tgt)
                 actor->user.scale_speed = 0;
             else
-                actor->spr.xrepeat = actor->spr.yrepeat = scale_value;
+				actor->spr.scale = DVector2(scale_value * REPEAT_SCALE, scale_value * REPEAT_SCALE);
         }
         else
         {
             if (scale_value < actor->user.scale_tgt)
                 actor->user.scale_speed = 0;
             else
-                actor->spr.xrepeat = actor->spr.yrepeat = scale_value;
+				actor->spr.scale = DVector2(scale_value * REPEAT_SCALE, scale_value * REPEAT_SCALE);
         }
 
     }
@@ -139,7 +139,7 @@ int DoActorDie(DSWActor* actor, DSWActor* weapActor, int meansofdeath)
         actor->user.RotNum = 0;
         actor->vel.X *= 2;
         actor->user.ActorActionFunc = nullptr;
-        actor->spr.angle += DAngle180;
+        actor->spr.Angles.Yaw += DAngle180;
         break;
 
     case NINJA_RUN_R0:
@@ -170,7 +170,7 @@ int DoActorDie(DSWActor* actor, DSWActor* weapActor, int meansofdeath)
                 actor->vel.X = 12.5 + RandomRangeF(12.5);
                 actor->user.jump_speed = -200 - RandomRange(250);
                 DoActorBeginJump(actor);
-                actor->spr.angle = weapActor->spr.angle;
+                actor->spr.Angles.Yaw = weapActor->spr.Angles.Yaw;
             }
         }
         else
@@ -189,7 +189,7 @@ int DoActorDie(DSWActor* actor, DSWActor* weapActor, int meansofdeath)
         actor->user.ActorActionFunc = nullptr;
         //actor->user.ActorActionFunc = NullAnimator;
         if (!sw_ninjahack)
-            actor->spr.angle = weapActor->spr.angle;
+            actor->spr.Angles.Yaw = weapActor->spr.Angles.Yaw;
         break;
 
     case COOLG_RUN_R0:
@@ -223,7 +223,7 @@ int DoActorDie(DSWActor* actor, DSWActor* weapActor, int meansofdeath)
         }
         actor->user.ActorActionFunc = nullptr;
         // Get angle to player
-        actor->spr.angle = VecToAngle(actor->user.targetActor->spr.pos - actor->spr.pos.Y) + DAngle180;
+        actor->spr.Angles.Yaw = (actor->user.targetActor->spr.pos - actor->spr.pos.Y).Angle() + DAngle180;
         break;
 
     case UZI_SMOKE+1: // Shotgun
@@ -246,7 +246,7 @@ int DoActorDie(DSWActor* actor, DSWActor* weapActor, int meansofdeath)
         DoActorBeginJump(actor);
         actor->user.ActorActionFunc = nullptr;
         // Get angle to player
-        actor->spr.angle = VecToAngle(actor->user.targetActor->spr.pos - actor->spr.pos) + DAngle180;
+        actor->spr.Angles.Yaw = (actor->user.targetActor->spr.pos - actor->spr.pos).Angle() + DAngle180;
         break;
 
     default:
@@ -271,7 +271,7 @@ int DoActorDie(DSWActor* actor, DSWActor* weapActor, int meansofdeath)
             actor->vel.X = 18.75 + RandomRangeF(25);
             actor->user.jump_speed = -300 - RandomRange(350);
             DoActorBeginJump(actor);
-            actor->spr.angle = weapActor->spr.angle;
+            actor->spr.Angles.Yaw = weapActor->spr.Angles.Yaw;
             break;
         }
         break;
@@ -304,7 +304,6 @@ void DoDebrisCurrent(DSWActor* actor)
     int nx, ny;
     auto sectp = actor->sector();
 
-    //actor->set_const_clipdist((256+128)>>2;
 	double spd = sectp->speed / 64.0;
 
 	auto vect = sectp->angle.ToVector() * spd;
@@ -426,7 +425,7 @@ int DoActorDebris(DSWActor* actor)
         KillActor(actor);
         return 0;
     case ZILLA_RUN_R0:
-        getzsofslopeptr(actor->sector(), actor->spr.pos.X, actor->spr.pos.Y, &actor->user.hiz, &actor->user.loz);
+        calcSlope(actor->sector(), actor->spr.pos.X, actor->spr.pos.Y, &actor->user.hiz, &actor->user.loz);
         actor->user.lo_sectp = actor->sector();
         actor->user.hi_sectp = actor->sector();
         actor->user.lowActor = nullptr;
@@ -443,11 +442,11 @@ int DoActorDebris(DSWActor* actor)
         else
         {
             // todo: check correctness
-            DVector2 nvec = ACTORMOVETICS * maptoworld * actor->spr.angle.ToVector();
+            DVector2 nvec = ACTORMOVETICS * maptoworld * actor->spr.Angles.Yaw.ToVector();
 
             if (!move_debris(actor, nvec))
             {
-                actor->spr.angle = RandomAngle();
+                actor->spr.Angles.Yaw = RandomAngle();
             }
         }
 
@@ -473,10 +472,10 @@ int DoActorDebris(DSWActor* actor)
 
 int DoFireFly(DSWActor* actor)
 {
-    actor->set_const_clipdist(256>>2);
-    if (!move_actor(actor, DVector3(actor->spr.angle.ToVector() * (0.25 * ACTORMOVETICS), 0)))
+    actor->clipdist = 16;
+    if (!move_actor(actor, DVector3(actor->spr.Angles.Yaw.ToVector() * (0.25 * ACTORMOVETICS), 0)))
     {
-        actor->spr.angle += DAngle180;
+        actor->spr.Angles.Yaw += DAngle180;
     }
 
     actor->user.WaitTics = (actor->user.WaitTics + (ACTORMOVETICS << 1)) & 2047;
@@ -507,7 +506,7 @@ int DoGenerateSewerDebris(DSWActor* actor)
     {
         actor->user.Tics = actor->user.WaitTics;
 
-        auto spawned = SpawnActor(STAT_DEAD_ACTOR, 0, Debris[RANDOM_P2(4<<8)>>8], actor->sector(), actor->spr.pos, actor->spr.angle, 12.5);
+        auto spawned = SpawnActor(STAT_DEAD_ACTOR, 0, Debris[RANDOM_P2(4<<8)>>8], actor->sector(), actor->spr.pos, actor->spr.Angles.Yaw, 12.5);
 
         SetOwner(actor, spawned);
     }
@@ -712,7 +711,8 @@ int DoActorJump(DSWActor* actor)
     actor->spr.pos.Z += actor->user.jump_speed * ACTORMOVETICS * JUMP_FACTOR;
 
     // if player gets to close the ceiling while jumping
-    double minh = actor->user.hiz + tileHeight(actor->spr.picnum);
+    auto tex = TexMan.GetGameTexture(actor->spr.spritetexture());
+    double minh = actor->user.hiz + tex->GetDisplayHeight();
     if (actor->spr.pos.Z < minh)
     {
         // put player at the ceiling
@@ -802,7 +802,7 @@ int DoActorStopFall(DSWActor* actor)
     // don't stand on face or wall sprites - jump again
     if (actor->user.lowActor && !(actor->user.lowActor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_FLOOR))
     {
-		actor->spr.angle += DAngle180 + RandomAngle(DAngle90);
+		actor->spr.Angles.Yaw += DAngle180 + RandomAngle(DAngle90);
         actor->user.jump_speed = -350;
 
         DoActorBeginJump(actor);
@@ -850,8 +850,8 @@ int DoActorDeathMove(DSWActor* actor)
             DoActorFall(actor);
     }
 
-    actor->set_const_clipdist((128+64)>>2);
-	move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0));
+	actor->clipdist = 12;
+	move_actor(actor, DVector3(actor->spr.Angles.Yaw.ToVector() * actor->vel.X, 0));
 
 
     // only fall on top of floor sprite or sector
@@ -906,7 +906,8 @@ int DoJump(DSWActor* actor)
     actor->spr.pos.Z += actor->user.jump_speed * ACTORMOVETICS * JUMP_FACTOR;
 
     // if player gets to close the ceiling while jumping
-    double minh = actor->user.hiz + tileHeight(actor->spr.picnum);
+    auto tex = TexMan.GetGameTexture(actor->spr.spritetexture());
+    double minh = actor->user.hiz + tex->GetDisplayHeight();
     if (actor->spr.pos.Z < minh)
     {
         // put player at the ceiling

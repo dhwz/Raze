@@ -54,21 +54,21 @@ BEGIN_SW_NS
 //
 //---------------------------------------------------------------------------
 
-void GameInterface::WarpToCoords(double x, double y, double z, DAngle ang, int horz)
+void GameInterface::WarpToCoords(double x, double y, double z, DAngle ang)
 {
-    Player->pos = DVector3(x,y,z);
+    auto pp = &Player[myconnectindex];
+    auto ppActor = pp->actor;
 
-    Player->opos = Player->pos;
+    if (!ppActor) return;
+
+    ppActor->spr.pos = DVector3(x,y,z);
 
     if (ang != DAngle::fromDeg(INT_MIN))
     {
-		Player->angle.oang = Player->angle.ang = ang;
+		Player->actor->spr.Angles.Yaw = ang;
     }
 
-    if (horz != INT_MIN)
-    {
-    	Player->horizon.ohoriz = Player->horizon.horiz = buildhoriz(horz);
-    }
+    ppActor->backuploc();
 }
 
 //---------------------------------------------------------------------------
@@ -98,8 +98,8 @@ static int osdcmd_mirror(CCmdFuncPtr parm)
     Printf("camspic is the tile number of the drawtotile in editart");
     Printf("iscamera is whether or not this mirror is a camera type");
     Printf(" ");
-    Printf("mirror[%d].mirrorwall = %d", op1, wallnum(mirror[op1].mirrorWall));
-    Printf("mirror[%d].mirrorsector = %d", op1, sectnum(mirror[op1].mirrorSector));
+    Printf("mirror[%d].mirrorwall = %d", op1, wallindex(mirror[op1].mirrorWall));
+    Printf("mirror[%d].mirrorsector = %d", op1, sectindex(mirror[op1].mirrorSector));
     Printf("mirror[%d].camera = %d", op1, mirror[op1].cameraActor->GetIndex());
     Printf("mirror[%d].camsprite = %d", op1, mirror[op1].camspriteActor->GetIndex());
     Printf("mirror[%d].campic = %d", op1, mirror[op1].campic);

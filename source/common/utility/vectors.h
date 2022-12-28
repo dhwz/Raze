@@ -237,6 +237,12 @@ struct TVector2
 	{
 		return X*X + Y*Y;
 	}
+	
+	double Sum() const
+	{
+		return abs(X) + abs(Y);
+	}
+
 
 	// Return a unit vector facing the same direction as this one
 	TVector2 Unit() const
@@ -265,6 +271,19 @@ struct TVector2
 		return *this;
 	}
 
+	TVector2 Resized(double len) const
+	{
+		double vlen = Length();
+		if (vlen != 0.)
+		{
+			double scale = len / vlen;
+			return{ vec_t(X * scale), vec_t(Y * scale) };
+		}
+		else
+		{
+			return *this;
+		}
+	}
 
 	// Dot product
 	vec_t operator | (const TVector2 &other) const
@@ -304,13 +323,13 @@ struct TVector2
 	}
 
 	// Returns a vector rotated 90 degrees clockwise.
-	TVector2 Rotated90CW()
+	TVector2 Rotated90CW() const
 	{
 		return TVector2(Y, -X);
 	}
 
 	// Returns a vector rotated 90 degrees counterclockwise.
-	TVector2 Rotated90CCW()
+	TVector2 Rotated90CCW() const
 	{
 		return TVector2(-Y, X);
 	}
@@ -601,6 +620,12 @@ struct TVector3
 	{
 		return X*X + Y*Y + Z*Z;
 	}
+	
+	double Sum() const
+	{
+		return abs(X) + abs(Y) + abs(Z);
+	}
+
 
 	// Return a unit vector facing the same direction as this one
 	TVector3 Unit() const
@@ -632,7 +657,7 @@ struct TVector3
 		return *this;
 	}
 
-	TVector3 Resized(double len)
+	TVector3 Resized(double len) const
 	{
 		double vlen = Length();
 		if (vlen != 0.)
@@ -650,6 +675,11 @@ struct TVector3
 	vec_t operator | (const TVector3 &other) const
 	{
 		return X*other.X + Y*other.Y + Z*other.Z;
+	}
+
+	vec_t dot (const TVector3& other) const
+	{
+		return X * other.X + Y * other.Y + Z * other.Z;
 	}
 
 	// Cross product
@@ -691,6 +721,11 @@ struct TVector4
 
 	TVector4(const Vector3 &xyz, vec_t w)
 		: X(xyz.X), Y(xyz.Y), Z(xyz.Z), W(w)
+	{
+	}
+
+	TVector4(const vec_t v[4])
+		: TVector4(v[0], v[1], v[2], v[3])
 	{
 	}
 
@@ -900,6 +935,12 @@ struct TVector4
 	{
 		return X*X + Y*Y + Z*Z + W*W;
 	}
+	
+	double Sum() const
+	{
+		return abs(X) + abs(Y) + abs(Z) + abs(W);
+	}
+	
 
 	// Return a unit vector facing the same direction as this one
 	TVector4 Unit() const
@@ -932,7 +973,7 @@ struct TVector4
 		return *this;
 	}
 
-	TVector4 Resized(double len)
+	TVector4 Resized(double len) const 
 	{
 		double vlen = Length();
 		if (vlen != 0.)
@@ -948,6 +989,11 @@ struct TVector4
 
 	// Dot product
 	vec_t operator | (const TVector4 &other) const
+	{
+		return X*other.X + Y*other.Y + Z*other.Z + W*other.W;
+	}
+
+	vec_t dot(const TVector4 &other) const
 	{
 		return X*other.X + Y*other.Y + Z*other.Z + W*other.W;
 	}
@@ -1245,12 +1291,7 @@ public:
 		return TAngle(f * (90. / 0x40000000));
 	}
 
-	static constexpr TAngle fromBuild(int bang)
-	{
-		return TAngle(bang * (90. / 512));
-	}
-
-	static constexpr TAngle fromBuildf(double bang)
+	static constexpr TAngle fromBuild(double bang)
 	{
 		return TAngle(bang * (90. / 512));
 	}
@@ -1307,9 +1348,19 @@ public:
 		return Degrees_ * other;
 	}
 
+	constexpr TAngle operator* (TAngle other) const
+	{
+		return Degrees_ * other.Degrees_;
+	}
+
 	constexpr TAngle operator/ (vec_t other) const
 	{
 		return Degrees_ / other;
+	}
+
+	constexpr double operator/ (TAngle other) const
+	{
+		return Degrees_ / other.Degrees_;
 	}
 
 	// Should the comparisons consider an epsilon value?
@@ -1377,11 +1428,6 @@ public:
 		return int(Degrees_ * (512 / 90.0));
 	}
 
-	constexpr double Buildfang() const
-	{
-		return Degrees_ * (512 / 90.0);
-	}
-
 	constexpr int Q16() const
 	{
 		return int(Degrees_ * (16384 / 90.0));
@@ -1404,7 +1450,8 @@ public:
 
 	double Tan() const
 	{
-		return vec_t(g_tan(Radians()));
+		auto bam = BAMs();
+		return g_sinbam(bam) / g_cosbam(bam);
 	}
 
 	// This is for calculating vertical velocity. For high pitches the tangent will become too large to be useful.
@@ -1494,6 +1541,16 @@ template<class T>
 inline TAngle<T> interpolatedvalue(const TAngle<T> &oang, const TAngle<T> &ang, const double interpfrac)
 {
 	return oang + (deltaangle(oang, ang) * interpfrac);
+}
+
+template<class T>
+inline TRotator<T> interpolatedvalue(const TRotator<T> &oang, const TRotator<T> &ang, const double interpfrac)
+{
+	return TRotator<T>(
+		interpolatedvalue(oang.Pitch, ang.Pitch, interpfrac),
+		interpolatedvalue(oang.Yaw, ang.Yaw, interpfrac),
+		interpolatedvalue(oang.Roll, ang.Roll, interpfrac)
+	);
 }
 
 template <class T>
@@ -1601,7 +1658,7 @@ struct TRotator
 	TRotator &operator/= (const Angle &scalar)
 	{
 		Angle mul(1 / scalar.Degrees_);
-		Pitch *= scalar, Yaw *= scalar, Roll *= scalar;
+		Pitch *= mul, Yaw *= mul, Roll *= mul;
 		return *this;
 	}
 
@@ -1669,7 +1726,6 @@ inline TMatrix3x3<T>::TMatrix3x3(const TVector3<T> &axis, TAngle<T> degrees)
 	Cells[2][2] = T(     (t-txx-tyy) + c  );
 }
 
-
 typedef TVector2<float>		FVector2;
 typedef TVector3<float>		FVector3;
 typedef TVector4<float>		FVector4;
@@ -1688,6 +1744,8 @@ constexpr DAngle nullAngle = DAngle::fromDeg(0.);
 constexpr DAngle minAngle = DAngle::fromDeg(1. / 65536.);
 constexpr FAngle nullFAngle = FAngle::fromDeg(0.);
 
+constexpr DAngle DAngle1 = DAngle::fromDeg(1);
+constexpr DAngle DAngle15 = DAngle::fromDeg(15);
 constexpr DAngle DAngle22_5 = DAngle::fromDeg(22.5);
 constexpr DAngle DAngle45 = DAngle::fromDeg(45);
 constexpr DAngle DAngle60 = DAngle::fromDeg(60);
@@ -1743,6 +1801,5 @@ protected:
 	FVector3 m_normal;
 	float m_d;
 };
-
 
 #endif

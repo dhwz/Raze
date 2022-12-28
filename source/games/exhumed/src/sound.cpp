@@ -183,8 +183,8 @@ int LoadSound(const char* name)
 {
     char nname[9]{};
     for (int i = 0; i < 8 && name[i]; i++) nname[i] = name[i];
-    int sndid = soundEngine->FindSoundNoHash(nname);
-    if (sndid > 0) return sndid - 1;
+    FSoundID sndid = soundEngine->FindSoundNoHash(nname);
+    if (sndid.isvalid()) return sndid.index() - 1;
 
     FStringf filename("%s.voc", nname);
     auto lump = S_LookupSound(filename);
@@ -197,10 +197,10 @@ int LoadSound(const char* name)
             // This game uses the actual loop point information in the sound data as its only means to check if a sound is looped.
             loops = true;
         }
-		int retval = soundEngine->AddSoundLump(nname, lump, 0, -1, 6);
+		FSoundID retval = soundEngine->AddSoundLump(nname, lump, 0, -1, 6);
         soundEngine->CacheSound(retval);
-		looped[retval-1] = loops;
-        return retval - 1;
+		looped[retval.index() - 1] = loops;
+        return retval.index() - 1;
     }
     else if (!isShareware())  // demo tries to load sound files it doesn't have
     {
@@ -213,12 +213,13 @@ int LoadSound(const char* name)
 //
 //
 //==========================================================================
+void GameInterface::StartSoundEngine()
+{
+    soundEngine = new EXSoundEngine;
+}
 
 void InitFX(void)
 {
-    if (soundEngine) return; // just in case.
-    soundEngine = new EXSoundEngine;
-
     auto& S_sfx = soundEngine->GetSounds();
     S_sfx.Resize(1);
     for (size_t i = 0; i < kMaxSoundFiles; i++)
@@ -285,7 +286,8 @@ void BendAmbientSound(void)
 void PlayLocalSound(int nSound, int nRate, bool unattached, EChanFlags cflags)
 {
     if (!SoundEnabled()) return;
-    if (nSound < 0 || nSound >= kMaxSounds || !soundEngine->isValidSoundId(nSound + 1))
+    auto soundid = FSoundID::fromInt(nSound + 1);
+    if (!soundEngine->isValidSoundId(soundid))
     {
         Printf("PlayLocalSound: Invalid sound nSound == %i, nRate == %i\n", nSound, nRate);
         return;
@@ -295,13 +297,13 @@ void PlayLocalSound(int nSound, int nRate, bool unattached, EChanFlags cflags)
     FSoundChan* chan;
     if (!unattached)
     {
-        if (!(cflags & CHANF_UI) && soundEngine->IsSourcePlayingSomething(SOURCE_None, nullptr, CHAN_BODY, nSound + 1)) return;
+        if (!(cflags & CHANF_UI) && soundEngine->IsSourcePlayingSomething(SOURCE_None, nullptr, CHAN_BODY, soundid)) return;
         soundEngine->StopSound(SOURCE_None, nullptr, CHAN_BODY);
-        chan = soundEngine->StartSound(SOURCE_None, nullptr, nullptr, CHAN_BODY, cflags, nSound + 1, 1.f, ATTN_NONE, nullptr);
+        chan = soundEngine->StartSound(SOURCE_None, nullptr, nullptr, CHAN_BODY, cflags, soundid, 1.f, ATTN_NONE, nullptr);
     }
     else
     {
-        chan = soundEngine->StartSound(SOURCE_None, nullptr, nullptr, CHAN_VOICE, CHANF_OVERLAP|cflags, nSound + 1, 1.f, ATTN_NONE, nullptr);
+        chan = soundEngine->StartSound(SOURCE_None, nullptr, nullptr, CHAN_VOICE, CHANF_OVERLAP|cflags, soundid, 1.f, ATTN_NONE, nullptr);
     }
 
     if (nRate && chan)
@@ -359,7 +361,7 @@ void StartSwirly(int nActiveSound)
         nVolume = 220;
 
     soundEngine->StopSound(SOURCE_Swirly, &swirly, -1);
-    soundEngine->StartSound(SOURCE_Swirly, &swirly, nullptr, CHAN_BODY, CHANF_TRANSIENT, StaticSound[kSoundMana1]+1, nVolume / 255.f, ATTN_NONE, nullptr, nPitch / 11025.f);
+    soundEngine->StartSound(SOURCE_Swirly, &swirly, nullptr, CHAN_BODY, CHANF_TRANSIENT, FSoundID::fromInt(StaticSound[kSoundMana1]+1), nVolume / 255.f, ATTN_NONE, nullptr, nPitch / 11025.f);
 }
 
 //==========================================================================
@@ -375,7 +377,7 @@ void StartSwirlies()
     nNextFreq = 19000;
     nSwirlyFrames = 0;
 
-    for (int i = 0; i <= 4; i++)
+    for (int i = 0; i < 4; i++)
         StartSwirly(i);
 }
 
@@ -388,7 +390,7 @@ void StartSwirlies()
 void UpdateSwirlies()
 {
     nSwirlyFrames++;
-    for (int i = 0; i <= 4; i++)
+    for (int i = 0; i < 4; i++)
     {
         if (!soundEngine->IsSourcePlayingSomething(SOURCE_Swirly, &swirlysources[i], -1))
             StartSwirly(i);
@@ -410,7 +412,7 @@ void SoundBigEntrance(void)
         int nPitch = 11025 + (i * 512 - 1200);
         //pASound->snd_pitch = nPitch;
         soundEngine->StopSound(SOURCE_EXBoss, &fakesources[i], -1);
-        soundEngine->StartSound(SOURCE_EXBoss, &fakesources[i], nullptr, CHAN_BODY, CHANF_TRANSIENT, StaticSound[kSoundTorchOn]+1, 200 / 255.f, ATTN_NONE, nullptr, nPitch / 11025.f);
+        soundEngine->StartSound(SOURCE_EXBoss, &fakesources[i], nullptr, CHAN_BODY, CHANF_TRANSIENT, FSoundID::fromInt(StaticSound[kSoundTorchOn]+1), 200 / 255.f, ATTN_NONE, nullptr, nPitch / 11025.f);
     }
 }
 
@@ -453,15 +455,15 @@ void EXSoundEngine::CalcPosVel(int type, const void* source, const float pt[3], 
         else if (type == SOURCE_Swirly)
         {
             int which = *(int*)source;
-            double phase = (PlayClock << (4 + which)) * BAngRadian;
-            pos->X = fcampos.X + float(256 * cos(phase));
-            pos->Z = fcampos.Z + float(256 * sin(phase));
+            double phase = PlayClock << (4 + which);
+            pos->X = fcampos.X + float(256 * BobVal(phase + 512));
+            pos->Z = fcampos.Z + float(256 * BobVal(phase));
         }
         else  if (type == SOURCE_EXBoss)
         {
             int which = *(int*)source;
             *pos = fcampos;
-            // Should be positioned in 90¡ intervals.
+            // Should be positioned in 90Â° intervals.
             switch (which)
             {
             default:
@@ -504,7 +506,7 @@ void GameInterface::UpdateSounds()
     {
         Snake *pSnake = &SnakeList[nSnakeCam];
         pos = pSnake->pSprites[0]->spr.pos;
-        ang = pSnake->pSprites[0]->spr.angle;
+        ang = pSnake->pSprites[0]->spr.Angles.Yaw;
     }
     else
     {
@@ -551,7 +553,8 @@ void GameInterface::UpdateSounds()
 void PlayFX2(int nSound, DExhumedActor* pActor, int sectf, EChanFlags chanflags, int sprflags, const DVector3* soundpos)
 {
     if (!SoundEnabled()) return;
-    if ((nSound&0x1ff) >= kMaxSounds || !soundEngine->isValidSoundId((nSound & 0x1ff)+1))
+    auto soundid = FSoundID::fromInt((nSound & 0x1ff) + 1);
+    if (!soundEngine->isValidSoundId(soundid))
     {
         Printf("PlayFX2: Invalid sound nSound == %i\n", nSound);
         return;
@@ -595,7 +598,7 @@ void PlayFX2(int nSound, DExhumedActor* pActor, int sectf, EChanFlags chanflags,
                 {
                     if (prio >= chan->UserData)
                     {
-                        if (chan->SoundID == nSound + 1)
+                        if (chan->SoundID == soundid)
                         {
                             if (!allowMultiple && pActor == chan->Source)
                                 return 1;
@@ -610,7 +613,7 @@ void PlayFX2(int nSound, DExhumedActor* pActor, int sectf, EChanFlags chanflags,
                 }
                 else if (chan->SourceType == SOURCE_Unattached && pActor != nullptr)
                 {
-                    if (chan->SoundID == nSound + 1)
+                    if (chan->SoundID == soundid)
                     {
                         if (vv.X == chan->Point[0] && vv.Y == chan->Point[1] && vv.Z == chan->Point[2])
                             return 1;
@@ -624,11 +627,11 @@ void PlayFX2(int nSound, DExhumedActor* pActor, int sectf, EChanFlags chanflags,
     FSoundChan* chan = nullptr;
     if (pActor != nullptr)
     {
-        chan = soundEngine->StartSound(SOURCE_Actor, pActor, nullptr, CHAN_BODY, chanflags| CHANF_OVERLAP, nSound+1, nVolume / 255.f,fullvol? 0.5f : ATTN_NORM, nullptr, (11025 + nPitch) / 11025.f);
+        chan = soundEngine->StartSound(SOURCE_Actor, pActor, nullptr, CHAN_BODY, chanflags| CHANF_OVERLAP, soundid, nVolume / 255.f,fullvol? 0.5f : ATTN_NORM, nullptr, (11025 + nPitch) / 11025.f);
     }
     else
     {
-        chan = soundEngine->StartSound(SOURCE_Unattached, nullptr, &vv, CHAN_BODY, chanflags | CHANF_OVERLAP, nSound+1, nVolume / 255.f, ATTN_NORM, nullptr, (11025 + nPitch) / 11025.f);
+        chan = soundEngine->StartSound(SOURCE_Unattached, nullptr, &vv, CHAN_BODY, chanflags | CHANF_OVERLAP, soundid, nVolume / 255.f, ATTN_NORM, nullptr, (11025 + nPitch) / 11025.f);
     }
     if (chan)
     {
@@ -664,12 +667,12 @@ void CheckAmbience(sectortype* sect)
     if (sect->Sound != -1)
     {
         auto pSector2 = sect->pSoundSect;
-        walltype* pWall = pSector2->firstWall();
+        walltype* pWall = pSector2->walls.Data();
         if (!soundEngine->IsSourcePlayingSomething(SOURCE_Ambient, &amb, 0))
         {
             DVector3 v = { pWall->pos.X, pWall->pos.Y, pSector2->floorz };
             amb = GetSoundPos(v);
-            soundEngine->StartSound(SOURCE_Ambient, &amb, nullptr, CHAN_BODY, CHANF_TRANSIENT, sect->Sound + 1, 1.f, ATTN_NORM);
+            soundEngine->StartSound(SOURCE_Ambient, &amb, nullptr, CHAN_BODY, CHANF_TRANSIENT, FSoundID::fromInt(sect->Sound + 1), 1.f, ATTN_NORM);
             return;
         }
         soundEngine->EnumerateChannels([=](FSoundChan* chan)
@@ -727,7 +730,9 @@ void UpdateCreepySounds()
                 auto sp = PlayerList[nLocalPlayer].pActor->spr.pos + adder;
                 creepy = GetSoundPos(sp);
 
-                if ((vsi & 0x1ff) >= kMaxSounds || !soundEngine->isValidSoundId((vsi & 0x1ff) + 1))
+                auto soundid = FSoundID::fromInt((vsi & 0x1ff) + 1);
+
+                if (!soundEngine->isValidSoundId(soundid))
                 {
                     return;
                 }
@@ -741,7 +746,7 @@ void UpdateCreepySounds()
 
                 GetSpriteSoundPitch(&nVolume, &nPitch);
                 soundEngine->StopSound(SOURCE_Ambient, &creepy, CHAN_BODY);
-                soundEngine->StartSound(SOURCE_Ambient, &creepy, nullptr, CHAN_BODY, CHANF_TRANSIENT, vsi + 1, nVolume / 255.f, ATTN_NONE, nullptr, (11025 + nPitch) / 11025.f);
+                soundEngine->StartSound(SOURCE_Ambient, &creepy, nullptr, CHAN_BODY, CHANF_TRANSIENT, soundid, nVolume / 255.f, ATTN_NONE, nullptr, (11025 + nPitch) / 11025.f);
             }
         }
         nCreepyTimer = kCreepyCount;
@@ -801,7 +806,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(_Exhumed, StopLocalSound, StopLocalSound)
 
 DEFINE_ACTION_FUNCTION(_Exhumed, LocalSoundPlaying)
 {
-    ACTION_RETURN_BOOL(soundEngine->IsSourcePlayingSomething(SOURCE_None, nullptr, CHAN_AUTO, -1));
+    ACTION_RETURN_BOOL(soundEngine->IsSourcePlayingSomething(SOURCE_None, nullptr, CHAN_AUTO));
 }
 
 DEFINE_ACTION_FUNCTION(_Exhumed, PlayCDTrack)

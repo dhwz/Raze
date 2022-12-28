@@ -47,7 +47,7 @@ int nAmbChannels = 0;
 //
 //---------------------------------------------------------------------------
 
-void ambProcess(void)
+void ambProcess(PLAYER* pPlayer)
 {
     if (!SoundEnabled())
         return;
@@ -60,8 +60,8 @@ void ambProcess(void)
         {
             if (actor->xspr.state)
             {
-                int nDist = (int)(actor->spr.pos - gMe->actor->spr.pos).Length();
-                int vs = MulScale(actor->xspr.data4, actor->xspr.busy, 16);
+                int nDist = (int)(actor->spr.pos - pPlayer->actor->spr.pos).Length();
+                int vs = min(MulScale(actor->xspr.data4, actor->xspr.busy, 16), 127);
                 ambChannels[actor->spr.intowner].distance += ClipRange(scale(nDist, actor->xspr.data1, actor->xspr.data2, vs, 0), 0, vs);
             }
         }
@@ -69,7 +69,7 @@ void ambProcess(void)
     AMB_CHANNEL *pChannel = ambChannels;
     for (int i = 0; i < nAmbChannels; i++, pChannel++)
     {
-        if (soundEngine->IsSourcePlayingSomething(SOURCE_Ambient, pChannel, CHAN_BODY, -1))
+        if (soundEngine->IsSourcePlayingSomething(SOURCE_Ambient, pChannel, CHAN_BODY))
         {
             if (pChannel->distance > 0)
             {
@@ -102,7 +102,7 @@ void ambKillAll(void)
     for (int i = 0; i < nAmbChannels; i++, pChannel++)
     {
         soundEngine->StopSound(SOURCE_Ambient, pChannel, CHAN_BODY);
-        pChannel->soundID = 0;
+        pChannel->soundID = NO_SOUND;
     }
     nAmbChannels = 0;
 }
@@ -137,7 +137,7 @@ void ambInit(void)
 
             int nSFX = actor->xspr.data3;
             auto snd = soundEngine->FindSoundByResID(nSFX);
-            if (!snd) {
+            if (!snd.isvalid()) {
                 //I_Error("Missing sound #%d used in ambient sound generator %d\n", nSFX);
                 viewSetSystemMessage("Missing sound #%d used in ambient sound generator #%d\n", nSFX, actor->GetIndex());
                 actPostSprite(actor, kStatDecoration);

@@ -34,9 +34,6 @@ BEGIN_BLD_NS
 
 static InputPacket gInput;
 
-void UpdatePlayerSpriteAngle(PLAYER* pPlayer);
-void doslopetilting(PLAYER* pPlayer, double const scaleAdjust);
-
 //---------------------------------------------------------------------------
 //
 //
@@ -60,16 +57,11 @@ void GameInterface::GetInput(ControlInfo* const hidInput, double const scaleAdju
 	if (!SyncInput() && gamestate == GS_LEVEL)
 	{
 		// Perform unsynchronised angle/horizon if not dead.
-		if (gView->actor->xspr.health != 0)
+		if (pPlayer->actor->xspr.health != 0)
 		{
-			pPlayer->angle.applyinput(input.avel, &pPlayer->input.actions, scaleAdjust);
-			pPlayer->horizon.applyinput(input.horz, &pPlayer->input.actions, scaleAdjust);
-			doslopetilting(pPlayer, scaleAdjust);
+			pPlayer->Angles.RenderAngles.Yaw += DAngle::fromDeg(input.avel);
+			pPlayer->Angles.RenderAngles.Pitch += DAngle::fromDeg(input.horz);
 		}
-
-		pPlayer->angle.processhelpers(scaleAdjust);
-		pPlayer->horizon.processhelpers(scaleAdjust);
-		UpdatePlayerSpriteAngle(pPlayer);
 	}
 
 	if (packet)

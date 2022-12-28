@@ -45,6 +45,8 @@
 #include "types.h"
 #include "filesystem.h"
 #include "texturemanager.h"
+#include "texinfo.h"
+#include "buildtiles.h"
 
 extern void LoadActors ();
 
@@ -77,7 +79,14 @@ public:
 
 	void InitializeValue(void *addr, const void *def) const override
 	{
-		new(addr) FActorInfo;
+		if (def == nullptr)
+		{
+			new(addr) FActorInfo;
+		}
+		else
+		{
+			new(addr) FActorInfo(*(const FActorInfo*)def);
+		}
 	}
 
 	void DestroyValue(void *addr) const override
@@ -109,6 +118,7 @@ void PClassActor::StaticInit()
 		if (cls->IsDescendantOf(RUNTIME_CLASS(DCoreActor)))
 		{
 			AllActorClasses.Push(static_cast<PClassActor*>(cls));
+			static_cast<PClassActor*>(cls)->ActorInfo()->ResolveTextures(cls->TypeName.GetChars(), GetDefaultByType(cls));
 		}
 	}
 }
@@ -226,5 +236,28 @@ PClassActor *PClassActor::GetReplacee()
 	PClassActor *Replacee = ActorInfo()->Replacee;
 	if (Replacee == nullptr) return this;
 	return Replacee;
+}
+
+//==========================================================================
+//
+// This can only be done after all data has been set up.
+//
+//==========================================================================
+
+void FActorInfo::ResolveTextures(const char* clsname, DCoreActor* defaults)
+{
+	SpriteSet.Resize(SpriteSetNames.Size());
+	for (unsigned i = 0; i < SpriteSet.Size(); i++)
+	{
+		SpriteSet[i] = tileForName(SpriteSetNames[i]);
+		// This should later be enabled to user content.
+		//if (SpriteSet[i] == -1) Printf(TEXTCOLOR_RED "Unknown texture '%s' in sprite set for class %s\n", SpriteSetNames[i].GetChars(), clsname);
+	}
+	if (SpriteSet.Size() > 0)
+	{
+		if (defaults->spritesetindex < 0 || defaults->spritesetindex >= (int)SpriteSet.Size()) defaults->spritesetindex = 0;
+		defaults->spr.picnum = SpriteSet[defaults->spritesetindex]; // Unless picnum is specified it will be set to the given image of the sprite set.
+	}
+	SpriteSetNames.Reset();
 }
 

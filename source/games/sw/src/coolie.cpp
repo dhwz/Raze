@@ -410,7 +410,7 @@ void EnemyDefaults(DSWActor* actor, ACTOR_ACTION_SET* action, PERSONALITY* perso
     actor->user.spal = actor->spr.pal;
 
     actor->user.RotNum = 5;
-    actor->set_const_clipdist(256 >> 2);
+    actor->clipdist = 16;
 
     actor->user.zclip = 48;
     actor->user.lo_step = 32;
@@ -504,8 +504,7 @@ int SetupCoolie(DSWActor* actor)
 
     EnemyDefaults(actor, &CoolieActionSet, &CooliePersonality);
 
-    actor->spr.xrepeat = 42;
-    actor->spr.yrepeat = 42;
+    actor->spr.scale = DVector2(0.65625, 0.65625);
 
     actor->user.Flags |= (SPR_XFLIP_TOGGLE);
 

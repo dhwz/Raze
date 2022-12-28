@@ -476,14 +476,14 @@ BREAK_INFO* SetupWallForBreak(walltype* wallp)
 {
     BREAK_INFO* break_info;
 
-    break_info = FindWallBreakInfo(wallp->picnum);
+    break_info = FindWallBreakInfo(wallp->wallpicnum);
     if (break_info)
     {
         wallp->lotag = TAG_WALL_BREAK;
         wallp->extra |= (WALLFX_DONT_STICK);
     }
 
-    if (wallp->overpicnum > 0 && (wallp->cstat & CSTAT_WALL_MASKED))
+    if (wallp->overtexture().isValid() && (wallp->cstat & CSTAT_WALL_MASKED))
     {
         break_info = FindWallBreakInfo(wallp->overpicnum);
         if (break_info)
@@ -583,10 +583,10 @@ int AutoBreakWall(walltype* wallp, const DVector3& hit_pos, DAngle ang, int type
         }
     }
 
-    if (wallp->overpicnum > 0 && (wallp->cstat & CSTAT_WALL_MASKED))
+    if (wallp->overtexture().isValid() && (wallp->cstat & CSTAT_WALL_MASKED))
         break_info = FindWallBreakInfo(wallp->overpicnum);
     else
-        break_info = FindWallBreakInfo(wallp->picnum);
+        break_info = FindWallBreakInfo(wallp->wallpicnum);
 
     if (!break_info)
     {
@@ -602,26 +602,26 @@ int AutoBreakWall(walltype* wallp, const DVector3& hit_pos, DAngle ang, int type
         auto breakActor = insertActor(0, STAT_DEFAULT);
         breakActor->spr.cstat = 0;
         breakActor->spr.extra = 0;
-        breakActor->spr.angle = ang;
+        breakActor->spr.Angles.Yaw = ang;
         breakActor->spr.picnum = ST1;
-        breakActor->spr.xrepeat = breakActor->spr.yrepeat = 64;
+        breakActor->spr.scale = DVector2(1, 1);
         SetActorZ(breakActor, hit_pos);
         SpawnShrap(breakActor, nullptr, -1, break_info);
         KillActor(breakActor);
     }
 
     // change the wall
-    if (wallp->overpicnum > 0 && (wallp->cstat & CSTAT_WALL_MASKED))
+    if (wallp->overtexture().isValid() && (wallp->cstat & CSTAT_WALL_MASKED))
     {
         if (break_info->breaknum == -1)
         {
             wallp->cstat &= ~(CSTAT_WALL_MASKED|CSTAT_WALL_1WAY|CSTAT_WALL_BLOCK_HITSCAN|CSTAT_WALL_BLOCK);
-            wallp->overpicnum = 0;
+            wallp->setovertexture(FNullTextureID());
             if (wallp->twoSided())
             {
                 nwp = wallp->nextWall();
                 nwp->cstat &= ~(CSTAT_WALL_MASKED|CSTAT_WALL_1WAY|CSTAT_WALL_BLOCK_HITSCAN|CSTAT_WALL_BLOCK);
-                nwp->overpicnum = 0;
+                nwp->setovertexture(FNullTextureID());
             }
         }
         else
@@ -639,10 +639,10 @@ int AutoBreakWall(walltype* wallp, const DVector3& hit_pos, DAngle ang, int type
     else
     {
         if (break_info->breaknum == -1)
-            wallp->picnum = 594; // temporary break pic
+            wallp->setwalltexture(FNullTextureID()); // temporary break pic
         else
         {
-            wallp->picnum = break_info->breaknum;
+            wallp->wallpicnum = break_info->breaknum;
             if (wallp->hitag < 0)
                 DoWallBreakSpriteMatch(wallp->hitag);
         }
@@ -681,7 +681,7 @@ bool UserBreakWall(walltype* wp)
         return true;
     }
 
-    if (wp->picnum == SP_TAG5(actor))
+    if (wp->walltexture() == actor->texparam)
         return true;
 
     // make it BROKEN
@@ -692,7 +692,7 @@ bool UserBreakWall(walltype* wp)
 
         if (SP_TAG8(actor) == 0)
         {
-            wp->picnum = SP_TAG5(actor);
+            wp->setwalltexture(actor->texparam);
             // clear tags
             wp->hitag = wp->lotag = 0;
             if (wp->twoSided())
@@ -715,7 +715,7 @@ bool UserBreakWall(walltype* wp)
         else if (SP_TAG8(actor) == 2)
         {
             // set to broken pic
-            wp->picnum = SP_TAG5(actor);
+            wp->setwalltexture(actor->texparam);
 
             // clear flags
             wp->cstat &= ~(block_flags);
@@ -735,7 +735,7 @@ bool UserBreakWall(walltype* wp)
     else
     {
         // increment picnum
-        wp->picnum++;
+        wp->setwalltexture(wp->walltexture() + 1);
 
         DoSpawnSpotsForDamage(match);
     }
@@ -752,7 +752,7 @@ bool UserBreakWall(walltype* wp)
 int WallBreakPosition(walltype* wp, sectortype** sectp, DVector3& pos, DAngle& ang)
 {
     int nx,ny;
-    DAngle wall_ang = VecToAngle(wp->delta()) + DAngle90;
+    DAngle wall_ang = wp->delta().Angle() + DAngle90;
 
     *sectp = wp->sectorp();
     ASSERT(*sectp);

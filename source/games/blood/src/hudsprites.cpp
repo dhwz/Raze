@@ -72,7 +72,7 @@ static void drawElement(int x, int y, int tile, double scale = 1, int flipx = 0,
 	if (flipy) flags |= RS_YFLIPHUD;
 	if (pin == -1) flags |= RS_ALIGN_L;
 	else if (pin == 1) flags |= RS_ALIGN_R;
-	hud_drawsprite(x, y, int(scale * 65536), 0, tile, 0, basepal, flags, alpha);
+	hud_drawsprite(x, y, FloatToFixed(scale), 0, tile, 0, basepal, flags, alpha);
 }
 
 
@@ -88,7 +88,11 @@ static void viewBurnTime(int gScale)
 
 	for (int i = 0; i < 9; i++)
 	{
-		int nTile = burnTable[i].nTile + tileAnimateOfs(burnTable[i].nTile, i);
+		int nTile = burnTable[i].nTile;
+		// This is needed because hud_drawsprite still works with tilenums.
+		FTextureID nID = tileGetTextureID(nTile);
+		tileUpdatePicnum(nID);
+		nTile = legacyTileNum(nID);
 		int nScale = burnTable[i].nScale;
 		if (gScale < 600)
 		{
@@ -104,58 +108,54 @@ static void viewBurnTime(int gScale)
 //
 //---------------------------------------------------------------------------
 
-void hudDraw(PLAYER* gView, sectortype* pSector, double bobx, double boby, double zDelta, int basepal, double interpfrac)
+void hudDraw(PLAYER* pPlayer, sectortype* pSector, double bobx, double boby, double zDelta, DAngle angle, int basepal, double interpfrac)
 {
-	double look_anghalf = gView->angle.look_anghalf(interpfrac);
-
 	if (gViewPos == 0)
 	{
-		double looking_arc = gView->angle.looking_arc(interpfrac);
+		auto cXY = DVector2(160, 220) + pPlayer->Angles.getWeaponOffsets(interpfrac).first;
 
-		double cX = 160 - look_anghalf;
-		double cY = 220 + looking_arc;
 		if (cl_weaponsway)
 		{
 			if (cl_hudinterpolation)
 			{
-				cX += (bobx / 256.);
-				cY += (boby / 256.) + (zDelta / 128.);
+				cXY.X += bobx;
+				cXY.Y += boby + (zDelta * 2.);
 			}
 			else
 			{
-				cX += (int(bobx) >> 8);
-				cY += (int(boby) >> 8) + (int(zDelta) >> 7);
+				cXY.X += int(bobx);
+				cXY.Y += int(boby) + int(zDelta * 2);
 			}
 		}
 		else
 		{
-			cY += (-2048. / 128.);
+			cXY.Y += (-2048. / 128.);
 		}
 		int nShade = pSector? pSector->floorshade : 0;
 		int nPalette = 0;
-		if (gView->actor->sector()->hasX()) {
-			sectortype* pViewSect = gView->actor->sector();
+		if (pPlayer->actor->sector()->hasX()) {
+			sectortype* pViewSect = pPlayer->actor->sector();
 			XSECTOR* pXSector = &pViewSect->xs();
 			if (pXSector->color)
 				nPalette = pViewSect->floorpal;
 		}
 
 		#ifdef NOONE_EXTENSIONS
-		if (gView->sceneQav < 0) WeaponDraw(gView, nShade, cX, cY, nPalette);
-			else if (gView->actor->xspr.health > 0) playerQavSceneDraw(gView, nShade, cX, cY, nPalette);
+		if (pPlayer->sceneQav < 0) WeaponDraw(pPlayer, nShade, cXY.X, cXY.Y, nPalette, angle);
+			else if (pPlayer->actor->xspr.health > 0) playerQavSceneDraw(pPlayer, nShade, cXY.X, cXY.Y, nPalette, angle);
 		else {
-			gView->sceneQav = gView->weaponQav = kQAVNone;
-			gView->qavTimer = gView->weaponTimer = gView->curWeapon = 0;
+			pPlayer->sceneQav = pPlayer->weaponQav = kQAVNone;
+			pPlayer->qavTimer = pPlayer->weaponTimer = pPlayer->curWeapon = 0;
 		}
 		#else
-			WeaponDraw(gView, nShade, cX, cY, nPalette);
+			WeaponDraw(pPlayer, nShade, cX, cY, nPalette);
 		#endif
 	}
-	if (gViewPos == 0 && gView->actor->xspr.burnTime > 60)
+	if (gViewPos == 0 && pPlayer->actor->xspr.burnTime > 60)
 	{
-		viewBurnTime(gView->actor->xspr.burnTime);
+		viewBurnTime(pPlayer->actor->xspr.burnTime);
 	}
-	if (packItemActive(gView, 1))
+	if (packItemActive(pPlayer, 1))
 	{
 		drawElement(0, 0, 2344, 1, 0, 0, -1);
 		drawElement(320, 0, 2344, 1, 1, 0, 1);
@@ -167,15 +167,15 @@ void hudDraw(PLAYER* gView, sectortype* pSector, double bobx, double boby, doubl
 			drawElement(212, 77, 2347, 1, 0, 0, 1, 0, 0.2);
 		}
 	}
-	if (powerupCheck(gView, kPwUpAsbestArmor) > 0)
+	if (powerupCheck(pPlayer, kPwUpAsbestArmor) > 0)
 	{
 		drawElement(0, 237, 2358, 1, 0, 1, -1);
 		drawElement(320, 237, 2358, 1, 1, 1, 1);
 	}
 
-	int zn = ((gView->zWeapon - gView->zView - (12 << 8)) >> 7) + 220;
-	PLAYER* pPSprite = &gPlayer[gMe->actor->spr.type - kDudePlayer1];
-	if (gMe->actor->IsPlayerActor() && pPSprite->hand == 1)
+	int zn = int(((pPlayer->zWeapon - pPlayer->zView - 12) * 2.) + 220);
+	PLAYER* pPSprite = &gPlayer[pPlayer->actor->spr.type - kDudePlayer1];
+	if (pPlayer->actor->IsPlayerActor() && pPSprite->hand == 1)
 	{
 		gChoke.animateChoke(160, zn, interpfrac);
 	}

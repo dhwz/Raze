@@ -37,6 +37,12 @@ static actionSeq RaSeq[] = {
     {2, 0}
 };
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 size_t MarkRa()
 {
     for (auto& r : Ra)
@@ -46,6 +52,12 @@ size_t MarkRa()
     }
     return 2 * kMaxPlayers;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 FSerializer& Serialize(FSerializer& arc, const char* keyname, RA& w, RA* def)
 {
@@ -69,6 +81,12 @@ void SerializeRa(FSerializer& arc)
     arc.Array("ra", Ra, PlayerCount);
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void FreeRa(int nPlayer)
 {
     int nRun = Ra[nPlayer].nRun;
@@ -82,6 +100,12 @@ void FreeRa(int nPlayer)
     DeleteActor(pActor);
     Ra[nPlayer] = {};
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void BuildRa(int nPlayer)
 {
@@ -98,8 +122,7 @@ void BuildRa(int nPlayer)
     pActor->spr.hitag = 0;
     pActor->spr.intowner = runlist_AddRunRec(pActor->spr.lotag - 1, nPlayer, 0x210000);
     pActor->spr.pal = 1;
-    pActor->spr.xrepeat = 64;
-    pActor->spr.yrepeat = 64;
+    pActor->spr.scale = DVector2(1, 1);
     pActor->spr.pos = pPlayerActor->spr.pos;
 
 //	GrabTimeSlot(3);
@@ -118,6 +141,12 @@ void InitRa()
 {
     memset(Ra, 0, sizeof(RA) * kMaxPlayers);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void MoveRaToEnemy(int nPlayer)
 {
@@ -163,12 +192,18 @@ void MoveRaToEnemy(int nPlayer)
         pTarget = PlayerList[nPlayer].pActor;
     }
 
-    pActor->spr.pos = pTarget->spr.pos.plusZ(-GetActorHeightF(pTarget));
+    pActor->spr.pos = pTarget->spr.pos.plusZ(-GetActorHeight(pTarget));
 
     if (pActor->sector() != pTarget->sector()) {
         ChangeActorSect(pActor, pTarget->sector());
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIRa::Tick(RunListEvent* ev)
 {
@@ -292,6 +327,12 @@ void AIRa::Tick(RunListEvent* ev)
         return;
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIRa::Draw(RunListEvent* ev)
 {

@@ -89,6 +89,7 @@ CVARD(Bool, cl_bloodqavinterp, true, CVAR_ARCHIVE, "enable/disable Blood's QAV i
 CVARD(Bool, cl_bloodweapinterp, false, CVAR_ARCHIVE, "enable/disable Blood's weapon interpolation. Depends on 'cl_bloodqavinterp'")
 CVARD(Bool, cl_bloodoldweapbalance, false, CVAR_ARCHIVE, "enable/disable legacy 1.0 weapon handling for Blood")
 CVARD(Bool, cl_loadingscreens, true, CVAR_ARCHIVE|CVAR_GLOBALCONFIG, "enable/disable loading screens for games")
+CVARD(Bool, cl_clampedpitch, true, CVAR_ARCHIVE, "clamp the view pitch to original ranges")
 
 
 CUSTOM_CVARD(Int, cl_autoaim, 1, CVAR_ARCHIVE|CVAR_USERINFO, "enable/disable weapon autoaim")
@@ -101,8 +102,7 @@ CUSTOM_CVARD(Int, cl_weaponswitch, 3, CVAR_ARCHIVE|CVAR_USERINFO, "enable/disabl
 {
 	if (self < 0) self = 0;
 	if (self > 1 && isSWALL()) self = 1;
-	if (self > 3 && isBlood()) self = 3;
-	if (self > 7) self = 7;
+	if (self > 3) self = 3;
 }
 
 // Sound
@@ -183,10 +183,10 @@ CUSTOM_CVARD(Int, hud_stats, 0, CVAR_ARCHIVE | CVAR_GLOBALCONFIG, "enable/disabl
 {
 	if (self < 0 || self > 3) self = 0;
 }
-CVARD(Bool, hud_showmapname, true, CVAR_ARCHIVE|CVAR_GLOBALCONFIG, "enable/disable map name display on load")
+CVARD(Bool, hud_showmapname, true, CVAR_ARCHIVE, "enable/disable map name display on load")
 CVARD(Bool, hud_position, false, CVAR_ARCHIVE, "aligns the status bar to the bottom/top")
 CVARD(Bool, hud_bgstretch, false, CVAR_ARCHIVE, "enable/disable background image stretching in wide resolutions")
-CVARD(Bool, hud_messages, 1, CVAR_ARCHIVE, "enable/disable showing messages")
+CVARD(Bool, hud_messages, true, CVAR_ARCHIVE, "enable/disable showing messages")
 
 // This cannot be done with the 'toggle' CCMD because it needs to control itself when to output the message
 CCMD (togglemessages)
@@ -203,7 +203,7 @@ CCMD (togglemessages)
 	}
 }
 
-CVARD_NAMED(Int, hud_flashing, althud_flashing, true, CVAR_ARCHIVE, "enable/disable althud flashing")
+CVARD(Bool, althud_flashing, true, CVAR_ARCHIVE, "enable/disable althud flashing")
 CUSTOM_CVARD(Int, r_fov, 90, CVAR_ARCHIVE|CVAR_GLOBALCONFIG, "change the field of view")
 {
 	if (self < 60) self = 60;
@@ -239,10 +239,10 @@ ADD_STAT(coord)
 	FString out;
 	if (coord.first.X < DBL_MAX)
 	{
-		out.AppendFormat("X: %d ", int(coord.first.X));
-		out.AppendFormat("Y: %d ", int(coord.first.Y));
-		out.AppendFormat("Z: %d ", int(coord.first.Z));
-		out.AppendFormat("Angle: %d\n", int(coord.second.Degrees()));
+		out.AppendFormat("X: %f ", coord.first.X);
+		out.AppendFormat("Y: %f ", coord.first.Y);
+		out.AppendFormat("Z: %f ", coord.first.Z);
+		out.AppendFormat("Angle: %f\n", coord.second.Degrees());
 	}
 	return out;
 }
@@ -302,6 +302,10 @@ CUSTOM_CVAR(Int, playergender, 0, CVAR_USERINFO|CVAR_ARCHIVE)
 	if (self < 0 || self > 3) self = 0;
 }
 
+CUSTOM_CVAR(Int, cl_maxdecalamount, 1024, CVAR_ARCHIVE)
+{
+	if (self < 0) self = 0;
+}
 
 
 

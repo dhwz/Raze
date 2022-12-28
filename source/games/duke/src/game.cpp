@@ -43,12 +43,15 @@ Modifications for JonoF's port by Jonathon Fowler (jf@jonof.id.au)
 #include "psky.h"
 #include "vm.h"
 #include "thingdef.h"
+#include "tilesetbuilder.h"
 
 BEGIN_DUKE_NS
 
 void SetDispatcher();
 void InitCheats();
 int registerosdcommands(void);
+
+FTextureID mirrortex, foftex;
 
 //---------------------------------------------------------------------------
 //
@@ -77,10 +80,9 @@ static void markgcroots()
 {
 	GC::Mark(camsprite);
 	GC::Mark(BellSprite);
-	GC::MarkArray(spriteq, countof(spriteq));
+	GC::MarkArray(spriteq, 1024);
 	GC::Mark(currentCommentarySprite);
 	GC::Mark(ud.cameraactor);
-	for (auto& crn : cranes) GC::Mark(crn.poleactor);
 	for (auto& pl : ps)
 	{
 		GC::Mark(pl.actor);
@@ -224,7 +226,6 @@ static void genspriteremaps(void)
 //---------------------------------------------------------------------------
 //
 // Define sky layouts.
-// This one's easy - the other games are a total mess
 //
 //---------------------------------------------------------------------------
 
@@ -238,39 +239,39 @@ static void setupbackdrop()
 	static const int16_t defoff4[8] = { 4, 5, 6, 7, 0, 1, 2, 3 };
 	static const int16_t defoff7[8] = { 7, 0, 1, 2, 3, 4, 5, 6 };
 
-	defineSky(DEFAULTPSKY, 3, nullptr);
-	defineSky(TILE_CLOUDYOCEAN, 3, nullptr);
-	defineSky(TILE_MOONSKY1, 3, moonoff);
-	defineSky(TILE_BIGORBIT1, 3, orbitoff);
-	defineSky(TILE_LA, 3, laoff);
+	defineSky(nullptr, 3, nullptr);
+	defineSky("CLOUDYOCEAN", 3, nullptr);
+	defineSky("MOONSKY12", 3, moonoff);
+	defineSky("BIGORBIT1", 3, orbitoff);
+	defineSky("LA", 3, laoff);
 	if (isWorldTour())
 	{
-		defineSky(5284, 3, defoff);
-		defineSky(5412, 3, defoff, 80);
-		defineSky(5420, 3, defoff, 80);
-		defineSky(5450, 3, defoff7, 80);
-		defineSky(5540, 3, defoff, 80);
-		defineSky(5548, 3, defoff, 80);
-		defineSky(5556, 3, defoff1, 80);
-		defineSky(5720, 3, defoff4, 80);
-		defineSky(5814, 3, defoff, 80);
+		defineSky("SPACESKY", 3, defoff);
+		defineSky("PARISSKY", 3, defoff, 80);
+		defineSky("LONDONSKY", 3, defoff, 80);
+		defineSky("MOSCOWSKY", 3, defoff7, 80);
+		defineSky("DESERTSKY", 3, defoff, 80);
+		defineSky("AMSTERDAMSKY", 3, defoff, 80);
+		defineSky("HOLLYWOODSKY", 3, defoff1, 80);
+		defineSky("FRISCOSKY", 3, defoff4, 80);
+		defineSky("ROMESKY", 3, defoff, 80);
 	}
 
 	if (isNam())
 	{
-		defineSky(212, 3, nullptr, 0, 1, 140);
-		defineSky(225, 3, nullptr, 0, 1, 140);
+		defineSky("NAMSKY1", 3, nullptr, 0, 1, 140);
+		defineSky("NAMSKY2", 3, nullptr, 0, 1, 140);
 	}
 
 	if (isWW2GI() && (g_gameType & GAMEFLAG_ADDON))
 	{
-		defineSky(1086, 3, nullptr, 0, 1, 140);
+		defineSky("PLATOONSKY", 3, nullptr, 0, 1, 140);
 	}
 
 	// this sky isn't actually placed wrong - it's just so poorly designed that it needs to be shifted down to hide its shortcomings as good as possible.
 	if (isDuke() && (g_gameType & GAMEFLAG_DUKEDC))
 	{
-		defineSky(3708, 3, nullptr, 0, 1, -40);
+		defineSky("DUKEDCSKY", 3, nullptr, 0, 1, -40);
 	}
 }
 
@@ -280,25 +281,13 @@ static void setupbackdrop()
 //
 //---------------------------------------------------------------------------
 
-static void initTiles()
-{
-	tileDelete(TILE_MIRROR);
-	//skiptile = TILE_W_FORCEFIELD + 1;
-
-	if (isRR())
-		tileDelete(0);
-
-	tileDelete(FOF);
-}
-
 #define x(a, b) registerName(#a, b);
-#define y(a, b)	// Do not create names for RRTILExxxx.
-static void SetTileNames()
+#define y(a, b)	registerName(#a, b);
+static void SetTileNames(TilesetBuildInfo& info)
 {
-	auto registerName = [](const char* name, int index)
+	auto registerName = [&](const char* name, int index)
 	{
-		TexMan.AddAlias(name, tileGetTexture(index));
-		TileFiles.addName(name, index);
+		info.addName(name, index);
 	};
 	if (!isRR())
 	{
@@ -312,6 +301,32 @@ static void SetTileNames()
 #undef x
 #undef y
 
+void GameInterface::SetupSpecialTextures(TilesetBuildInfo& info)
+{
+	SetTileNames(info);
+	// set up all special tiles here, before we fully hook up with the texture manager.
+	info.Delete(FOF);	// portal marker
+
+	FImageSource* viewscreen;
+	if (!isRR())
+	{
+		info.Delete(MIRROR_DUKE); // the mirror tile.
+		viewscreen = info.tile[502].tileimage;
+	}
+	else
+	{
+		info.Delete(MIRROR_RR);	// the mirror tile.
+		info.Delete(0);		// RR uses this as an empty texture
+		info.MakeWritable(2025);	// bowling lane pin displays
+		info.MakeWritable(2026);
+		info.MakeWritable(2027);
+		info.MakeWritable(2028);
+		viewscreen = info.tile[1055].tileimage;
+	}
+	info.MakeCanvas(TILE_VIEWSCR, viewscreen? viewscreen->GetWidth() : 128, viewscreen? viewscreen->GetHeight() : 128);
+}
+
+
 
 void GameInterface::loadPalette()
 {
@@ -322,6 +337,18 @@ void GameInterface::loadPalette()
 int GameInterface::GetCurrentSkill()
 {
 	return ud.player_skill - 1;
+}
+
+//---------------------------------------------------------------------------
+//
+// IDs for non-textures that need direct checking
+//
+//---------------------------------------------------------------------------
+
+void setTextureIDs()
+{
+	mirrortex = tileGetTextureID(isRR() ? MIRROR_RR : MIRROR_DUKE);
+	foftex = tileGetTextureID(FOF);
 }
 
 //---------------------------------------------------------------------------
@@ -365,18 +392,16 @@ void GameInterface::app_init()
 	connectpoint2[0] = -1;
 
 	SetDispatcher();
-	S_InitSound();
-
-
+	
 	loadcons();
 	fi.initactorflags();
-	duke_menufont.Callback(); // depends on the .CON files so it must be after loadcons
+	setTextureIDs();			// sets a few texture IDs needed for map checking.
+	duke_menufont->Callback(); // depends on the .CON files so it must be after loadcons
 
 	OnEvent(EVENT_INIT);
 
 	//Net_SendClientInfo();
 
-	initTiles();
 	setupbackdrop();
 	SetupGameButtons();
 	InitCheats();
@@ -385,7 +410,6 @@ void GameInterface::app_init()
 
 	screenpeek = myconnectindex;
 
-	SetTileNames();
 	C_InitConback(TexMan.CheckForTexture("MENUSCREEN", ETextureType::Any), false, 0.75);
 
 	if (ud.multimode > 1)
@@ -402,10 +426,10 @@ void GameInterface::app_init()
 
 void CallInitialize(DDukeActor* actor)
 {
-	IFVIRTUALPTR(actor, DDukeActor, initialize)
+	IFVIRTUALPTR(actor, DDukeActor, Initialize)
 	{
-		VMValue val = actor;
-		VMCall(func, &val, 1, nullptr, 0);
+		VMValue val[2] = { actor };
+		VMCall(func, val, 1, nullptr, 0);
 	}
 }
 
@@ -426,5 +450,130 @@ void CallAction(DDukeActor* actor)
 		VMCall(func, &val, 1, nullptr, 0);
 	}
 }
+
+void CallOnHit(DDukeActor* actor, DDukeActor* hitter)
+{
+	IFVIRTUALPTR(actor, DDukeActor, onHit)
+	{
+		VMValue val[2] = { actor, hitter };
+		VMCall(func, val, 2, nullptr, 0);
+	}
+}
+
+void CallOnHurt(DDukeActor* actor, player_struct* hitter)
+{
+	IFVIRTUALPTR(actor, DDukeActor, onHurt)
+	{
+		VMValue val[2] = { actor, hitter };
+		VMCall(func, val, 2, nullptr, 0);
+	}
+}
+
+void CallOnTouch(DDukeActor* actor, player_struct* hitter)
+{
+	IFVIRTUALPTR(actor, DDukeActor, onTouch)
+	{
+		VMValue val[2] = { actor, hitter };
+		VMCall(func, val, 2, nullptr, 0);
+	}
+}
+
+
+bool CallOnUse(DDukeActor* actor, player_struct* user)
+{
+	int nval = false;
+	IFVIRTUALPTR(actor, DDukeActor, onUse)
+	{
+		VMValue val[2] = { actor, user };
+		VMReturn ret(&nval);
+		VMCall(func, val, 2, &ret, 1);
+	}
+	return nval;
+}
+
+void CallOnMotoSmash(DDukeActor* actor, player_struct* hitter)
+{
+	IFVIRTUALPTR(actor, DDukeActor, onMotoSmash)
+	{
+		VMValue val[2] = { actor, hitter };
+		VMCall(func, val, 2, nullptr, 0);
+	}
+}
+
+
+void CallOnRespawn(DDukeActor* actor, int low)
+{
+	IFVIRTUALPTR(actor, DDukeActor, onRespawn)
+	{
+		VMValue val[2] = { actor, low };
+		VMCall(func, val, 2, nullptr, 0);
+	}
+}
+
+bool CallAnimate(DDukeActor* actor, tspritetype* tspr)
+{
+	int nval = false;
+	IFVIRTUALPTR(actor, DDukeActor, animate)
+	{
+		VMReturn ret(& nval);
+		VMValue val[2] = { actor, tspr };
+		VMCall(func, val, 2, &ret, 1);
+	}
+	return nval;
+}
+
+void CallStaticSetup(DDukeActor* actor)
+{
+	IFVIRTUALPTR(actor, DDukeActor, StaticSetup)
+	{
+		VMValue val = actor;
+		VMCall(func, &val, 1, nullptr, 0);
+	}
+}
+
+bool CallShootThis(DDukeActor* clsdef, DDukeActor* actor, int pn, const DVector3& spos, DAngle sang)
+{
+	int rv = 0;
+	VMReturn ret(&rv);
+	IFVIRTUALPTR(clsdef, DDukeActor, ShootThis)
+	{
+		VMValue val[] = {clsdef, actor, pn >= 0? &ps[pn] : nullptr, spos.X, spos.Y, spos.Z, sang.Degrees()};
+		VMCall(func, val, 7, &ret, 1);
+	}
+	return rv;
+}
+
+void CallPlayFTASound(DDukeActor* actor)
+{
+	IFVIRTUALPTR(actor, DDukeActor, PlayFTASound)
+	{
+		VMValue val = actor;
+		VMCall(func, &val, 1, nullptr, 0);
+	}
+}
+
+void CallStandingOn(DDukeActor* actor, player_struct* p)
+{
+	IFVIRTUALPTR(actor, DDukeActor, StandingOn)
+	{
+		VMValue val[] = { actor, p };
+		VMCall(func, val, 2, nullptr, 0);
+	}
+}
+
+
+CCMD(changewalltexture)
+{
+	if (argv.argc() < 2) return;
+	FTextureID tile = TexMan.CheckForTexture(argv[1], ETextureType::Any);
+	if (!tile.isValid()) tile = tileGetTextureID((int)strtol(argv[1], nullptr, 10));
+	HitInfoBase hit;
+	hitscan(ps[0].actor->spr.pos, ps[0].cursector, DVector3(ps[0].actor->spr.Angles.Yaw.ToVector(), 0) * 1024, hit, CLIPMASK1);
+	if (hit.hitWall)
+	{
+		hit.hitWall->setwalltexture(tile);
+	}
+}
+
 
 END_DUKE_NS

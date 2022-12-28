@@ -39,16 +39,16 @@ source as it is released.
 #include "names_d.h"
 #include "dukeactor.h"
 #include "gamefuncs.h"
+#include "models/modeldata.h"
 
 EXTERN_CVAR(Bool, wt_commentary)
 
 BEGIN_DUKE_NS
 
-void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, double interpfrac)
+void animatesprites_d(tspriteArray& tsprites, const DVector2& viewVec, DAngle viewang, double interpfrac)
 {
-	DVector2 viewVec(x * inttoworld, y * inttoworld);
 	int k, p;
-	int l, t1, t3, t4;
+	int t1, t3, t4;
 	tspritetype* t;
 	DDukeActor* h;
 
@@ -57,79 +57,13 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, double interp
 		t = tsprites.get(j);
 		h = static_cast<DDukeActor*>(t->ownerActor);
 
-		switch (t->picnum)
+		if (!actorflag(h, SFLAG2_FORCESECTORSHADE) && ((t->cstat & CSTAT_SPRITE_ALIGNMENT_WALL)) || (badguypic(t->picnum) && t->extra > 0) || t->statnum == STAT_PLAYER)
 		{
-		case DEVELOPERCOMMENTARY:
-		case DEVELOPERCOMMENTARY + 1:
-			if (isWorldTour() && !wt_commentary)
-				t->xrepeat = t->yrepeat = 0;
-			break;
-		case BLOODPOOL:
-		case PUKE:
-		case FOOTPRINTS:
-		case FOOTPRINTS2:
-		case FOOTPRINTS3:
-		case FOOTPRINTS4:
-			if (t->shade == 127) continue;
-			break;
-		case RESPAWNMARKERRED:
-		case RESPAWNMARKERYELLOW:
-		case RESPAWNMARKERGREEN:
-			if (ud.marker == 0)
-				t->xrepeat = t->yrepeat = 0;
-			continue;
-		case CHAIR3:
-			if (hw_models && md_tilehasmodel(t->picnum, t->pal) >= 0) 
+			if (h->sector()->shadedsector == 1 && h->spr.statnum != 1)
 			{
-				t->cstat &= ~CSTAT_SPRITE_XFLIP;
-				break;
+				t->shade = 16;
 			}
-
-			k = (((t->int_ang() + 3072 + 128 - a) & 2047) >> 8) & 7;
-			if (k > 4)
-			{
-				k = 8 - k;
-				t->cstat |= CSTAT_SPRITE_XFLIP;
-			}
-			else t->cstat &= ~CSTAT_SPRITE_XFLIP;
-			t->picnum = h->spr.picnum + k;
-			break;
-		case BLOODSPLAT1:
-		case BLOODSPLAT2:
-		case BLOODSPLAT3:
-		case BLOODSPLAT4:
-			if (t->pal == 6)
-			{
-				t->shade = -127;
-				continue;
-			}
-			[[fallthrough]];
-		case BULLETHOLE:
-		case CRACK1:
-		case CRACK2:
-		case CRACK3:
-		case CRACK4:
-			t->shade = 16;
 			continue;
-		case NEON1:
-		case NEON2:
-		case NEON3:
-		case NEON4:
-		case NEON5:
-		case NEON6:
-			continue;
-		case GREENSLIME:
-		case GREENSLIME + 1:
-		case GREENSLIME + 2:
-		case GREENSLIME + 3:
-		case GREENSLIME + 4:
-		case GREENSLIME + 5:
-		case GREENSLIME + 6:
-		case GREENSLIME + 7:
-			break;
-		default:
-			if (((t->cstat & CSTAT_SPRITE_ALIGNMENT_WALL)) || (badguypic(t->picnum) && t->extra > 0) || t->statnum == STAT_PLAYER)
-				continue;
 		}
 
 		if (t->sectp != nullptr)
@@ -141,159 +75,81 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, double interp
 	for (unsigned j = 0; j < tsprites.Size(); j++)  
 	{
 		t = tsprites.get(j);
+
 		h = static_cast<DDukeActor*>(t->ownerActor);
 		auto OwnerAc = h->GetOwner();
 
-		switch (h->spr.picnum)
+		if (iseffector(h))
 		{
-		case SECTOREFFECTOR:
 			if (t->lotag == SE_27_DEMO_CAM && ud.recstat == 1)
 			{
 				t->picnum = 11 + ((PlayClock >> 3) & 1);
 				t->cstat |= CSTAT_SPRITE_YCENTER;
 			}
 			else
-				t->xrepeat = t->yrepeat = 0;
-			break;
-		case NATURALLIGHTNING:
-			t->shade = -127;
-			break;
-
-		default:
+				t->scale = DVector2(0, 0);
 			break;
 		}
 
-		if (t->statnum == 99) continue;
+		if (t->statnum == STAT_TEMP) continue;
 		auto pp = &ps[h->PlayerIndex()];
-		if (h->spr.statnum != STAT_ACTOR && h->spr.picnum == APLAYER && pp->newOwner == nullptr && h->GetOwner())
-		{
-			t->pos = interpolatedvalue(pp->opos, pp->pos, interpfrac).plusZ(gs.playerheight);
-		}
-		else if (!actorflag(h, SFLAG_NOINTERPOLATE))
+		if ((h->spr.statnum != STAT_ACTOR && h->isPlayer() && pp->newOwner == nullptr && h->GetOwner()) || !actorflag(h, SFLAG_NOINTERPOLATE))
 		{
 			t->pos = h->interpolatedpos(interpfrac);
+			t->Angles.Yaw = h->interpolatedyaw(interpfrac);
 		}
 
+
 		auto sectp = h->sector();
+		bool res = CallAnimate(h, t);
+		// some actors have 4, some 6 rotation frames - in true Build fashion there's no pointers what to do here without flagging it.
+		if (actorflag(h, SFLAG2_ALWAYSROTATE1) || (t->clipdist & TSPR_ROTATE8FRAMES))
+			applyRotation1(h, t, viewang);
+		else if (actorflag(h, SFLAG2_ALWAYSROTATE2) || (t->clipdist & TSPR_ROTATE12FRAMES))
+			applyRotation2(h, t, viewang);
+		if (sectp->floorpal && !actorflag(h, SFLAG2_NOFLOORPAL) && !(t->clipdist & TSPR_NOFLOORPAL))
+			copyfloorpal(t, sectp);
+
+		if (res)
+		{
+			if (h->dispicnum >= 0)
+				h->dispicnum = t->picnum;
+			continue;
+		}
+
 		t1 = h->temp_data[1];
 		t3 = h->temp_data[3];
 		t4 = h->temp_data[4];
 
 		switch (h->spr.picnum)
 		{
-		case DUKELYINGDEAD:
+		case DTILE_DUKELYINGDEAD:
 			t->pos.Z += 24;
 			break;
-		case BLOODPOOL:
-		case FOOTPRINTS:
-		case FOOTPRINTS2:
-		case FOOTPRINTS3:
-		case FOOTPRINTS4:
-			if (t->pal == 6)
-				t->shade = -127;
-		case PUKE:
-		case MONEY:
-		case MONEY + 1:
-		case MAIL:
-		case MAIL + 1:
-		case PAPER:
-		case PAPER + 1:
-			break;
-		case FORCESPHERE:
-			if (t->statnum == STAT_MISC && OwnerAc)
-			{
-				int sqa = getangle( OwnerAc->spr.pos.XY() - ps[screenpeek].pos.XY());
-				int sqb = getangle(OwnerAc->spr.pos.XY() - t->pos.XY());
-
-				if (abs(getincangle(sqa, sqb)) > 512)
-					if (ldist(OwnerAc, t) < ldist(ps[screenpeek].GetActor(), OwnerAc))
-						t->xrepeat = t->yrepeat = 0;
-			}
-			continue;
-		case BURNING:
-		case BURNING2:
+		case DTILE_BURNING:
+		case DTILE_BURNING2:
 			if (OwnerAc && OwnerAc->spr.statnum == STAT_PLAYER)
 			{
 				if (display_mirror == 0 && OwnerAc->PlayerIndex() == screenpeek && ps[screenpeek].over_shoulder_on == 0)
-					t->xrepeat = 0;
+					t->scale = DVector2(0, 0);
 				else
 				{
-					t->angle = VecToAngle(viewVec - t->pos.XY());
-					t->pos.XY() = OwnerAc->spr.pos.XY() + t->angle.ToVector();
+					t->Angles.Yaw = (viewVec - t->pos.XY()).Angle();
+					t->pos.XY() = OwnerAc->spr.pos.XY() + t->Angles.Yaw.ToVector();
 				}
 			}
 			break;
 
-		case ATOMICHEALTH:
+		case DTILE_ATOMICHEALTH:
 			t->pos.Z -= 4;
 			break;
-		case CRYSTALAMMO:
-			t->shade = bsin(PlayClock << 4, -10);
+		case DTILE_CRYSTALAMMO:
+			t->shade = int(BobVal(PlayClock << 4) * 16);
 			continue;
-		case VIEWSCREEN:
-		case VIEWSCREEN2:
-			if (camsprite != nullptr && h->GetHitOwner() && h->GetHitOwner()->temp_data[0] == 1)
-			{
-				t->picnum = STATIC;
-				t->cstat |= randomFlip();
-				t->xrepeat += 8;
-				t->yrepeat += 8;
-			}
-			else if (camsprite && camsprite == h->GetHitOwner())
-			{
-				t->picnum = TILE_VIEWSCR;
-			}
+		case DTILE_GROWSPARK:
+			t->picnum = DTILE_GROWSPARK + ((PlayClock >> 4) & 3);
 			break;
-
-		case SHRINKSPARK:
-			t->picnum = SHRINKSPARK + ((PlayClock >> 4) & 3);
-			break;
-		case GROWSPARK:
-			t->picnum = GROWSPARK + ((PlayClock >> 4) & 3);
-			break;
-		case RPG:
-			if (hw_models && md_tilehasmodel(h->spr.picnum, h->spr.pal) >= 0) 
-			{
-				t->cstat &= ~CSTAT_SPRITE_XFLIP;
-				break;
-			}
-
-			k = getangle(h->spr.pos - viewVec);
-			k = (((h->int_ang() + 3072 + 128 - k) & 2047) / 170);
-			if (k > 6)
-			{
-				k = 12 - k;
-				t->cstat |= CSTAT_SPRITE_XFLIP;
-			}
-			else t->cstat &= ~CSTAT_SPRITE_XFLIP;
-			t->picnum = RPG + k;
-			break;
-
-		case RECON:
-			if (hw_models && md_tilehasmodel(h->spr.picnum, h->spr.pal) >= 0) 
-			{
-				t->cstat &= ~CSTAT_SPRITE_XFLIP;
-				break;
-			}
-
-			k = getangle(h->spr.pos - viewVec);
-			if (h->temp_data[0] < 4)
-				k = (((h->int_ang() + 3072 + 128 - k) & 2047) / 170);
-			else k = (((h->int_ang() + 3072 + 128 - k) & 2047) / 170);
-
-			if (k > 6)
-			{
-				k = 12 - k;
-				t->cstat |= CSTAT_SPRITE_XFLIP;
-			}
-			else t->cstat &= ~CSTAT_SPRITE_XFLIP;
-
-			if (abs(t3) > 64) k += 7;
-			t->picnum = RECON + k;
-
-			break;
-
-		case APLAYER:
+		case DTILE_APLAYER:
 
 			p = h->PlayerIndex();
 
@@ -306,7 +162,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, double interp
 				if (screenpeek == myconnectindex && numplayers >= 2)
 				{
 					t->pos = interpolatedvalue(omypos, mypos, interpfrac).plusZ(gs_playerheight);
-					t->ang = interpolatedvalue(omyang, myang, interpfrac).asbuild();
+					t->angle = interpolatedvalue(omyang, myang, interpfrac);
 					t->sector = mycursectnum;
 				}
 #endif
@@ -317,58 +173,55 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, double interp
 				auto newtspr = tsprites.newTSprite();
 				*newtspr = *t;
 
-				newtspr->statnum = 99;
+				newtspr->statnum = STAT_TEMP;
 
-				newtspr->yrepeat = (t->yrepeat >> 3);
-				if (t->yrepeat < 4) t->yrepeat = 4;
+				newtspr->scale.Y = (max(t->scale.Y * 0.125, 0.0625));
 
 				newtspr->shade = t->shade;
 				newtspr->cstat = 0;
 
 				switch (ps[p].curr_weapon)
 				{
-				case PISTOL_WEAPON:      newtspr->picnum = FIRSTGUNSPRITE;       break;
-				case SHOTGUN_WEAPON:     newtspr->picnum = SHOTGUNSPRITE;        break;
-				case CHAINGUN_WEAPON:    newtspr->picnum = CHAINGUNSPRITE;       break;
-				case RPG_WEAPON:         newtspr->picnum = RPGSPRITE;            break;
+				case PISTOL_WEAPON:      newtspr->picnum = DTILE_FIRSTGUNSPRITE;       break;
+				case SHOTGUN_WEAPON:     newtspr->picnum = DTILE_SHOTGUNSPRITE;        break;
+				case CHAINGUN_WEAPON:    newtspr->picnum = DTILE_CHAINGUNSPRITE;       break;
+				case RPG_WEAPON:         newtspr->picnum = DTILE_RPGSPRITE;            break;
 				case HANDREMOTE_WEAPON:
-				case HANDBOMB_WEAPON:    newtspr->picnum = HEAVYHBOMB;           break;
-				case TRIPBOMB_WEAPON:    newtspr->picnum = TRIPBOMBSPRITE;       break;
-				case GROW_WEAPON:        newtspr->picnum = GROWSPRITEICON;       break;
-				case SHRINKER_WEAPON:    newtspr->picnum = SHRINKERSPRITE;       break;
-				case FREEZE_WEAPON:      newtspr->picnum = FREEZESPRITE;         break;
+				case HANDBOMB_WEAPON:    newtspr->picnum = DTILE_HEAVYHBOMB;           break;
+				case TRIPBOMB_WEAPON:    newtspr->picnum = DTILE_TRIPBOMBSPRITE;       break;
+				case GROW_WEAPON:        newtspr->picnum = DTILE_GROWSPRITEICON;       break;
+				case SHRINKER_WEAPON:    newtspr->picnum = DTILE_SHRINKERSPRITE;       break;
+				case FREEZE_WEAPON:      newtspr->picnum = DTILE_FREEZESPRITE;         break;
 				case FLAMETHROWER_WEAPON: //Twentieth Anniversary World Tour
 					if (isWorldTour())
-						newtspr->picnum = FLAMETHROWERSPRITE;   
+						newtspr->picnum = DTILE_FLAMETHROWERSPRITE;   
 					break;
-				case DEVISTATOR_WEAPON:  newtspr->picnum = DEVISTATORSPRITE;     break;
+				case DEVISTATOR_WEAPON:  newtspr->picnum = DTILE_DEVISTATORSPRITE;     break;
 				}
 
-				if (h->GetOwner()) newtspr->pos.Z = ps[p].pos.Z - 12;
+				if (h->GetOwner()) newtspr->pos.Z = ps[p].GetActor()->getOffsetZ() - 12;
 				else newtspr->pos.Z = h->spr.pos.Z - 51;
 				if (ps[p].curr_weapon == HANDBOMB_WEAPON)
 				{
-					newtspr->xrepeat = 10;
-					newtspr->yrepeat = 10;
+					newtspr->scale = DVector2(0.15625, 0.15625);
 				}
 				else
 				{
-					newtspr->xrepeat = 16;
-					newtspr->yrepeat = 16;
+					newtspr->scale = DVector2(0.25, 0.25);
 				}
 				newtspr->pal = 0;
 			}
 
 			if (!h->GetOwner())
 			{
-				if (hw_models && md_tilehasmodel(h->spr.picnum, h->spr.pal) >= 0) 
+				if (hw_models && modelManager.CheckModel(h->spr.picnum, h->spr.pal)) 
 				{
 					k = 0;
 					t->cstat &= ~CSTAT_SPRITE_XFLIP;
 				}
 				else
 				{
-					k = (((h->int_ang() + 3072 + 128 - a) & 2047) >> 8) & 7;
+					k = angletorotation1(t->Angles.Yaw, viewang);
 					if (k > 4)
 					{
 						k = 8 - k;
@@ -389,16 +242,16 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, double interp
 			if (ps[p].on_crane == nullptr && (h->sector()->lotag & 0x7ff) != 1)
 			{
 				double v = h->spr.pos.Z - ps[p].GetActor()->floorz + 3;
-				if (v > 4 && h->spr.yrepeat > 32 && h->spr.extra > 0)
-					h->spr.yoffset = (int8_t)(v * (1/REPEAT_SCALE) / h->spr.yrepeat);
+				if (v > 4 && h->spr.scale.Y > 0.5 && h->spr.extra > 0)
+					h->spr.yoffset = (int8_t)(v / h->spr.scale.Y);
 				else h->spr.yoffset = 0;
 			}
 
 			if (ps[p].newOwner != nullptr)
 			{
-				t4 = ScriptCode[gs.actorinfo[APLAYER].scriptaddress + 1];
+				t4 = ScriptCode[gs.actorinfo[DTILE_APLAYER].scriptaddress + 1];
 				t3 = 0;
-				t1 = ScriptCode[gs.actorinfo[APLAYER].scriptaddress + 2];
+				t1 = ScriptCode[gs.actorinfo[DTILE_APLAYER].scriptaddress + 2];
 			}
 
 			if (ud.cameraactor == nullptr && ps[p].newOwner == nullptr)
@@ -406,7 +259,7 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, double interp
 					if (ud.multimode < 2 || (ud.multimode > 1 && p == screenpeek))
 					{
 						t->ownerActor = nullptr;
-						t->xrepeat = t->yrepeat = 0;
+						t->scale = DVector2(0, 0);
 						continue;
 					}
 
@@ -417,54 +270,13 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, double interp
 
 			if (!h->GetOwner()) continue;
 
-			if (t->pos.Z > h->floorz && t->xrepeat < 32)
+			if (t->pos.Z > h->floorz && t->scale.X < 0.5)
 				t->pos.Z = h->floorz;
 
 			break;
 
-		case JIBS1:
-		case JIBS2:
-		case JIBS3:
-		case JIBS4:
-		case JIBS5:
-		case JIBS6:
-		case HEADJIB1:
-		case LEGJIB1:
-		case ARMJIB1:
-		case LIZMANHEAD1:
-		case LIZMANARM1:
-		case LIZMANLEG1:
-		case DUKELEG:
-		case DUKEGUN:
-		case DUKETORSO:
-			if (t->pal == 6) t->shade = -120;
-			[[fallthrough]];
-
-		case SCRAP1:
-		case SCRAP2:
-		case SCRAP3:
-		case SCRAP4:
-		case SCRAP5:
-		case SCRAP6:
-		case SCRAP6 + 1:
-		case SCRAP6 + 2:
-		case SCRAP6 + 3:
-		case SCRAP6 + 4:
-		case SCRAP6 + 5:
-		case SCRAP6 + 6:
-		case SCRAP6 + 7:
-
-			if (h->attackertype == BLIMP && t->picnum == SCRAP1 && h->spr.yint >= 0)
-				t->picnum = h->spr.yint;
-			else t->picnum += h->temp_data[0];
-			t->shade -= 6;
-
-			if (sectp->floorpal)
-				copyfloorpal(t, sectp);
-			break;
-
-		case WATERBUBBLE:
-			if (t->sectp->floorpicnum == FLOORSLIME)
+		case DTILE_WATERBUBBLE:
+			if (tilesurface(t->sectp->floortexture) == TSURF_SLIME)
 			{
 				t->pal = 7;
 				break;
@@ -477,187 +289,53 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, double interp
 			break;
 		}
 
-		if (gs.actorinfo[h->spr.picnum].scriptaddress && !actorflag(h, SFLAG2_DONTANIMATE))
+		applyanimations(t, h, viewVec, viewang);
+
+		if (h->spr.statnum == STAT_DUMMYPLAYER || badguy(h) || (h->isPlayer() && h->GetOwner()))
 		{
-			if (t4)
+			drawshadows(tsprites, t, h);
+			if (ps[screenpeek].heat_amount > 0 && ps[screenpeek].heat_on)
 			{
-				l = ScriptCode[t4 + 2];
-
-				if (hw_models && md_tilehasmodel(h->spr.picnum, h->spr.pal) >= 0) 
-				{
-					k = 0;
-					t->cstat &= ~CSTAT_SPRITE_XFLIP;
-				}
-				else switch (l) 
-				{
-				case 2:
-					k = (((h->int_ang() + 3072 + 128 - a) & 2047) >> 8) & 1;
-					break;
-
-				case 3:
-				case 4:
-					k = (((h->int_ang() + 3072 + 128 - a) & 2047) >> 7) & 7;
-					if (k > 3)
-					{
-						t->cstat |= CSTAT_SPRITE_XFLIP;
-						k = 7 - k;
-					}
-					else t->cstat &= ~CSTAT_SPRITE_XFLIP;
-					break;
-
-				case 5:
-					k = getangle(h->spr.pos - viewVec);
-					k = (((h->int_ang() + 3072 + 128 - k) & 2047) >> 8) & 7;
-					if (k > 4)
-					{
-						k = 8 - k;
-						t->cstat |= CSTAT_SPRITE_XFLIP;
-					}
-					else t->cstat &= ~CSTAT_SPRITE_XFLIP;
-					break;
-				case 7:
-					k = getangle(h->spr.pos - viewVec);
-					k = (((h->int_ang() + 3072 + 128 - k) & 2047) / 170);
-					if (k > 6)
-					{
-						k = 12 - k;
-						t->cstat |= CSTAT_SPRITE_XFLIP;
-					}
-					else t->cstat &= ~CSTAT_SPRITE_XFLIP;
-					break;
-				case 8:
-					k = (((h->int_ang() + 3072 + 128 - a) & 2047) >> 8) & 7;
-					t->cstat &= ~CSTAT_SPRITE_XFLIP;
-					break;
-				default:
-					k = 0;
-					break;
-				}
-
-				t->picnum += k + ScriptCode[t4] + l * t3;
-
-				if (l > 0)
-				{
-					while (t->picnum >= 0 && t->picnum < MAXTILES && !tileGetTexture(t->picnum)->isValid())
-						t->picnum -= l;       //Hack, for actors 
-				}
-
-				if (h->dispicnum >= 0)
-					h->dispicnum = t->picnum;
-			}
-			else if (display_mirror == 1)
-				t->cstat |= CSTAT_SPRITE_XFLIP;
-		}
-
-		if (h->spr.statnum == STAT_DUMMYPLAYER || badguy(h) || (h->spr.picnum == APLAYER && h->GetOwner()))
-		{
-			if (t->statnum != 99 && h->spr.picnum != EXPLOSION2 && h->spr.picnum != HANGLIGHT && h->spr.picnum != DOMELITE)
-			{
-				if (h->spr.picnum != HOTMEAT)
-				{
-					if (r_shadows && !(h->spr.cstat2 & CSTAT2_SPRITE_NOSHADOW))
-					{
-						double floorz;
-
-						if ((sectp->lotag & 0xff) > 2 || h->spr.statnum == 4 || h->spr.statnum == 5 || h->spr.picnum == DRONE || h->spr.picnum == COMMANDER)
-							floorz = sectp->floorz;
-						else
-							floorz = h->floorz;
-
-
-						if (h->spr.pos.Z - floorz < 8 && ps[screenpeek].pos.Z < floorz)
-						{
-							auto shadowspr = tsprites.newTSprite();
-							*shadowspr = *t;
-
-							shadowspr->statnum = 99;
-
-							shadowspr->yrepeat = (t->yrepeat >> 3);
-							if (t->yrepeat < 4) t->yrepeat = 4;
-							shadowspr->shade = 127;
-							shadowspr->cstat |= CSTAT_SPRITE_TRANSLUCENT;
-
-							shadowspr->pos.Z = floorz;
-							shadowspr->pal = 4;
-
-							if (hw_models && md_tilehasmodel(t->picnum, t->pal) >= 0)
-							{
-								shadowspr->yrepeat = 0;
-								// 512:trans reverse
-								//1024:tell MD2SPRITE.C to use Z-buffer hacks to hide overdraw issues
-								shadowspr->clipdist |= TSPR_FLAGS_MDHACK;
-								shadowspr->cstat |= CSTAT_SPRITE_TRANS_FLIP;
-							}
-							else
-							{
-								// Alter the shadow's position so that it appears behind the sprite itself.
-								auto look = VecToAngle(shadowspr->pos.XY() - ps[screenpeek].pos.XY());
-								shadowspr->pos.XY() += look.ToVector() * 2;
-							}
-						}
-					}
-
-					if (ps[screenpeek].heat_amount > 0 && ps[screenpeek].heat_on)
-					{
-						t->pal = 6;
-						t->shade = 0;
-					}
-				}
+				t->pal = 6;
+				t->shade = 0;
 			}
 		}
 
 		switch (h->spr.picnum)
 		{
-		case LASERLINE:
-			if (!OwnerAc) break;
-			if (t->sectp->lotag == 2) t->pal = 8;
-			t->set_int_z(OwnerAc->int_pos().Z - (3 << 8));
-			if (gs.lasermode == 2 && ps[screenpeek].heat_on == 0)
-				t->yrepeat = 0;
-			t->shade = -127;
-			break;
-		case EXPLOSION2:
-		case EXPLOSION2BOT:
-		case FREEZEBLAST:
-		case ATOMICHEALTH:
-		case FIRELASER:
-		case SHRINKSPARK:
-		case GROWSPARK:
-		case CHAINGUN:
-		case SHRINKEREXPLOSION:
-		case RPG:
-		case FLOORFLAME:
-			if (t->picnum == EXPLOSION2)
+		case DTILE_EXPLOSION2:
+		case DTILE_EXPLOSION2BOT:
+		case DTILE_ATOMICHEALTH:
+		case DTILE_GROWSPARK:
+		case DTILE_CHAINGUN:
+		case DTILE_SHRINKEREXPLOSION:
+		case DTILE_FLOORFLAME:
+			if (t->picnum == DTILE_EXPLOSION2)
 			{
 				ps[screenpeek].visibility = -127;
 				lastvisinc = PlayClock + 32;
 			}
 			t->shade = -127;
 			break;
-		case FIRE:
-		case FIRE2:
+		case DTILE_FIRE:
+		case DTILE_FIRE2:
 			t->cstat |= CSTAT_SPRITE_YCENTER;
 			[[fallthrough]];
-		case BURNING:
-		case BURNING2:
-			if (!OwnerAc) break;
-			if (!actorflag(OwnerAc, SFLAG_NOFLOORFIRE))
-				t->pos.Z = t->sectp->floorz;
+		case DTILE_BURNING:
+		case DTILE_BURNING2:
+			if (!OwnerAc || !actorflag(OwnerAc, SFLAG_NOFLOORFIRE))
+				t->pos.Z = getflorzofslopeptr(t->sectp, t->pos);
 			t->shade = -127;
 			break;
-		case COOLEXPLOSION1:
-			t->shade = -127;
-			t->picnum += (h->spr.shade >> 1);
-			break;
-		case PLAYERONWATER:
-			if (hw_models && md_tilehasmodel(h->spr.picnum, h->spr.pal) >= 0) 
+		case DTILE_PLAYERONWATER:
+			if (hw_models && modelManager.CheckModel(h->spr.picnum, h->spr.pal)) 
 			{
 				k = 0;
 				t->cstat &= ~CSTAT_SPRITE_XFLIP;
 			}
 			else
 			{
-			k = (((t->int_ang() + 3072 + 128 - a) & 2047) >> 8) & 7;
+			k = angletorotation1(t->Angles.Yaw, viewang);
 			if (k > 4)
 			{
 				k = 8 - k;
@@ -671,63 +349,11 @@ void animatesprites_d(tspriteArray& tsprites, int x, int y, int a, double interp
 
 			break;
 
-		case WATERSPLASH2:
-			t->picnum = WATERSPLASH2 + t1;
-			break;
-		case REACTOR2:
-			t->picnum = h->spr.picnum + h->temp_data[2];
-			break;
-		case SHELL:
-			t->picnum = h->spr.picnum + (h->temp_data[0] & 1);
-			[[fallthrough]];
-		case SHOTGUNSHELL:
-			t->cstat |= (CSTAT_SPRITE_XFLIP | CSTAT_SPRITE_YFLIP);
-			if (h->temp_data[0] > 1) t->cstat &= ~CSTAT_SPRITE_XFLIP;
-			if (h->temp_data[0] > 2) t->cstat &= ~(CSTAT_SPRITE_XFLIP | CSTAT_SPRITE_YFLIP);
-			break;
-		case FRAMEEFFECT1:
-			if (OwnerAc && OwnerAc->spr.statnum < MAXSTATUS)
-			{
-				if (OwnerAc->spr.picnum == APLAYER)
-					if (ud.cameraactor == nullptr)
-						if (screenpeek == OwnerAc->PlayerIndex() && display_mirror == 0)
-						{
-							t->ownerActor = nullptr;
-							break;
-						}
-				if ((OwnerAc->spr.cstat & CSTAT_SPRITE_INVISIBLE) == 0)
-				{
-					t->picnum = OwnerAc->dispicnum;
-					t->pal = OwnerAc->spr.pal;
-					t->shade = OwnerAc->spr.shade;
-					t->angle = OwnerAc->spr.angle;
-					t->cstat = CSTAT_SPRITE_TRANSLUCENT | OwnerAc->spr.cstat;
-				}
-			}
-			break;
-
-		case CAMERA1:
-		case RAT:
-			if (hw_models && md_tilehasmodel(h->spr.picnum, h->spr.pal) >= 0) 
-			{
-				t->cstat &= ~CSTAT_SPRITE_XFLIP;
-				break;
-			}
-
-			k = (((t->int_ang() + 3072 + 128 - a) & 2047) >> 8) & 7;
-			if (k > 4)
-			{
-				k = 8 - k;
-				t->cstat |= CSTAT_SPRITE_XFLIP;
-			}
-			else t->cstat &= ~CSTAT_SPRITE_XFLIP;
-			t->picnum = h->spr.picnum + k;
-			break;
 		}
 
 		h->dispicnum = t->picnum;
-		if (t->sectp->floorpicnum == MIRROR)
-			t->xrepeat = t->yrepeat = 0;
+		if (t->sectp->floortexture == mirrortex)
+			t->scale = DVector2(0, 0);
 	}
 }
 

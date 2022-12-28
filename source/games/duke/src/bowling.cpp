@@ -31,286 +31,83 @@ Prepared for public release: 03/21/2003 - Charlie Wiederhold, 3D Realms
 #include "names_r.h"
 #include "dukeactor.h"
 #include "buildtiles.h"
+#include "texturemanager.h"
 
 BEGIN_DUKE_NS
 
-void ballreturn(DDukeActor *ball)
+//==========================================================================
+//
+//
+//==========================================================================
+
+void tileCopySection(FTextureID tilenum1, int sx1, int sy1, int xsiz, int ysiz, uint8_t* p2, int xsiz2, int ysiz2, int sx2, int sy2)
 {
-	DukeStatIterator it(STAT_BOWLING);
-	while (auto act = it.Next())
+	auto tex = TexMan.GetGameTexture(tilenum1);
+	if (!tex->isValid()) return;
+	int xsiz1 = tex->GetTexelWidth();
+	int ysiz1 = tex->GetTexelHeight();
+	if (xsiz1 > 0 && ysiz1 > 0)
 	{
-		if (act->spr.picnum == RRTILE281 && ball->sector() == act->sector())
+		auto p1 = GetRawPixels(tilenum1);
+		if (!p1) return;
+
+		int x1 = sx1;
+		int x2 = sx2;
+		for (int i = 0; i < xsiz; i++)
 		{
-			DukeStatIterator it2(STAT_BOWLING);
-			while (auto act2 = it2.Next())
+			int y1 = sy1;
+			int y2 = sy2;
+			for (int j = 0; j < ysiz; j++)
 			{
-				if (act2->spr.picnum == BOWLINGBALLSPOT && act->spr.hitag == act2->spr.hitag)
-					spawn(act2, BOWLINGBALLSPRITE);
-				if (act2->spr.picnum == BOWLINGPINSPOT && act->spr.hitag == act2->spr.hitag && act2->spr.lotag == 0)
+				if (x2 >= 0 && y2 >= 0 && x2 < xsiz2 && y2 < ysiz2)
 				{
-					act2->spr.lotag = 100;
-					act2->spr.extra++;
-					pinsectorresetdown(act2->sector());
+					auto src = p1[x1 * ysiz1 + y1];
+					if (src != TRANSPARENT_INDEX)
+						p2[x2 * ysiz2 + y2] = src;
 				}
+
+				y1++;
+				y2++;
+				if (y1 >= ysiz1) y1 = 0;
 			}
+			x1++;
+			x2++;
+			if (x1 >= xsiz1) x1 = 0;
 		}
 	}
+
 }
 
-void pinsectorresetdown(sectortype* sec)
+
+void updatepindisplay(int tag, int pins)
 {
-	int j = getanimationgoal(anim_ceilingz, sec);
+	if (tag < 1 || tag > 4) return;
 
-	if (j == -1)
+	static const char* lanepics[] = { "BOWLINGLANE1", "BOWLINGLANE2", "BOWLINGLANE3", "BOWLINGLANE4" };
+	auto texidbg = TexMan.CheckForTexture("LANEPICBG", ETextureType::Any);
+	auto texidlite = TexMan.CheckForTexture("LANEPICS", ETextureType::Any);
+	auto texidwork = TexMan.CheckForTexture(lanepics[tag-1], ETextureType::Any);
+	static const uint8_t pinx[] = { 64, 56, 72, 48, 64, 80, 40, 56, 72, 88 };
+	static const uint8_t piny[] = { 48, 40, 40, 32, 32, 32, 24, 24, 24, 24 };
+
+	auto pixels = GetWritablePixels(texidwork);
+	if (pixels)
 	{
-		j = sec->int_floorz();
-		setanimation(sec, anim_ceilingz, sec, j, 64);
-	}
-}
-
-int pinsectorresetup(sectortype* sec)
-{
-	int j = getanimationgoal(anim_ceilingz, sec);
-
-	if (j == -1)
-	{
-		j = nextsectorneighborzptr(sec, sec->ceilingz, Find_CeilingUp | Find_Safe)->int_ceilingz();
-		setanimation(sec, anim_ceilingz, sec, j, 64);
-		return 1;
-	}
-	return 0;
-}
-
-int checkpins(sectortype* sect)
-{
-	int  x, y;
-	bool pins[10] = {};
-	int tag = 0;
-	int pin = 0;
-
-	DukeSectIterator it(sect);
-	while (auto a2 = it.Next())
-	{
-		if (a2->spr.picnum == BOWLINGPIN)
-		{
-			pin++;
-			pins[a2->spr.lotag] = true;
-		}
-		if (a2->spr.picnum == BOWLINGPINSPOT)
-		{
-			tag = a2->spr.hitag;
-		}
-	}
-
-	if (tag)
-	{
-		tag += LANEPICS + 1;
-		TileFiles.tileMakeWritable(tag);
-		tileCopySection(LANEPICS + 1, 0, 0, 128, 64, tag, 0, 0);
-		for (int i = 0; i < 10; i++)
-		{
-			if (pins[i])
-			{
-				switch (i)
-				{
-				default:
-				case 0:
-					x = 64;
-					y = 48;
-					break;
-				case 1:
-					x = 56;
-					y = 40;
-					break;
-				case 2:
-					x = 72;
-					y = 40;
-					break;
-				case 3:
-					x = 48;
-					y = 32;
-					break;
-				case 4:
-					x = 64;
-					y = 32;
-					break;
-				case 5:
-					x = 80;
-					y = 32;
-					break;
-				case 6:
-					x = 40;
-					y = 24;
-					break;
-				case 7:
-					x = 56;
-					y = 24;
-					break;
-				case 8:
-					x = 72;
-					y = 24;
-					break;
-				case 9:
-					x = 88;
-					y = 24;
-					break;
-				}
-				tileCopySection(LANEPICS, 0, 0, 8, 8, tag, x - 4, y - 10);
-			}
-		}
-	}
-
-	return pin;
-}
-
-void resetpins(sectortype* sect)
-{
-	int i, tag = 0;
-	int x, y;
-	DukeSectIterator it(sect);
-	while (auto a2 = it.Next())
-	{
-		if (a2->spr.picnum == BOWLINGPIN)
-			deletesprite(a2);
-	}
-	it.Reset(sect);
-	while (auto a2 = it.Next())
-	{
-		if (a2->spr.picnum == 283)
-		{
-			auto spawned = spawn(a2, BOWLINGPIN);
-			if (spawned)
-			{
-				spawned->spr.lotag = a2->spr.lotag;
-				if (spawned->spr.lotag == 3 || spawned->spr.lotag == 5)
-				{
-					spawned->set_native_clipdist((1 + (krand() % 1)) * 16 + 32);
-				}
-				else
-				{
-					spawned->set_native_clipdist((1 + (krand() % 1)) * 16 + 32);
-				}
-				spawned->add_int_ang(-(((krand() & 32) - (krand() & 64)) & 2047));
-			}
-		}
-		if (a2->spr.picnum == 280)
-			tag = a2->spr.hitag;
-	}
-	if (tag)
-	{
-		tag += LANEPICS + 1;
-		TileFiles.tileMakeWritable(tag);
-		tileCopySection(LANEPICS + 1, 0, 0, 128, 64, tag, 0, 0);
-		for (i = 0; i < 10; i++)
-		{
-			switch (i)
-			{
-			default:
-			case 0:
-				x = 64;
-				y = 48;
-				break;
-			case 1:
-				x = 56;
-				y = 40;
-				break;
-			case 2:
-				x = 72;
-				y = 40;
-				break;
-			case 3:
-				x = 48;
-				y = 32;
-				break;
-			case 4:
-				x = 64;
-				y = 32;
-				break;
-			case 5:
-				x = 80;
-				y = 32;
-				break;
-			case 6:
-				x = 40;
-				y = 24;
-				break;
-			case 7:
-				x = 56;
-				y = 24;
-				break;
-			case 8:
-				x = 72;
-				y = 24;
-				break;
-			case 9:
-				x = 88;
-				y = 24;
-				break;
-			}
-			tileCopySection(LANEPICS, 0, 0, 8, 8, tag, x - 4, y - 10);
-		}
+		auto tex = TexMan.GetGameTexture(texidwork);
+		tileCopySection(texidbg,  0, 0, 128, 64, pixels, tex->GetTexelWidth(), tex->GetTexelHeight(), 0, 0);
+		for (int i = 0; i < 10; i++) if (pins & (1 << i))
+			tileCopySection(texidlite, 0, 0, 8, 8, pixels, tex->GetTexelWidth(), tex->GetTexelHeight(), pinx[i] - 4, piny[i] - 10);
 	}
 }
 
 void resetlanepics(void)
 {
 	if (!isRR()) return;
-	int x, y;
 	for (int tag = 0; tag < 4; tag++)
 	{
 		int pic = tag + 1;
 		if (pic == 0) continue;
-		pic += LANEPICS + 1;
-		TileFiles.tileMakeWritable(pic);
-		tileCopySection(LANEPICS + 1, 0, 0, 128, 64, pic, 0, 0);
-		for (int i = 0; i < 10; i++)
-		{
-			switch (i)
-			{
-			default:
-			case 0:
-				x = 64;
-				y = 48;
-				break;
-			case 1:
-				x = 56;
-				y = 40;
-				break;
-			case 2:
-				x = 72;
-				y = 40;
-				break;
-			case 3:
-				x = 48;
-				y = 32;
-				break;
-			case 4:
-				x = 64;
-				y = 32;
-				break;
-			case 5:
-				x = 80;
-				y = 32;
-				break;
-			case 6:
-				x = 40;
-				y = 24;
-				break;
-			case 7:
-				x = 56;
-				y = 24;
-				break;
-			case 8:
-				x = 72;
-				y = 24;
-				break;
-			case 9:
-				x = 88;
-				y = 24;
-				break;
-			}
-			tileCopySection(LANEPICS, 0, 0, 8, 8, pic, x - 4, y - 10);
-		}
+		updatepindisplay(pic, 0xffff);
 	}
 }
 

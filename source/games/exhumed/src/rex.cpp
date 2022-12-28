@@ -37,6 +37,12 @@ static actionSeq RexSeq[] = {
     {28, 1}
 };
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void BuildRex(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, DAngle nAngle, int nChannel)
 {
     if (pActor == nullptr)
@@ -46,21 +52,20 @@ void BuildRex(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, D
 	}
 	else
 	{
-		nAngle = pActor->spr.angle;
+		nAngle = pActor->spr.Angles.Yaw;
 		pActor->spr.pos.Z = pActor->sector()->floorz;
         ChangeActorStat(pActor, 119);
     }
 
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
-    pActor->set_const_clipdist(80);
+    pActor->clipdist = 20;
     pActor->spr.shade = -12;
-    pActor->spr.xrepeat = 64;
-    pActor->spr.yrepeat = 64;
+    pActor->spr.scale = DVector2(1, 1);
     pActor->spr.picnum = 1;
     pActor->spr.pal = pActor->sector()->ceilingpal;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->spr.angle = nAngle;
+    pActor->spr.Angles.Yaw = nAngle;
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
     pActor->vel.Z = 0;
@@ -87,6 +92,12 @@ void BuildRex(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, D
     nCreaturesTotal++;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AIRex::RadialDamage(RunListEvent* ev)
 {
     auto pActor = ev->pObjActor;
@@ -100,6 +111,12 @@ void AIRex::RadialDamage(RunListEvent* ev)
     }
     Damage(ev);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIRex::Damage(RunListEvent* ev)
 {
@@ -141,6 +158,12 @@ void AIRex::Damage(RunListEvent* ev)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AIRex::Draw(RunListEvent* ev)
 {
     auto pActor = ev->pObjActor;
@@ -151,6 +174,12 @@ void AIRex::Draw(RunListEvent* ev)
     seq_PlotSequence(ev->nParam, SeqOffsets[kSeqRex] + RexSeq[nAction].a, pActor->nFrame, RexSeq[nAction].b);
     return;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIRex::Tick(RunListEvent* ev)
 {
@@ -203,9 +232,9 @@ void AIRex::Tick(RunListEvent* ev)
             {
                 if (pTarget == nullptr)
                 {
-                    auto nAngle = pActor->int_ang(); // make backup of this variable
+                    auto nAngle = pActor->spr.Angles.Yaw;
                     pActor->pTarget = FindPlayer(pActor, 60);
-                    pActor->set_int_ang(nAngle);
+                    pActor->spr.Angles.Yaw = nAngle;
                 }
                 else
                 {
@@ -251,9 +280,9 @@ void AIRex::Tick(RunListEvent* ev)
             }
             else
             {
-                if (((PlotCourseToSprite(pActor, pTarget) >> 8) >= 60) || pActor->nCount > 0)
+                if ((PlotCourseToSprite(pActor, pTarget) >= 60*16) || pActor->nCount > 0)
                 {
-					pActor->vel.XY() = pActor->spr.angle.ToVector() * 256;
+					pActor->vel.XY() = pActor->spr.Angles.Yaw.ToVector() * 256;
                 }
                 else
                 {
@@ -283,7 +312,7 @@ void AIRex::Tick(RunListEvent* ev)
         }
         case kHitWall:
         {
-            pActor->spr.angle += DAngle45;
+            pActor->spr.Angles.Yaw += DAngle45;
             pActor->VelFromAngle(-2);
             pActor->nAction = 1;
             pActor->nFrame = 0;
@@ -313,7 +342,7 @@ void AIRex::Tick(RunListEvent* ev)
                 SetQuake(pActor, 25);
                 pActor->nCount = 60;
 
-                pActor->spr.angle += DAngle45;
+                pActor->spr.Angles.Yaw += DAngle45;
                 pActor->VelFromAngle(-2);
                 pActor->nAction = 1;
                 pActor->nFrame = 0;
@@ -331,13 +360,12 @@ void AIRex::Tick(RunListEvent* ev)
                 {
                     runlist_DamageEnemy(nMov.actor(), pActor, 15);
 
-					auto vel = pActor->spr.angle.ToVector() * 1024 * 15;
+					auto vel = pActor->spr.Angles.Yaw.ToVector() * 1024 * 15;
 
                     if (pHitActor->spr.statnum == 100)
                     {
                         auto nPlayer = GetPlayerFromActor(nMov.actor());
-                        PlayerList[nPlayer].nDamage.X += (int(vel.X * worldtoint) << 4);
-                        PlayerList[nPlayer].nDamage.Y += (int(vel.Y * worldtoint) << 4);
+                        PlayerList[nPlayer].nThrust += vel / 4096;
                         pHitActor->vel.Z = -14;
                     }
                     else
@@ -375,7 +403,7 @@ void AIRex::Tick(RunListEvent* ev)
     {
         if (pTarget != nullptr)
         {
-            if (PlotCourseToSprite(pActor, pTarget) < 768)
+            if (PlotCourseToSprite(pActor, pTarget) < 48)
             {
                 if (nFlag & 0x80)
                 {

@@ -52,6 +52,40 @@ struct DUDEINFO {
 	int damageVal[7]; // real damage? Hmm?
 	int at8c; // unused ?
 	int at90; // unused ?
+
+	// converters to floating point format
+	inline double HearDist() const
+	{
+		return hearDist * maptoworld;
+	}
+
+	inline double SeeDist() const
+	{
+		return seeDist * maptoworld;
+	}
+
+	inline double MeleeDist() const
+	{
+		return meleeDist * maptoworld;
+	}
+
+	inline DAngle Periphery() const
+	{
+		return mapangle(periphery);
+	}
+
+	inline double FrontSpeed() const
+	{
+		return FixedToFloat(frontSpeed);
+	}
+
+	inline DAngle TurnRange() const
+	{
+		return DAngle::fromQ16(angSpeed << 3);
+	}
+	
+	double fClipdist() const { return clipdist * 0.25; }
+
 };
 
 extern DUDEINFO dudeInfo[kDudeMax - kDudeBase];

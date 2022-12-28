@@ -45,36 +45,10 @@ int which_palookup = 9;
 
 void premapcontroller(DDukeActor* ac)
 {
-	switch (ac->spr.picnum)
+	CallStaticSetup(ac);
+	if (iseffector(ac))
 	{
-	case ACTIVATOR:
-	case ACTIVATORLOCKED:
-	case LOCATORS:
-	case MASTERSWITCH:
-	case MUSICANDSFX:
-	case RESPAWN:
-	case SECTOREFFECTOR:
-	case TOUCHPLATE:
 		ac->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN | CSTAT_SPRITE_ALIGNMENT_MASK);
-		break;
-
-	case GPSPEED:
-		ac->sector()->extra = ac->spr.lotag;
-		deletesprite(ac);
-		break;
-
-	case CYCLER:
-		if (numcyclers >= MAXCYCLERS)
-			I_Error("Too many cycling sectors.");
-		cyclers[numcyclers].sector = ac->sector();
-		cyclers[numcyclers].lotag = ac->spr.lotag;
-		cyclers[numcyclers].shade1 = ac->spr.shade;
-		cyclers[numcyclers].shade2 = ac->sector()->floorshade;
-		cyclers[numcyclers].hitag = ac->spr.hitag;
-		cyclers[numcyclers].state = (ac->int_ang() == 1536);
-		numcyclers++;
-		deletesprite(ac);
-		break;
 	}
 }
 
@@ -95,10 +69,10 @@ void pickrandomspot(int snum)
 		i = krand()%numplayersprites;
 	else i = snum;
 
-	p->pos = po[i].opos;
-	p->backupxyz();
+	p->GetActor()->spr.pos = po[i].opos;
+	p->GetActor()->backuppos();
 	p->setbobpos();
-	p->angle.oang = p->angle.ang = DAngle::fromBuild(po[i].oa);
+	p->GetActor()->PrevAngles.Yaw = p->GetActor()->spr.Angles.Yaw = po[i].oa;
 	p->setCursector(po[i].os);
 }
 
@@ -151,8 +125,6 @@ void resetplayerstats(int snum)
 	p->footprintpal     = 0;
 	p->footprintshade   = 0;
 	p->jumping_toggle   = 0;
-	p->horizon.ohoriz = p->horizon.horiz = q16horiz(40);
-	p->horizon.ohorizoff = p->horizon.horizoff = q16horiz(0);
 	p->bobcounter       = 0;
 	p->on_ground        = 0;
 	p->player_par       = 0;
@@ -176,20 +148,13 @@ void resetplayerstats(int snum)
 	p->heat_on =            0;
 	p->jetpack_on =         0;
 	p->holoduke_on =       nullptr;
-
-	p->angle.olook_ang = p->angle.look_ang = DAngle::fromBuild(512 - (((~currentLevel->levelNumber) & 1) << 10));
-	p->angle.orotscrnang = p->angle.rotscrnang = nullAngle;
-
 	p->newOwner          =nullptr;
 	p->jumping_counter   = 0;
 	p->hard_landing      = 0;
-	p->vel.X             = 0;                           //!!
-	p->vel.Y             = 0;
-	p->vel.Z             = 0;
+	p->vel.Zero();
 	p->fric.X            = 0;
 	p->fric.Y            = 0;
 	p->somethingonplayer = nullptr;
-	p->angle.spin        = nullAngle;
 
 	p->on_crane          = nullptr;
 
@@ -420,12 +385,11 @@ void resetinventory(int snum)
 void resetprestat(int snum,int g)
 {
 	player_struct* p;
-	int i;
 
 	p = &ps[snum];
 
 	spriteqloc = 0;
-	for(i=0;i<spriteqamount;i++) spriteq[i] = nullptr;
+	for(auto& p : spriteq) p = nullptr;
 
 	p->hbomb_on          = 0;
 	p->pals.a         = 0;
@@ -448,18 +412,19 @@ void resetprestat(int snum,int g)
 
 	screenpeek              = myconnectindex;
 	numanimwalls            = 0;
-	numcyclers              = 0;
+	cyclers.Clear();
 	animatecnt              = 0;
 	randomseed              = 17L;
 	paused             = 0;
 	ud.cameraactor =nullptr;
-	tempwallptr             = 0;
-	cranes.Clear();
+	mspos.Clear();
+	animates.Clear();
 	camsprite               =nullptr;
-	earthquaketime          = 0;
+	ud.earthquaketime          = 0;
+	ud.joe9000 = false;
 
 	WindTime = 0;
-	WindDir = 0;
+	WindDir = nullAngle;
 	fakebubba_spawn = 0;
 	RRRA_ExitedLevel = 0;
 	BellTime = 0;
@@ -476,8 +441,8 @@ void resetprestat(int snum,int g)
 
 	p->stairs = 0;
 	//if (!isRRRA()) p->fogtype = 0;
-	p->noise.X = 131072;
-	p->noise.Y = 131072;
+	p->noise.X = 8192;
+	p->noise.Y = 8192;
 	p->donoise = 0;
 	p->noise_radius = 0;
 
@@ -533,16 +498,19 @@ void resetprestat(int snum,int g)
 //
 //---------------------------------------------------------------------------
 
-void resetpspritevars(int g)
+void resetpspritevars(int g, const DVector3& startpos, const DAngle startang)
 {
 	int i, j;
 	int circ;
-	int firstx, firsty;
 	int aimmode[MAXPLAYERS];
 	STATUSBARTYPE tsbar[MAXPLAYERS];
 
-	EGS(ps[0].cursector, ps[0].player_int_pos().X, ps[0].player_int_pos().Y, ps[0].player_int_pos().Z,
-		TILE_APLAYER, 0, 0, 0, ps[0].angle.ang.Buildang(), 0, 0, nullptr, 10);
+	auto newActor = CreateActor(ps[0].cursector, startpos.plusZ(gs.playerheight),
+		TILE_APLAYER, 0, DVector2(0, 0), startang, 0., 0., nullptr, 10);
+
+	newActor->spr.Angles.Pitch = DAngle::fromDeg(-17.354);
+	newActor->viewzoffset = -gs.playerheight;
+	newActor->backuploc();
 
 	if (ud.recstat != 2) for (i = 0; i < MAXPLAYERS; i++)
 	{
@@ -609,14 +577,8 @@ void resetpspritevars(int g)
 		if (numplayersprites == MAXPLAYERS)
 			I_Error("Too many player sprites (max 16.)");
 
-		if (numplayersprites == 0)
-		{
-			firstx = ps[0].player_int_pos().X;
-			firsty = ps[0].player_int_pos().Y;
-		}
-
 		po[numplayersprites].opos = act->spr.pos;
-		po[numplayersprites].oa = act->int_ang();
+		po[numplayersprites].oa = act->spr.Angles.Yaw;
 		po[numplayersprites].os = act->sector();
 
 		numplayersprites++;
@@ -624,11 +586,11 @@ void resetpspritevars(int g)
 		{
 			act->SetOwner(act);
 			act->spr.shade = 0;
-			act->spr.xrepeat = isRR() ? 24 : 42;
-			act->spr.yrepeat = isRR() ? 17 : 36;
+			if (isRR()) act->spr.scale = DVector2(0.375, 0.265625);
+			else act->spr.scale = DVector2(0.65625, 0.5625);
 			act->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
 			act->spr.xoffset = 0;
-			act->set_const_clipdist(64);
+			act->clipdist = 16;
 
 			if (ps[j].last_extra == 0)
 			{
@@ -654,21 +616,19 @@ void resetpspritevars(int g)
 				act->spr.pal = ps[j].palookup = ud.user_pals[j];
 
 			ps[j].actor = act;
+			ps[j].Angles = {};
+			ps[j].Angles.initialize(ps[j].actor, (currentLevel->levelNumber & 1)? DAngle90 : -DAngle90);
 			ps[j].frag_ps = j;
 			act->SetOwner(act);
 
-			ps[j].getposfromactor(act);
-			ps[j].backupxyz();
 			ps[j].setbobpos();
-			act->backuppos();
-			ps[j].angle.oang = ps[j].angle.ang = act->spr.angle;
 
 			updatesector(act->spr.pos, &ps[j].cursector);
 
 			j = connectpoint2[j];
 
 		}
-		else deletesprite(act);
+		else act->Destroy();
 	}
 }
 
@@ -683,7 +643,7 @@ void prelevel_common(int g)
 {
 	auto p = &ps[screenpeek];
 	p->sea_sick_stat = 0;
-	ufospawnsminion = 0;
+	ud.ufospawnsminion = 0;
 	pistonsound = 0;
 	p->SlotWin = 0;
 	enemysizecheat = 0;
@@ -693,11 +653,11 @@ void prelevel_common(int g)
 
 	lava_cleararrays();
 	geocnt = 0;
-	ambientfx = 0;
+	ambienttags.Clear();
 	thunderon = 0;
-	chickenplant = 0;
+	ud.chickenplant = 0;
 	WindTime = 0;
-	WindDir = 0;
+	WindDir = nullAngle;
 	fakebubba_spawn = 0;
 	RRRA_ExitedLevel = 0;
 	mamaspawn_count = currentLevel->rr_mamaspawn;
@@ -712,8 +672,6 @@ void prelevel_common(int g)
 
 	memset(geosectorwarp, -1, sizeof(geosectorwarp));
 	memset(geosectorwarp2, -1, sizeof(geosectorwarp2));
-	memset(ambienthitag, -1, sizeof(ambienthitag));
-	memset(ambientlotag, -1, sizeof(ambientlotag));
 
 	for(auto&sec: sector)
 	{
@@ -731,9 +689,7 @@ void prelevel_common(int g)
 
 		if (sectp->ceilingstat & CSTAT_SECTOR_SKY)
 		{
-			//setupbackdrop(sectp->ceilingpicnum);
-
-			if (sectp->ceilingpicnum == TILE_CLOUDYSKIES && numclouds < 127)
+			if (tilesurface(sectp->ceilingtexture) == TSURF_SCROLLSKY && numclouds < 127)
 				clouds[numclouds++] = sectp;
 
 			if (ps[0].one_parallax_sectnum == nullptr)
@@ -748,8 +704,7 @@ void prelevel_common(int g)
 
 		if (sectp->lotag == -1)
 		{
-			ps[0].exit.X = sectp->firstWall()->wall_int_pos().X;
-			ps[0].exit.Y = sectp->firstWall()->wall_int_pos().Y;
+			ps[0].Exit = sectp->walls[0].pos;
 			continue;
 		}
 	}
@@ -850,7 +805,7 @@ static void SpawnPortals()
 {
 	for (auto& wal : wall)
 	{
-		if (wal.overpicnum == TILE_MIRROR && (wal.cstat & CSTAT_WALL_1WAY)) wal.portalflags |= PORTAL_WALL_MIRROR;
+		if (wal.overtexture() == mirrortex && (wal.cstat & CSTAT_WALL_1WAY)) wal.portalflags |= PORTAL_WALL_MIRROR;
 	}
 
 	portalClear();
@@ -863,14 +818,15 @@ static void SpawnPortals()
 	DukeStatIterator it(STAT_RAROR);
 	while (auto act = it.Next())
 	{
-		if (act->spr.picnum == SECTOREFFECTOR && act->spr.lotag == tag)
+		if (iseffector(act) && act->spr.lotag == tag)
 		{
-			if (processedTags.Find(act->spr.hitag) == processedTags.Size())
+			int hitag = act->spr.hitag;
+			if (processedTags.Find(hitag) == processedTags.Size())
 			{
 				DukeStatIterator it2(STAT_RAROR);
 				while (auto act2 = it2.Next())
 				{
-					if (act2->spr.picnum == SECTOREFFECTOR && act2->spr.lotag == tag + 1 && act2->spr.hitag == act->spr.hitag)
+					if (iseffector(act2) && act2->spr.lotag == tag + 1 && act2->spr.hitag == hitag)
 					{
 						if (processedTags.Find(act->spr.hitag) == processedTags.Size())
 						{
@@ -878,15 +834,15 @@ static void SpawnPortals()
 							s1->portalflags = PORTAL_SECTOR_FLOOR;
 							s2->portalflags = PORTAL_SECTOR_CEILING;
 							DVector2 diff = act->spr.pos.XY() - act2->spr.pos.XY();
-							s1->portalnum = portalAdd(PORTAL_SECTOR_FLOOR, sectnum(s2), DVector3(-diff, act->spr.hitag * zmaptoworld));
-							s2->portalnum = portalAdd(PORTAL_SECTOR_CEILING, sectnum(s1), DVector3(diff, act->spr.hitag * zmaptoworld));
+							s1->portalnum = portalAdd(PORTAL_SECTOR_FLOOR, sectindex(s2), DVector3(-diff, hitag)); // uses delta.Z as temporary storage, not a real coordinate.
+							s2->portalnum = portalAdd(PORTAL_SECTOR_CEILING, sectindex(s1), DVector3(diff, hitag));
 							processedTags.Push(act->spr.hitag);
 						}
 						else
 						{
 							for (auto& p : allPortals)
 							{
-								if (p.type == PORTAL_SECTOR_FLOOR && p.dz == act->spr.hitag)
+								if (p.type == PORTAL_SECTOR_FLOOR && p.delta.Z == hitag)
 								{
 									p.targets.Push(act2->sectno());
 								}
@@ -899,7 +855,7 @@ static void SpawnPortals()
 			{
 				for (auto& p : allPortals)
 				{
-					if (p.type == PORTAL_SECTOR_CEILING && p.dz == act->spr.hitag)
+					if (p.type == PORTAL_SECTOR_CEILING && p.delta.Z == hitag)
 					{
 						p.targets.Push(act->sectno());
 					}
@@ -912,7 +868,7 @@ static void SpawnPortals()
 	for (unsigned i = 0; i < sector.Size(); i++)
 	{
 		auto sectp = &sector[i];
-		if (sectp->floorpicnum == FOF && sectp->portalflags != PORTAL_SECTOR_FLOOR)
+		if (sectp->floortexture == foftex && sectp->portalflags != PORTAL_SECTOR_FLOOR)
 		{
 			for (auto& pt : allPortals)
 			{
@@ -931,7 +887,7 @@ static void SpawnPortals()
 				}
 			}
 		}
-		else if (sectp->ceilingpicnum == FOF && sectp->portalflags != PORTAL_SECTOR_CEILING)
+		else if (sectp->ceilingtexture == foftex && sectp->portalflags != PORTAL_SECTOR_CEILING)
 		{
 			for (auto& pt : allPortals)
 			{
@@ -952,7 +908,8 @@ static void SpawnPortals()
 		}
 	nexti:;
 	}
-	for (auto& p : allPortals) p.dz = 0;
+	// clean out the tags we stored in delta.Z
+	for (auto& p : allPortals) p.delta.Z = 0;
 	mergePortals();
 }
 
@@ -974,14 +931,22 @@ static TArray<DDukeActor*> spawnactors(SpawnSpriteDef& sprites)
 			spawns.Pop();
 			continue;
 		}
+
 		auto sprt = &sprites.sprites[i];
-		auto actor = static_cast<DDukeActor*>(InsertActor(RUNTIME_CLASS(DDukeActor), sprt->sectp, sprt->statnum));
-		spawns[j++] = actor;
-		actor->spr = sprites.sprites[i];
-		actor->time = i;
-		if (sprites.sprext.Size()) actor->sprext = sprites.sprext[i];
-		else actor->sprext = {};
-		actor->spsmooth = {};
+
+		auto info = spawnMap.CheckKey(sprt->picnum);
+		auto cls = info ? info->Class(sprt->picnum) : nullptr;;
+		auto actor = static_cast<DDukeActor*>(InsertActor(cls? cls : RUNTIME_CLASS(DDukeActor), sprt->sectp, sprt->statnum));
+		if (actor)
+		{
+			spawns[j++] = actor;
+			actor->initFromSprite(&sprites.sprites[i]);
+			setFromSpawnRec(actor, info);
+			actor->time = i;
+			if (sprites.sprext.Size()) actor->sprext = sprites.sprext[i];
+			else actor->sprext = {};
+			actor->spsmooth = {};
+		}
 	}
 	leveltimer = sprites.sprites.Size();
 	return spawns;
@@ -1002,22 +967,23 @@ static int LoadTheMap(MapRecord *mi, player_struct*p, int gamemode)
 	}
 
 	currentLevel = mi;
-	int sect;
+	sectortype* sect;
 	SpawnSpriteDef sprites;
 	DVector3 pos;
 	loadMap(mi->fileName, isShareware(), &pos, &lbang, &sect, sprites);
-	p->pos = pos;
-	p->cursector = &sector[sect];
+	p->cursector = sect;
 
 	SECRET_SetMapName(mi->DisplayName(), mi->name);
 	STAT_NewLevel(mi->fileName);
 	TITLE_InformName(mi->name);
-	
-	p->angle.ang = DAngle::fromBuild(lbang);
-
-	gotpic.Zero();
 
 	auto actorlist = spawnactors(sprites);
+
+	for (auto& sect : sector)
+	{
+		if (tilesurface(sect.ceilingtexture) == TSURF_THUNDERSKY)
+			thunderon = 1;
+	}
 
 	if (isRR()) prelevel_r(gamemode, actorlist);
 	else prelevel_d(gamemode, actorlist);
@@ -1025,9 +991,15 @@ static int LoadTheMap(MapRecord *mi, player_struct*p, int gamemode)
 	SpawnPortals();
 
 	allignwarpelevators();
-	resetpspritevars(gamemode);
+	resetpspritevars(gamemode, pos, mapangle(lbang));
 
-	if (isRR()) cacheit_r(); else cacheit_d();
+	if (r_precache)
+	{
+		if (isRR()) cacheit_r(); else cacheit_d();
+
+		precacheMap();
+		precacheMarkedTiles();
+	}
 	return 0;
 }
 
@@ -1087,8 +1059,8 @@ void enterlevel(MapRecord *mi, int gamemode)
 	for (int i = connecthead; i >= 0; i = connectpoint2[i])
 	{
 		bool clearweapon = !!(currentLevel->flags & LEVEL_CLEARWEAPONS);
-		int pn = ps[i].GetActor()->sector()->floorpicnum;
-		if (gs.tileinfo[pn].flags & TFLAG_CLEARINVENTORY)
+		auto pn = ps[i].GetActor()->sector()->floortexture;
+		if (tileflags(pn) & TFLAG_CLEARINVENTORY)
 		{
 			resetinventory(i);
 			clearweapon = true;
@@ -1118,7 +1090,7 @@ void enterlevel(MapRecord *mi, int gamemode)
 	{
 		for (auto& wal : wall)
 		{
-			if (wal.picnum == 7873 || wal.picnum == 7870)
+			if (tileflags(wal.walltexture()) & TFLAG_INTERPOLATEWALL)
 				StartInterpolation(&wal, Interp_Wall_PanX);
 		}
 	}
@@ -1239,8 +1211,6 @@ void exitlevel(MapRecord* nextlevel)
 		// MP scoreboard
 		ShowScoreboard(playerswhenstarted, [=](bool)
 			{
-			// Clear potentially loaded per-map ART only after the bonus screens.
-			artClearMapArt();
 			gameaction = ga_level;
 			ud.eog = false;
 			if (endofgame)
@@ -1263,8 +1233,6 @@ void exitlevel(MapRecord* nextlevel)
 		// SP cutscene + summary
 		ShowIntermission(currentLevel, nextlevel, &info, [=](bool)
 		{
-			// Clear potentially loaded per-map ART only after the bonus screens.
-			artClearMapArt();
 			ud.eog = false;
 			gameaction = endofgame? ga_startup : ga_nextlevel;
 		});

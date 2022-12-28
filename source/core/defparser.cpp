@@ -35,7 +35,6 @@
 
 #include "build.h"
 
-#include "mdsprite.h"  // md3model_t
 #include "buildtiles.h"
 #include "bitmap.h"
 #include "m_argv.h"
@@ -45,13 +44,21 @@
 #include "mapinfo.h"
 #include "hw_voxels.h"
 #include "psky.h"
+#include "gamefuncs.h"
+#include "tilesetbuilder.h"
+#include "models/modeldata.h"
+#include "texturemanager.h"
 
-int tileSetHightileReplacement(int picnum, int palnum, const char* filename, float alphacut, float xscale, float yscale, float specpower, float specfactor, bool indexed = false);
+
+int tileSetHightileReplacement(int picnum, int palnum, FTextureID texid, float alphacut, float xscale, float yscale, float specpower, float specfactor, bool indexed);
+
 int tileSetSkybox(int picnum, int palnum, FString* facenames, bool indexed = false);
 void tileRemoveReplacement(int num);
-void AddUserMapHack(usermaphack_t&);
+void AddUserMapHack(const FString& title, const FString& mhkfile, uint8_t* md4);
 
+static TilesetBuildInfo* tbuild;
 static void defsparser(FScanner& sc);
+const char* G_DefaultDefFile(void);
 
 static void performInclude(FScanner* sc, const char* fn, FScriptPosition* pos)
 {
@@ -83,18 +90,240 @@ void parseIncludeDefault(FScanner& sc, FScriptPosition& pos)
 }
 
 //===========================================================================
+// 
+//	Helpers for tile parsing
+//
+//===========================================================================
+
+bool ValidateTileRange(const char* cmd, int& begin, int& end, FScriptPosition pos, bool allowswap = true)
+{
+	if (end < begin)
+	{
+		pos.Message(MSG_WARNING, "%s: tile range [%d..%d] is backwards. Indices were swapped.", cmd, begin, end);
+		std::swap(begin, end);
+	}
+
+	if ((unsigned)begin >= MAXUSERTILES || (unsigned)end >= MAXUSERTILES)
+	{
+		pos.Message(MSG_ERROR, "%s: Invalid tile range [%d..%d]", cmd, begin, end);
+		return false;
+	}
+
+	return true;
+}
+
+bool ValidateTilenum(const char* cmd, int tile, FScriptPosition pos)
+{
+	if ((unsigned)tile >= MAXUSERTILES)
+	{
+		pos.Message(MSG_ERROR, "%s: Invalid tile number %d", cmd, tile);
+		return false;
+	}
+
+	return true;
+}
+
+//===========================================================================
+// 
+//
+//
+//===========================================================================
+
+static int tileSetHightileReplacement(FScanner& sc, int picnum, int palnum, const char* filename, float alphacut, float xscale, float yscale, float specpower, float specfactor, bool indexed = false)
+{
+	if ((uint32_t)picnum >= (uint32_t)MAXTILES) return -1;
+	if ((uint32_t)palnum >= (uint32_t)MAXPALOOKUPS) return -1;
+
+	auto tex = tbuild->tile[picnum].tileimage;
+
+	if (tex == nullptr || tex->GetWidth() <= 0 || tex->GetHeight() <= 0)
+	{
+		sc.ScriptMessage("Warning: defined hightile replacement for empty tile %d.", picnum);
+		return -1;	// cannot add replacements to empty tiles, must create one beforehand
+	}
+
+	FTextureID texid = TexMan.CheckForTexture(filename, ETextureType::Any, FTextureManager::TEXMAN_ForceLookup);
+	if (!texid.isValid())
+	{
+		sc.ScriptMessage("%s: Replacement for tile %d does not exist or is invalid\n", filename, picnum);
+		return -1;
+	}
+	tileSetHightileReplacement(picnum, palnum, texid, alphacut, xscale, yscale, specpower, specfactor, indexed);
+	return 0;
+}
+
+//==========================================================================
+//
+// Import a tile from an external image.
+// This has been signifcantly altered so it may not cover everything yet.
+//
+//==========================================================================
+
+static int tileImportFromTexture(FScanner& sc, const char* fn, int tilenum, int alphacut, int istexture)
+{
+	FTextureID texid = TexMan.CheckForTexture(fn, ETextureType::Any, FTextureManager::TEXMAN_ForceLookup);
+	if (!texid.isValid()) return -1;
+	auto tex = TexMan.GetGameTexture(texid);
+
+	int32_t xsiz = tex->GetTexelWidth(), ysiz = tex->GetTexelHeight();
+
+	if (xsiz <= 0 || ysiz <= 0)
+		return -2;
+
+	tbuild->tile[tilenum].imported = TexMan.GetGameTexture(texid);
+	tbuild->tile[tilenum].tileimage = tbuild->tile[tilenum].imported->GetTexture()->GetImage();
+
+	if (istexture)
+		tileSetHightileReplacement(sc, tilenum, 0, fn, (float)(255 - alphacut) * (1.f / 255.f), 1.0f, 1.0f, 1.0, 1.0);
+	return 0;
+
+}
+
+//===========================================================================
+// 
+//	Internal worker for tileImportTexture
+//
+//===========================================================================
+
+struct TileImport
+{
+	FString fn;
+	int tile = -1;
+	int alphacut = 128, flags = 0;
+	int haveextra = 0;
+	int xoffset = INT_MAX, yoffset = INT_MAX;
+	int istexture = 0, extra = INT_MAX;
+	int64_t crc32 = INT64_MAX;
+	int sizex = INT_MAX, sizey;
+	// Blood extensions
+	int surface = INT_MAX, vox = INT_MAX, shade = INT_MAX;
+
+};
+
+
+static void processTileImport(FScanner& sc, const char* cmd, FScriptPosition& pos, TileImport& imp)
+{
+	if (!ValidateTilenum(cmd, imp.tile, pos))
+		return;
+
+	auto tex = tbuild->tile[imp.tile].tileimage;
+	if (imp.crc32 != INT64_MAX && int(imp.crc32) != tileGetCRC32(tex))
+		return;
+
+	if (imp.sizex != INT_MAX)
+	{
+		// the size must match the previous tile
+		if (!tex)
+		{
+			if (imp.sizex != 0 || imp.sizey != 0) return;
+		}
+		else
+		{
+			if (tex->GetWidth() != imp.sizex || tex->GetHeight() != imp.sizey) return;
+		}
+	}
+
+	imp.alphacut = clamp(imp.alphacut, 0, 255);
+
+	if (imp.fn.IsNotEmpty() && tileImportFromTexture(sc, imp.fn, imp.tile, imp.alphacut, imp.istexture) < 0) return;
+
+	tbuild->tile[imp.tile].extinfo.picanm.sf |= imp.flags;
+	if (imp.surface != INT_MAX) tbuild->tile[imp.tile].extinfo.surftype = imp.surface;
+	if (imp.shade != INT_MAX) tbuild->tile[imp.tile].extinfo.tileshade = imp.shade;
+
+	// This is not quite the same as originally, for two reasons:
+	// 1: Since these are texture properties now, there's no need to clear them.
+	// 2: The original code assumed that an imported texture cannot have an offset. But this can import Doom patches and PNGs with grAb, so the situation is very different.
+	auto itex = tbuild->tile[imp.tile].imported;
+
+	if (imp.xoffset == INT_MAX) imp.xoffset = itex->GetTexelLeftOffset();
+	else imp.xoffset = clamp(imp.xoffset, -128, 127);
+	if (imp.yoffset == INT_MAX) imp.yoffset = itex->GetTexelTopOffset();
+	else imp.yoffset = clamp(imp.yoffset, -128, 127);
+	tbuild->tile[imp.tile].leftOffset = imp.xoffset;
+	tbuild->tile[imp.tile].topOffset = imp.yoffset;
+	if (imp.extra != INT_MAX) tbuild->tile[imp.tile].extinfo.picanm.extra = imp.extra;
+}
+
+//===========================================================================
+// 
+//	Internal worker for tileSetAnim
+//
+//===========================================================================
+
+struct SetAnim
+{
+	int tile1, tile2, speed, type;
+};
+
+static void setAnim(int tile, int type, int speed, int frames)
+{
+	auto& anm = tbuild->tile[tile].extinfo.picanm;
+	anm.sf &= ~(PICANM_ANIMTYPE_MASK | PICANM_ANIMSPEED_MASK);
+	anm.sf |= clamp(speed, 0, 15) | (type << PICANM_ANIMTYPE_SHIFT);
+	anm.num = frames;
+}
+
+static void processSetAnim(const char* cmd, FScriptPosition& pos, SetAnim& imp)
+{
+	if (!ValidateTilenum(cmd, imp.tile1, pos) ||
+		!ValidateTilenum(cmd, imp.tile2, pos))
+		return;
+
+	if (imp.type < 0 || imp.type > 3)
+	{
+		pos.Message(MSG_ERROR, "%s: animation type must be 0-3, got %d", cmd, imp.type);
+		return;
+	}
+
+	int count = imp.tile2 - imp.tile1;
+	if (imp.type == (PICANM_ANIMTYPE_BACK >> PICANM_ANIMTYPE_SHIFT) && imp.tile1 > imp.tile2)
+		count = -count;
+
+	setAnim(imp.tile1, imp.type, imp.speed, count);
+}
+
+//==========================================================================
+//
+// Copies a tile into another and optionally translates its palette.
+//
+//==========================================================================
+
+static void tileCopy(int tile, int source, int pal, int xoffset, int yoffset, int flags)
+{
+	picanm_t* picanm = nullptr;
+	picanm_t* sourceanm = nullptr;
+
+	if (source == -1) source = tile;
+	auto& tiledesc = tbuild->tile[tile];
+	auto& srcdesc = tbuild->tile[source];
+	tiledesc.extinfo.picanm = {};
+	tiledesc.extinfo.picanm.sf = (srcdesc.extinfo.picanm.sf & PICANM_MISC_MASK) | flags;
+	tiledesc.tileimage = srcdesc.tileimage;
+	tiledesc.imported = srcdesc.imported;
+	tiledesc.leftOffset = srcdesc.leftOffset;
+	tiledesc.topOffset = srcdesc.topOffset;
+	/* todo: create translating image source class.
+	if (pal != -1)
+	{
+		tiledesc.tileimage = createTranslatedImage(tiledesc.tileimage, pal);
+	}
+	*/
+}
+
+//===========================================================================
 //
 //
 //
 //===========================================================================
 
 template<int cnt>
-void parseSkip(FScanner& sc, FScriptPosition& pos)
+static void parseSkip(FScanner& sc, FScriptPosition& pos)
 {
 	for (int i = 0; i < cnt; i++) if (!sc.GetString()) return;
 }
 
-void parseDefine(FScanner& sc, FScriptPosition& pos)
+static void parseDefine(FScanner& sc, FScriptPosition& pos)
 {
 	FString name;
 	if (!sc.GetString(name))  return;
@@ -108,7 +337,7 @@ void parseDefine(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseDefineTexture(FScanner& sc, FScriptPosition& pos)
+static void parseDefineTexture(FScanner& sc, FScriptPosition& pos)
 {
 	int tile, palette;
 
@@ -120,7 +349,7 @@ void parseDefineTexture(FScanner& sc, FScriptPosition& pos)
 	if (!sc.GetNumber(true)) return; //formerly y-size, unused
 	if (!sc.GetString())  return;
 
-	tileSetHightileReplacement(tile, palette, sc.String, -1.0, 1.0, 1.0, 1.0, 1.0);
+	tileSetHightileReplacement(sc, tile, palette, sc.String, -1.0, 1.0, 1.0, 1.0, 1.0);
 }
 
 //===========================================================================
@@ -165,12 +394,12 @@ static void parseTexturePaletteBlock(FScanner& sc, int tile)
 		{
 			if (xsiz > 0 && ysiz > 0)
 			{
-				tileSetDummy(tile, xsiz, ysiz);
+				tbuild->tile[tile].tileimage = createDummyTile(xsiz, ysiz);
 			}
 			xscale = 1.0f / xscale;
 			yscale = 1.0f / yscale;
 
-			tileSetHightileReplacement(tile, pal, fn, alphacut, xscale, yscale, specpower, specfactor, indexed);
+			tileSetHightileReplacement(sc, tile, pal, fn, alphacut, xscale, yscale, specpower, specfactor, indexed);
 		}
 	}
 }
@@ -206,12 +435,12 @@ static void parseTextureSpecialBlock(FScanner& sc, int tile, int pal)
 				yscale = 1.0f / yscale;
 			}
 
-			tileSetHightileReplacement(tile, pal, fn, -1.f, xscale, yscale, specpower, specfactor);
+			tileSetHightileReplacement(sc, tile, pal, fn, -1.f, xscale, yscale, specpower, specfactor);
 		}
 	}
 }
 
-void parseTexture(FScanner& sc, FScriptPosition& pos)
+static void parseTexture(FScanner& sc, FScriptPosition& pos)
 {
 	FScanner::SavedPos blockend;
 	int tile = -1;
@@ -237,7 +466,7 @@ void parseTexture(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseUndefTexture(FScanner& sc, FScriptPosition& pos)
+static void parseUndefTexture(FScanner& sc, FScriptPosition& pos)
 {
 	if (!sc.GetNumber(true)) return;
 	if (ValidateTilenum("undeftexture", sc.Number, pos)) tileRemoveReplacement(sc.Number);
@@ -249,7 +478,7 @@ void parseUndefTexture(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseUndefTextureRange(FScanner& sc, FScriptPosition& pos)
+static void parseUndefTextureRange(FScanner& sc, FScriptPosition& pos)
 {
 	int start, end;
 	if (!sc.GetNumber(start, true)) return;
@@ -264,7 +493,7 @@ void parseUndefTextureRange(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseTileFromTexture(FScanner& sc, FScriptPosition& pos)
+static void parseTileFromTexture(FScanner& sc, FScriptPosition& pos)
 {
 	FScanner::SavedPos blockend;
 	TileImport imp;
@@ -304,7 +533,7 @@ void parseTileFromTexture(FScanner& sc, FScriptPosition& pos)
 			}
 		}
 	}
-	processTileImport("tilefromtexture", pos, imp);
+	processTileImport(sc, "tilefromtexture", pos, imp);
 }
 
 //===========================================================================
@@ -313,7 +542,7 @@ void parseTileFromTexture(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseCopyTile(FScanner& sc, FScriptPosition& pos)
+static void parseCopyTile(FScanner& sc, FScriptPosition& pos)
 {
 	FScanner::SavedPos blockend;
 	int tile = -1, source = -1;
@@ -374,7 +603,7 @@ void parseCopyTile(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseImportTile(FScanner& sc, FScriptPosition& pos)
+static void parseImportTile(FScanner& sc, FScriptPosition& pos)
 {
 	int tile;
 
@@ -382,8 +611,8 @@ void parseImportTile(FScanner& sc, FScriptPosition& pos)
 	if (!sc.GetString())  return;
 	if (!ValidateTilenum("importtile", tile, pos)) return;
 
-	int texstatus = tileImportFromTexture(sc.String, tile, 255, 0);
-	if (texstatus >= 0) TileFiles.tiledata[tile].picanm = {};
+	int texstatus = tileImportFromTexture(sc, sc.String, tile, 255, 0);
+	if (texstatus >= 0) tbuild->tile[tile].extinfo.picanm = {};
 }
 
 //===========================================================================
@@ -392,7 +621,7 @@ void parseImportTile(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseDummyTile(FScanner& sc, FScriptPosition& pos)
+static void parseDummyTile(FScanner& sc, FScriptPosition& pos)
 {
 	int tile, xsiz, ysiz;
 
@@ -400,7 +629,9 @@ void parseDummyTile(FScanner& sc, FScriptPosition& pos)
 	if (!sc.GetNumber(xsiz, true)) return;
 	if (!sc.GetNumber(ysiz, true)) return;
 	if (!ValidateTilenum("dummytile", tile, pos)) return;
-	tileSetDummy(tile, xsiz, ysiz);
+	auto& tiled = tbuild->tile[tile];
+	tiled.tileimage = createDummyTile(xsiz, ysiz);
+	tiled.imported = nullptr;
 }
 
 //===========================================================================
@@ -409,7 +640,7 @@ void parseDummyTile(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseDummyTileRange(FScanner& sc, FScriptPosition& pos)
+static void parseDummyTileRange(FScanner& sc, FScriptPosition& pos)
 {
 	int tile1, tile2, xsiz, ysiz;
 
@@ -420,7 +651,12 @@ void parseDummyTileRange(FScanner& sc, FScriptPosition& pos)
 	if (!ValidateTileRange("dummytilerange", tile1, tile2, pos)) return;
 	if (xsiz < 0 || ysiz < 0) return;
 
-	for (int i = tile1; i <= tile2; i++) tileSetDummy(i, xsiz, ysiz);
+	for (int i = tile1; i <= tile2; i++)
+	{
+		auto& tiled = tbuild->tile[i];
+		tiled.tileimage = createDummyTile(xsiz, ysiz);
+		tiled.imported = nullptr;
+	}
 }
 
 //===========================================================================
@@ -429,13 +665,17 @@ void parseDummyTileRange(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseUndefineTile(FScanner& sc, FScriptPosition& pos)
+static void parseUndefineTile(FScanner& sc, FScriptPosition& pos)
 {
 	int tile;
 
 	if (!sc.GetNumber(tile, true)) return;
-	if (ValidateTilenum("undefinetile", tile, pos)) 
-		tileDelete(tile);
+	if (ValidateTilenum("undefinetile", tile, pos))
+	{
+		auto& tiled = tbuild->tile[tile];
+		tiled.tileimage = nullptr;
+		tiled.imported = nullptr;
+	}
 }
 
 //===========================================================================
@@ -444,7 +684,7 @@ void parseUndefineTile(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseUndefineTileRange(FScanner& sc, FScriptPosition& pos)
+static void parseUndefineTileRange(FScanner& sc, FScriptPosition& pos)
 {
 	int tile1, tile2;
 
@@ -452,7 +692,12 @@ void parseUndefineTileRange(FScanner& sc, FScriptPosition& pos)
 	if (!sc.GetNumber(tile2, true)) return;
 	if (!ValidateTileRange("undefinetilerange", tile1, tile2, pos)) return;
 
-	for (int i = tile1; i <= tile2; i++) tileDelete(i);
+	for (int i = tile1; i <= tile2; i++)
+	{
+		auto& tiled = tbuild->tile[i];
+		tiled.tileimage = nullptr;
+		tiled.imported = nullptr;
+	}
 }
 
 //===========================================================================
@@ -461,7 +706,7 @@ void parseUndefineTileRange(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseDefineSkybox(FScanner& sc, FScriptPosition& pos)
+static void parseDefineSkybox(FScanner& sc, FScriptPosition& pos)
 {
 	int tile, palette;
 	FString fn[6];
@@ -483,7 +728,7 @@ void parseDefineSkybox(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseSkybox(FScanner& sc, FScriptPosition& pos)
+static void parseSkybox(FScanner& sc, FScriptPosition& pos)
 {
 	FString faces[6];
 	FScanner::SavedPos blockend;
@@ -515,16 +760,16 @@ void parseSkybox(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseSetupTile(FScanner& sc, FScriptPosition& pos)
+static void parseSetupTile(FScanner& sc, FScriptPosition& pos)
 {
 	int tile;
 	if (!sc.GetNumber(tile, true)) return;
 	if (!ValidateTilenum("setuptile", tile, pos)) return;
-	auto& tiled = TileFiles.tiledata[tile];
-	if (!sc.GetNumber(tiled.hiofs.xsize, true)) return;
-	if (!sc.GetNumber(tiled.hiofs.ysize, true)) return;
-	if (!sc.GetNumber(tiled.hiofs.xoffs, true)) return;
-	if (!sc.GetNumber(tiled.hiofs.yoffs, true)) return;
+	auto& tiled = tbuild->tile[tile];
+	if (!sc.GetNumber(tiled.extinfo.hiofs.xsize, true)) return;
+	if (!sc.GetNumber(tiled.extinfo.hiofs.ysize, true)) return;
+	if (!sc.GetNumber(tiled.extinfo.hiofs.xoffs, true)) return;
+	if (!sc.GetNumber(tiled.extinfo.hiofs.yoffs, true)) return;
 }
 
 //===========================================================================
@@ -533,7 +778,7 @@ void parseSetupTile(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseSetupTileRange(FScanner& sc, FScriptPosition& pos)
+static void parseSetupTileRange(FScanner& sc, FScriptPosition& pos)
 {
 	int tilestart, tileend;
 	if (!sc.GetNumber(tilestart, true)) return;
@@ -546,7 +791,8 @@ void parseSetupTileRange(FScanner& sc, FScriptPosition& pos)
 	if (!sc.GetNumber(hiofs.xoffs, true)) return;
 	if (!sc.GetNumber(hiofs.yoffs, true)) return;
 
-	for (int i = tilestart; i <= tileend; i++) TileFiles.tiledata[i].hiofs = hiofs;
+	for (int i = tilestart; i <= tileend; i++) 
+		tbuild->tile[i].extinfo.hiofs = hiofs;
 }
 
 //===========================================================================
@@ -555,7 +801,7 @@ void parseSetupTileRange(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseAnimTileRange(FScanner& sc, FScriptPosition& pos)
+static void parseAnimTileRange(FScanner& sc, FScriptPosition& pos)
 {
 	SetAnim set;
 	if (!sc.GetNumber(set.tile1, true)) return;
@@ -571,13 +817,13 @@ void parseAnimTileRange(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseAlphahack(FScanner& sc, FScriptPosition& pos)
+static void parseAlphahack(FScanner& sc, FScriptPosition& pos)
 {
 	int tile;
 
 	if (!sc.GetNumber(tile, true)) return;
 	if (!sc.GetFloat(true)) return;
-	if ((unsigned)tile < MAXTILES) TileFiles.tiledata[tile].texture->alphaThreshold = (float)sc.Float;
+	if ((unsigned)tile < MAXTILES) tbuild->tile[tile].alphathreshold = (float)sc.Float;
 }
 
 //===========================================================================
@@ -586,7 +832,7 @@ void parseAlphahack(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseAlphahackRange(FScanner& sc, FScriptPosition& pos)
+static void parseAlphahackRange(FScanner& sc, FScriptPosition& pos)
 {
 	int tilestart, tileend;
 
@@ -596,7 +842,7 @@ void parseAlphahackRange(FScanner& sc, FScriptPosition& pos)
 	if (!ValidateTileRange("alphahackrange", tilestart, tileend, pos)) return;
 
 	for (int i = tilestart; i <= tileend; i++)
-		TileFiles.tiledata[i].texture->alphaThreshold = (float)sc.Number;
+		tbuild->tile[i].alphathreshold = (float)sc.Float;
 }
 
 //===========================================================================
@@ -606,24 +852,23 @@ void parseAlphahackRange(FScanner& sc, FScriptPosition& pos)
 //===========================================================================
 static int lastvoxid = -1;
 
-void parseDefineVoxel(FScanner& sc, FScriptPosition& pos)
+static void parseDefineVoxel(FScanner& sc, FScriptPosition& pos)
 {
 	sc.MustGetString();
-	while (nextvoxid < MAXVOXELS && voxreserve[nextvoxid]) nextvoxid++;
 
-	if (nextvoxid == MAXVOXELS)
+	if (tbuild->nextvoxid == MAXVOXELS)
 	{
 		pos.Message(MSG_ERROR, "Maximum number of voxels (%d) already defined.", MAXVOXELS);
 		return;
 	}
 
-	if (voxDefine(nextvoxid, sc.String))
+	if (voxDefine(tbuild->nextvoxid, sc.String))
 	{
 		pos.Message(MSG_ERROR, "Unable to load voxel file \"%s\"", sc.String);
 		return;
 	}
 
-	lastvoxid = nextvoxid++;
+	lastvoxid = tbuild->nextvoxid++;
 }
 
 //===========================================================================
@@ -632,7 +877,7 @@ void parseDefineVoxel(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseDefineVoxelTiles(FScanner& sc, FScriptPosition& pos)
+static void parseDefineVoxelTiles(FScanner& sc, FScriptPosition& pos)
 {
 	int tilestart, tileend;
 	if (!sc.GetNumber(tilestart, true)) return;
@@ -644,7 +889,7 @@ void parseDefineVoxelTiles(FScanner& sc, FScriptPosition& pos)
 		pos.Message(MSG_WARNING, "Warning: Ignoring voxel tiles definition without valid voxel.\n");
 		return;
 	}
-	for (int i = tilestart; i <= tileend; i++) tiletovox[i] = lastvoxid;
+	for (int i = tilestart; i <= tileend; i++) tbuild->tile[i].extinfo.tiletovox = lastvoxid;
 }
 
 //===========================================================================
@@ -653,7 +898,7 @@ void parseDefineVoxelTiles(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseVoxel(FScanner& sc, FScriptPosition& pos)
+static void parseVoxel(FScanner& sc, FScriptPosition& pos)
 {
 	FScanner::SavedPos blockend;
 	int tile0 = MAXTILES, tile1 = -1;
@@ -662,20 +907,18 @@ void parseVoxel(FScanner& sc, FScriptPosition& pos)
 
 	if (!sc.GetString(fn)) return;
 
-	while (nextvoxid < MAXVOXELS && voxreserve[nextvoxid]) nextvoxid++;
-
-	if (nextvoxid == MAXVOXELS)
+	if (tbuild->nextvoxid == MAXVOXELS)
 	{
 		pos.Message(MSG_ERROR, "Maximum number of voxels (%d) already defined.", MAXVOXELS);
 		error = true;
 	}
-	else  if (voxDefine(nextvoxid, fn))
+	else  if (voxDefine(tbuild->nextvoxid, fn))
 	{
 		pos.Message(MSG_ERROR, "Unable to load voxel file \"%s\"", fn.GetChars());
 		error = true;
 	}
 
-	int lastvoxid = nextvoxid++;
+	int lastvoxid = tbuild->nextvoxid++;
 
 	if (sc.StartBraces(&blockend)) return;
 	while (!sc.FoundEndBrace(blockend))
@@ -686,7 +929,7 @@ void parseVoxel(FScanner& sc, FScriptPosition& pos)
 			sc.GetNumber(true);
 			if (ValidateTilenum("voxel", sc.Number, pos))
 			{
-				if (!error) tiletovox[sc.Number] = lastvoxid;
+				if (!error) tbuild->tile[sc.Number].extinfo.tiletovox = lastvoxid;
 			}
 		}
 		if (sc.Compare("tile0")) sc.GetNumber(tile0, true);
@@ -695,7 +938,7 @@ void parseVoxel(FScanner& sc, FScriptPosition& pos)
 			sc.GetNumber(tile1, true);
 			if (ValidateTileRange("voxel", tile0, tile1, pos) && !error)
 			{
-				for (int i = tile0; i <= tile1; i++) tiletovox[i] = lastvoxid;
+				for (int i = tile0; i <= tile1; i++) tbuild->tile[i].extinfo.tiletovox = lastvoxid;
 			}
 		}
 		if (sc.Compare("scale"))
@@ -713,7 +956,7 @@ void parseVoxel(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseDefineTint(FScanner& sc, FScriptPosition& pos)
+static void parseDefineTint(FScanner& sc, FScriptPosition& pos)
 {
 	int pal, r, g, b, f;
 
@@ -731,7 +974,7 @@ void parseDefineTint(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseFogpal(FScanner& sc, FScriptPosition& pos)
+static void parseFogpal(FScanner& sc, FScriptPosition& pos)
 {
 	int pal, r, g, b;
 
@@ -753,7 +996,7 @@ void parseFogpal(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseNoFloorpalRange(FScanner& sc, FScriptPosition& pos)
+static void parseNoFloorpalRange(FScanner& sc, FScriptPosition& pos)
 {
 	int start, end;
 	if (!sc.GetNumber(start, true)) return;
@@ -770,7 +1013,7 @@ void parseNoFloorpalRange(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseTint(FScanner& sc, FScriptPosition& pos)
+static void parseTint(FScanner& sc, FScriptPosition& pos)
 {
 	int red = 255, green = 255, blue = 255, shadered = 0, shadegreen = 0, shadeblue = 0, pal = -1, flags = 0;
 	FScanner::SavedPos blockend;
@@ -803,7 +1046,7 @@ void parseTint(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseMusic(FScanner& sc, FScriptPosition& pos)
+static void parseMusic(FScanner& sc, FScriptPosition& pos)
 {
 	FString id, file;
 	FScanner::SavedPos blockend;
@@ -824,9 +1067,12 @@ void parseMusic(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseMapinfo(FScanner& sc, FScriptPosition& pos)
+static void parseMapinfo(FScanner& sc, FScriptPosition& pos)
 {
-	usermaphack_t mhk;
+	FString title;
+	FString mhkfile;
+	uint8_t md4b[16]{};
+
 	FScanner::SavedPos blockend;
 	TArray<FString> md4s;
 
@@ -835,8 +1081,8 @@ void parseMapinfo(FScanner& sc, FScriptPosition& pos)
 	{
 		sc.MustGetString();
 		if (sc.Compare("mapfile")) sc.GetString();
-		else if (sc.Compare("maptitle")) sc.GetString(mhk.title);
-		else if (sc.Compare("mhkfile")) sc.GetString(mhk.mhkfile);
+		else if (sc.Compare("maptitle")) sc.GetString(title);
+		else if (sc.Compare("mhkfile")) sc.GetString(mhkfile);
 		else if (sc.Compare("mapmd4"))
 		{
 			sc.GetString();
@@ -848,9 +1094,9 @@ void parseMapinfo(FScanner& sc, FScriptPosition& pos)
 		for (int i = 0; i < 16; i++)
 		{
 			char smallbuf[3] = { md4[2 * i], md4[2 * i + 1], 0 };
-			mhk.md4[i] = (uint8_t)strtol(smallbuf, nullptr, 16);
+			md4b[i] = (uint8_t)strtol(smallbuf, nullptr, 16);
 		}
-		AddUserMapHack(mhk);
+		AddUserMapHack(title, mhkfile, md4b);
 	}
 }
 
@@ -860,7 +1106,7 @@ void parseMapinfo(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseEcho(FScanner& sc, FScriptPosition& pos)
+static void parseEcho(FScanner& sc, FScriptPosition& pos)
 {
 	sc.MustGetString();
 	Printf("%s\n", sc.String);
@@ -872,72 +1118,7 @@ void parseEcho(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseMultiPsky(FScanner& sc, FScriptPosition& pos)
-{
-	// The maximum tile offset ever used in any tiled parallaxed multi-sky.
-	enum { PSKYOFF_MAX = 16 };
-
-	FScanner::SavedPos blockend;
-	SkyDefinition sky{};
-
-	bool crc;
-	sky.scale = 1.f;
-	sky.baselineofs = INT_MIN;
-	if (sc.CheckString("crc"))
-	{
-		if (!sc.GetNumber(sky.crc32, true)) return;
-		crc = true;
-	}
-	else
-	{
-		if (!sc.GetNumber(sky.tilenum, true)) return;
-		crc = false;
-	}
-
-	if (sc.StartBraces(&blockend)) return;
-	while (!sc.FoundEndBrace(blockend))
-	{
-		sc.MustGetString();
-		if (sc.Compare("horizfrac")) sc.GetNumber(true); // not used anymore
-		else if (sc.Compare("yoffset")) sc.GetNumber(sky.pmoffset, true);
-		else if (sc.Compare("baseline")) sc.GetNumber(sky.baselineofs, true);
-		else if (sc.Compare("lognumtiles")) sc.GetNumber(sky.lognumtiles, true);
-		else if (sc.Compare("yscale")) { int intscale; sc.GetNumber(intscale, true); sky.scale = intscale * (1. / 65536.); }
-		else if (sc.Compare({ "tile", "panel" }))
-		{
-			if (!sc.CheckString("}"))
-			{
-				int panel = 0, offset = 0;
-				sc.GetNumber(panel, true);
-				sc.GetNumber(offset, true);
-				if ((unsigned)panel < MAXPSKYTILES && (unsigned)offset <= PSKYOFF_MAX) sky.offsets[panel] = offset;
-			}
-			else
-			{
-				int panel = 0, offset;
-				while (!sc.CheckString("}"))
-				{
-					sc.GetNumber(offset, true);
-					if ((unsigned)panel < MAXPSKYTILES && (unsigned)offset <= PSKYOFF_MAX) sky.offsets[panel] = offset;
-					panel++;
-				}
-			}
-		}
-	}
-	if (sky.baselineofs == INT_MIN) sky.baselineofs = sky.pmoffset;
-	if (!crc && sky.tilenum != DEFAULTPSKY && (unsigned)sky.tilenum >= MAXUSERTILES) return;
-	if ((1 << sky.lognumtiles) > MAXPSKYTILES) return;
-	if (crc) addSkyCRC(sky, sky.crc32);
-	else addSky(sky, sky.tilenum);
-}
-
-//===========================================================================
-//
-//
-//
-//===========================================================================
-
-void parseRffDefineId(FScanner& sc, FScriptPosition& pos)
+static void parseRffDefineId(FScanner& sc, FScriptPosition& pos)
 {
 	FString resName;
 	FString resType;
@@ -957,7 +1138,7 @@ void parseRffDefineId(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseEmptyBlock(FScanner& sc, FScriptPosition& pos)
+static void parseEmptyBlock(FScanner& sc, FScriptPosition& pos)
 {
 	FScanner::SavedPos blockend;
 
@@ -966,7 +1147,7 @@ void parseEmptyBlock(FScanner& sc, FScriptPosition& pos)
 	sc.CheckString("}");
 }
 
-void parseEmptyBlockWithParm(FScanner& sc, FScriptPosition& pos)
+static void parseEmptyBlockWithParm(FScanner& sc, FScriptPosition& pos)
 {
 	FScanner::SavedPos blockend;
 
@@ -983,7 +1164,7 @@ void parseEmptyBlockWithParm(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseTexHitscanRange(FScanner& sc, FScriptPosition& pos)
+static void parseTexHitscanRange(FScanner& sc, FScriptPosition& pos)
 {
 	int start, end;
 
@@ -993,7 +1174,7 @@ void parseTexHitscanRange(FScanner& sc, FScriptPosition& pos)
 	if (start < 0) start = 0;
 	if (end >= MAXUSERTILES) end = MAXUSERTILES - 1;
 	for (int i = start; i <= end; i++)
-		TileFiles.tiledata[i].picanm.sf |= PICANM_TEXHITSCAN_BIT;
+		tbuild->tile[i].extinfo.picanm.sf |= PICANM_TEXHITSCAN_BIT;
 }
 
 //===========================================================================
@@ -1002,7 +1183,7 @@ void parseTexHitscanRange(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseNoFullbrightRange(FScanner& sc, FScriptPosition& pos)
+static void parseNoFullbrightRange(FScanner& sc, FScriptPosition& pos)
 {
 	int start, end;
 
@@ -1013,490 +1194,7 @@ void parseNoFullbrightRange(FScanner& sc, FScriptPosition& pos)
 	if (end >= MAXUSERTILES) end = MAXUSERTILES - 1;
 	for (int i = start; i <= end; i++)
 	{
-		auto tex = tileGetTexture(i);
-		if (tex->isValid())	tex->SetDisableBrightmap();
-	}
-}
-
-//===========================================================================
-//
-//
-//
-//===========================================================================
-
-void parseArtFile(FScanner& sc, FScriptPosition& pos)
-{
-	FScanner::SavedPos blockend;
-	FString file;
-	int tile = -1;
-
-	if (sc.StartBraces(&blockend)) return;
-	while (!sc.FoundEndBrace(blockend)) 
-	{
-		sc.MustGetString();
-		if (sc.Compare("file")) sc.GetString(file);
-		else if (sc.Compare("tile")) sc.GetNumber(tile, true);
-	}
-
-	if (file.IsEmpty())
-	{
-		pos.Message(MSG_ERROR, "artfile: missing file name");
-	}
-	else if (tile >= 0 && ValidateTilenum("artfile", tile, pos))
-		TileFiles.LoadArtFile(file, nullptr, tile);
-}
-
-//===========================================================================
-//
-// this is only left in for compatibility purposes.
-// There's way better methods to handle translucency.
-//
-//===========================================================================
-
-static void parseBlendTableGlBlend(FScanner& sc, int id)
-{
-	FScanner::SavedPos blockend;
-	FScriptPosition pos = sc;
-	FString file;
-
-	if (sc.StartBraces(&blockend)) return;
-
-	glblend_t* const glb = glblend + id;
-	*glb = nullglblend;
-
-	while (!sc.FoundEndBrace(blockend))
-	{
-		int which = 0;
-		sc.MustGetString();
-		if (sc.Compare("forward")) which = 1;
-		else if (sc.Compare("reverse")) which = 2;
-		else if (sc.Compare("both")) which = 3;
-		else continue;
-
-		FScanner::SavedPos blockend2;
-
-		if (sc.StartBraces(&blockend2)) return;
-		glblenddef_t bdef{};
-		while (!sc.FoundEndBrace(blockend2))
-		{
-			int whichb = 0;
-			sc.MustGetString();
-			if (sc.Compare("}")) break;
-			if (sc.Compare({ "src", "sfactor", "top" })) whichb = 0;
-			else if (sc.Compare({ "dst", "dfactor", "bottom" })) whichb = 1;
-			else if (sc.Compare("alpha"))
-			{
-				sc.GetFloat(true);
-				bdef.alpha = (float)sc.Float;
-				continue;
-			}
-			uint8_t* const factor = whichb == 0 ? &bdef.src : &bdef.dst;
-			sc.MustGetString();
-			if (sc.Compare("ZERO")) *factor = STYLEALPHA_Zero;
-			else if (sc.Compare("ONE")) *factor = STYLEALPHA_One;
-			else if (sc.Compare("SRC_COLOR")) *factor = STYLEALPHA_SrcCol;
-			else if (sc.Compare("ONE_MINUS_SRC_COLOR")) *factor = STYLEALPHA_InvSrcCol;
-			else if (sc.Compare("SRC_ALPHA")) *factor = STYLEALPHA_Src;
-			else if (sc.Compare("ONE_MINUS_SRC_ALPHA")) *factor = STYLEALPHA_InvSrc;
-			else if (sc.Compare("DST_ALPHA")) *factor = STYLEALPHA_Dst;
-			else if (sc.Compare("ONE_MINUS_DST_ALPHA")) *factor = STYLEALPHA_InvDst;
-			else if (sc.Compare("DST_COLOR")) *factor = STYLEALPHA_DstCol;
-			else if (sc.Compare("ONE_MINUS_DST_COLOR")) *factor = STYLEALPHA_InvDstCol;
-			else sc.ScriptMessage("Unknown blend operation %s", sc.String);
-		}
-		if (which & 1) glb->def[0] = bdef;
-		if (which & 2) glb->def[1] = bdef;
-	}
-}
-
-void parseBlendTable(FScanner& sc, FScriptPosition& pos)
-{
-	FScanner::SavedPos blockend;
-	int id;
-
-	if (!sc.GetNumber(id, true)) return;
-
-	if (sc.StartBraces(&blockend)) return;
-
-	if ((unsigned)id >= MAXBLENDTABS)
-	{
-		pos.Message(MSG_ERROR, "blendtable: Invalid blendtable number %d", id);
-		sc.RestorePos(blockend);
-		return;
-	}
-
-	while (!sc.FoundEndBrace(blockend))
-	{
-		sc.MustGetString();
-		if (sc.Compare("raw")) parseEmptyBlock(sc, pos); // Raw translucency map for the software renderer. We have no use for this.
-		else if (sc.Compare("glblend")) parseBlendTableGlBlend(sc, id);
-		else if (sc.Compare("undef")) glblend[id] = defaultglblend;
-		else if (sc.Compare("copy"))
-		{
-			sc.GetNumber(true);
-
-			if ((unsigned)sc.Number >= MAXBLENDTABS || sc.Number == id)
-			{
-				pos.Message(MSG_ERROR, "blendtable: Invalid source blendtable number %d in copy", sc.Number);
-			}
-			else glblend[id] = glblend[sc.Number];
-		}
-	}
-}
-
-//===========================================================================
-//
-// thw same note as for blendtable applies here.
-//
-//===========================================================================
-
-void parseNumAlphaTabs(FScanner& sc, FScriptPosition& pos)
-{
-	int value;
-	if (!sc.GetNumber(value)) return;
-
-	for (int a = 1, value2 = value * 2 + (value & 1); a <= value; ++a)
-	{
-		float finv2value = 1.f / (float)value2;
-
-		glblend_t* const glb = glblend + a;
-		*glb = defaultglblend;
-		glb->def[0].alpha = (float)(value2 - a) * finv2value;
-		glb->def[1].alpha = (float)a * finv2value;
-	}
-}
-
-//===========================================================================
-//
-//
-//
-//===========================================================================
-
-static bool parseBasePaletteRaw(FScanner& sc, FScriptPosition& pos, int id)
-{
-	FScanner::SavedPos blockend;
-	FString fn;
-	int32_t offset = 0;
-	int32_t shiftleft = 0;
-
-	if (sc.StartBraces(&blockend)) return false;
-
-	while (!sc.FoundEndBrace(blockend))
-	{
-		sc.MustGetString();
-		if (sc.Compare("file")) sc.GetString(fn);
-		else if (sc.Compare("offset")) sc.GetNumber(offset, true);
-		else if (sc.Compare("shiftleft")) sc.GetNumber(shiftleft, true);
-	}
-
-	if (fn.IsEmpty())
-	{
-		pos.Message(MSG_ERROR, "basepalette: filename missing");
-	}
-	else if (offset < 0)
-	{
-		pos.Message(MSG_ERROR, "basepalette: Invalid file offset");
-	}
-	else if ((unsigned)shiftleft >= 8)
-	{
-		pos.Message(MSG_ERROR, "basepalette: Invalid left shift %d provided", shiftleft);
-	}
-	else
-	{
-		FileReader fil = fileSystem.OpenFileReader(fn);
-		if (!fil.isOpen())
-		{
-			pos.Message(MSG_ERROR, "basepalette: Failed opening \"%s\"", fn.GetChars());
-		}
-		else
-		{
-			fil.Seek(offset, FileReader::SeekSet);
-			auto palbuf = fil.Read();
-			if (palbuf.Size() < 768)
-			{
-				pos.Message(MSG_ERROR, "basepalette: Read failed");
-			}
-			else
-			{
-				if (shiftleft != 0)
-				{
-					for (auto& pe : palbuf)
-						pe <<= shiftleft;
-				}
-
-				paletteSetColorTable(id, palbuf.Data(), false, false);
-				return true;
-			}
-		}
-	}
-	return false;
-}
-
-void parseBasePalette(FScanner& sc, FScriptPosition& pos)
-{
-	FScanner::SavedPos blockend;
-	int id;
-	bool didLoadPal = false;
-
-	if (!sc.GetNumber(id)) return;
-
-	if (sc.StartBraces(&blockend)) return;
-
-	if ((unsigned)id >= MAXBASEPALS)
-	{
-		pos.Message(MSG_ERROR, "basepalette: Invalid basepal number %d", id);
-		sc.RestorePos(blockend);
-		sc.CheckString("{");
-		return;
-	}
-
-	while (!sc.FoundEndBrace(blockend))
-	{
-		sc.MustGetString();
-		if (sc.Compare("raw")) didLoadPal |= parseBasePaletteRaw(sc, pos, id);
-		else if (sc.Compare("copy"))
-		{
-			int source = -1;
-			sc.GetNumber(source);
-
-			if ((unsigned)source >= MAXBASEPALS || source == id)
-			{
-				pos.Message(MSG_ERROR, "basepalette: Invalid source basepal number %d", source);
-			}
-			else
-			{
-				auto sourcepal = GPalette.GetTranslation(Translation_BasePalettes, source);
-				if (sourcepal == nullptr)
-				{
-					pos.Message(MSG_ERROR, "basepalette: Source basepal %d does not exist", source);
-				}
-				else
-				{
-					GPalette.CopyTranslation(TRANSLATION(Translation_BasePalettes, id), TRANSLATION(Translation_BasePalettes, source));
-					didLoadPal = true;
-				}
-			}
-		}
-		else if (sc.Compare("undef"))
-		{
-			GPalette.ClearTranslationSlot(TRANSLATION(Translation_BasePalettes, id));
-			didLoadPal = 0;
-			if (id == 0) paletteloaded &= ~PALETTE_MAIN;
-		}
-	}
-
-	if (didLoadPal && id == 0)
-	{
-		paletteloaded |= PALETTE_MAIN;
-	}
-}
-
-//===========================================================================
-//
-//
-//
-//===========================================================================
-
-void parseUndefBasePaletteRange(FScanner& sc, FScriptPosition& pos)
-{
-	int start, end;
-
-	if (!sc.GetNumber(start)) return;
-	if (!sc.GetNumber(end)) return;
-
-	if (start > end || (unsigned)start >= MAXBASEPALS || (unsigned)end >= MAXBASEPALS)
-	{
-		pos.Message(MSG_ERROR, "undefbasepaletterange: Invalid range [%d, %d]", start, end);
-		return;
-	}
-	for (int i = start; i <= end; i++) GPalette.ClearTranslationSlot(TRANSLATION(Translation_BasePalettes, i));
-	if (start == 0) paletteloaded &= ~PALETTE_MAIN;
-}
-
-//===========================================================================
-//
-// sadly this looks broken by design with its hard coded 32 shades...
-//
-//===========================================================================
-
-static void parsePalookupRaw(FScanner& sc, int id, int& didLoadShade)
-{
-	FScanner::SavedPos blockend;
-	FScriptPosition pos = sc;
-
-	if (sc.StartBraces(&blockend)) return;
-
-	FString fn;
-	int32_t offset = 0;
-	int32_t length = 256 * 32; // hardcoding 32 instead of numshades
-
-	while (!sc.FoundEndBrace(blockend))
-	{
-		sc.MustGetString();
-		if (sc.Compare("file")) sc.GetString(fn);
-		else if (sc.Compare("offset")) sc.GetNumber(offset);
-		else if (sc.Compare("noshades")) length = 256;
-	}
-
-	if (fn.IsEmpty())
-	{
-		pos.Message(MSG_ERROR, "palookup: filename missing");
-	}
-	else if (offset < 0)
-	{
-		pos.Message(MSG_ERROR, "palookup: Invalid file offset %d", offset);
-	}
-	else
-	{
-		FileReader fil = fileSystem.OpenFileReader(fn);
-		if (!fil.isOpen())
-		{
-			pos.Message(MSG_ERROR, "palookup: Failed opening \"%s\"", fn.GetChars());
-		}
-		else
-		{
-			fil.Seek(offset, FileReader::SeekSet);
-			auto palookupbuf = fil.Read();
-			if (palookupbuf.Size() < 256)
-			{
-				pos.Message(MSG_ERROR, "palookup: Read failed");
-			}
-			else if (palookupbuf.Size() >= 256 * 32)
-			{
-				didLoadShade = 1;
-				numshades = 32;
-				lookups.setTable(id, palookupbuf.Data());
-			}
-			else
-			{
-				if (!(paletteloaded & PALETTE_SHADE))
-				{
-					pos.Message(MSG_ERROR, "palookup: Shade tables not loaded");
-				}
-				else
-					lookups.makeTable(id, palookupbuf.Data(), 0, 0, 0, lookups.tables[id].noFloorPal);
-			}
-		}
-	}
-}
-
-static void parsePalookupFogpal(FScanner& sc, int id)
-{
-	FScanner::SavedPos blockend;
-	FScriptPosition pos = sc;
-
-	if (sc.StartBraces(&blockend)) return;
-
-	int red = 0, green = 0, blue = 0;
-
-	while (!sc.FoundEndBrace(blockend))
-	{
-		sc.MustGetString();
-		if (sc.Compare({ "r", "red" })) sc.GetNumber(red);
-		else if (sc.Compare({ "g", "green" })) sc.GetNumber(green);
-		else if (sc.Compare({ "b", "blue" })) sc.GetNumber(blue);
-	}
-	red = clamp(red, 0, 255);
-	green = clamp(green, 0, 255);
-	blue = clamp(blue, 0, 255);
-
-	if (!(paletteloaded & PALETTE_SHADE))
-	{
-		pos.Message(MSG_ERROR, "palookup: Shade tables not loaded");
-	}
-	else
-		lookups.makeTable(id, nullptr, red, green, blue, 1);
-}
-
-static void parsePalookupMakePalookup(FScanner& sc, FScriptPosition& pos, int id, int& didLoadShade)
-{
-	FScanner::SavedPos blockend;
-
-	if (sc.StartBraces(&blockend)) return;
-
-	int red = 0, green = 0, blue = 0;
-	int remappal = -1;
-
-	while (!sc.FoundEndBrace(blockend))
-	{
-		sc.MustGetString();
-		if (sc.Compare({ "r", "red" })) sc.GetNumber(red);
-		else if (sc.Compare({ "g", "green" })) sc.GetNumber(green);
-		else if (sc.Compare({ "b", "blue" })) sc.GetNumber(blue);
-		else if (sc.Compare("remappal")) sc.GetNumber(remappal, true);
-		else if (sc.Compare("remapself")) remappal = id;
-	}
-	red = clamp(red, 0, 255);
-	green = clamp(green, 0, 255);
-	blue = clamp(blue, 0, 255);
-
-	if ((unsigned)remappal >= MAXPALOOKUPS)
-	{
-		pos.Message(MSG_ERROR, "palookup: Invalid remappal %d", remappal);
-	}
-	else if (!(paletteloaded & PALETTE_SHADE))
-	{
-		pos.Message(MSG_ERROR, "palookup: Shade tables not loaded");
-	}
-	else
-		lookups.makeTable(id, nullptr, red, green, blue, lookups.tables[id].noFloorPal);
-}
-
-void parsePalookup(FScanner& sc, FScriptPosition& pos)
-{
-	FScanner::SavedPos blockend;
-	int id;
-	int didLoadShade = 0;
-
-	if (!sc.GetNumber(id, true)) return;
-	if (sc.StartBraces(&blockend)) return;
-
-	if ((unsigned)id >= MAXPALOOKUPS)
-	{
-		pos.Message(MSG_ERROR, "palookup: Invalid palette number %d", id);
-		sc.RestorePos(blockend);
-		return;
-	}
-
-	while (!sc.FoundEndBrace(blockend))
-	{
-		sc.MustGetString();
-		if (sc.Compare("raw")) parsePalookupRaw(sc, id, didLoadShade);
-		else if (sc.Compare("fogpal")) parsePalookupFogpal(sc, id);
-		else if (sc.Compare("makepalookup")) parsePalookupMakePalookup(sc, pos, id, didLoadShade);
-		else if (sc.Compare("floorpal")) lookups.tables[id].noFloorPal = 0;
-		else if (sc.Compare("nofloorpal")) lookups.tables[id].noFloorPal = 1;
-		else if (sc.Compare("copy"))
-		{
-			int source = 0;
-			sc.GetNumber(source, true);
-
-			if ((unsigned)source >= MAXPALOOKUPS || source == id)
-			{
-				pos.Message(MSG_ERROR, "palookup: Invalid source pal number %d", source);
-			}
-			else if (source == 0 && !(paletteloaded & PALETTE_SHADE))
-			{
-				pos.Message(MSG_ERROR, "palookup: Shade tables not loaded");
-			}
-			else
-			{
-				// do not overwrite the base with an empty table.
-				if (lookups.checkTable(source) || id > 0) lookups.copyTable(id, source);
-				didLoadShade = 1;
-			}
-		}
-		else if (sc.Compare("undef")) 
-		{
-			lookups.clearTable(id);
-			didLoadShade = 0;
-			if (id == 0) paletteloaded &= ~PALETTE_SHADE;
-		}
-
-	}
-	if (didLoadShade && id == 0)
-	{
-		paletteloaded |= PALETTE_SHADE;
+		tbuild->tile[i].extinfo.picanm.sf |= PICANM_NOFULLBRIGHT_BIT;
 	}
 }
 
@@ -1506,98 +1204,7 @@ void parsePalookup(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseMakePalookup(FScanner& sc, FScriptPosition& pos)
-{
-	FScanner::SavedPos blockend;
-	int red = 0, green = 0, blue = 0, pal = -1;
-	int remappal = 0;
-	int nofloorpal = -1;
-	bool havepal = false, haveremappal = false, haveremapself = false;
-
-	if (sc.StartBraces(&blockend)) return;
-
-	while (!sc.FoundEndBrace(blockend))
-	{
-		sc.MustGetString();
-		if (sc.Compare({ "r", "red" })) sc.GetNumber(red);
-		else if (sc.Compare({ "g", "green" })) sc.GetNumber(green);
-		else if (sc.Compare({ "b", "blue" })) sc.GetNumber(blue);
-		else if (sc.Compare("remappal"))
-		{
-			sc.GetNumber(remappal, true);
-			haveremappal = true;
-		}
-		else if (sc.Compare("remapself"))
-		{
-			haveremapself = true;
-		}
-		else if (sc.Compare("nofloorpal")) sc.GetNumber(nofloorpal, true);
-		else if (sc.Compare("pal"))
-		{
-			havepal = true;
-			sc.GetNumber(pal, true);
-		}
-	}
-	red = clamp(red, 0, 63);
-	green = clamp(green, 0, 63);
-	blue = clamp(blue, 0, 63);
-
-	if (!havepal)
-	{
-		pos.Message(MSG_ERROR, "makepalookup: missing palette number");
-	} 
-	else if (pal == 0 || (unsigned)pal >= MAXREALPAL)
-	{
-		pos.Message(MSG_ERROR, "makepalookup: palette number %d out of range (1 .. %d)", pal, MAXREALPAL - 1);
-	}
-	else if (haveremappal && haveremapself)
-	{
-		// will also disallow multiple remappals or remapselfs
-		pos.Message(MSG_ERROR, "makepalookup: must have either 'remappal' or 'remapself' but not both");
-	}
-	else if ((haveremappal && (unsigned)remappal >= MAXREALPAL))
-	{
-		pos.Message(MSG_ERROR, "makepalookup: remap palette number %d out of range (0 .. %d)", pal, MAXREALPAL - 1);
-	}
-	else
-	{
-		if (haveremapself) remappal = pal;
-		lookups.makeTable(pal, lookups.getTable(remappal), red << 2, green << 2, blue << 2,
-			remappal == 0 ? 1 : (nofloorpal == -1 ? lookups.tables[remappal].noFloorPal : nofloorpal));
-	}
-}
-
-//===========================================================================
-//
-// 
-//
-//===========================================================================
-
-void parseUndefPalookupRange(FScanner& sc, FScriptPosition& pos)
-{
-	int id0, id1;
-
-	if (!sc.GetNumber(id0, true)) return;
-	if (!sc.GetNumber(id1, true)) return;
-
-	if (id0 > id1 || (unsigned)id0 >= MAXPALOOKUPS || (unsigned)id1 >= MAXPALOOKUPS)
-	{
-		pos.Message(MSG_ERROR, "undefpalookuprange: Invalid range");
-	}
-	else
-	{
-		for (int i = id0; i <= id1; i++) lookups.clearTable(i);
-		if (id0 == 0) paletteloaded &= ~PALETTE_SHADE;
-	}
-}
-
-//===========================================================================
-//
-// 
-//
-//===========================================================================
-
-void parseHighpalookup(FScanner& sc, FScriptPosition& pos)
+static void parseHighpalookup(FScanner& sc, FScriptPosition& pos)
 {
 	FScanner::SavedPos blockend;
 	int basepal = -1, pal = -1;
@@ -1645,7 +1252,7 @@ struct ModelStatics
 //
 //===========================================================================
 
-void parseDefineModel(FScanner& sc, FScriptPosition& pos)
+static void parseDefineModel(FScanner& sc, FScriptPosition& pos)
 {
 	FString modelfn;
 	double scale;
@@ -1655,14 +1262,14 @@ void parseDefineModel(FScanner& sc, FScriptPosition& pos)
 	if (!sc.GetFloat(scale, true)) return;
 	if (!sc.GetNumber(shadeoffs, true)) return;
 
-	mdglobal.lastmodelid = md_loadmodel(modelfn);
+	mdglobal.lastmodelid = modelManager.LoadModel(modelfn);
 	if (mdglobal.lastmodelid < 0)
 	{
 		pos.Message(MSG_WARNING, "definemodel: unable to load model file '%s'", modelfn.GetChars());
 	}
 	else
 	{
-		md_setmisc(mdglobal.lastmodelid, (float)scale, shadeoffs, 0.0, 0.0, 0);
+		modelManager.SetMisc(mdglobal.lastmodelid, (float)scale, shadeoffs, 0.0, 0.0, 0);
 		mdglobal.modelskin = mdglobal.lastmodelskin = 0;
 		mdglobal.seenframe = 0;
 	}
@@ -1674,7 +1281,7 @@ void parseDefineModel(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseDefineModelFrame(FScanner& sc, FScriptPosition& pos)
+static void parseDefineModelFrame(FScanner& sc, FScriptPosition& pos)
 {
 	FString framename;
 	bool ok = true;
@@ -1693,7 +1300,7 @@ void parseDefineModelFrame(FScanner& sc, FScriptPosition& pos)
 	}
 	for (int i = firsttile; i <= lasttile && ok; i++)
 	{
-		int err = (md_defineframe(mdglobal.lastmodelid, framename, i, max(0, mdglobal.modelskin), 0.0f, 0));
+		int err = (modelManager.DefineFrame(mdglobal.lastmodelid, framename, i, max(0, mdglobal.modelskin), 0.0f, 0));
 		if (err < 0) ok = false; 
 		if (err == -2) pos.Message(MSG_ERROR, "Invalid tile number %d", i);
 		else if (err == -3) pos.Message(MSG_ERROR, "Invalid frame name '%s'", framename.GetChars());
@@ -1707,7 +1314,7 @@ void parseDefineModelFrame(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseDefineModelAnim(FScanner& sc, FScriptPosition& pos)
+static void parseDefineModelAnim(FScanner& sc, FScriptPosition& pos)
 {
 	FString startframe, endframe;
 	int32_t flags;
@@ -1723,7 +1330,7 @@ void parseDefineModelAnim(FScanner& sc, FScriptPosition& pos)
 		pos.Message(MSG_WARNING, "definemodelframe: Ignoring animation definition outside model.");
 		return;
 	}
-	int err = (md_defineanimation(mdglobal.lastmodelid, startframe, endframe, (int32_t)(dfps * (65536.0 * .001)), flags));
+	int err = (modelManager.DefineAnimation(mdglobal.lastmodelid, startframe, endframe, (int32_t)(dfps * (65536.0 * .001)), flags));
 	if (err == -2) pos.Message(MSG_ERROR, "Invalid start frame name %s", startframe.GetChars());
 	else if (err == -3) pos.Message(MSG_ERROR, "Invalid end frame name %s", endframe.GetChars());
 }
@@ -1734,7 +1341,7 @@ void parseDefineModelAnim(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseDefineModelSkin(FScanner& sc, FScriptPosition& pos)
+static void parseDefineModelSkin(FScanner& sc, FScriptPosition& pos)
 {
 	int palnum;
 	FString skinfn;
@@ -1747,7 +1354,7 @@ void parseDefineModelSkin(FScanner& sc, FScriptPosition& pos)
 
 	if (!fileSystem.FileExists(skinfn)) return;
 
-	int err = (md_defineskin(mdglobal.lastmodelid, skinfn, palnum, max(0, mdglobal.modelskin), 0, 0.0f, 1.0f, 1.0f, 0));
+	int err = (modelManager.DefineSkin(mdglobal.lastmodelid, skinfn, palnum, max(0, mdglobal.modelskin), 0, 0.0f, 1.0f, 1.0f, 0));
 	if (err == -2) pos.Message(MSG_ERROR, "Invalid skin file name %s", skinfn.GetChars());
 	else if (err == -3) pos.Message(MSG_ERROR, "Invalid palette %d", palnum);
 }
@@ -1758,7 +1365,7 @@ void parseDefineModelSkin(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseSelectModelSkin(FScanner& sc, FScriptPosition& pos)
+static void parseSelectModelSkin(FScanner& sc, FScriptPosition& pos)
 {
 	sc.GetNumber(mdglobal.modelskin, true);
 }
@@ -1770,25 +1377,25 @@ void parseSelectModelSkin(FScanner& sc, FScriptPosition& pos)
 //
 //===========================================================================
 
-void parseUndefModel(FScanner& sc, FScriptPosition& pos)
+static void parseUndefModel(FScanner& sc, FScriptPosition& pos)
 {
 	int tile;
 	if (!sc.GetNumber(tile, true)) return;
 	if (!ValidateTilenum("undefmodel", tile, pos)) return;
-	md_undefinetile(tile);
+	modelManager.UndefineTile(tile);
 }
 
-void parseUndefModelRange(FScanner& sc, FScriptPosition& pos)
+static void parseUndefModelRange(FScanner& sc, FScriptPosition& pos)
 {
 	int start, end;
 
 	if (!sc.GetNumber(start, true)) return;
 	if (!sc.GetNumber(end, true)) return;
 	if (!ValidateTileRange("undefmodel", start, end, pos)) return;
-	for (int i = start; i <= end; i++) md_undefinetile(i);
+	for (int i = start; i <= end; i++) modelManager.UndefineTile(i);
 }
 
-void parseUndefModelOf(FScanner& sc, FScriptPosition& pos)
+static void parseUndefModelOf(FScanner& sc, FScriptPosition& pos)
 {
 	int tile;
 	if (!sc.GetNumber(tile, true)) return;
@@ -1834,7 +1441,7 @@ static bool parseModelFrameBlock(FScanner& sc, FixedBitArray<1024>& usedframes)
 	}
 	for (int i = starttile; i <= endtile && ok; i++)
 	{
-		int res = md_defineframe(mdglobal.lastmodelid, framename, i, max(0, mdglobal.modelskin), smoothduration, pal);
+		int res = modelManager.DefineFrame(mdglobal.lastmodelid, framename, i, max(0, mdglobal.modelskin), smoothduration, pal);
 		if (res < 0)
 		{
 			ok = false;
@@ -1877,7 +1484,7 @@ static bool parseModelAnimBlock(FScanner& sc)
 		return false;
 	}
 
-	int res = md_defineanimation(mdglobal.lastmodelid, startframe, endframe, (int)(fps * (65536.0 * .001)), flags);
+	int res = modelManager.DefineAnimation(mdglobal.lastmodelid, startframe, endframe, (int)(fps * (65536.0 * .001)), flags);
 	if (res < 0)
 	{
 		if (res == -2) pos.Message(MSG_ERROR, "Invalid start frame name %s", startframe.GetChars());
@@ -1927,7 +1534,7 @@ static bool parseModelSkinBlock(FScanner& sc, int pal)
 	}
 
 	if (pal == DETAILPAL) param = 1.f / param;
-	int res = md_defineskin(mdglobal.lastmodelid, filename, pal, max(0, mdglobal.modelskin), surface, param, specpower, specfactor, flags);
+	int res = modelManager.DefineSkin(mdglobal.lastmodelid, filename, pal, max(0, mdglobal.modelskin), surface, param, specpower, specfactor, flags);
 	if (res < 0)
 	{
 		if (res == -2) pos.Message(MSG_ERROR, "Invalid skin filename %s", filename.GetChars());
@@ -1968,7 +1575,7 @@ static bool parseModelHudBlock(FScanner& sc)
 	for (int i = starttile; i <= endtile; i++)
 	{
 		FVector3 addf = { (float)add.X, (float)add.Y, (float)add.Z };
-		int res = md_definehud(mdglobal.lastmodelid, i, addf, angadd, flags, fov);
+		int res = modelManager.DefineHud(mdglobal.lastmodelid, i, addf, angadd, flags, fov);
 		if (res < 0)
 		{
 			if (res == -2) pos.Message(MSG_ERROR, "Invalid tile number %d", i);
@@ -1978,7 +1585,7 @@ static bool parseModelHudBlock(FScanner& sc)
 	return true;
 }
 
-void parseModel(FScanner& sc, FScriptPosition& pos)
+static void parseModel(FScanner& sc, FScriptPosition& pos)
 {
 	FScanner::SavedPos blockend;
 
@@ -1995,7 +1602,7 @@ void parseModel(FScanner& sc, FScriptPosition& pos)
 
 	if (sc.StartBraces(&blockend)) return;
 
-	mdglobal.lastmodelid = md_loadmodel(modelfn);
+	mdglobal.lastmodelid = modelManager.LoadModel(modelfn);
 	if (mdglobal.lastmodelid < 0)
 	{
 		pos.Message(MSG_WARNING, "Unable to load model file '%s'", modelfn.GetChars());
@@ -2028,13 +1635,12 @@ void parseModel(FScanner& sc, FScriptPosition& pos)
 		if (mdglobal.lastmodelid >= 0)
 		{
 			pos.Message(MSG_ERROR, "Removing model %d due to errors.", mdglobal.lastmodelid);
-			md_undefinemodel(mdglobal.lastmodelid);
-			nextmodelid--;
+			modelManager.UndefineModel(mdglobal.lastmodelid);
 		}
 	}
 	else
 	{
-		md_setmisc(mdglobal.lastmodelid, (float)scale, shadeoffs, (float)mzadd, (float)myoffset, flags);
+		modelManager.SetMisc(mdglobal.lastmodelid, (float)scale, shadeoffs, (float)mzadd, (float)myoffset, flags);
 		mdglobal.modelskin = mdglobal.lastmodelskin = 0;
 		mdglobal.seenframe = 0;
 	}
@@ -2226,40 +1832,6 @@ static void parseDefineQAV(FScanner& sc, FScriptPosition& pos)
 	fileSystem.CreatePathlessCopy(fn, res_id, 0);
 }
 
-static void parseSpawnClasses(FScanner& sc, FScriptPosition& pos)
-{
-	FString fn;
-	int res_id = -1;
-	int numframes = -1;
-	bool interpolate = false;
-
-	sc.SetCMode(true);
-	if (!sc.CheckString("{"))
-	{
-		pos.Message(MSG_ERROR, "spawnclasses:'{' expected, unable to continue");
-		sc.SetCMode(false);
-		return;
-	}
-	while (!sc.CheckString("}"))
-	{
-		int num = -1;
-		int base = -1;
-		FName cname;
-		sc.GetNumber(num, true);
-		sc.MustGetStringName("=");
-		sc.MustGetString();
-		cname = sc.String;
-		if (sc.CheckString(","))
-		{
-			sc.GetNumber(base, true);
-		}
-
-		// todo: check for proper base class
-		spawnMap.Insert(num, { cname, nullptr, base });
-	}
-	sc.SetCMode(false);
-}
-
 //===========================================================================
 //
 // 
@@ -2300,7 +1872,6 @@ static const dispatch basetokens[] =
 	{ "skybox",          parseSkybox           },
 	{ "highpalookup",    parseHighpalookup     },
 	{ "tint",            parseTint             },
-	{ "makepalookup",    parseMakePalookup     },
 	{ "texture",         parseTexture          },
 	{ "tile",            parseTexture          },
 	{ "music",           parseMusic            },
@@ -2333,26 +1904,18 @@ static const dispatch basetokens[] =
 	{ "cachesize",       parseSkip<1>			},
 	{ "dummytilefrompic",parseImportTile       },
 	{ "tilefromtexture", parseTileFromTexture  },
-	{ "artfile",         parseArtFile          },
 	{ "mapinfo",         parseMapinfo          },
 	{ "echo",            parseEcho             },
 	{ "globalflags",     parseSkip<1>      },
 	{ "copytile",        parseCopyTile         },
 	{ "globalgameflags", parseSkip<1>  },
-	{ "multipsky",       parseMultiPsky        },
-	{ "basepalette",     parseBasePalette      },
-	{ "palookup",        parsePalookup         },
-	{ "blendtable",      parseBlendTable       },
-	{ "numalphatables",  parseNumAlphaTabs     },
-	{ "undefbasepaletterange", parseUndefBasePaletteRange },
-	{ "undefpalookuprange", parseUndefPalookupRange },
+	{ "multipsky",       parseEmptyBlockWithParm  },
 	{ "undefblendtablerange", parseSkip<2> },
 	{ "shadefactor",     parseSkip<1>      },
 	{ "newgamechoices",  parseEmptyBlock   },
 	{ "rffdefineid",     parseRffDefineId      },
 	{ "defineqav",       parseDefineQAV        },
 
-	{ "spawnclasses",		parseSpawnClasses },
 	{ nullptr,           nullptr               },
 };
 
@@ -2376,8 +1939,9 @@ static void defsparser(FScanner& sc)
 	}
 }
 
-void loaddefinitionsfile(const char* fn, bool cumulative, bool maingame)
+void loaddefinitionsfile(TilesetBuildInfo& info, const char* fn, bool cumulative, bool maingame)
 {
+	tbuild = &info;
 	bool done = false;
 	auto parseit = [&](int lump)
 	{

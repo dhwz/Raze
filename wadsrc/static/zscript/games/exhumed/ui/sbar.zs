@@ -60,6 +60,11 @@ class ExhumedStatusBar : RazeStatusBar
 		KeySeq = 36,
 	}
 
+    override int, int GetReservedScreenSpace(int viewsize) 
+	{ 
+		return 0, 24;
+	}
+
 	override void Init()
 	{
 		textfont = HUDFont.Create(SmallFont, 1, Mono_Off, 1, 1);
@@ -170,6 +175,12 @@ class ExhumedStatusBar : RazeStatusBar
         return chunk.tex;
     }
 
+    String GetStatusSequenceName(int nSequence, int frameindex)
+    {
+		let texid = GetStatusSequencePic(nSequence, frameindex);
+		return TexMan.GetName(texid);
+    }
+
 	//---------------------------------------------------------------------------
 	//
 	// Frag display - very ugly and may have to be redone if multiplayer support gets added.
@@ -255,10 +266,10 @@ class ExhumedStatusBar : RazeStatusBar
 		imgScale = baseScale / size.Y;
 		DrawTexture(img, (1.5, -1), DI_ITEM_LEFT_BOTTOM, scale:(imgScale, imgScale));
 
-		if (!hud_flashing || pp.nHealth > 150 || (PlayClock & 32))
+		if (!althud_flashing || pp.nHealth > 150 || (PlayClock & 32))
 		{
 			int s = -8;
-			if (hud_flashing && pp.nHealth > 800)
+			if (althud_flashing && pp.nHealth > 800)
 				s += Raze.bsin(PlayClock << 5) >> 10;
 			int intens = clamp(255 - 4 * s, 0, 255);
 			format = String.Format("%d", pp.nHealth >> 3);
@@ -323,7 +334,7 @@ class ExhumedStatusBar : RazeStatusBar
 			}
 			/* non-implemented weapon icon.
 			int wicon = 0;// ammo_sprites[weapon];
-			img = tileGetTexture(wicon);
+			img = ammo_sprites[weapon];
 			imgScale = baseScale / img.GetDisplayHeight();
 			let imgX = 21.125;
 			let strlen = format.Len();
@@ -334,7 +345,7 @@ class ExhumedStatusBar : RazeStatusBar
 			}
 			*/
 
-			if ((!hud_flashing || PlayClock & 32 || ammo > 10))// (DamageData[weapon].max_ammo / 10)))
+			if ((!althud_flashing || PlayClock & 32 || ammo > 10))// (DamageData[weapon].max_ammo / 10)))
 			{
 				DrawString(numberFont, format, (-3, -numberFont.mFont.GetHeight() + 3), DI_TEXT_ALIGN_RIGHT);
 			}
@@ -383,7 +394,7 @@ class ExhumedStatusBar : RazeStatusBar
 			DrawImage("hud_l", (0, 0), DI_ITEM_LEFT_BOTTOM | DI_SCREEN_LEFT_BOTTOM);
 			DrawImage("hud_r", (0, 0), DI_ITEM_RIGHT_BOTTOM | DI_SCREEN_RIGHT_BOTTOM);
 		}
-		else if (hud_size == Hud_full)
+		else if (hud_size == Hud_Full)
 		{
 			DrawHUD2(pp);
 			return;
@@ -430,7 +441,7 @@ class ExhumedStatusBar : RazeStatusBar
 			// draw compass
 			if (hud_size <= Hud_StbarOverlay) DrawStatusSequence(35, ((pp.GetAngle() + 128) & Raze.kAngleMask) >> 8, 0, 0.5, true);
 
-			//if (hud_size < Hud_full)
+			//if (hud_size < Hud_Full)
 			{
 				// draw ammo count
 				DrawStatusSequence(44, nDigit[2], 0, 0.5, true);
@@ -797,10 +808,74 @@ class ExhumedStatusBar : RazeStatusBar
 
 	override void UpdateStatusBar(SummaryInfo info)
 	{
-		if (hud_size <= Hud_full)
+		if (hud_size <= Hud_Full)
 		{
 			DrawStatus(Exhumed.GetViewPlayer());
 		}
-		DoLevelStats(hud_size == Hud_Nothing ? 0 : hud_size == Hud_full ? 20 : 45, info);
+		DoLevelStats(hud_size == Hud_Nothing ? 0 : hud_size == Hud_Full ? 20 : 45, info);
+	}
+	
+	
+	//---------------------------------------------------------------------------
+	//
+	//
+	//
+	//---------------------------------------------------------------------------
+
+	override void GetAllStats(HudStats stats)
+	{
+		stats.Clear();
+		stats.info.fontscale = 1;
+
+		stats.info.spacing = 8;
+		stats.info.letterColor = Font.TEXTCOLOR_RED;
+		stats.info.standardColor = Font.TEXTCOLOR_UNTRANSLATED;
+		stats.info.completeColor = Font.TEXTCOLOR_DARKGREEN;
+		stats.info.statfont = SmallFont;
+
+		let pp = Exhumed.GetViewPlayer();
+		stats.healthicon = GetStatusSequenceName(125, 0);
+		stats.healthvalue = pp.nHealth >> 3;
+		
+		SetMagicFrame(pp);
+		
+		stats.armoricons.Push(GetStatusSequenceName(nItemSeq, nItemFrame));
+		stats.armorvalues.Push(pp.nMagic / 10);
+
+		if (pp.isUnderwater())
+		{
+			let img = GetStatusSequenceName(133, airframe);
+			stats.armoricons.Push(img);
+			stats.armorvalues.Push(-1);
+		}
+
+		int nKeys = pp.keys;
+		for (int i = 0; i < 4; i++)
+		{
+			if (nKeys & (0x1000 << i))
+			{
+				stats.keyicons.Push(String.Format("KeyIcon%d", i+1));
+			}
+		}
+
+		static const string weaponicons[] = { "", "WeaponSpriteMagnum", "WeaponSpriteM60", "WeaponSpriteFlamethrower", "", "WeaponSpriteCobra", "" /* sprite for ring?*/};
+		for (int i = 0; i < weaponicons.Size(); i++)
+		{
+			if (pp.nPlayerWeapons & (1 << i) && weaponicons[i] != "")
+			{
+				if (pp.nCurrentWeapon == i) stats.weaponselect = stats.weaponicons.Size();
+				stats.weaponicons.Push(weaponicons[i]);
+			}
+		}
+
+		static const string ammoicons[] = { "", "AmmoSpriteMagnum", "AmmoSpriteM60_1", "AmmoSpriteFuel", "AmmoSpriteGrenade", "AmmoSpriteCobra", "-" /* sprite for ring?*/};
+		for (int i = 0; i < ammoicons.Size(); i++)
+		{
+			if (pp.nCurrentWeapon == i) stats.ammoselect = stats.ammoicons.Size();
+			stats.ammoicons.Push(ammoicons[i]);
+			stats.ammovalues.Push(pp.nAmmo[i]);
+			stats.ammomaxvalues.Push(300);
+		}
+
 	}
 }

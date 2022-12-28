@@ -109,7 +109,7 @@ void SetWallWarpHitscan(sectortype* sect)
     if (!sp_warp)
         return;
 
-    auto start_wall = sect->firstWall();
+    auto start_wall = sect->walls.Data();
     auto wall_num = start_wall;
 
     // Travel all the way around loop setting wall bits
@@ -130,7 +130,7 @@ void SetWallWarpHitscan(sectortype* sect)
 
 void ResetWallWarpHitscan(sectortype* sect)
 {
-    auto start_wall = sect->firstWall();
+    auto start_wall = sect->walls.Data();
     auto wall_num = start_wall;
 
     // Travel all the way around loop setting wall bits
@@ -177,7 +177,8 @@ void FAFhitscan(const DVector3& start, sectortype* sect, const DVector3& vect, H
                 ResetWallWarpHitscan(hit.hitSector);
 
                 // NOTE: This could be recursive I think if need be
-                hitscan(hit.hitpos, hit.hitSector, vect, hit, startclipmask);
+                auto nstart = hit.hitpos;
+                hitscan(nstart, hit.hitSector, vect, hit, startclipmask);
 
                 // reset hitscan block for dest sect
                 SetWallWarpHitscan(hit.hitSector);
@@ -197,13 +198,14 @@ void FAFhitscan(const DVector3& start, sectortype* sect, const DVector3& vect, H
     {
         if ((hit.hitSector->extra & SECTFX_WARP_SECTOR))
         {
-            if ((hit.hitSector->firstWall()->cstat & CSTAT_WALL_WARP_HITSCAN))
+            if ((hit.hitSector->walls[0].cstat & CSTAT_WALL_WARP_HITSCAN))
             {
                 // hit the floor of a sector that is a warping sector
                 sectortype* newsect = nullptr;
                 if (Warp(hit.hitpos, &newsect))
                 {
-                    hitscan(hit.hitpos, newsect, vect, hit, clipmask);
+                    auto nstart = hit.hitpos;
+                    hitscan(nstart, newsect, vect, hit, clipmask);
                     return;
                 }
             }
@@ -212,14 +214,15 @@ void FAFhitscan(const DVector3& start, sectortype* sect, const DVector3& vect, H
                 sectortype* newsect = nullptr;
                 if (WarpPlane(hit.hitpos, &newsect))
                 {
-                    hitscan(hit.hitpos, newsect, vect, hit, clipmask);
+                    auto nstart = hit.hitpos;
+                    hitscan(nstart, newsect, vect, hit, clipmask);
                     return;
                 }
             }
         }
 
         double loz, hiz;
-        getzsofslopeptr(hit.hitSector, hit.hitpos, &hiz, &loz);
+        calcSlope(hit.hitSector, hit.hitpos, &hiz, &loz);
         if (abs(hit.hitpos.Z - loz) < 4)
         {
             if (FAF_ConnectFloor(hit.hitSector) && !(hit.hitSector->floorstat & CSTAT_SECTOR_FAF_BLOCK_HITSCAN))
@@ -240,7 +243,8 @@ void FAFhitscan(const DVector3& start, sectortype* sect, const DVector3& vect, H
 
     if (plax_found)
     {
-        hitscan(hit.hitpos, newsector, vect, hit, clipmask);
+        auto nstart = hit.hitpos;
+        hitscan(nstart, newsector, vect, hit, clipmask);
     }
 }
 
@@ -256,15 +260,22 @@ bool FAFcansee(const DVector3& start, sectortype* sects, const DVector3& end, se
     bool plax_found = false;
     // ASSERT(sects >= 0 && secte >= 0);
 
+    // luckily we do not have portal setups with otherwise connected sectors, so let's go to the original routine for all cases.
+    // The hack job below won't always cut it.
+    if (cansee(start, sects, end, secte))
+    {
+        return true;
+    }
+
     // early out to regular routine
     if ((!sects || !FAF_Sector(sects)) && (!secte || !FAF_Sector(secte)))
     {
-        return !!cansee(start, sects, end, secte);
+        return false;
     }
 
     // get angle
     DVector3 diff = end - start;
-    DAngle ang = VecToAngle(diff);
+    DAngle ang = diff.Angle();
     DVector3 vect; 
     vect.XY() = ang.ToVector() * 1024;
     double dist = diff.XY().Length();
@@ -292,7 +303,7 @@ bool FAFcansee(const DVector3& start, sectortype* sects, const DVector3& end, se
     if (hit.hitWall == nullptr && hit.actor() == nullptr)
     {
         double loz, hiz;
-        getzsofslopeptr(hit.hitSector, hit.hitpos.X, hit.hitpos.Y, &hiz, &loz);
+        calcSlope(hit.hitSector, hit.hitpos.X, hit.hitpos.Y, &hiz, &loz);
         if (abs(hit.hitpos.Z - loz) < 4)
         {
             if (FAF_ConnectFloor(hit.hitSector))
@@ -487,7 +498,7 @@ void WaterAdjust(const Collision& florhit, double* loz)
 //
 //---------------------------------------------------------------------------
 
-void FAFgetzrange(const DVector3& pos, sectortype* sect, double* hiz, Collision* ceilhit, double* loz, Collision* florhit, int32_t clipdist, int32_t clipmask)
+void FAFgetzrange(const DVector3& pos, sectortype* sect, double* hiz, Collision* ceilhit, double* loz, Collision* florhit, double clipdist, int32_t clipmask)
 {
     double foo1;
     Collision foo2;
@@ -617,23 +628,23 @@ void SetupMirrorTiles(void)
     SWStatIterator it(STAT_FAF);
     while (auto actor = it.Next())
     {
-        if (actor->sector()->ceilingpicnum == FAF_PLACE_MIRROR_PIC)
+        if (actor->sector()->ceilingtexture == FAFPlaceMirrorPic[0])
         {
-            actor->sector()->ceilingpicnum = FAF_MIRROR_PIC;
+            actor->sector()->setceilingtexture(FAFMirrorPic[0]);
             actor->sector()->ceilingstat |= (CSTAT_SECTOR_SKY);
         }
 
-        if (actor->sector()->floorpicnum == FAF_PLACE_MIRROR_PIC)
+        if (actor->sector()->floortexture == FAFPlaceMirrorPic[0])
         {
-            actor->sector()->floorpicnum = FAF_MIRROR_PIC;
+            actor->sector()->setfloortexture(FAFMirrorPic[0]);
             actor->sector()->floorstat |= (CSTAT_SECTOR_SKY);
         }
 
-        if (actor->sector()->ceilingpicnum == FAF_PLACE_MIRROR_PIC+1)
-            actor->sector()->ceilingpicnum = FAF_MIRROR_PIC+1;
+        if (actor->sector()->ceilingtexture == FAFPlaceMirrorPic[1])
+            actor->sector()->setceilingtexture(FAFMirrorPic[1]);
 
-        if (actor->sector()->floorpicnum == FAF_PLACE_MIRROR_PIC+1)
-            actor->sector()->floorpicnum = FAF_MIRROR_PIC+1;
+        if (actor->sector()->floortexture == FAFPlaceMirrorPic[1])
+            actor->sector()->setfloortexture(FAFMirrorPic[1]);
     }
 }
 
@@ -851,7 +862,7 @@ short FindViewSectorInScene(sectortype* cursect, int level)
             if (cursect == actor->sector())
             {
                 // ignore case if sprite is pointing up
-                if (actor->spr.angle == DAngle270)
+                if (actor->spr.Angles.Yaw == DAngle270)
                     continue;
 
                 // only gets to here is sprite is pointing down
@@ -897,37 +908,37 @@ void CollectPortals()
 
     for (unsigned i = 0; i < sector.Size(); i++)
     {
-        if (sector[i].floorpicnum == FAF_MIRROR_PIC && !floordone[i])
+        if (sector[i].floortexture == FAFMirrorPic[0] && !floordone[i])
         {
             auto& fp = floorportals[floorportals.Reserve(1)];
             fp.sectors.Push(i);
             floordone.Set(i);
             for (unsigned ii = 0; ii < fp.sectors.Size(); ii++)
             {
-                for (auto& wal : wallsofsector(fp.sectors[ii]))
+                for (auto& wal : sector[fp.sectors[ii]].walls)
                 {
                     if (!wal.twoSided()) continue;
                     auto nsec = wal.nextSector();
-                    auto ns = sectnum(nsec);
-                    if (floordone[ns] || nsec->floorpicnum != FAF_MIRROR_PIC) continue;
+                    auto ns = sectindex(nsec);
+                    if (floordone[ns] || nsec->floortexture != FAFMirrorPic[0]) continue;
                     fp.sectors.Push(ns);
                     floordone.Set(ns);
                 }
             }
         }
-        if (sector[i].ceilingpicnum == FAF_MIRROR_PIC && !ceilingdone[i])
+        if (sector[i].ceilingtexture == FAFMirrorPic[0] && !ceilingdone[i])
         {
             auto& fp = ceilingportals[ceilingportals.Reserve(1)];
             fp.sectors.Push(i);
             ceilingdone.Set(i);
             for (unsigned ii = 0; ii < fp.sectors.Size(); ii++)
             {
-                for (auto& wal : wallsofsector(fp.sectors[ii]))
+                for (auto& wal : sector[fp.sectors[ii]].walls)
                 {
                     if (!wal.twoSided()) continue;
                     auto nsec = wal.nextSector();
-                    auto ns = sectnum(nsec);
-                    if (ceilingdone[ns] || nsec->ceilingpicnum != FAF_MIRROR_PIC) continue;
+                    auto ns = sectindex(nsec);
+                    if (ceilingdone[ns] || nsec->ceilingtexture != FAFMirrorPic[0]) continue;
                     fp.sectors.Push(ns);
                     ceilingdone.Set(ns);
                 }
@@ -950,10 +961,10 @@ void CollectPortals()
                 if (match != -1)
                 {
                     FindCeilingView(match, &tpos.X, &tpos.Y, tpos.Z, &tsect);
-                    if (tsect != nullptr &&tsect->floorpicnum == FAF_MIRROR_PIC)
+                    if (tsect != nullptr &&tsect->floortexture == FAFMirrorPic[0])
                     {
                         // got something!
-                        fp.othersector = sectnum(tsect);
+                        fp.othersector = sectindex(tsect);
                         fp.offset = tpos - actor->spr.pos;
                         goto nextfg;
                     }
@@ -977,10 +988,10 @@ void CollectPortals()
                 if (match != -1)
                 {
                     FindFloorView(match, &tpos.X, &tpos.Y, tpos.Z, &tsect);
-                    if (tsect != nullptr && tsect->ceilingpicnum == FAF_MIRROR_PIC)
+                    if (tsect != nullptr && tsect->ceilingtexture == FAFMirrorPic[0])
                     {
                         // got something!
-                        fp.othersector = sectnum(tsect);
+                        fp.othersector = sectindex(tsect);
 						fp.offset = tpos - actor->spr.pos;
                         goto nextcg;
                     }

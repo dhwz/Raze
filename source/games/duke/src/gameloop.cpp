@@ -64,12 +64,22 @@ void GameInterface::Ticker()
 
 	if (playrunning())
 	{
-		if (earthquaketime > 0) earthquaketime--;
+		if (ud.earthquaketime > 0) ud.earthquaketime--;
 
 		ud.cameraactor = nullptr;
 		everyothertime++;
 
+		// this must be done before the view is backed up.
+		ps[myconnectindex].Angles.resetRenderAngles();
+
+		DukeSpriteIterator it;
+		while (auto ac = it.Next())
+		{
+			ac->backuploc();
+		}
+
 		global_random = krand();
+		fi.movetransports();//ST 9
 		movedummyplayers();//ST 13
 
 		for (int i = connecthead; i >= 0; i = connectpoint2[i])
@@ -81,6 +91,7 @@ void GameInterface::Ticker()
 					p->pals.a--;
 
 				hud_input(i);
+				processinputvel(i);
 				fi.processinput(i);
 				fi.checksectors(i);
 			}

@@ -31,25 +31,17 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_BLD_NS
 
-void GameInterface::WarpToCoords(double x, double y, double z, DAngle ang, int horz)
+void GameInterface::WarpToCoords(double x, double y, double z, DAngle ang)
 {
 	PLAYER* pPlayer = &gPlayer[myconnectindex];
-	VIEW* pView = &gPrevView[myconnectindex];
 
-	gView->actor->spr.pos.XY() = { x , y };
-	pPlayer->actor->spr.pos.XY() = gView->actor->spr.pos.XY();
-	pView->pos.XY() = gView->actor->spr.pos.XY();
-	pPlayer->zView = pView->viewz = gView->zView = z;
+	pPlayer->actor->spr.pos = { x, y, z };
+	playerResetInertia(pPlayer);
 
 	if (ang != DAngle::fromDeg(INT_MIN))
 	{
-		pPlayer->angle.oang = pPlayer->angle.ang = gView->angle.ang = ang;
-		pView->angle = ang;
-	}
-
-	if (horz != INT_MIN)
-	{
-		pPlayer->horizon.ohoriz = pPlayer->horizon.horiz = pView->horiz = gView->horizon.horiz = buildhoriz(horz);
+		pPlayer->actor->spr.Angles.Yaw = ang;
+		pPlayer->actor->backupang();
 	}
 }
 
@@ -76,7 +68,6 @@ void GameInterface::SwitchCoopView()
 		gViewIndex = connectpoint2[gViewIndex];
 		if (gViewIndex == -1)
 			gViewIndex = connecthead;
-		gView = &gPlayer[gViewIndex];
 	}
 	else if (gGameOptions.nGameType == 3)
 	{
@@ -86,10 +77,9 @@ void GameInterface::SwitchCoopView()
 			gViewIndex = connectpoint2[gViewIndex];
 			if (gViewIndex == -1)
 				gViewIndex = connecthead;
-			if (oldViewIndex == gViewIndex || gMe->teamId == gPlayer[gViewIndex].teamId)
+			if (oldViewIndex == gViewIndex || gPlayer[myconnectindex].teamId == gPlayer[gViewIndex].teamId)
 				break;
 		} while (oldViewIndex != gViewIndex);
-		gView = &gPlayer[gViewIndex];
 	}
 }
 

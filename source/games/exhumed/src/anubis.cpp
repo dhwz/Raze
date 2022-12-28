@@ -43,6 +43,12 @@ static const actionSeq AnubisSeq[] = {
     { 43, 1 },
 };
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void BuildAnubis(DExhumedActor* ap, const DVector3& pos, sectortype* pSector, DAngle nAngle, uint8_t bIsDrummer)
 {
     if (ap == nullptr)
@@ -55,7 +61,7 @@ void BuildAnubis(DExhumedActor* ap, const DVector3& pos, sectortype* pSector, DA
         ChangeActorStat(ap, 101);
 
 		ap->spr.pos.Z = ap->sector()->floorz;
-        nAngle = ap->spr.angle;
+        nAngle = ap->spr.Angles.Yaw;
     }
 
     ap->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
@@ -64,10 +70,9 @@ void BuildAnubis(DExhumedActor* ap, const DVector3& pos, sectortype* pSector, DA
     ap->spr.yoffset = 0;
     ap->spr.picnum = 1;
     ap->spr.pal = ap->sector()->ceilingpal;
-    ap->set_const_clipdist(60);
-    ap->spr.angle = nAngle;
-    ap->spr.xrepeat = 40;
-    ap->spr.yrepeat = 40;
+	ap->clipdist = 15;
+    ap->spr.Angles.Yaw = nAngle;
+    ap->spr.scale = DVector2(0.625, 0.625);
     ap->vel.X = 0;
     ap->vel.Y = 0;
     ap->vel.Z = 0;
@@ -103,6 +108,12 @@ void BuildAnubis(DExhumedActor* ap, const DVector3& pos, sectortype* pSector, DA
     runlist_AddRunRec(NewRun, ap, 0x90000);
     nCreaturesTotal++;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIAnubis::Tick(RunListEvent* ev)
 {
@@ -168,7 +179,7 @@ void AIAnubis::Tick(RunListEvent* ev)
         {
             PlotCourseToSprite(ap, pTarget);
 
-			ap->vel.XY() = ap->spr.angle.ToVector() * 256;
+			ap->vel.XY() = ap->spr.Angles.Yaw.ToVector() * 256;
         }
 
         switch (move.type)
@@ -177,8 +188,8 @@ void AIAnubis::Tick(RunListEvent* ev)
         {
             if (move.actor() == pTarget)
             {
-                auto nAngDiff = AngleDiff(ap->spr.angle, VecToAngle(pTarget->spr.pos - ap->spr.pos));
-                if (nAngDiff < 64)
+                auto nAngDiff = absangle(ap->spr.Angles.Yaw, (pTarget->spr.pos - ap->spr.pos).Angle());
+                if (nAngDiff < DAngle22_5 / 2)
                 {
                     ap->nAction = 2;
                     ap->nFrame = 0;
@@ -190,7 +201,7 @@ void AIAnubis::Tick(RunListEvent* ev)
         }
         case kHitWall:
         {
-			ap->spr.angle += DAngle45;
+			ap->spr.Angles.Yaw += DAngle45;
             ap->VelFromAngle(-2);
             break;
         }
@@ -207,16 +218,22 @@ void AIAnubis::Tick(RunListEvent* ev)
 
                 if (pTarget != nullptr) // NOTE: nTarget can be -1. this check wasn't in original code. TODO: demo compatiblity?
                 {
-                    if (cansee(ap->spr.pos.plusZ(-GetActorHeightF(ap)), ap->sector(),
-                        pTarget->spr.pos.plusZ(-GetActorHeightF(pTarget)), pTarget->sector()))
+                    if (cansee(ap->spr.pos.plusZ(-GetActorHeight(ap)), ap->sector(),
+                        pTarget->spr.pos.plusZ(-GetActorHeight(pTarget)), pTarget->sector()))
                     {
                         ap->vel.X = 0;
                         ap->vel.Y = 0;
-                        ap->spr.angle = VecToAngle(pTarget->spr.pos - ap->spr.pos);
+                        ap->spr.Angles.Yaw = (pTarget->spr.pos - ap->spr.pos).Angle();
 
                         ap->nAction = 3;
                         ap->nFrame = 0;
                     }
+                }
+                else
+                {
+                    // Don't let Anubis get stuck in this state and allow him to acquire a new target.
+                    ap->nAction = 0;
+                    ap->nCount = 50;
                 }
             }
             break;
@@ -233,7 +250,7 @@ void AIAnubis::Tick(RunListEvent* ev)
         }
         else
         {
-            if (PlotCourseToSprite(ap, pTarget) >= 768)
+            if (PlotCourseToSprite(ap, pTarget) >= 48)
             {
                 ap->nAction = 1;
             }
@@ -254,7 +271,7 @@ void AIAnubis::Tick(RunListEvent* ev)
         {
             ap->nAction = 1;
 
-			ap->vel.XY() = ap->spr.angle.ToVector() * 256;
+			ap->vel.XY() = ap->spr.Angles.Yaw.ToVector() * 256;
             ap->nFrame = 0;
         }
         else
@@ -262,7 +279,7 @@ void AIAnubis::Tick(RunListEvent* ev)
             // loc_25718:
             if (nFlag & 0x80)
             {
-                BuildBullet(ap, 8, -1, ap->spr.angle, pTarget, 1);
+                BuildBullet(ap, 8, INT_MAX, ap->spr.Angles.Yaw, pTarget, 1);
             }
         }
 
@@ -334,6 +351,12 @@ void AIAnubis::Tick(RunListEvent* ev)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AIAnubis::Draw(RunListEvent* ev)
 {
     auto ap = ev->pObjActor;
@@ -352,6 +375,12 @@ void AIAnubis::RadialDamage(RunListEvent* ev)
 	    Damage(ev);
 	}
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIAnubis::Damage(RunListEvent* ev)
 {
@@ -389,8 +418,7 @@ void AIAnubis::Damage(RunListEvent* ev)
                     auto pDrumActor = insertActor(ap->sector(), kStatAnubisDrum);
 
                     pDrumActor->spr.pos = { ap->spr.pos.X, ap->spr.pos.Y, pDrumActor->sector()->floorz };
-                    pDrumActor->spr.xrepeat = 40;
-                    pDrumActor->spr.yrepeat = 40;
+                    pDrumActor->spr.scale = DVector2(0.625, 0.625);
                     pDrumActor->spr.shade = -64;
 
                     BuildObject(pDrumActor, 2, 0);

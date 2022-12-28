@@ -33,6 +33,7 @@ Prepared for public release: 03/21/2003 - Charlie Wiederhold, 3D Realms
 #include "mapinfo.h"
 #include "dukeactor.h"
 #include "secrets.h"
+#include "vm.h"
 
 // PRIMITIVE
 BEGIN_DUKE_NS
@@ -43,170 +44,15 @@ BEGIN_DUKE_NS
 //
 //---------------------------------------------------------------------------
 
-bool isadoorwall_r(int dapic)
-{
-	switch(dapic)
-	{
-		case DOORTILE1:
-		case DOORTILE2:
-		case DOORTILE3:
-		case DOORTILE4:
-		case DOORTILE5:
-		case DOORTILE6:
-		case DOORTILE7:
-		case DOORTILE8:
-		case DOORTILE9:
-		case DOORTILE10:
-		case DOORTILE11:
-		case DOORTILE12:
-		case DOORTILE14:
-		case DOORTILE15:
-		case DOORTILE16:
-		case DOORTILE17:
-		case DOORTILE18:
-		case DOORTILE19:
-		case DOORTILE20:
-		case DOORTILE21:
-		case DOORTILE22:
-		case RRTILE1856:
-		case RRTILE1877:
-			return 1;
-	}
-	return 0;
-}
-
-bool isablockdoor(int dapic)
-{
-	switch (dapic)
-	{
-		case RRTILE1792:
-		case RRTILE1801:
-		case RRTILE1805:
-		case RRTILE1807:
-		case RRTILE1808:
-		case RRTILE1812:
-		case RRTILE1821:
-		case RRTILE1826:
-		case RRTILE1850:
-		case RRTILE1851:
-		case RRTILE1856:
-		case RRTILE1877:
-		case RRTILE1938:
-		case RRTILE1942:
-		case RRTILE1944:
-		case RRTILE1945:
-		case RRTILE1951:
-		case RRTILE1961:
-		case RRTILE1964:
-		case RRTILE1985:
-		case RRTILE1995:
-		case RRTILE2022:
-		case RRTILE2052:
-		case RRTILE2053:
-		case RRTILE2060:
-		case RRTILE2074:
-		case RRTILE2132:
-		case RRTILE2136:
-		case RRTILE2139:
-		case RRTILE2150:
-		case RRTILE2178:
-		case RRTILE2186:
-		case RRTILE2319:
-		case RRTILE2321:
-		case RRTILE2326:
-		case RRTILE2329:
-		case RRTILE2578:
-		case RRTILE2581:
-		case RRTILE2610:
-		case RRTILE2613:
-		case RRTILE2621:
-		case RRTILE2622:
-		case RRTILE2676:
-		case RRTILE2732:
-		case RRTILE2831:
-		case RRTILE2832:
-		case RRTILE2842:
-		case RRTILE2940:
-		case RRTILE2970:
-		case RRTILE3083:
-		case RRTILE3100:
-		case RRTILE3155:
-		case RRTILE3195:
-		case RRTILE3232:
-		case RRTILE3600:
-		case RRTILE3631:
-		case RRTILE3635:
-		case RRTILE3637:
-		case RRTILE3643+2:
-		case RRTILE3643+3:
-		case RRTILE3647:
-		case RRTILE3652:
-		case RRTILE3653:
-		case RRTILE3671:
-		case RRTILE3673:
-		case RRTILE3684:
-		case RRTILE3708:
-		case RRTILE3714:
-		case RRTILE3716:
-		case RRTILE3723:
-		case RRTILE3725:
-		case RRTILE3737:
-		case RRTILE3754:
-		case RRTILE3762:
-		case RRTILE3763:
-		case RRTILE3764:
-		case RRTILE3765:
-		case RRTILE3767:
-		case RRTILE3793:
-		case RRTILE3814:
-		case RRTILE3815:
-		case RRTILE3819:
-		case RRTILE3827:
-		case RRTILE3837:
-			return true;
-
-		case RRTILE1996:
-		case RRTILE2382:
-		case RRTILE2961:
-		case RRTILE3804:
-		case RRTILE7430:
-		case RRTILE7467:
-		case RRTILE7469:
-		case RRTILE7470:
-		case RRTILE7475:
-		case RRTILE7566:
-		case RRTILE7576:
-		case RRTILE7716:
-		case RRTILE8063:
-		case RRTILE8067:
-		case RRTILE8076:
-		case RRTILE8106:
-		case RRTILE8379:
-		case RRTILE8380:
-		case RRTILE8565:
-		case RRTILE8605:
-			return isRRRA();
-	}
-	return false;
-}
-
-//---------------------------------------------------------------------------
-//
-// 
-//
-//---------------------------------------------------------------------------
-
 void animatewalls_r(void)
 {
-	int t;
-
 	if (isRRRA() &&ps[screenpeek].sea_sick_stat == 1)
 	{
 		for (auto& wal : wall)
 		{
-			if (wal.picnum == RRTILE7873)
+			if (wal.wallpicnum == RTILE_RRTILE7873)
 				wal.addxpan(6);
-			else if (wal.picnum == RRTILE7870)
+			else if (wal.wallpicnum == RTILE_RRTILE7870)
 				wal.addxpan(6);
 		}
 	}
@@ -214,114 +60,43 @@ void animatewalls_r(void)
 	for (int p = 0; p < numanimwalls; p++)
 	{
 		auto wal = animwall[p].wall;
-		int j = wal->picnum;
+		int j = wal->wallpicnum;
 
 		switch (j)
 		{
-		case SCREENBREAK1:
-		case SCREENBREAK2:
-		case SCREENBREAK3:
-		case SCREENBREAK4:
-		case SCREENBREAK5:
+		case RTILE_SCREENBREAK1:
+		case RTILE_SCREENBREAK2:
+		case RTILE_SCREENBREAK3:
+		case RTILE_SCREENBREAK4:
+		case RTILE_SCREENBREAK5:
 
-		case SCREENBREAK9:
-		case SCREENBREAK10:
-		case SCREENBREAK11:
-		case SCREENBREAK12:
-		case SCREENBREAK13:
+		case RTILE_SCREENBREAK9:
+		case RTILE_SCREENBREAK10:
+		case RTILE_SCREENBREAK11:
+		case RTILE_SCREENBREAK12:
+		case RTILE_SCREENBREAK13:
 
 			if ((krand() & 255) < 16)
 			{
-				animwall[p].tag = wal->picnum;
-				wal->picnum = SCREENBREAK6;
+				animwall[p].tag = wal->wallpicnum;
+				wal->wallpicnum = RTILE_SCREENBREAK6;
 			}
 
 			continue;
 
-		case SCREENBREAK6:
-		case SCREENBREAK7:
-		case SCREENBREAK8:
+		case RTILE_SCREENBREAK6:
+		case RTILE_SCREENBREAK7:
+		case RTILE_SCREENBREAK8:
 
 			if (animwall[p].tag >= 0)
-				wal->picnum = animwall[p].tag;
+				wal->wallpicnum = animwall[p].tag;
 			else
 			{
-				wal->picnum++;
-				if (wal->picnum == (SCREENBREAK6 + 3))
-					wal->picnum = SCREENBREAK6;
+				wal->wallpicnum++;
+				if (wal->wallpicnum == (RTILE_SCREENBREAK6 + 3))
+					wal->wallpicnum = RTILE_SCREENBREAK6;
 			}
 			continue;
-
-		}
-
-		if (wal->cstat & CSTAT_WALL_MASKED)
-			switch (wal->overpicnum)
-			{
-			case W_FORCEFIELD:
-			case W_FORCEFIELD + 1:
-			case W_FORCEFIELD + 2:
-
-				t = animwall[p].tag;
-
-				if (wal->cstat & CSTAT_WALL_ANY_EXCEPT_BLOCK)
-				{
-					wal->addxpan(-t / 4096.f); // bcos(t, -12);
-					wal->addypan(-t / 4096.f); // bsin(t, -12);
-
-					if (wal->extra == 1)
-					{
-						wal->extra = 0;
-						animwall[p].tag = 0;
-					}
-					else
-						animwall[p].tag += 128;
-
-					if (animwall[p].tag < (128 << 4))
-					{
-						if (animwall[p].tag & 128)
-							wal->overpicnum = W_FORCEFIELD;
-						else wal->overpicnum = W_FORCEFIELD + 1;
-					}
-					else
-					{
-						if ((krand() & 255) < 32)
-							animwall[p].tag = 128 << (krand() & 3);
-						else wal->overpicnum = W_FORCEFIELD + 1;
-					}
-				}
-
-				break;
-			}
-	}
-}
-
-//---------------------------------------------------------------------------
-//
-// 
-//
-//---------------------------------------------------------------------------
-
-void operaterespawns_r(int low)
-{
-	DukeStatIterator it(STAT_FX);
-	while (auto act = it.Next())
-	{
-		if (act->spr.lotag == low) switch (act->spr.picnum)
-		{
-		case RESPAWN:
-		{
-			if (badguypic(act->spr.hitag) && ud.monsters_off) break;
-
-			auto star = spawn(act, TRANSPORTERSTAR);
-			if (star) star->spr.pos.Z -= 32;
-
-			act->spr.extra = 66 - 12;   // Just a way to killit
-			break;
-		}
-		case RRTILE7424:
-			if (isRRRA() && !ud.monsters_off)
-				ChangeActorStat(act, 119);
-			break;
 
 		}
 	}
@@ -335,7 +110,62 @@ void operaterespawns_r(int low)
 
 void operateforcefields_r(DDukeActor* act, int low)
 {
-	operateforcefields_common(act, low, { BIGFORCE });
+	operateforcefields_common(act, low, { RTILE_BIGFORCE });
+}
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+bool checkaccessswitch_r(int snum, int switchpal, DDukeActor* act, walltype* wwal)
+{
+	if (ps[snum].access_incs == 0)
+	{
+		if (switchpal == 0)
+		{
+			if (ps[snum].keys[1])
+				ps[snum].access_incs = 1;
+			else
+			{
+				FTA(70, &ps[snum]);
+				if (isRRRA()) S_PlayActorSound(99, act ? act : ps[snum].GetActor());
+			}
+		}
+
+		else if (switchpal == 21)
+		{
+			if (ps[snum].keys[2])
+				ps[snum].access_incs = 1;
+			else
+			{
+				FTA(71, &ps[snum]);
+				if (isRRRA()) S_PlayActorSound(99, act ? act : ps[snum].GetActor());
+			}
+		}
+
+		else if (switchpal == 23)
+		{
+			if (ps[snum].keys[3])
+				ps[snum].access_incs = 1;
+			else
+			{
+				FTA(72, &ps[snum]);
+				if (isRRRA()) S_PlayActorSound(99, act ? act : ps[snum].GetActor());
+			}
+		}
+
+		if (ps[snum].access_incs == 1)
+		{
+			if (!act)
+				ps[snum].access_wall = wwal;
+			else
+				ps[snum].access_spritenum = act;
+		}
+		return 1;
+	}
+	return 0;
 }
 
 //---------------------------------------------------------------------------
@@ -348,7 +178,8 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 {
 	uint8_t switchpal;
 	int lotag, hitag, picnum, correctdips, numdips;
-	int sx, sy;
+	DVector2 pos;
+	FTextureID texid;
 
 	if (wwal == nullptr && act == nullptr) return 0;
 	correctdips = 1;
@@ -359,8 +190,7 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 		lotag = act->spr.lotag;
 		if (lotag == 0) return 0;
 		hitag = act->spr.hitag;
-		sx = act->int_pos().X;
-		sy = act->int_pos().Y;
+		pos = act->spr.pos.XY();
 		picnum = act->spr.picnum;
 		switchpal = act->spr.pal;
 	}
@@ -369,120 +199,76 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 		lotag = wwal->lotag;
 		if (lotag == 0) return 0;
 		hitag = wwal->hitag;
-		sx = wwal->wall_int_pos().X;
-		sy = wwal->wall_int_pos().Y;
-		picnum = wwal->picnum;
+		pos = wwal->pos;
+		picnum = wwal->wallpicnum;
 		switchpal = wwal->pal;
 	}
+	texid = tileGetTextureID(picnum);
 
 	switch (picnum)
 	{
-	case DIPSWITCH:
-	case DIPSWITCH + 1:
-	case TECHSWITCH:
-	case TECHSWITCH + 1:
-	case ALIENSWITCH:
-	case ALIENSWITCH + 1:
+	case RTILE_DIPSWITCH:
+	case RTILE_DIPSWITCHON:
+	case RTILE_TECHSWITCH:
+	case RTILE_TECHSWITCHON:
+	case RTILE_ALIENSWITCH:
+	case RTILE_ALIENSWITCHON:
 		break;
-	case ACCESSSWITCH:
-	case ACCESSSWITCH2:
-		if (ps[snum].access_incs == 0)
-		{
-			if (switchpal == 0)
-			{
-				if (ps[snum].keys[1])
-					ps[snum].access_incs = 1;
-				else
-				{
-					FTA(70, &ps[snum]);
-					if (isRRRA()) S_PlayActorSound(99, act? act : ps[snum].GetActor());
-				}
-			}
-
-			else if (switchpal == 21)
-			{
-				if (ps[snum].keys[2])
-					ps[snum].access_incs = 1;
-				else
-				{
-					FTA(71, &ps[snum]);
-					if (isRRRA()) S_PlayActorSound(99, act ? act : ps[snum].GetActor());
-				}
-			}
-
-			else if (switchpal == 23)
-			{
-				if (ps[snum].keys[3])
-					ps[snum].access_incs = 1;
-				else
-				{
-					FTA(72, &ps[snum]);
-					if (isRRRA()) S_PlayActorSound(99, act ? act : ps[snum].GetActor());
-				}
-			}
-
-			if (ps[snum].access_incs == 1)
-			{
-				if (!act)
-					ps[snum].access_wall = wwal;
-				else
-					ps[snum].access_spritenum = act;
-			}
-
-			return 0;
-		}
+	case RTILE_ACCESSSWITCH:
+	case RTILE_ACCESSSWITCH2:
+		checkaccessswitch_r(snum, switchpal, act, wwal);
 		goto goOn1;
 
-	case MULTISWITCH2:
-	case MULTISWITCH2 + 1:
-	case MULTISWITCH2 + 2:
-	case MULTISWITCH2 + 3:
-	case RRTILE8464:
-	case RRTILE8660:
+	case RTILE_MULTISWITCH2:
+	case RTILE_MULTISWITCH2_2:
+	case RTILE_MULTISWITCH2_3:
+	case RTILE_MULTISWITCH2_4:
+	case RTILE_IRONWHEELSWITCH:
+	case RTILE_RRTILE8660:
 		if (!isRRRA()) break;
 		[[fallthrough]];
-	case DIPSWITCH2:
-	case DIPSWITCH2 + 1:
-	case DIPSWITCH3:
-	case DIPSWITCH3 + 1:
-	case MULTISWITCH:
-	case MULTISWITCH + 1:
-	case MULTISWITCH + 2:
-	case MULTISWITCH + 3:
-	case PULLSWITCH:
-	case PULLSWITCH + 1:
-	case HANDSWITCH:
-	case HANDSWITCH + 1:
-	case SLOTDOOR:
-	case SLOTDOOR + 1:
-	case LIGHTSWITCH:
-	case LIGHTSWITCH + 1:
-	case SPACELIGHTSWITCH:
-	case SPACELIGHTSWITCH + 1:
-	case SPACEDOORSWITCH:
-	case SPACEDOORSWITCH + 1:
-	case FRANKENSTINESWITCH:
-	case FRANKENSTINESWITCH + 1:
-	case LIGHTSWITCH2:
-	case LIGHTSWITCH2 + 1:
-	case POWERSWITCH1:
-	case POWERSWITCH1 + 1:
-	case LOCKSWITCH1:
-	case LOCKSWITCH1 + 1:
-	case POWERSWITCH2:
-	case POWERSWITCH2 + 1:
-	case NUKEBUTTON:
-	case NUKEBUTTON + 1:
-	case RRTILE2214:
-	case RRTILE2697:
-	case RRTILE2697 + 1:
-	case RRTILE2707:
-	case RRTILE2707 + 1:
+	case RTILE_DIPSWITCH2:
+	case RTILE_DIPSWITCH2ON:
+	case RTILE_DIPSWITCH3:
+	case RTILE_DIPSWITCH3ON:
+	case RTILE_MULTISWITCH:
+	case RTILE_MULTISWITCH_2:
+	case RTILE_MULTISWITCH_3:
+	case RTILE_MULTISWITCH_4:
+	case RTILE_PULLSWITCH:
+	case RTILE_PULLSWITCHON:
+	case RTILE_HANDSWITCH:
+	case RTILE_HANDSWITCHON:
+	case RTILE_SLOTDOOR:
+	case RTILE_SLOTDOORON:
+	case RTILE_LIGHTSWITCH:
+	case RTILE_LIGHTSWITCHON:
+	case RTILE_SPACELIGHTSWITCH:
+	case RTILE_SPACELIGHTSWITCHON:
+	case RTILE_SPACEDOORSWITCH:
+	case RTILE_SPACEDOORSWITCHON:
+	case RTILE_FRANKENSTINESWITCH:
+	case RTILE_FRANKENSTINESWITCHON:
+	case RTILE_LIGHTSWITCH2:
+	case RTILE_LIGHTSWITCH2ON:
+	case RTILE_POWERSWITCH1:
+	case RTILE_POWERSWITCH1ON:
+	case RTILE_LOCKSWITCH1:
+	case RTILE_LOCKSWITCH1ON:
+	case RTILE_POWERSWITCH2:
+	case RTILE_POWERSWITCH2ON:
+	case RTILE_CHICKENPLANTBUTTON:
+	case RTILE_CHICKENPLANTBUTTONON:
+	case RTILE_RRTILE2214:
+	case RTILE_RRTILE2697:
+	case RTILE_RRTILE2697 + 1:
+	case RTILE_RRTILE2707:
+	case RTILE_RRTILE2707 + 1:
 		goOn1:
 		if (check_activator_motion(lotag)) return 0;
 		break;
 	default:
-		if (fi.isadoorwall(picnum) == 0) return 0;
+		if (isadoorwall(texid) == 0) return 0;
 		break;
 	}
 
@@ -491,109 +277,100 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 	{
 		if (lotag == other->spr.lotag) switch (other->spr.picnum)
 		{
-		case DIPSWITCH:
-		case TECHSWITCH:
-		case ALIENSWITCH:
+		case RTILE_DIPSWITCH:
+		case RTILE_TECHSWITCH:
+		case RTILE_ALIENSWITCH:
 			if (act && act == other) other->spr.picnum++;
 			else if (other->spr.hitag == 0) correctdips++;
 			numdips++;
 			break;
-		case TECHSWITCH + 1:
-		case DIPSWITCH + 1:
-		case ALIENSWITCH + 1:
+		case RTILE_TECHSWITCHON:
+		case RTILE_DIPSWITCHON:
+		case RTILE_ALIENSWITCHON:
 			if (act && act == other) other->spr.picnum--;
 			else if (other->spr.hitag == 1) correctdips++;
 			numdips++;
 			break;
-		case MULTISWITCH:
-		case MULTISWITCH + 1:
-		case MULTISWITCH + 2:
-		case MULTISWITCH + 3:
+		case RTILE_MULTISWITCH:
+		case RTILE_MULTISWITCH_2:
+		case RTILE_MULTISWITCH_3:
+		case RTILE_MULTISWITCH_4:
 			other->spr.picnum++;
-			if (other->spr.picnum > (MULTISWITCH + 3))
-				other->spr.picnum = MULTISWITCH;
+			if (other->spr.picnum > (RTILE_MULTISWITCH_4))
+				other->spr.picnum = RTILE_MULTISWITCH;
 			break;
-		case MULTISWITCH2:
-		case MULTISWITCH2 + 1:
-		case MULTISWITCH2 + 2:
-		case MULTISWITCH2 + 3:
+		case RTILE_MULTISWITCH2:
+		case RTILE_MULTISWITCH2_2:
+		case RTILE_MULTISWITCH2_3:
+		case RTILE_MULTISWITCH2_4:
 			if (!isRRRA()) break;
 			other->spr.picnum++;
-			if (other->spr.picnum > (MULTISWITCH2 + 3))
-				other->spr.picnum = MULTISWITCH2;
+			if (other->spr.picnum > (RTILE_MULTISWITCH2_4))
+				other->spr.picnum = RTILE_MULTISWITCH2;
 			break;
 
-		case RRTILE2214:
-			//if (ud.level_numbe r > 6) ud.level_numbe r = 0; ??? Looks like some leftover garbage.
+		case RTILE_RRTILE2214:
 			other->spr.picnum++;
 			break;
-		case RRTILE8660:
+		case RTILE_RRTILE8660:
 			if (!isRRRA()) break;
 			[[fallthrough]];
-		case ACCESSSWITCH:
-		case ACCESSSWITCH2:
-		case SLOTDOOR:
-		case LIGHTSWITCH:
-		case SPACELIGHTSWITCH:
-		case SPACEDOORSWITCH:
-		case FRANKENSTINESWITCH:
-		case LIGHTSWITCH2:
-		case POWERSWITCH1:
-		case LOCKSWITCH1:
-		case POWERSWITCH2:
-		case HANDSWITCH:
-		case PULLSWITCH:
-		case DIPSWITCH2:
-		case DIPSWITCH3:
-		case NUKEBUTTON:
-		case RRTILE2697:
-		case RRTILE2707:
-			if (other->spr.picnum == DIPSWITCH3)
+		case RTILE_ACCESSSWITCH:
+		case RTILE_ACCESSSWITCH2:
+		case RTILE_SLOTDOOR:
+		case RTILE_LIGHTSWITCH:
+		case RTILE_SPACELIGHTSWITCH:
+		case RTILE_SPACEDOORSWITCH:
+		case RTILE_FRANKENSTINESWITCH:
+		case RTILE_LIGHTSWITCH2:
+		case RTILE_POWERSWITCH1:
+		case RTILE_LOCKSWITCH1:
+		case RTILE_POWERSWITCH2:
+		case RTILE_HANDSWITCH:
+		case RTILE_PULLSWITCH:
+		case RTILE_DIPSWITCH2:
+		case RTILE_DIPSWITCH3:
+		case RTILE_CHICKENPLANTBUTTON:
+		case RTILE_RRTILE2697:
+		case RTILE_RRTILE2707:
+			if (other->spr.picnum == RTILE_DIPSWITCH3)
 				if (other->spr.hitag == 999)
 				{
-					DukeStatIterator it1(107);
+					DukeStatIterator it1(STAT_LUMBERMILL);
 					while (auto other2 = it1.Next())
 					{
-						if (other2->spr.picnum == RRTILE3410)
-						{
-							other2->spr.picnum++;
-							other2->spr.hitag = 100;
-							other2->spr.extra = 0;
-							S_PlayActorSound(474, other2);
-						}
-						else if (other2->spr.picnum == RRTILE295)
-							deletesprite(other2);
+						CallOnUse(other2, nullptr);
 					}
 					other->spr.picnum++;
 					break;
 				}
-			if (other->spr.picnum == NUKEBUTTON)
-				chickenplant = 0;
-			if (other->spr.picnum == RRTILE8660)
+			if (other->spr.picnum == RTILE_CHICKENPLANTBUTTON)
+				ud.chickenplant = 0;
+			if (other->spr.picnum == RTILE_RRTILE8660)
 			{
 				BellTime = 132;
 				BellSprite = other;
 			}
 			other->spr.picnum++;
 			break;
-		case PULLSWITCH + 1:
-		case HANDSWITCH + 1:
-		case LIGHTSWITCH2 + 1:
-		case POWERSWITCH1 + 1:
-		case LOCKSWITCH1 + 1:
-		case POWERSWITCH2 + 1:
-		case SLOTDOOR + 1:
-		case LIGHTSWITCH + 1:
-		case SPACELIGHTSWITCH + 1:
-		case SPACEDOORSWITCH + 1:
-		case FRANKENSTINESWITCH + 1:
-		case DIPSWITCH2 + 1:
-		case DIPSWITCH3 + 1:
-		case NUKEBUTTON + 1:
-		case RRTILE2697 + 1:
-		case RRTILE2707 + 1:
-			if (other->spr.picnum == NUKEBUTTON + 1)
-				chickenplant = 1;
+		case RTILE_PULLSWITCHON:
+		case RTILE_HANDSWITCHON:
+		case RTILE_LIGHTSWITCH2ON:
+		case RTILE_POWERSWITCH1ON:
+		case RTILE_LOCKSWITCH1ON:
+		case RTILE_POWERSWITCH2ON:
+		case RTILE_SLOTDOORON:
+		case RTILE_LIGHTSWITCHON:
+		case RTILE_SPACELIGHTSWITCHON:
+		case RTILE_SPACEDOORSWITCHON:
+		case RTILE_FRANKENSTINESWITCHON:
+		case RTILE_DIPSWITCH2ON:
+		case RTILE_DIPSWITCH3ON:
+		case RTILE_CHICKENPLANTBUTTONON:
+		case RTILE_RRTILE2697 + 1:
+		case RTILE_RRTILE2707 + 1:
+			if (other->spr.picnum == RTILE_CHICKENPLANTBUTTONON)
+				ud.chickenplant = 1;
 			if (other->spr.hitag != 999)
 				other->spr.picnum--;
 			break;
@@ -603,75 +380,75 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 	for (auto& wal : wall)
 	{
 		if (lotag == wal.lotag)
-			switch (wal.picnum)
+			switch (wal.wallpicnum)
 			{
-			case DIPSWITCH:
-			case TECHSWITCH:
-			case ALIENSWITCH:
-				if (!act && &wal == wwal) wal.picnum++;
+			case RTILE_DIPSWITCH:
+			case RTILE_TECHSWITCH:
+			case RTILE_ALIENSWITCH:
+				if (!act && &wal == wwal) wal.wallpicnum++;
 				else if (wal.hitag == 0) correctdips++;
 				numdips++;
 				break;
-			case DIPSWITCH + 1:
-			case TECHSWITCH + 1:
-			case ALIENSWITCH + 1:
-				if (!act && &wal == wwal) wal.picnum--;
+			case RTILE_DIPSWITCHON:
+			case RTILE_TECHSWITCHON:
+			case RTILE_ALIENSWITCHON:
+				if (!act && &wal == wwal) wal.wallpicnum--;
 				else if (wal.hitag == 1) correctdips++;
 				numdips++;
 				break;
-			case MULTISWITCH:
-			case MULTISWITCH + 1:
-			case MULTISWITCH + 2:
-			case MULTISWITCH + 3:
-				wal.picnum++;
-				if (wal.picnum > (MULTISWITCH + 3))
-					wal.picnum = MULTISWITCH;
+			case RTILE_MULTISWITCH:
+			case RTILE_MULTISWITCH_2:
+			case RTILE_MULTISWITCH_3:
+			case RTILE_MULTISWITCH_4:
+				wal.wallpicnum++;
+				if (wal.wallpicnum > (RTILE_MULTISWITCH_4))
+					wal.wallpicnum = RTILE_MULTISWITCH;
 				break;
-			case MULTISWITCH2:
-			case MULTISWITCH2 + 1:
-			case MULTISWITCH2 + 2:
-			case MULTISWITCH2 + 3:
+			case RTILE_MULTISWITCH2:
+			case RTILE_MULTISWITCH2_2:
+			case RTILE_MULTISWITCH2_3:
+			case RTILE_MULTISWITCH2_4:
 				if (!isRRRA()) break;
-				wal.picnum++;
-				if (wal.picnum > (MULTISWITCH2 + 3))
-					wal.picnum = MULTISWITCH2;
+				wal.wallpicnum++;
+				if (wal.wallpicnum > (RTILE_MULTISWITCH2_4))
+					wal.wallpicnum = RTILE_MULTISWITCH2;
 				break;
-			case RRTILE8660:
+			case RTILE_RRTILE8660:
 				if (!isRRRA()) break;
 				[[fallthrough]];
-			case ACCESSSWITCH:
-			case ACCESSSWITCH2:
-			case SLOTDOOR:
-			case LIGHTSWITCH:
-			case SPACELIGHTSWITCH:
-			case SPACEDOORSWITCH:
-			case LIGHTSWITCH2:
-			case POWERSWITCH1:
-			case LOCKSWITCH1:
-			case POWERSWITCH2:
-			case PULLSWITCH:
-			case HANDSWITCH:
-			case DIPSWITCH2:
-			case DIPSWITCH3:
-			case RRTILE2697:
-			case RRTILE2707:
-				wal.picnum++;
+			case RTILE_ACCESSSWITCH:
+			case RTILE_ACCESSSWITCH2:
+			case RTILE_SLOTDOOR:
+			case RTILE_LIGHTSWITCH:
+			case RTILE_SPACELIGHTSWITCH:
+			case RTILE_SPACEDOORSWITCH:
+			case RTILE_LIGHTSWITCH2:
+			case RTILE_POWERSWITCH1:
+			case RTILE_LOCKSWITCH1:
+			case RTILE_POWERSWITCH2:
+			case RTILE_PULLSWITCH:
+			case RTILE_HANDSWITCH:
+			case RTILE_DIPSWITCH2:
+			case RTILE_DIPSWITCH3:
+			case RTILE_RRTILE2697:
+			case RTILE_RRTILE2707:
+				wal.wallpicnum++;
 				break;
-			case HANDSWITCH + 1:
-			case PULLSWITCH + 1:
-			case LIGHTSWITCH2 + 1:
-			case POWERSWITCH1 + 1:
-			case LOCKSWITCH1 + 1:
-			case POWERSWITCH2 + 1:
-			case SLOTDOOR + 1:
-			case LIGHTSWITCH + 1:
-			case SPACELIGHTSWITCH + 1:
-			case SPACEDOORSWITCH + 1:
-			case DIPSWITCH2 + 1:
-			case DIPSWITCH3 + 1:
-			case RRTILE2697 + 1:
-			case RRTILE2707 + 1:
-				wal.picnum--;
+			case RTILE_HANDSWITCHON:
+			case RTILE_PULLSWITCHON:
+			case RTILE_LIGHTSWITCH2ON:
+			case RTILE_POWERSWITCH1ON:
+			case RTILE_LOCKSWITCH1ON:
+			case RTILE_POWERSWITCH2ON:
+			case RTILE_SLOTDOORON:
+			case RTILE_LIGHTSWITCHON:
+			case RTILE_SPACELIGHTSWITCHON:
+			case RTILE_SPACEDOORSWITCHON:
+			case RTILE_DIPSWITCH2ON:
+			case RTILE_DIPSWITCH3ON:
+			case RTILE_RRTILE2697 + 1:
+			case RTILE_RRTILE2707 + 1:
+				wal.wallpicnum--;
 				break;
 			}
 	}
@@ -681,23 +458,23 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 		setnextmap(false);
 	}
 
-	vec3_t v = { sx, sy, ps[snum].player_int_pos().Z };
+	DVector3 v(pos, ps[snum].GetActor()->getOffsetZ());
 	switch (picnum)
 	{
 	default:
-		if (fi.isadoorwall(picnum) == 0) break;
+		if (isadoorwall(texid) == 0) break;
 		[[fallthrough]];
-	case DIPSWITCH:
-	case DIPSWITCH + 1:
-	case TECHSWITCH:
-	case TECHSWITCH + 1:
-	case ALIENSWITCH:
-	case ALIENSWITCH + 1:
-		if (picnum == DIPSWITCH || picnum == DIPSWITCH + 1 ||
-			picnum == ALIENSWITCH || picnum == ALIENSWITCH + 1 ||
-			picnum == TECHSWITCH || picnum == TECHSWITCH + 1)
+	case RTILE_DIPSWITCH:
+	case RTILE_DIPSWITCHON:
+	case RTILE_TECHSWITCH:
+	case RTILE_TECHSWITCHON:
+	case RTILE_ALIENSWITCH:
+	case RTILE_ALIENSWITCHON:
+		if (picnum == RTILE_DIPSWITCH || picnum == RTILE_DIPSWITCHON ||
+			picnum == RTILE_ALIENSWITCH || picnum == RTILE_ALIENSWITCHON ||
+			picnum == RTILE_TECHSWITCH || picnum == RTILE_TECHSWITCHON)
 		{
-			if (picnum == ALIENSWITCH || picnum == ALIENSWITCH + 1)
+			if (picnum == RTILE_ALIENSWITCH || picnum == RTILE_ALIENSWITCHON)
 			{
 				if (act)
 					S_PlaySound3D(ALIEN_SWITCH1, act, v);
@@ -713,67 +490,67 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 			S_PlaySound3D(END_OF_LEVEL_WARN, ps[snum].GetActor(), v);
 		}
 		goto goOn2;
-	case MULTISWITCH2:
-	case MULTISWITCH2 + 1:
-	case MULTISWITCH2 + 2:
-	case MULTISWITCH2 + 3:
-	case RRTILE8464:
-	case RRTILE8660:
+	case RTILE_MULTISWITCH2:
+	case RTILE_MULTISWITCH2_2:
+	case RTILE_MULTISWITCH2_3:
+	case RTILE_MULTISWITCH2_4:
+	case RTILE_IRONWHEELSWITCH:
+	case RTILE_RRTILE8660:
 		if (!isRRRA()) break;
 		[[fallthrough]];
-	case DIPSWITCH2:
-	case DIPSWITCH2 + 1:
-	case DIPSWITCH3:
-	case DIPSWITCH3 + 1:
-	case MULTISWITCH:
-	case MULTISWITCH + 1:
-	case MULTISWITCH + 2:
-	case MULTISWITCH + 3:
-	case ACCESSSWITCH:
-	case ACCESSSWITCH2:
-	case SLOTDOOR:
-	case SLOTDOOR + 1:
-	case LIGHTSWITCH:
-	case LIGHTSWITCH + 1:
-	case SPACELIGHTSWITCH:
-	case SPACELIGHTSWITCH + 1:
-	case SPACEDOORSWITCH:
-	case SPACEDOORSWITCH + 1:
-	case FRANKENSTINESWITCH:
-	case FRANKENSTINESWITCH + 1:
-	case LIGHTSWITCH2:
-	case LIGHTSWITCH2 + 1:
-	case POWERSWITCH1:
-	case POWERSWITCH1 + 1:
-	case LOCKSWITCH1:
-	case LOCKSWITCH1 + 1:
-	case POWERSWITCH2:
-	case POWERSWITCH2 + 1:
-	case HANDSWITCH:
-	case HANDSWITCH + 1:
-	case PULLSWITCH:
-	case PULLSWITCH + 1:
-	case RRTILE2697:
-	case RRTILE2697 + 1:
-	case RRTILE2707:
-	case RRTILE2707 + 1:
+	case RTILE_DIPSWITCH2:
+	case RTILE_DIPSWITCH2ON:
+	case RTILE_DIPSWITCH3:
+	case RTILE_DIPSWITCH3ON:
+	case RTILE_MULTISWITCH:
+	case RTILE_MULTISWITCH_2:
+	case RTILE_MULTISWITCH_3:
+	case RTILE_MULTISWITCH_4:
+	case RTILE_ACCESSSWITCH:
+	case RTILE_ACCESSSWITCH2:
+	case RTILE_SLOTDOOR:
+	case RTILE_SLOTDOORON:
+	case RTILE_LIGHTSWITCH:
+	case RTILE_LIGHTSWITCHON:
+	case RTILE_SPACELIGHTSWITCH:
+	case RTILE_SPACELIGHTSWITCHON:
+	case RTILE_SPACEDOORSWITCH:
+	case RTILE_SPACEDOORSWITCHON:
+	case RTILE_FRANKENSTINESWITCH:
+	case RTILE_FRANKENSTINESWITCHON:
+	case RTILE_LIGHTSWITCH2:
+	case RTILE_LIGHTSWITCH2ON:
+	case RTILE_POWERSWITCH1:
+	case RTILE_POWERSWITCH1ON:
+	case RTILE_LOCKSWITCH1:
+	case RTILE_LOCKSWITCH1ON:
+	case RTILE_POWERSWITCH2:
+	case RTILE_POWERSWITCH2ON:
+	case RTILE_HANDSWITCH:
+	case RTILE_HANDSWITCHON:
+	case RTILE_PULLSWITCH:
+	case RTILE_PULLSWITCHON:
+	case RTILE_RRTILE2697:
+	case RTILE_RRTILE2697 + 1:
+	case RTILE_RRTILE2707:
+	case RTILE_RRTILE2707 + 1:
 		goOn2:
 		if (isRRRA())
 		{
-			if (picnum == RRTILE8660 && act)
+			if (picnum == RTILE_RRTILE8660 && act)
 			{
 				BellTime = 132;
 				BellSprite = act;
 				act->spr.picnum++;
 			}
-			else if (picnum == RRTILE8464)
+			else if (picnum == RTILE_IRONWHEELSWITCH)
 			{
 				act->spr.picnum = act->spr.picnum + 1;
 				if (hitag == 10001)
 				{
 					if (ps[snum].SeaSick == 0)
 						ps[snum].SeaSick = 350;
-					operateactivators(668, snum);
+					operateactivators(668, &ps[snum]);
 					operatemasterswitches(668);
 					S_PlayActorSound(328, ps[snum].GetActor());
 					return 1;
@@ -781,10 +558,10 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 			}
 			else if (hitag == 10000)
 			{
-				if (picnum == MULTISWITCH || picnum == (MULTISWITCH + 1) ||
-					picnum == (MULTISWITCH + 2) || picnum == (MULTISWITCH + 3) ||
-					picnum == MULTISWITCH2 || picnum == (MULTISWITCH2 + 1) ||
-					picnum == (MULTISWITCH2 + 2) || picnum == (MULTISWITCH2 + 3))
+				if (picnum == RTILE_MULTISWITCH || picnum == (RTILE_MULTISWITCH_2) ||
+					picnum == (RTILE_MULTISWITCH_3) || picnum == (RTILE_MULTISWITCH_4) ||
+					picnum == RTILE_MULTISWITCH2 || picnum == (RTILE_MULTISWITCH2_2) ||
+					picnum == (RTILE_MULTISWITCH2_3) || picnum == (RTILE_MULTISWITCH2_4))
 				{
 					DDukeActor* switches[3];
 					int switchcount = 0, j;
@@ -794,7 +571,7 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 					{
 						int jpn = actt->spr.picnum;
 						int jht = actt->spr.hitag;
-						if ((jpn == MULTISWITCH || jpn == MULTISWITCH2) && jht == 10000)
+						if ((jpn == RTILE_MULTISWITCH || jpn == RTILE_MULTISWITCH2) && jht == 10000)
 						{
 							if (switchcount < 3)
 							{
@@ -814,10 +591,10 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 						for (j = 0; j < switchcount; j++)
 						{
 							switches[j]->spr.hitag = 0;
-							if (picnum >= MULTISWITCH2)
-								switches[j]->spr.picnum = MULTISWITCH2 + 3;
+							if (picnum >= RTILE_MULTISWITCH2)
+								switches[j]->spr.picnum = RTILE_MULTISWITCH2_4;
 							else
-								switches[j]->spr.picnum = MULTISWITCH + 3;
+								switches[j]->spr.picnum = RTILE_MULTISWITCH_4;
 							checkhitswitch_r(snum, nullptr, switches[j]);
 						}
 					}
@@ -825,14 +602,14 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 				}
 			}
 		}
-		if (picnum == MULTISWITCH || picnum == (MULTISWITCH + 1) ||
-			picnum == (MULTISWITCH + 2) || picnum == (MULTISWITCH + 3))
-			lotag += picnum - MULTISWITCH;
+		if (picnum == RTILE_MULTISWITCH || picnum == (RTILE_MULTISWITCH_2) ||
+			picnum == (RTILE_MULTISWITCH_3) || picnum == (RTILE_MULTISWITCH_4))
+			lotag += picnum - RTILE_MULTISWITCH;
 		if (isRRRA())
 		{
-			if (picnum == MULTISWITCH2 || picnum == (MULTISWITCH2 + 1) ||
-				picnum == (MULTISWITCH2 + 2) || picnum == (MULTISWITCH2 + 3))
-				lotag += picnum - MULTISWITCH2;
+			if (picnum == RTILE_MULTISWITCH2 || picnum == (RTILE_MULTISWITCH2_2) ||
+				picnum == (RTILE_MULTISWITCH2_3) || picnum == (RTILE_MULTISWITCH2_4))
+				lotag += picnum - RTILE_MULTISWITCH2;
 		}
 
 		DukeStatIterator itr(STAT_EFFECTOR);
@@ -869,15 +646,15 @@ bool checkhitswitch_r(int snum, walltype* wwal, DDukeActor* act)
 			}
 		}
 
-		operateactivators(lotag, snum);
+		operateactivators(lotag, &ps[snum]);
 		fi.operateforcefields(ps[snum].GetActor(), lotag);
 		operatemasterswitches(lotag);
 
-		if (picnum == DIPSWITCH || picnum == DIPSWITCH + 1 ||
-			picnum == ALIENSWITCH || picnum == ALIENSWITCH + 1 ||
-			picnum == TECHSWITCH || picnum == TECHSWITCH + 1) return 1;
+		if (picnum == RTILE_DIPSWITCH || picnum == RTILE_DIPSWITCHON ||
+			picnum == RTILE_ALIENSWITCH || picnum == RTILE_ALIENSWITCHON ||
+			picnum == RTILE_TECHSWITCH || picnum == RTILE_TECHSWITCHON) return 1;
 
-		if (hitag == 0 && fi.isadoorwall(picnum) == 0)
+		if (hitag == 0 && isadoorwall(texid) == 0)
 		{
 			if (act)
 				S_PlaySound3D(SWITCH_ON, act, v);
@@ -909,9 +686,9 @@ void activatebysector_r(sectortype* sect, DDukeActor* activator)
 	DukeSectIterator it(sect);
 	while (auto act = it.Next())
 	{
-		if (act->spr.picnum == ACTIVATOR)
+		if (isactivator(act))
 		{
-			operateactivators(act->spr.lotag, -1);
+			operateactivators(act->spr.lotag, nullptr);
 			//			return;
 		}
 	}
@@ -923,449 +700,6 @@ void activatebysector_r(sectortype* sect, DDukeActor* activator)
 
 //---------------------------------------------------------------------------
 //
-//
-//
-//---------------------------------------------------------------------------
-
-static void lotsofpopcorn(DDukeActor *actor, walltype* wal, int n)
-{
-	int j, z;
-	int a;
-
-	sectortype* sect = nullptr;
-
-	if (wal == nullptr)
-	{
-		for (j = n - 1; j >= 0; j--)
-		{
-			a = actor->int_ang() - 256 + (krand() & 511) + 1024;
-			CreateActor(actor->sector(), actor->spr.pos, POPCORN, -32, 36, 36, a, 32 + (krand() & 63), 1024 - (krand() & 1023), actor, 5);
-		}
-		return;
-	}
-
-	j = n + 1;
-
-	int x1 = wal->wall_int_pos().X;
-	int y1 = wal->wall_int_pos().Y;
-
-	auto delta = wal->int_delta();
-
-	x1 -= Sgn(delta.X);
-	y1 += Sgn(delta.Y);
-
-	delta.X /= j;
-	delta.Y /= j;
-
-	for (j = n; j > 0; j--)
-	{
-		x1 += delta.X;
-		y1 += delta.Y;
-
-		updatesector(x1, y1, &sect);
-		if (sect)
-		{
-			z = sect->int_floorz() - (krand() & (abs(sect->int_ceilingz() - sect->int_floorz())));
-			if (z < -(32 << 8) || z >(32 << 8))
-				z = actor->int_pos().Z - (32 << 8) + (krand() & ((64 << 8) - 1));
-			a = actor->int_ang() - 1024;
-			EGS(actor->sector(), x1, y1, z, POPCORN, -32, 36, 36, a, 32 + (krand() & 63), -(krand() & 1023), actor, 5);
-		}
-	}
-}
-
-//---------------------------------------------------------------------------
-//
-// 
-//
-//---------------------------------------------------------------------------
-
-void checkhitwall_r(DDukeActor* spr, walltype* wal, const DVector3& pos, int atwith)
-{
-	int j;
-	int darkestwall;
-
-	if (wal->overpicnum == MIRROR && gs.actorinfo[atwith].flags2 & SFLAG2_BREAKMIRRORS)
-	{
-		lotsofglass(spr, wal, 70);
-		wal->cstat &= ~CSTAT_WALL_MASKED;
-		wal->overpicnum = MIRRORBROKE;
-		wal->portalflags = 0;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	}
-
-	if (((wal->cstat & CSTAT_WALL_MASKED) || wal->overpicnum == BIGFORCE) && wal->twoSided())
-		if (wal->nextSector()->floorz > pos.Z)
-			if (wal->nextSector()->floorz - wal->nextSector()->ceilingz)
-				switch (wal->overpicnum)
-				{
-				case FANSPRITE:
-					wal->overpicnum = FANSPRITEBROKE;
-					wal->cstat &= ~(CSTAT_WALL_BLOCK | CSTAT_WALL_BLOCK_HITSCAN);
-					if (wal->twoSided())
-					{
-						wal->nextWall()->overpicnum = FANSPRITEBROKE;
-						wal->nextWall()->cstat &= ~(CSTAT_WALL_BLOCK | CSTAT_WALL_BLOCK_HITSCAN);
-					}
-					S_PlayActorSound(VENT_BUST, spr);
-					S_PlayActorSound(GLASS_BREAKING, spr);
-					return;
-
-				case RRTILE1973:
-				{
-					sectortype* sptr = nullptr;
-					updatesector(pos, &sptr);
-					if (sptr == nullptr) return;
-					wal->overpicnum = GLASS2;
-					lotsofpopcorn(spr, wal, 64);
-					wal->cstat = 0;
-
-					if (wal->twoSided())
-						wal->nextWall()->cstat = 0;
-
-					auto spawned = CreateActor(sptr, pos, SECTOREFFECTOR, 0, 0, 0, ps[0].angle.ang.Buildang(), 0, 0, spr, 3);
-					if (spawned)
-					{
-						spawned->spr.lotag = SE_128_GLASS_BREAKING;
-						spawned->temp_walls[0] = wal;
-						S_PlayActorSound(GLASS_BREAKING, spawned);
-					}
-					return;
-				}
-				case GLASS:
-				{
-					sectortype* sptr = nullptr;
-					updatesector(pos, &sptr);
-					if (sptr == nullptr) return;
-					wal->overpicnum = GLASS2;
-					lotsofglass(spr, wal, 10);
-					wal->cstat = 0;
-
-					if (wal->twoSided())
-						wal->nextWall()->cstat = 0;
-
-					auto spawned = CreateActor(sptr, pos, SECTOREFFECTOR, 0, 0, 0, ps[0].angle.ang.Buildang(), 0, 0, spr, 3);
-					if (spawned)
-					{
-						spawned->spr.lotag = SE_128_GLASS_BREAKING;
-						spawned->temp_data[1] = 2;
-						spawned->temp_walls[0] = wal;
-						S_PlayActorSound(GLASS_BREAKING, spawned);
-					}
-					return;
-				}
-				case STAINGLASS1:
-				{
-					sectortype* sptr = nullptr;
-					updatesector(pos, &sptr);
-					if (sptr == nullptr) return;
-					lotsofcolourglass(spr, wal, 80);
-					wal->cstat = 0;
-					if (wal->twoSided())
-						wal->nextWall()->cstat = 0;
-					S_PlayActorSound(VENT_BUST, spr);
-					S_PlayActorSound(GLASS_BREAKING, spr);
-					return;
-				}
-				}
-
-	switch (wal->picnum)
-	{
-	case RRTILE8464:
-		if (isRRRA()) break;
-		break;
-	case RRTILE3643:
-	case RRTILE3643 + 1:
-	case RRTILE3643 + 2:
-	case RRTILE3643 + 3:
-	{
-		auto sect = wal->nextWall()->nextSector();
-		DukeSectIterator it(sect);
-		while (auto act = it.Next())
-		{
-			if (act->spr.lotag == 6)
-			{
-				act->spriteextra++;
-				if (act->spriteextra == 25)
-				{
-					for(auto& wl : wallsofsector(act->sector()))
-					{
-						if (wl.twoSided()) wl.nextSector()->lotag = 0;
-					}
-					act->sector()->lotag = 0;
-					S_StopSound(act->spr.lotag);
-					S_PlayActorSound(400, act);
-					deletesprite(act);
-				}
-			}
-		}
-		return;
-	}
-	case RRTILE7555:
-		if (!isRRRA()) break;
-		wal->picnum = SBMOVE;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE7441:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5016;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE7559:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5017;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE7433:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5018;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE7557:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5019;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE7553:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5020;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE7552:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5021;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE7568:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5022;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE7540:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5023;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE7558:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5024;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE7554:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5025;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE7579:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5026;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE7561:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5027;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE7580:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5037;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE8227:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5070;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE8503:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5079;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE8567:
-	case RRTILE8568:
-	case RRTILE8569:
-	case RRTILE8570:
-	case RRTILE8571:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5082;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE7859:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5081;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE8496:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5061;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE8617:
-		if (!isRRRA()) break;
-		if (numplayers < 2)
-		{
-			wal->picnum = RRTILE8618;
-			S_PlayActorSound(47, spr);
-		}
-		return;
-	case RRTILE8620:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE8621;
-		S_PlayActorSound(47, spr);
-		return;
-	case RRTILE8622:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE8623;
-		S_PlayActorSound(495, spr);
-		return;
-	case RRTILE7657:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE7659;
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-	case RRTILE8497:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5076;
-		S_PlayActorSound(495, spr);
-		return;
-	case RRTILE7533:
-		if (!isRRRA()) break;
-		wal->picnum = RRTILE5035;
-		S_PlayActorSound(495, spr);
-		return;
-
-	case COLAMACHINE:
-	case VENDMACHINE:
-		breakwall(wal->picnum + 2, spr, wal);
-		S_PlayActorSound(GLASS_BREAKING, spr);
-		return;
-
-	case OJ:
-
-	case SCREENBREAK6:
-	case SCREENBREAK7:
-	case SCREENBREAK8:
-
-		lotsofglass(spr, wal, 30);
-		wal->picnum = W_SCREENBREAK + (krand() % (isRRRA() ? 2 : 3));
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		return;
-
-	case ATM:
-		wal->picnum = ATMBROKE;
-		fi.lotsofmoney(spr, 1 + (krand() & 7));
-		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		break;
-
-	case WALLLIGHT1:
-	case WALLLIGHT3:
-	case WALLLIGHT4:
-	case TECHLIGHT2:
-	case TECHLIGHT4:
-	case RRTILE1814:
-	case RRTILE1939:
-	case RRTILE1986:
-	case RRTILE1988:
-	case RRTILE2123:
-	case RRTILE2125:
-	case RRTILE2636:
-	case RRTILE2878:
-	case RRTILE2898:
-	case RRTILE3200:
-	case RRTILE3202:
-	case RRTILE3204:
-	case RRTILE3206:
-	case RRTILE3208:
-
-		if (rnd(128))
-			S_PlayActorSound(GLASS_HEAVYBREAK, spr);
-		else S_PlayActorSound(GLASS_BREAKING, spr);
-		lotsofglass(spr, wal, 30);
-
-		if (wal->picnum == RRTILE1814)
-			wal->picnum = RRTILE1817;
-
-		if (wal->picnum == RRTILE1986)
-			wal->picnum = RRTILE1987;
-
-		if (wal->picnum == RRTILE1939)
-			wal->picnum = RRTILE2004;
-
-		if (wal->picnum == RRTILE1988)
-			wal->picnum = RRTILE2005;
-
-		if (wal->picnum == RRTILE2898)
-			wal->picnum = RRTILE2899;
-
-		if (wal->picnum == RRTILE2878)
-			wal->picnum = RRTILE2879;
-
-		if (wal->picnum == RRTILE2123)
-			wal->picnum = RRTILE2124;
-
-		if (wal->picnum == RRTILE2125)
-			wal->picnum = RRTILE2126;
-
-		if (wal->picnum == RRTILE3200)
-			wal->picnum = RRTILE3201;
-
-		if (wal->picnum == RRTILE3202)
-			wal->picnum = RRTILE3203;
-
-		if (wal->picnum == RRTILE3204)
-			wal->picnum = RRTILE3205;
-
-		if (wal->picnum == RRTILE3206)
-			wal->picnum = RRTILE3207;
-
-		if (wal->picnum == RRTILE3208)
-			wal->picnum = RRTILE3209;
-
-		if (wal->picnum == RRTILE2636)
-			wal->picnum = RRTILE2637;
-
-		if (wal->picnum == WALLLIGHT1)
-			wal->picnum = WALLLIGHTBUST1;
-
-		if (wal->picnum == WALLLIGHT3)
-			wal->picnum = WALLLIGHTBUST3;
-
-		if (wal->picnum == WALLLIGHT4)
-			wal->picnum = WALLLIGHTBUST4;
-
-		if (wal->picnum == TECHLIGHT2)
-			wal->picnum = TECHLIGHTBUST2;
-
-		if (wal->picnum == TECHLIGHT4)
-			wal->picnum = TECHLIGHTBUST4;
-
-		if (!wal->lotag) return;
-
-		if (!wal->twoSided()) return;
-		darkestwall = 0;
-
-		for (auto& wl : wallsofsector(wal->nextSector()))
-			if (wl.shade > darkestwall)
-				darkestwall = wl.shade;
-
-		j = krand() & 1;
-		DukeStatIterator it(STAT_EFFECTOR);
-		while (auto act = it.Next())
-		{
-			if (act->spr.hitag == wal->lotag && act->spr.lotag == SE_3_RANDOM_LIGHTS_AFTER_SHOT_OUT)
-			{
-				act->temp_data[2] = j;
-				act->temp_data[3] = darkestwall;
-				act->temp_data[4] = 1;
-			}
-		}
-		break;
-	}
-}
-
-//---------------------------------------------------------------------------
-//
 // 
 //
 //---------------------------------------------------------------------------
@@ -1374,47 +708,23 @@ void checkplayerhurt_r(player_struct* p, const Collision &coll)
 {
 	if (coll.type == kHitSprite)
 	{
-		switch (coll.actor()->spr.picnum)
-		{
-		case RRTILE2430:
-		case RRTILE2431:
-		case RRTILE2432:
-		case RRTILE2443:
-		case RRTILE2446:
-		case RRTILE2451:
-		case RRTILE2455:
-			if (isRRRA() && p->hurt_delay2 < 8)
-			{
-				p->GetActor()->spr.extra -= 2;
-				p->hurt_delay2 = 16;
-				SetPlayerPal(p, PalEntry(32, 32, 0, 0));
-				S_PlayActorSound(DUKE_LONGTERM_PAIN, p->GetActor());
-			}
-			break;
-		case CACTUS:
-			if (!isRRRA() && p->hurt_delay < 8)
-			{
-				p->GetActor()->spr.extra -= 5;
-				p->hurt_delay = 16;
-				SetPlayerPal(p, PalEntry(32, 32, 0, 0));
-				S_PlayActorSound(DUKE_LONGTERM_PAIN, p->GetActor());
-			}
-			break;
-		}
+		CallOnHurt(coll.actor(), p);
 		return;
 	}
 
-	if (coll.type != kHitWall) return;
-	auto wal = coll.hitWall;
-
-	if (p->hurt_delay > 0) p->hurt_delay--;
-	else if (wal->cstat & (CSTAT_WALL_BLOCK | CSTAT_WALL_ALIGN_BOTTOM | CSTAT_WALL_MASKED | CSTAT_WALL_BLOCK_HITSCAN)) switch (wal->overpicnum)
+	if (coll.type == kHitWall)
 	{
-	case BIGFORCE:
-		p->hurt_delay = 26;
-		fi.checkhitwall(p->GetActor(), wal, p->pos + p->angle.ang.ToVector() * 2, -1);
-		break;
+		auto wal = coll.hitWall;
 
+		if (p->hurt_delay > 0) p->hurt_delay--;
+		else if (wal->cstat & (CSTAT_WALL_BLOCK | CSTAT_WALL_ALIGN_BOTTOM | CSTAT_WALL_MASKED | CSTAT_WALL_BLOCK_HITSCAN)) switch (wal->overpicnum)
+		{
+		case RTILE_BIGFORCE:
+			p->hurt_delay = 26;
+			checkhitwall(p->GetActor(), wal, p->GetActor()->getPosWithOffsetZ() + p->GetActor()->spr.Angles.Yaw.ToVector() * 2);
+			break;
+
+		}
 	}
 }
 
@@ -1424,975 +734,109 @@ void checkplayerhurt_r(player_struct* p, const Collision &coll)
 //
 //---------------------------------------------------------------------------
 
-bool checkhitceiling_r(sectortype* sectp)
+void checkhitdefault_r(DDukeActor* targ, DDukeActor* proj)
 {
-	int j;
+	if ((targ->spr.cstat & CSTAT_SPRITE_ALIGNMENT_WALL) && targ->spr.hitag == 0 && targ->spr.lotag == 0 && targ->spr.statnum == 0)
+		return;
 
-	switch (sectp->ceilingpicnum)
+	if ((proj->spr.picnum == RTILE_SAWBLADE || proj->spr.picnum == RTILE_FREEZEBLAST || proj->GetOwner() != targ) && targ->spr.statnum != 4)
 	{
-	case WALLLIGHT1:
-	case WALLLIGHT3:
-	case WALLLIGHT4:
-	case TECHLIGHT2:
-	case TECHLIGHT4:
-	case RRTILE1939:
-	case RRTILE1986:
-	case RRTILE1988:
-	case RRTILE2123:
-	case RRTILE2125:
-	case RRTILE2878:
-	case RRTILE2898:
-
-
-		ceilingglass(ps[myconnectindex].GetActor(), sectp, 10);
-		S_PlayActorSound(GLASS_BREAKING, ps[screenpeek].GetActor());
-
-		if (sectp->ceilingpicnum == WALLLIGHT1)
-			sectp->ceilingpicnum = WALLLIGHTBUST1;
-
-		if (sectp->ceilingpicnum == WALLLIGHT3)
-			sectp->ceilingpicnum = WALLLIGHTBUST3;
-
-		if (sectp->ceilingpicnum == WALLLIGHT4)
-			sectp->ceilingpicnum = WALLLIGHTBUST4;
-
-		if (sectp->ceilingpicnum == TECHLIGHT2)
-			sectp->ceilingpicnum = TECHLIGHTBUST2;
-
-		if (sectp->ceilingpicnum == TECHLIGHT4)
-			sectp->ceilingpicnum = TECHLIGHTBUST4;
-
-		if (sectp->ceilingpicnum == RRTILE1986)
-			sectp->ceilingpicnum = RRTILE1987;
-
-		if (sectp->ceilingpicnum == RRTILE1939)
-			sectp->ceilingpicnum = RRTILE2004;
-
-		if (sectp->ceilingpicnum == RRTILE1988)
-			sectp->ceilingpicnum = RRTILE2005;
-
-		if (sectp->ceilingpicnum == RRTILE2898)
-			sectp->ceilingpicnum = RRTILE2899;
-
-		if (sectp->ceilingpicnum == RRTILE2878)
-			sectp->ceilingpicnum = RRTILE2879;
-
-		if (sectp->ceilingpicnum == RRTILE2123)
-			sectp->ceilingpicnum = RRTILE2124;
-
-		if (sectp->ceilingpicnum == RRTILE2125)
-			sectp->ceilingpicnum = RRTILE2126;
-
-
-		if (!sectp->hitag)
+		if (badguy(targ) == 1)
 		{
-			DukeSectIterator it(sectp);
-			while (auto act1 = it.Next())
-			{
-				if (act1->spr.picnum == SECTOREFFECTOR && (act1->spr.lotag == SE_12_LIGHT_SWITCH || (isRRRA() && (act1->spr.lotag == 47 || act1->spr.lotag == 48))))
+			if (proj->spr.picnum == RTILE_RPG) proj->spr.extra <<= 1;
+			else if (isRRRA() && proj->spr.picnum == RTILE_RPG2) proj->spr.extra <<= 1;
+
+			if ((targ->spr.picnum != RTILE_DRONE))
+				if (proj->spr.picnum != RTILE_FREEZEBLAST)
+					//if (actortype[targ->spr.picnum] == 0)  
 				{
-					DukeStatIterator itr(STAT_EFFECTOR);
-					while (auto act2 = itr.Next())
+					auto spawned = spawn(proj, RTILE_JIBS6);
+					if (spawned)
 					{
-						if (act2->spr.hitag == act1->spr.hitag)
-							act2->temp_data[3] = 1;
+						if (proj->spr.pal == 6)
+							spawned->spr.pal = 6;
+						spawned->spr.pos.Z += 4;
+						spawned->vel.X = 1;
+						spawned->spr.scale = DVector2(0.375, 0.375);
+						spawned->spr.Angles.Yaw = DAngle22_5 / 4 - randomAngle(22.5 / 2);
 					}
-					break;
+				}
+
+			auto Owner = proj->GetOwner();
+
+			if (Owner && Owner->isPlayer() && targ->spr.picnum != RTILE_DRONE)
+				if (ps[Owner->PlayerIndex()].curr_weapon == SHOTGUN_WEAPON)
+				{
+					fi.shoot(targ, -1, PClass::FindActor("DukeBloodSplat3"));
+					fi.shoot(targ, -1, PClass::FindActor("DukeBloodSplat1"));
+					fi.shoot(targ, -1, PClass::FindActor("DukeBloodSplat2"));
+					fi.shoot(targ, -1, PClass::FindActor("DukeBloodSplat4"));
+				}
+
+			if (targ->spr.statnum == STAT_ZOMBIEACTOR)
+			{
+				ChangeActorStat(targ, STAT_ACTOR);
+				targ->timetosleep = SLEEPTIME;
+			}
+		}
+
+		if (targ->spr.statnum != 2)
+		{
+			if (proj->spr.picnum == RTILE_FREEZEBLAST && ((targ->isPlayer() && targ->spr.pal == 1) || (gs.freezerhurtowner == 0 && proj->GetOwner() == targ)))
+				return;
+
+			targ->attackertype = proj->spr.picnum;
+			targ->hitextra += proj->spr.extra;
+			if (targ->spr.picnum != RTILE_COW)
+				targ->hitang = proj->spr.Angles.Yaw;
+			targ->SetHitOwner(proj->GetOwner());
+		}
+
+		if (targ->spr.statnum == 10)
+		{
+			auto p = targ->PlayerIndex();
+			if (ps[p].newOwner != nullptr)
+			{
+				ps[p].newOwner = nullptr;
+				ps[p].GetActor()->restorepos();
+
+				updatesector(ps[p].GetActor()->getPosWithOffsetZ(), &ps[p].cursector);
+
+				DukeStatIterator it(STAT_EFFECTOR);
+				while (auto act = it.Next())
+				{
+					if (actorflag(act, SFLAG2_CAMERA)) act->spr.yint = 0;
 				}
 			}
+			auto Owner = targ->GetHitOwner();
+			if (!Owner || !Owner->isPlayer())
+				if (ud.player_skill >= 3)
+					proj->spr.extra += (proj->spr.extra >> 1);
 		}
 
-		j = krand() & 1;
-		DukeStatIterator it(STAT_EFFECTOR);
-		while (auto act1 = it.Next())
-		{
-			if (act1->spr.hitag == (sectp->hitag) && act1->spr.lotag == 3)
-			{
-				act1->temp_data[2] = j;
-				act1->temp_data[4] = 1;
-			}
-		}
-
-		return 1;
 	}
-
-	return 0;
 }
-
-//---------------------------------------------------------------------------
-//
-// 
-//
-//---------------------------------------------------------------------------
 
 void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 {
-	int j, k, p;
+	if (targ->GetClass() != RUNTIME_CLASS(DDukeActor))
+	{
+		CallOnHit(targ, proj);
+		return;
+	}
 
 	if (isRRRA()) switch (targ->spr.picnum)
 	{
-	case RRTILE8464:
-		break;
-	case RRTILE8487:
-	case RRTILE8489:
-		S_PlayActorSound(471, targ);
-		targ->spr.picnum++;
-		break;
-	case RRTILE7638:
-	case RRTILE7644:
-	case RRTILE7646:
-	case RRTILE7650:
-	case RRTILE7653:
-	case RRTILE7655:
-	case RRTILE7691:
-	case RRTILE7876:
-	case RRTILE7881:
-	case RRTILE7883:
-		targ->spr.picnum++;
-		S_PlayActorSound(VENT_BUST, targ);
-		break;
-	case RRTILE7879:
-		targ->spr.picnum++;
-		S_PlayActorSound(495, targ);
-		fi.hitradius(targ, 10, 0, 0, 1, 1);
-		break;
-	case RRTILE7648:
-	case RRTILE7694:
-	case RRTILE7700:
-	case RRTILE7702:
-	case RRTILE7711:
-		targ->spr.picnum++;
-		S_PlayActorSound(47, targ);
-		break;
-	case RRTILE7636:
-		targ->spr.picnum += 3;
-		S_PlayActorSound(VENT_BUST, targ);
-		break;
-	case RRTILE7875:
-		targ->spr.picnum += 3;
-		S_PlayActorSound(VENT_BUST, targ);
-		break;
-	case RRTILE7640:
-		targ->spr.picnum += 2;
-		S_PlayActorSound(VENT_BUST, targ);
-		break;
-	case RRTILE7595:
-	case RRTILE7704:
-		targ->spr.picnum = RRTILE7705;
-		S_PlayActorSound(495, targ);
-		break;
-	case RRTILE8579:
-		targ->spr.picnum = RRTILE5014;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE7441:
-		targ->spr.picnum = RRTILE5016;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE7534:
-		targ->spr.picnum = RRTILE5029;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE7545:
-		targ->spr.picnum = RRTILE5030;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE7547:
-		targ->spr.picnum = RRTILE5031;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE7574:
-		targ->spr.picnum = RRTILE5032;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE7575:
-		targ->spr.picnum = RRTILE5033;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE7578:
-		targ->spr.picnum = RRTILE5034;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE7478:
-		targ->spr.picnum = RRTILE5035;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8525:
-		targ->spr.picnum = RRTILE5036;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8537:
-		targ->spr.picnum = RRTILE5062;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8215:
-		targ->spr.picnum = RRTILE5064;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8216:
-		targ->spr.picnum = RRTILE5065;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8217:
-		targ->spr.picnum = RRTILE5066;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8218:
-		targ->spr.picnum = RRTILE5067;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8220:
-		targ->spr.picnum = RRTILE5068;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8221:
-		targ->spr.picnum = RRTILE5069;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8312:
-		targ->spr.picnum = RRTILE5071;
-		S_PlayActorSound(472, targ);
-		break;
-	case RRTILE8395:
-		targ->spr.picnum = RRTILE5072;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8423:
-		targ->spr.picnum = RRTILE5073;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE3462:
-		targ->spr.picnum = RRTILE5074;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case UWHIP:
-		targ->spr.picnum = RRTILE5075;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8608:
-		targ->spr.picnum = RRTILE5083;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8609:
-		targ->spr.picnum = RRTILE5084;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8567:
-	case RRTILE8568:
-	case RRTILE8569:
-	case RRTILE8570:
-	case RRTILE8571:
-		targ->spr.picnum = RRTILE5082;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8640:
-		targ->spr.picnum = RRTILE5085;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8611:
-		targ->spr.picnum = RRTILE5086;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case TECHLIGHTBUST2:
-		targ->spr.picnum = TECHLIGHTBUST4;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8497:
-		targ->spr.picnum = RRTILE5076;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8162:
-	case RRTILE8163:
-	case RRTILE8164:
-	case RRTILE8165:
-	case RRTILE8166:
-	case RRTILE8167:
-	case RRTILE8168:
-		ChangeActorStat(targ, STAT_MISC);
-		targ->spr.picnum = RRTILE5063;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8589:
-	case RRTILE8590:
-	case RRTILE8591:
-	case RRTILE8592:
-	case RRTILE8593:
-	case RRTILE8594:
-	case RRTILE8595:
-		ChangeActorStat(targ, STAT_MISC);
-		targ->spr.picnum = RRTILE8588;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE3497:
-		targ->spr.picnum = RRTILE5076;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE3498:
-		targ->spr.picnum = RRTILE5077;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE3499:
-		targ->spr.picnum = RRTILE5078;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8503:
-		targ->spr.picnum = RRTILE5079;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE7901:
-		targ->spr.picnum = RRTILE5080;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE7696:
-		targ->spr.picnum = RRTILE7697;
-		S_PlayActorSound(DUKE_SHUCKS, targ);
-		break;
-	case RRTILE7806:
-		targ->spr.picnum = RRTILE5043;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE7885:
-	case RRTILE7890:
-		targ->spr.picnum = RRTILE5045;
-		S_PlayActorSound(495, targ);
-		fi.hitradius(targ, 10, 0, 0, 1, 1);
-		break;
-	case RRTILE7886:
-		targ->spr.picnum = RRTILE5046;
-		S_PlayActorSound(495, targ);
-		fi.hitradius(targ, 10, 0, 0, 1, 1);
-		break;
-	case RRTILE7887:
-		targ->spr.picnum = RRTILE5044;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		fi.hitradius(targ, 10, 0, 0, 1, 1);
-		break;
-	case RRTILE7900:
-		targ->spr.picnum = RRTILE5047;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE7906:
-		targ->spr.picnum = RRTILE5048;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE7912:
-	case RRTILE7913:
-		targ->spr.picnum = RRTILE5049;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8047:
-		targ->spr.picnum = RRTILE5050;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8596:
-		targ->spr.picnum = RRTILE8598;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8059:
-		targ->spr.picnum = RRTILE5051;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8060:
-		targ->spr.picnum = RRTILE5052;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8222:
-		targ->spr.picnum = RRTILE5053;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8223:
-		targ->spr.picnum = RRTILE5054;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8224:
-		targ->spr.picnum = RRTILE5055;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8370:
-		targ->spr.picnum = RRTILE5056;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8371:
-		targ->spr.picnum = RRTILE5057;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8372:
-		targ->spr.picnum = RRTILE5058;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8373:
-		targ->spr.picnum = RRTILE5059;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8396:
-		targ->spr.picnum = RRTILE5038;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8397:
-		targ->spr.picnum = RRTILE5039;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8398:
-		targ->spr.picnum = RRTILE5040;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8399:
-		targ->spr.picnum = RRTILE5041;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8385:
-		targ->spr.picnum = RRTILE8386;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8387:
-		targ->spr.picnum = RRTILE8388;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8389:
-		targ->spr.picnum = RRTILE8390;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8391:
-		targ->spr.picnum = RRTILE8392;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE7553:
-		targ->spr.picnum = RRTILE5035;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8475:
-		targ->spr.picnum = RRTILE5075;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8498:
-		targ->spr.picnum = RRTILE5077;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8499:
-		targ->spr.picnum = RRTILE5078;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE2445:
-		targ->spr.picnum = RRTILE2450;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE2123:
-		targ->spr.picnum = RRTILE2124;
-		S_PlayActorSound(GLASS_BREAKING, targ);
-		lotsofglass(targ, nullptr, 10);
-		break;
-	case RRTILE3773:
-		targ->spr.picnum = RRTILE8651;
-		S_PlayActorSound(GLASS_BREAKING, targ);
-		lotsofglass(targ, nullptr, 10);
-		break;
-	case RRTILE7533:
-		targ->spr.picnum = RRTILE5035;
-		S_PlayActorSound(495, targ);
-		fi.hitradius(targ, 10, 0, 0, 1, 1);
-		break;
-	case RRTILE8394:
-		targ->spr.picnum = RRTILE5072;
-		S_PlayActorSound(495, targ);
-		break;
-	case RRTILE8461:
-	case RRTILE8462:
-		targ->spr.picnum = RRTILE5074;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8679:
-		targ->spr.picnum = RRTILE8680;
-		S_PlayActorSound(DUKE_SHUCKS, targ);
-		fi.hitradius(targ, 10, 0, 0, 1, 1);
-		if (targ->spr.lotag != 0)
-		{
-			DukeSpriteIterator it;
-			while (auto act = it.Next())
-			{
-				if (act->spr.picnum == RRTILE8679 && act->spr.pal == 4)
-				{
-					if (act->spr.lotag == targ->spr.lotag)
-						act->spr.picnum = RRTILE8680;
-				}
-			}
-		}
-		break;
-	case RRTILE3584:
-		targ->spr.picnum = RRTILE8681;
-		S_PlayActorSound(495, targ);
-		fi.hitradius(targ, 250, 0, 0, 1, 1);
-		break;
-	case RRTILE8682:
-		targ->spr.picnum = RRTILE8683;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-	case RRTILE8099:
-		if (targ->spr.lotag == 5)
-		{
-			targ->spr.lotag = 0;
-			targ->spr.picnum = RRTILE5087;
-			S_PlayActorSound(340, targ);
-			DukeSpriteIterator it;
-			while (auto act = it.Next())
-			{
-				if (act->spr.picnum == RRTILE8094)
-					act->spr.picnum = RRTILE5088;
-			}
-		}
-		break;
-	case RRTILE2431:
-		if (targ->spr.pal != 4)
-		{
-			targ->spr.picnum = RRTILE2451;
-			if (targ->spr.lotag != 0)
-			{
-				DukeSpriteIterator it;
-				while (auto act = it.Next())
-				{
-					if (act->spr.picnum == RRTILE2431 && act->spr.pal == 4)
-					{
-						if (targ->spr.lotag == act->spr.lotag)
-							act->spr.picnum = RRTILE2451;
-					}
-				}
-			}
-		}
-		break;
-	case RRTILE2443:
-		if (targ->spr.pal != 19)
-			targ->spr.picnum = RRTILE2455;
-		break;
-	case RRTILE2455:
-		S_PlayActorSound(SQUISHED, targ);
-		fi.guts(targ, RRTILE2465, 3, myconnectindex);
-		deletesprite(targ);
-		break;
-	case RRTILE2451:
-		if (targ->spr.pal != 4)
-		{
-			S_PlayActorSound(SQUISHED, targ);
-			if (targ->spr.lotag != 0)
-			{
-				DukeSpriteIterator it;
-				while (auto act = it.Next())
-				{
-					if (act->spr.picnum == RRTILE2451 && act->spr.pal == 4)
-					{
-						if (targ->spr.lotag == act->spr.lotag)
-						{
-							fi.guts(targ, RRTILE2460, 12, myconnectindex);
-							fi.guts(targ, RRTILE2465, 3, myconnectindex);
-							act->spr.xrepeat = 0;
-							act->spr.yrepeat = 0;
-							targ->spr.xrepeat = 0;
-							targ->spr.yrepeat = 0;
-						}
-					}
-				}
-			}
-			else
-			{
-				fi.guts(targ, RRTILE2460, 12, myconnectindex);
-				fi.guts(targ, RRTILE2465, 3, myconnectindex);
-				targ->spr.xrepeat = 0;
-				targ->spr.yrepeat = 0;
-			}
-		}
-		break;
-	case RRTILE2437:
-		S_PlayActorSound(439, targ);
+	case RTILE_IRONWHEELSWITCH:
 		break;
 	}
 
-	switch (targ->spr.picnum)
+	if (targ->spr.picnum == RTILE_PLAYERONWATER)
 	{
-	case RRTILE3114:
-		targ->spr.picnum = RRTILE3117;
-		break;
-	case RRTILE2876:
-		targ->spr.picnum = RRTILE2990;
-		break;
-	case RRTILE3152:
-		targ->spr.picnum = RRTILE3218;
-		break;
-	case RRTILE3153:
-		targ->spr.picnum = RRTILE3219;
-		break;
-	case RRTILE2030:
-		targ->spr.picnum = RRTILE2034;
-		S_PlayActorSound(GLASS_BREAKING, targ);
-		lotsofglass(targ, nullptr, 10);
-		break;
-	case RRTILE2893:
-	case RRTILE2915:
-	case RRTILE3115:
-	case RRTILE3171:
-		switch (targ->spr.picnum)
-		{
-		case RRTILE2915:
-			targ->spr.picnum = RRTILE2977;
-			break;
-		case RRTILE2893:
-			targ->spr.picnum = RRTILE2978;
-			break;
-		case RRTILE3115:
-			targ->spr.picnum = RRTILE3116;
-			break;
-		case RRTILE3171:
-			targ->spr.picnum = RRTILE3216;
-			break;
-		}
-		S_PlayActorSound(GLASS_BREAKING, targ);
-		lotsofglass(targ, nullptr, 10);
-		break;
-	case RRTILE2156:
-	case RRTILE2158:
-	case RRTILE2160:
-	case RRTILE2175:
-		targ->spr.picnum++;
-		S_PlayActorSound(GLASS_BREAKING, targ);
-		lotsofglass(targ, nullptr, 10);
-		break;
-	case RRTILE2137:
-	case RRTILE2151:
-	case RRTILE2152:
-		S_PlayActorSound(GLASS_BREAKING, targ);
-		lotsofglass(targ, nullptr, 10);
-		targ->spr.picnum++;
-		for (k = 0; k < 6; k++)
-			EGS(targ->sector(), targ->int_pos().X, targ->int_pos().Y, targ->int_pos().Z - (8 << 8), SCRAP6 + (krand() & 15), -8, 48, 48, krand() & 2047, (krand() & 63) + 64, -(krand() & 4095) - (targ->int_zvel() >> 2), targ, 5);
-		break;
-	case BOWLINGBALL:
-		proj->set_int_xvel((targ->int_xvel() >> 1) + (targ->int_xvel() >> 2));
-		proj->add_int_ang(-(krand() & 16));
-		S_PlayActorSound(355, targ);
-		break;
-
-	case STRIPEBALL:
-	case QUEBALL:
-	case BOWLINGPIN:
-	case BOWLINGPIN + 1:
-	case HENSTAND:
-	case HENSTAND + 1:
-		if (proj->spr.picnum == QUEBALL || proj->spr.picnum == STRIPEBALL)
-		{
-			proj->set_int_xvel((targ->int_xvel() >> 1) + (targ->int_xvel() >> 2));
-			proj->add_int_ang(-((targ->int_ang() << 1) + 1024));
-			targ->set_int_ang(getangle(targ->int_pos().X - proj->int_pos().X, targ->int_pos().Y - proj->int_pos().Y) - 512);
-			if (S_CheckSoundPlaying(POOLBALLHIT) < 2)
-				S_PlayActorSound(POOLBALLHIT, targ);
-		}
-		else if (proj->spr.picnum == BOWLINGPIN || proj->spr.picnum == BOWLINGPIN + 1)
-		{
-			proj->set_int_xvel((targ->int_xvel() >> 1) + (targ->int_xvel() >> 2));
-			proj->add_int_ang(-(((targ->int_ang() << 1) + krand()) & 64));
-			targ->set_int_ang((targ->int_ang() + krand()) & 16);
-			S_PlayActorSound(355, targ);
-		}
-		else if (proj->spr.picnum == HENSTAND || proj->spr.picnum == HENSTAND + 1)
-		{
-			proj->set_int_xvel((targ->int_xvel() >> 1) + (targ->int_xvel() >> 2));
-			proj->add_int_ang(-(((targ->int_ang() << 1) + krand()) & 16));
-			targ->set_int_ang((targ->int_ang() + krand()) & 16);
-			S_PlayActorSound(355, targ);
-		}
-		else
-		{
-			if (krand() & 3)
-			{
-				targ->set_int_xvel(164);
-				targ->spr.angle = proj->spr.angle;
-			}
-		}
-		break;
-
-	case TREE1:
-	case TREE2:
-	case TIRE:
-	case BOX:
-		if (actorflag(proj, SFLAG_INFLAME))
-		{
-			if (targ->temp_data[0] == 0)
-			{
-				targ->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-				targ->temp_data[0] = 1;
-				spawn(targ, BURNING);
-			}
-		}
-		break;
-
-	case CACTUS:
-		//		case CACTUSBROKE:
-		if (actorflag(proj, SFLAG_INFLAME))
-		{
-			for (k = 0; k < 64; k++)
-			{
-				auto spawned = EGS(targ->sector(), targ->int_pos().X, targ->int_pos().Y, targ->int_pos().Z - (krand() % (48 << 8)), SCRAP6 + (krand() & 3), -8, 48, 48, krand() & 2047, (krand() & 63) + 64, -(krand() & 4095) - (targ->int_zvel() >> 2), targ, 5);
-				if (spawned) spawned->spr.pal = 8;
-			}
-
-			if (targ->spr.picnum == CACTUS)
-				targ->spr.picnum = CACTUSBROKE;
-			targ->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-			//	   else deletesprite(i);
-		}
-		break;
-
-
-	case FANSPRITE:
-		targ->spr.picnum = FANSPRITEBROKE;
-		targ->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		for (j = 0; j < 16; j++) RANDOMSCRAP(targ);
-
-		break;
-	case WATERFOUNTAIN:
-	case WATERFOUNTAIN + 1:
-	case WATERFOUNTAIN + 2:
-	case WATERFOUNTAIN + 3:
-		spawn(targ, TOILETWATER);
-		break;
-	case SATELITE:
-	case FUELPOD:
-	case SOLARPANNEL:
-	case ANTENNA:
-		if (gs.actorinfo[SHOTSPARK1].scriptaddress && proj->spr.extra != ScriptCode[gs.actorinfo[SHOTSPARK1].scriptaddress])
-		{
-			for (j = 0; j < 15; j++)
-				EGS(targ->sector(), targ->int_pos().X, targ->int_pos().Y, targ->sector()->int_floorz() - (12 << 8) - (j << 9), SCRAP1 + (krand() & 15), -8, 64, 64,
-					krand() & 2047, (krand() & 127) + 64, -(krand() & 511) - 256, targ, 5);
-			spawn(targ, EXPLOSION2);
-			deletesprite(targ);
-		}
-		break;
-	case RRTILE1824:
-		if (!isRRRA()) break;
-		[[fallthrough]];
-	case BOTTLE1:
-	case BOTTLE2:
-	case BOTTLE3:
-	case BOTTLE4:
-	case BOTTLE5:
-	case BOTTLE6:
-	case BOTTLE8:
-	case BOTTLE10:
-	case BOTTLE11:
-	case BOTTLE12:
-	case BOTTLE13:
-	case BOTTLE14:
-	case BOTTLE15:
-	case BOTTLE16:
-	case BOTTLE17:
-	case BOTTLE18:
-	case BOTTLE19:
-	case DOMELITE:
-	case SUSHIPLATE1:
-	case SUSHIPLATE2:
-	case SUSHIPLATE3:
-	case SUSHIPLATE4:
-	case SUSHIPLATE5:
-	case WAITTOBESEATED:
-	case VASE:
-	case STATUEFLASH:
-	case STATUE:
-		if (targ->spr.picnum == BOTTLE10)
-			fi.lotsofmoney(targ, 4 + (krand() & 3));
-		else if (targ->spr.picnum == STATUE || targ->spr.picnum == STATUEFLASH)
-		{
-			lotsofcolourglass(targ, nullptr, 40);
-			S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		}
-		else if (targ->spr.picnum == VASE)
-			lotsofglass(targ, nullptr, 40);
-
-		S_PlayActorSound(GLASS_BREAKING, targ);
-		targ->set_int_ang(krand() & 2047);
-		lotsofglass(targ, nullptr, 8);
-		deletesprite(targ);
-		break;
-	case RRTILE2654:
-	case RRTILE2656:
-	case RRTILE3172:
-		if (!isRRRA()) break;
-		[[fallthrough]];
-	case BOTTLE7:
-		S_PlayActorSound(GLASS_BREAKING, targ);
-		lotsofglass(targ, nullptr, 10);
-		deletesprite(targ);
-		break;
-	case FORCESPHERE:
-	{
-		targ->spr.xrepeat = 0;
-		auto Owner = targ->GetOwner();
-		if (Owner)
-		{
-			Owner->temp_data[0] = 32;
-			Owner->temp_data[1] = !Owner->temp_data[1];
-			Owner->temp_data[2] ++;
-		}
-		spawn(targ, EXPLOSION2);
-		break;
-	}
-	case TOILET:
-		targ->spr.picnum = TOILETBROKE;
-		if(krand() & 1) targ->spr.cstat |= CSTAT_SPRITE_XFLIP;
-		targ->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-		spawn(targ, TOILETWATER);
-		S_PlayActorSound(GLASS_BREAKING, targ);
-		break;
-
-	case STALL:
-		targ->spr.picnum = STALLBROKE;
-		if (krand() & 1) targ->spr.cstat |= CSTAT_SPRITE_XFLIP;
-		targ->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-		spawn(targ, TOILETWATER);
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-
-	case HYDRENT:
-		targ->spr.picnum = BROKEFIREHYDRENT;
-		spawn(targ, TOILETWATER);
-
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		break;
-
-	case GRATE1:
-		targ->spr.picnum = BGRATE1;
-		targ->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-		S_PlayActorSound(VENT_BUST, targ);
-		break;
-
-	case CIRCLEPANNEL:
-		targ->spr.picnum = CIRCLEPANNELBROKE;
-		targ->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-		S_PlayActorSound(VENT_BUST, targ);
-		break;
-
-	case PIPE1:
-	case PIPE2:
-	case PIPE3:
-	case PIPE4:
-	case PIPE5:
-	case PIPE6:
-		switch (targ->spr.picnum)
-		{
-		case PIPE1:targ->spr.picnum = PIPE1B; break;
-		case PIPE2:targ->spr.picnum = PIPE2B; break;
-		case PIPE3:targ->spr.picnum = PIPE3B; break;
-		case PIPE4:targ->spr.picnum = PIPE4B; break;
-		case PIPE5:targ->spr.picnum = PIPE5B; break;
-		case PIPE6:targ->spr.picnum = PIPE6B; break;
-		}
-		{
-			auto spawned = spawn(targ, STEAM);
-			if (spawned) spawned->spr.pos.Z = targ->sector()->floorz - 32;
-		}
-		break;
-
-	case CHAIR1:
-	case CHAIR2:
-		targ->spr.picnum = BROKENCHAIR;
-		targ->spr.cstat = 0;
-		break;
-	case CHAIR3:
-	case MOVIECAMERA:
-	case SCALE:
-	case VACUUM:
-	case CAMERALIGHT:
-	case IVUNIT:
-	case POT1:
-	case POT2:
-	case POT3:
-		S_PlayActorSound(GLASS_HEAVYBREAK, targ);
-		for (j = 0; j < 16; j++) RANDOMSCRAP(targ);
-		deletesprite(targ);
-		break;
-	case PLAYERONWATER:
 		targ = targ->GetOwner();
-		if (!targ) break;
-		[[fallthrough]];
-	default:
-		if ((targ->spr.cstat & CSTAT_SPRITE_ALIGNMENT_WALL) && targ->spr.hitag == 0 && targ->spr.lotag == 0 && targ->spr.statnum == 0)
-			break;
-
-		if ((proj->spr.picnum == SHRINKSPARK || proj->spr.picnum == FREEZEBLAST || proj->GetOwner() != targ) && targ->spr.statnum != 4)
-		{
-			if (badguy(targ) == 1)
-			{
-				if (proj->spr.picnum == RPG) proj->spr.extra <<= 1;
-				else if (isRRRA() && proj->spr.picnum == RPG2) proj->spr.extra <<= 1;
-
-				if ((targ->spr.picnum != DRONE))
-					if (proj->spr.picnum != FREEZEBLAST)
-						//if (actortype[targ->spr.picnum] == 0) //TRANSITIONAL. Cannot be done right with EDuke mess backing the engine. 
-						{
-							auto spawned = spawn(proj, JIBS6);
-							if (spawned)
-							{
-								if (proj->spr.pal == 6)
-									spawned->spr.pal = 6;
-								spawned->spr.pos.Z += 4;
-								spawned->vel.X = 1;
-								spawned->spr.xrepeat = spawned->spr.yrepeat = 24;
-								spawned->add_int_ang(32 - (krand() & 63));
-							}
-						}
-
-				auto Owner = proj->GetOwner();
-
-				if (Owner && Owner->spr.picnum == APLAYER && targ->spr.picnum != DRONE)
-					if (ps[Owner->PlayerIndex()].curr_weapon == SHOTGUN_WEAPON)
-					{
-						fi.shoot(targ, BLOODSPLAT3);
-						fi.shoot(targ, BLOODSPLAT1);
-						fi.shoot(targ, BLOODSPLAT2);
-						fi.shoot(targ, BLOODSPLAT4);
-					}
-
-				if (targ->spr.statnum == 2)
-				{
-					ChangeActorStat(targ, 1);
-					targ->timetosleep = SLEEPTIME;
-				}
-			}
-
-			if (targ->spr.statnum != 2)
-			{
-				if (proj->spr.picnum == FREEZEBLAST && ((targ->spr.picnum == APLAYER && targ->spr.pal == 1) || (gs.freezerhurtowner == 0 && proj->GetOwner() == targ)))
-					return;
-
-				targ->attackertype = proj->spr.picnum;
-				targ->hitextra += proj->spr.extra;
-				if (targ->spr.picnum != COW)
-					targ->hitang = proj->int_ang();
-				targ->SetHitOwner(proj->GetOwner());
-			}
-
-			if (targ->spr.statnum == 10)
-			{
-				p = targ->PlayerIndex();
-				if (ps[p].newOwner != nullptr)
-				{
-					ps[p].newOwner = nullptr;
-					ps[p].restorexyz();
-
-					updatesector(ps[p].player_int_pos().X, ps[p].player_int_pos().Y, &ps[p].cursector);
-
-					DukeStatIterator it(STAT_EFFECTOR);
-					while (auto act = it.Next())
-					{
-						if (actorflag(act, SFLAG2_CAMERA)) act->spr.yint = 0;
-					}
-				}
-				auto Owner = targ->GetHitOwner();
-				if (!Owner || Owner->spr.picnum != APLAYER)
-					if (ud.player_skill >= 3)
-						proj->spr.extra += (proj->spr.extra >> 1);
-			}
-
-		}
-		break;
+		if (!targ) return;
 	}
+	checkhitdefault_r(targ, proj);
 }
 
 //---------------------------------------------------------------------------
@@ -2403,7 +847,6 @@ void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
 
 void checksectors_r(int snum)
 {
-	int oldz;
 	player_struct* p;
 	walltype* hitscanwall;
 	HitInfo near;
@@ -2420,7 +863,7 @@ void checksectors_r(int snum)
 		p->cursector->lotag = 0;
 		FTA(9, p);
 		p->secret_rooms++;
-		SECRET_Trigger(sectnum(p->cursector));
+		SECRET_Trigger(sectindex(p->cursector));
 		return;
 	case -1:
 		p->cursector->lotag = 0;
@@ -2469,7 +912,7 @@ void checksectors_r(int snum)
 		{
 			if (isRRRA())
 			{
-				if (hitscanwall->overpicnum == MIRROR && snum == screenpeek)
+				if (hitscanwall->overtexture() == mirrortex && snum == screenpeek)
 					if (numplayers == 1)
 					{
 						if (S_CheckActorSoundPlaying(pact, 27) == 0 && S_CheckActorSoundPlaying(pact, 28) == 0 && S_CheckActorSoundPlaying(pact, 29) == 0
@@ -2492,7 +935,7 @@ void checksectors_r(int snum)
 			}
 			else
 			{
-				if (hitscanwall->overpicnum == MIRROR)
+				if (hitscanwall->overtexture() == mirrortex)
 					if (hitscanwall->lotag > 0 && S_CheckActorSoundPlaying(pact, hitscanwall->lotag) == 0 && snum == screenpeek)
 					{
 						S_PlayActorSound(hitscanwall->lotag, pact);
@@ -2525,31 +968,29 @@ void checksectors_r(int snum)
 				}
 				return;
 			}
-			neartag(p->player_int_pos(), p->GetActor()->sector(), p->angle.oang.Buildang(), near , 1280, 3);
+			neartag(p->GetActor()->getPosWithOffsetZ(), p->GetActor()->sector(), p->GetActor()->PrevAngles.Yaw, near , 80., NT_Lotag | NT_Hitag);
 		}
 
 		if (p->newOwner != nullptr)
-			neartag({ p->player_int_opos().X, p->player_int_opos().Y, p->player_int_opos().Z }, p->GetActor()->sector(), p->angle.oang.Buildang(), near, 1280L, 1);
+			neartag(p->GetActor()->getPrevPosWithOffsetZ(), p->GetActor()->sector(), p->GetActor()->PrevAngles.Yaw, near, 80., NT_Lotag);
 		else
 		{
-			neartag(p->player_int_pos(), p->GetActor()->sector(), p->angle.oang.Buildang(), near, 1280, 1);
+			neartag(p->GetActor()->getPosWithOffsetZ(), p->GetActor()->sector(), p->GetActor()->PrevAngles.Yaw, near, 80., NT_Lotag);
 			if (near.actor() == nullptr && near.hitWall == nullptr && near.hitSector == nullptr)
-				neartag({ p->player_int_pos().X, p->player_int_pos().Y, p->player_int_pos().Z + (8 << 8) }, p->GetActor()->sector(), p->angle.oang.Buildang(), near, 1280, 1);
+				neartag(p->GetActor()->getPosWithOffsetZ().plusZ(8), p->GetActor()->sector(), p->GetActor()->PrevAngles.Yaw, near, 80., NT_Lotag);
 			if (near.actor() == nullptr && near.hitWall == nullptr && near.hitSector == nullptr)
-				neartag({ p->player_int_pos().X, p->player_int_pos().Y, p->player_int_pos().Z + (16 << 8) }, p->GetActor()->sector(), p->angle.oang.Buildang(), near, 1280, 1);
+				neartag(p->GetActor()->getPosWithOffsetZ().plusZ(16), p->GetActor()->sector(), p->GetActor()->PrevAngles.Yaw, near, 80., NT_Lotag);
 			if (near.actor() == nullptr && near.hitWall == nullptr && near.hitSector == nullptr)
 			{
-				neartag({ p->player_int_pos().X, p->player_int_pos().Y, p->player_int_pos().Z + (16 << 8) }, p->GetActor()->sector(), p->angle.oang.Buildang(), near, 1280, 3);
+				neartag(p->GetActor()->getPosWithOffsetZ().plusZ(16), p->GetActor()->sector(), p->GetActor()->PrevAngles.Yaw, near, 80., NT_Lotag | NT_Hitag);
 				if (near.actor() != nullptr)
 				{
+					if (actorflag(near.actor(), SFLAG2_TRIGGERRESPAWN))
+						return;
+
 					switch (near.actor()->spr.picnum)
 					{
-					case FEM10:
-					case NAKED1:
-					case STATUE:
-					case TOUGHGAL:
-						return;
-					case COW:
+					case RTILE_COW:
 						near.actor()->spriteextra = 1;
 						return;
 					}
@@ -2570,10 +1011,9 @@ void checksectors_r(int snum)
 			if (p->cursector->lotag == 2)
 			{
 				DDukeActor* hit;
-				oldz = hitasprite(p->GetActor(), &hit);
+				double dist = hitasprite(p->GetActor(), &hit);
 				if (hit) near.hitActor = hit;
-				if (oldz > 1280) near.hitActor = nullptr;
-
+				if (dist > 80) near.hitActor = nullptr;
 			}
 
 		auto const neartagsprite = near.actor();
@@ -2581,110 +1021,17 @@ void checksectors_r(int snum)
 		{
 			if (fi.checkhitswitch(snum, nullptr, neartagsprite)) return;
 
-			switch (neartagsprite->spr.picnum)
+			if (neartagsprite->GetClass() != RUNTIME_CLASS(DDukeActor))
 			{
-			case RRTILE8448:
-				if (!isRRRA()) return;
-				if (!S_CheckActorSoundPlaying(neartagsprite, 340))
-					S_PlayActorSound(340, neartagsprite);
-				return;
-			case RRTILE8704:
-				if (!isRRRA()) return;
-				if (numplayers == 1)
-				{
-					// This is from RedneckGDX - the version in RR Reconstruction looked like broken nonsense.
-					if (S_CheckActorSoundPlaying(neartagsprite, 445) || sound445done != 0)
-					{
-						if (!S_CheckActorSoundPlaying(neartagsprite, 445) && !S_CheckActorSoundPlaying(neartagsprite, 446) && 
-							!S_CheckActorSoundPlaying(neartagsprite, 447) && sound445done != 0)
-						{
-							if ((krand() % 2) == 1)
-								S_PlayActorSound(446, neartagsprite);
-							else
-								S_PlayActorSound(447, neartagsprite);
-						}
-					}
-					else
-					{
-						S_PlayActorSound(445, neartagsprite);
-						sound445done = 1;
-					}
-				}
-				return;
-			case EMPTYBIKE:
-				if (!isRRRA()) return;
-				OnMotorcycle(p, neartagsprite);
-				return;
-			case EMPTYBOAT:
-				if (!isRRRA()) return;
-				OnBoat(p, neartagsprite);
-				return;
-			case RRTILE8164:
-			case RRTILE8165:
-			case RRTILE8166:
-			case RRTILE8167:
-			case RRTILE8168:
-			case RRTILE8591:
-			case RRTILE8592:
-			case RRTILE8593:
-			case RRTILE8594:
-			case RRTILE8595:
-				if (!isRRRA()) return;
-				neartagsprite->spr.extra = 60;
-				S_PlayActorSound(235, neartagsprite);
-				return;
-
-			case TOILET:
-			case STALL:
-			case RRTILE2121:
-			case RRTILE2122:
-				if (p->last_pissed_time == 0)
-				{
-					S_PlayActorSound(435, pact);
-
-					p->last_pissed_time = 26 * 220;
-					p->transporter_hold = 29 * 2;
-					if (p->holster_weapon == 0)
-					{
-						p->holster_weapon = 1;
-						p->weapon_pos = -1;
-					}
-					if (p->GetActor()->spr.extra <= (gs.max_player_health - (gs.max_player_health / 10)))
-					{
-						p->GetActor()->spr.extra += gs.max_player_health / 10;
-						p->last_extra = p->GetActor()->spr.extra;
-					}
-					else if (p->GetActor()->spr.extra < gs.max_player_health)
-						p->GetActor()->spr.extra = gs.max_player_health;
-				}
-				else if (S_CheckActorSoundPlaying(pact, DUKE_GRUNT) == 0)
-					S_PlayActorSound(DUKE_GRUNT, pact);
-				return;
-			case WATERFOUNTAIN:
-				if (neartagsprite->temp_data[0] != 1)
-				{
-					neartagsprite->temp_data[0] = 1;
-					neartagsprite->SetOwner(p->GetActor());
-
-					if (p->GetActor()->spr.extra < gs.max_player_health)
-					{
-						p->GetActor()->spr.extra++;
-						S_PlayActorSound(DUKE_DRINKING, pact);
-					}
-				}
-				return;
-			case PLUG:
-				S_PlayActorSound(SHORT_CIRCUIT, pact);
-				p->GetActor()->spr.extra -= 2 + (krand() & 3);
-				SetPlayerPal(p, PalEntry(32, 48, 48, 64));
-				break;
+				if (CallOnUse(neartagsprite, p))
+					return;
 			}
 		}
 
 		if (!PlayerInput(snum, SB_OPEN)) return;
 
 		if (near.hitWall == nullptr && near.hitSector == nullptr && near.actor() == nullptr)
-			if (abs(hits(p->GetActor())) < 512)
+			if (hits(p->GetActor()) < 32)
 			{
 				if ((krand() & 255) < 16)
 					S_PlayActorSound(DUKE_SEARCH2, pact);
@@ -2694,7 +1041,7 @@ void checksectors_r(int snum)
 
 		if (near.hitWall)
 		{
-			if (near.hitWall->lotag > 0 && fi.isadoorwall(near.hitWall->picnum))
+			if (near.hitWall->lotag > 0 && isadoorwall(near.hitWall->walltexture()))
 			{
 				if (hitscanwall == near.hitWall || hitscanwall == nullptr)
 					fi.checkhitswitch(snum, near.hitWall, nullptr);
@@ -2707,7 +1054,7 @@ void checksectors_r(int snum)
 			DukeSectIterator it(near.hitSector);
 			while (auto act = it.Next())
 			{
-				if (act->spr.picnum == ACTIVATOR || act->spr.picnum == MASTERSWITCH)
+				if (isactivator(act) || ismasterswitch(act))
 					return;
 			}
 			if (haskey(near.hitSector, snum))
@@ -2728,7 +1075,7 @@ void checksectors_r(int snum)
 				DukeSectIterator it(p->GetActor()->sector());
 				while (auto act = it.Next())
 				{
-					if (act->spr.picnum == ACTIVATOR || act->spr.picnum == MASTERSWITCH)
+					if (isactivator(act) || ismasterswitch(act))
 						return;
 				}
 				if (haskey(near.hitSector, snum))
@@ -2762,7 +1109,7 @@ void dofurniture(walltype* wlwal, sectortype* sectp, int snum)
 	if (movestep == 0) movestep = 4 * maptoworld;
 
 	double max_x = INT32_MIN, max_y = INT32_MIN, min_x = INT32_MAX, min_y = INT32_MAX;
-	for (auto& wal : wallsofsector(nextsect))
+	for (auto& wal : nextsect->walls)
 	{
 		double x = wal.pos.X;
 		double y = wal.pos.Y;
@@ -2788,7 +1135,7 @@ void dofurniture(walltype* wlwal, sectortype* sectp, int snum)
 		!inside(min_x, max_y, sectp))
 		pos_ok = 0;
 
-	for (auto& wal : wallsofsector(nextsect))
+	for (auto& wal : nextsect->walls)
 	{
 		switch (wlwal->lotag)
 		{
@@ -2808,7 +1155,7 @@ void dofurniture(walltype* wlwal, sectortype* sectp, int snum)
 	{
 		if (S_CheckActorSoundPlaying(ps[snum].GetActor(), 389) == 0)
 			S_PlayActorSound(389, ps[snum].GetActor());
-		for(auto& wal : wallsofsector(nextsect))
+		for(auto& wal : nextsect->walls)
 		{
 			auto vec = wal.pos;
 			switch (wlwal->lotag)
@@ -2835,7 +1182,7 @@ void dofurniture(walltype* wlwal, sectortype* sectp, int snum)
 	else
 	{
 		movestep -= 2 * maptoworld;
-		for(auto& wal : wallsofsector(nextsect))
+		for(auto& wal : nextsect->walls)
 		{
 			auto vec = wal.pos;
 			switch (wlwal->lotag)
@@ -2872,9 +1219,9 @@ void tearitup(sectortype* sect)
 	DukeSectIterator it(sect);
 	while (auto act = it.Next())
 	{
-		if (act->spr.picnum == DESTRUCTO)
+		if (act->spr.picnum == RTILE_DESTRUCTO)
 		{
-			act->attackertype = SHOTSPARK1;
+			act->attackertype = RTILE_SHOTSPARK1;
 			act->hitextra = 1;
 		}
 	}

@@ -35,6 +35,7 @@ Prepared for public release: 03/28/2005 - Charlie Wiederhold, 3D Realms
 #include "sprite.h"
 #include "weapon.h"
 #include "misc.h"
+#include "texinfo.h"
 
 BEGIN_SW_NS
 
@@ -746,16 +747,15 @@ int SetupBunny(DSWActor* actor)
     actor->user.ShellNum = 0; // Not Pregnant right now
     actor->user.FlagOwner = 0;
 
-    actor->set_const_clipdist((150) >> 2);
+	actor->clipdist = 9.25;
 
     if (actor->spr.pal == PALETTE_PLAYER1)
     {
         EnemyDefaults(actor, &BunnyWhiteActionSet, &WhiteBunnyPersonality);
         actor->user.Attrib = &WhiteBunnyAttrib;
-        actor->spr.xrepeat = 96;
-        actor->spr.yrepeat = 90;
+        actor->spr.scale = DVector2(1.5, 1.40625);
 
-        actor->set_const_clipdist(200>>2);
+        actor->clipdist = 12.5;
 
         if (!(actor->spr.cstat & CSTAT_SPRITE_RESTORE))
             actor->user.Health = 60;
@@ -764,11 +764,8 @@ int SetupBunny(DSWActor* actor)
     {
         EnemyDefaults(actor, &BunnyActionSet, &BunnyPersonality);
         actor->user.Attrib = &BunnyAttrib;
-        //actor->spr.xrepeat = 76;
-        //actor->spr.yrepeat = 70;
 
-        //actor->spr.shade = 0; // darker
-        if (!(actor->spr.cstat & CSTAT_SPRITE_RESTORE))
+		if (!(actor->spr.cstat & CSTAT_SPRITE_RESTORE))
             actor->user.Health = 20;
         actor->user.Flag1 = 0;
     }
@@ -851,15 +848,15 @@ int DoBunnyBeginJumpAttack(DSWActor* actor)
 {
     DSWActor* target = actor->user.targetActor;
 
-    DAngle tang = VecToAngle(target->spr.pos - actor->spr.pos);
+    DAngle tang = (target->spr.pos - actor->spr.pos).Angle();
 
     Collision coll = move_sprite(actor, DVector3(tang.ToVector() * 8, 0), actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_ACTOR, ACTORMOVETICS);
 
 	auto rndang = RandomAngle(DAngle45) - DAngle22_5;
     if (coll.type != kHitNone)
-		actor->spr.angle += DAngle180 + rndang; 
+		actor->spr.Angles.Yaw += DAngle180 + rndang; 
 	else
-		actor->spr.angle = tang + rndang;
+		actor->spr.Angles.Yaw = tang + rndang;
 
     DoActorSetSpeed(actor, FAST_SPEED);
 
@@ -883,7 +880,7 @@ int DoBunnyMoveJump(DSWActor* actor)
 {
     if (actor->user.Flags & (SPR_JUMPING | SPR_FALLING))
     {
-        move_actor(actor, DVector3(actor->spr.angle.ToVector() * actor->vel.X, 0));
+        move_actor(actor, DVector3(actor->spr.Angles.Yaw.ToVector() * actor->vel.X, 0));
 
         if (actor->user.Flags & (SPR_JUMPING))
             DoActorJump(actor);
@@ -959,8 +956,8 @@ int DoBunnyQuickJump(DSWActor* actor)
 
 
         // Not mature enough yet
-        if (actor->spr.xrepeat != 64 || actor->spr.yrepeat != 64) return false;
-        if (hitActor->spr.xrepeat != 64 || hitActor->spr.yrepeat != 64) return false;
+        if (actor->spr.scale.X != 1 || actor->spr.scale.Y != 1) return false;
+        if (hitActor->spr.scale.X != 1 || hitActor->spr.scale.Y != 1) return false;
 
         // Kill a rival
         // Only males fight
@@ -997,8 +994,8 @@ int DoBunnyQuickJump(DSWActor* actor)
         if (!hitActor->hasU() || hitActor->user.ID != BUNNY_RUN_R0) return false;
 
         // Not mature enough to mate yet
-        if (actor->spr.xrepeat != 64 || actor->spr.yrepeat != 64) return false;
-        if (hitActor->spr.xrepeat != 64 || hitActor->spr.yrepeat != 64) return false;
+		if (actor->spr.scale.X != 1 || actor->spr.scale.Y != 1) return false;
+		if (hitActor->spr.scale.X != 1 || hitActor->spr.scale.Y != 1) return false;
 
         if (hitActor->user.ShellNum <= 0 && hitActor->user.WaitTics <= 0 && actor->user.WaitTics <= 0)
         {
@@ -1026,7 +1023,7 @@ int DoBunnyQuickJump(DSWActor* actor)
                         if (pp == Player+myconnectindex)
                         {
                             choose_snd = StdRandomRange(2<<8)>>8;
-                            if (FAFcansee(ActorVectOfTop(actor),actor->sector(),pp->pos, pp->cursector) && Facing(actor, actor->user.targetActor))
+                            if (FAFcansee(ActorVectOfTop(actor),actor->sector(),pp->actor->getPosWithOffsetZ(), pp->cursector) && Facing(actor, actor->user.targetActor))
                                 PlayerSound(fagsnds[choose_snd], v3df_doppler|v3df_follow|v3df_dontpan,pp);
                         }
                     }
@@ -1041,17 +1038,17 @@ int DoBunnyQuickJump(DSWActor* actor)
                         if (pp == Player+myconnectindex)
                         {
                             choose_snd = StdRandomRange(3<<8)>>8;
-                            if (FAFcansee(ActorVectOfTop(actor), actor->sector(), pp->pos, pp->cursector) && Facing(actor, actor->user.targetActor))
+                            if (FAFcansee(ActorVectOfTop(actor), actor->sector(), pp->actor->getPosWithOffsetZ(), pp->cursector) && Facing(actor, actor->user.targetActor))
                                 PlayerSound(straightsnds[choose_snd], v3df_doppler | v3df_follow | v3df_dontpan, pp);
                         }
                     }
                 }
 
                 actor->spr.pos.XY() = hitActor->spr.pos.XY();
-                actor->spr.angle = hitActor->spr.angle;
-                actor->spr.angle += DAngle180;
+                actor->spr.Angles.Yaw = hitActor->spr.Angles.Yaw;
+                actor->spr.Angles.Yaw += DAngle180;
                 HelpMissileLateral(actor, 2000);
-                actor->spr.angle = hitActor->spr.angle;
+                actor->spr.Angles.Yaw = hitActor->spr.Angles.Yaw;
 
                 NewStateGroup(actor, sg_BunnyScrew);
                 NewStateGroup(hitActor, sg_BunnyScrew);
@@ -1116,7 +1113,7 @@ int DoBunnyRipHeart(DSWActor* actor)
     actor->user.WaitTics = 6 * 120;
 
     // player face bunny
-    target->spr.angle = VecToAngle(actor->spr.pos - target->spr.pos);
+    target->spr.Angles.Yaw = (actor->spr.pos - target->spr.pos).Angle();
     return 0;
 }
 
@@ -1148,9 +1145,8 @@ void BunnyHatch(DSWActor* actor)
     {
         auto actorNew = insertActor(actor->sector(), STAT_DEFAULT);
         actorNew->spr.pos = actor->spr.pos;
-        actorNew->spr.xrepeat = 30;  // Baby size
-        actorNew->spr.yrepeat = 24;
-        actorNew->spr.angle = RandomAngle();
+		actorNew->spr.scale = DVector2(0.46875, 0.375);  // Baby size
+        actorNew->spr.Angles.Yaw = RandomAngle();
         actorNew->spr.pal = 0;
         SetupBunny(actorNew);
         actorNew->spr.shade = actor->spr.shade;
@@ -1209,9 +1205,8 @@ DSWActor* BunnyHatch2(DSWActor* actor)
 {
     auto actorNew = insertActor(actor->sector(), STAT_DEFAULT);
     actorNew->spr.pos = actor->spr.pos;
-    actorNew->spr.xrepeat = 30;  // Baby size
-    actorNew->spr.yrepeat = 24;
-    actorNew->spr.angle = RandomAngle();
+	actorNew->spr.scale = DVector2(0.46875, 0.375);  // Baby size
+    actorNew->spr.Angles.Yaw = RandomAngle();
     actorNew->spr.pal = 0;
     SetupBunny(actorNew);
     actorNew->spr.shade = actor->spr.shade;
@@ -1237,10 +1232,10 @@ DSWActor* BunnyHatch2(DSWActor* actor)
     if (TEST_BOOL3(actor))
     {
         PickJumpMaxSpeed(actorNew, -600-RandomRange(600));
-        actorNew->spr.xrepeat = actorNew->spr.yrepeat = 64;
+        actorNew->spr.scale = DVector2(1, 1);
         actorNew->vel.X = 9.375 + RandomRangeF(62.5);
         actorNew->user.Health = 1; // Easy to pop. Like shootn' skeet.
-		actorNew->spr.angle += RandomAngle(22.5) - RandomAngle(22.5);
+		actorNew->spr.Angles.Yaw += RandomAngle(22.5) - RandomAngle(22.5);
     }
     else
         PickJumpMaxSpeed(actorNew, -600);
@@ -1312,26 +1307,16 @@ int DoBunnyMove(DSWActor* actor)
 
     if (RandomRange(1000) > 985 && actor->spr.pal != PALETTE_PLAYER1 && actor->user.track < 0)
     {
-        switch (actor->sector()->floorpicnum)
+        if (tileflags(actor->sector()->floortexture) & TFLAG_BUNNYFRIENDLY)
         {
-        case 153:
-        case 154:
-        case 193:
-        case 219:
-        case 2636:
-        case 2689:
-        case 3561:
-        case 3562:
-        case 3563:
-        case 3564:
-            NewStateGroup(actor,sg_BunnyStand);
-            break;
-        default:
-			actor->spr.angle = RandomAngle();
+            NewStateGroup(actor, sg_BunnyStand);
+        }
+        else
+        {
+			actor->spr.Angles.Yaw = RandomAngle();
             actor->user.jump_speed = -350;
             DoActorBeginJump(actor);
             actor->user.ActorActionFunc = DoActorMoveJump;
-            break;
         }
     }
 
@@ -1381,24 +1366,14 @@ int DoBunnyEat(DSWActor* actor)
 
     DoActorSectorDamage(actor);
 
-    switch (actor->sector()->floorpicnum)
+    if (tileflags(actor->sector()->floortexture) & TFLAG_BUNNYFRIENDLY)
     {
-    case 153:
-    case 154:
-    case 193:
-    case 219:
-    case 2636:
-    case 2689:
-    case 3561:
-    case 3562:
-    case 3563:
-    case 3564:
         if (RandomRange(1000) > 970)
-            NewStateGroup(actor,sg_BunnyRun);
-        break;
-    default:
+            NewStateGroup(actor, sg_BunnyRun);
+    }
+    else
+    {
         NewStateGroup(actor,sg_BunnyRun);
-        break;
     }
     return 0;
 }
@@ -1466,8 +1441,10 @@ int DoBunnyGrowUp(DSWActor* actor)
 
     if ((actor->user.Counter -= ACTORMOVETICS) <= 0)
     {
-        if ((++actor->spr.xrepeat) > 64) actor->spr.xrepeat = 64;
-        if ((++actor->spr.yrepeat) > 64) actor->spr.yrepeat = 64;
+		actor->spr.scale.X += (REPEAT_SCALE);
+		actor->spr.scale.Y += (REPEAT_SCALE);
+        if ((actor->spr.scale.X) > 1) actor->spr.scale.X = (1);
+		if ((actor->spr.scale.Y) > 1) actor->spr.scale.Y = (1);
         actor->user.Counter = 60;
     }
 

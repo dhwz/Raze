@@ -39,6 +39,11 @@ static actionSeq FishSeq[] = {
 };
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void BuildFishLimb(DExhumedActor* pActor, int anim)
 {
@@ -53,8 +58,7 @@ void BuildFishLimb(DExhumedActor* pActor, int anim)
     pChunkActor->spr.pal = 0;
     pChunkActor->vel.X = ((RandomSize(5) - 16) << 4);
     pChunkActor->vel.Y = ((RandomSize(5) - 16) << 4);
-    pChunkActor->spr.xrepeat = 64;
-    pChunkActor->spr.yrepeat = 64;
+    pChunkActor->spr.scale = DVector2(1, 1);
     pChunkActor->spr.xoffset = 0;
     pChunkActor->spr.yoffset = 0;
     pChunkActor->vel.Z = ((-(RandomByte() + 512)) * 2) / 256.;
@@ -63,7 +67,7 @@ void BuildFishLimb(DExhumedActor* pActor, int anim)
 
     pChunkActor->spr.picnum = anim;
     pChunkActor->spr.lotag = runlist_HeadRun() + 1;
-    pChunkActor->set_const_clipdist(0);
+    pChunkActor->clipdist = 0;
 
 //	GrabTimeSlot(3);
 
@@ -74,8 +78,14 @@ void BuildFishLimb(DExhumedActor* pActor, int anim)
 
 void BuildBlood(const DVector3& pos, sectortype* pSector)
 {
-    BuildAnim(nullptr, kSeqFish, 36, pos, pSector, 75, 128);
+    BuildAnim(nullptr, kSeqFish, 36, pos, pSector, 1.171875, 128);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIFishLimb::Tick(RunListEvent* ev)
 {
@@ -119,7 +129,7 @@ void AIFishLimb::Tick(RunListEvent* ev)
     }
     else
     {
-        auto coll = movesprite(pActor, pActor->vel, 256., 2560, -2560, CLIPMASK1);
+        auto coll = movespritevel(pActor, pActor->vel, 1., -10, CLIPMASK1);
         if (coll.type != kHitNone)
         {
             pActor->vel.X = 0;
@@ -129,6 +139,12 @@ void AIFishLimb::Tick(RunListEvent* ev)
 
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AIFishLimb::Draw(RunListEvent* ev)
 {
     auto pActor = ev->pObjActor;
@@ -137,6 +153,11 @@ void AIFishLimb::Draw(RunListEvent* ev)
     seq_PlotSequence(ev->nParam, nSeq, pActor->nFrame, 1);
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void BuildFish(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, DAngle nAngle)
 {
@@ -147,15 +168,14 @@ void BuildFish(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, 
     }
     else
     {
-        nAngle = pActor->spr.angle;
+        nAngle = pActor->spr.Angles.Yaw;
         ChangeActorStat(pActor, 103);
     }
 
     pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
     pActor->spr.shade = -12;
-    pActor->set_const_clipdist(80);
-    pActor->spr.xrepeat = 40;
-    pActor->spr.yrepeat = 40;
+    pActor->clipdist = 20;
+    pActor->spr.scale = DVector2(0.625, 0.625);
     pActor->spr.pal = pActor->sector()->ceilingpal;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
@@ -163,7 +183,7 @@ void BuildFish(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, 
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
     pActor->vel.Z = 0;
-    pActor->spr.angle = nAngle;
+    pActor->spr.Angles.Yaw = nAngle;
     pActor->spr.lotag = runlist_HeadRun() + 1;
     pActor->spr.hitag = 0;
     pActor->spr.extra = -1;
@@ -182,9 +202,15 @@ void BuildFish(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, 
     nCreaturesTotal++;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void IdleFish(DExhumedActor* pActor, int edx)
 {
-    pActor->spr.angle += DAngle180 + DAngle45 - RandomAngle9();
+    pActor->spr.Angles.Yaw += DAngle180 + DAngle45 - RandomAngle9();
     pActor->norm_ang();
 
     pActor->VelFromAngle(-8);
@@ -206,6 +232,12 @@ void IdleFish(DExhumedActor* pActor, int edx)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void DestroyFish(DExhumedActor* pActor)
 {
     runlist_DoSubRunRec(pActor->spr.intowner);
@@ -214,7 +246,11 @@ void DestroyFish(DExhumedActor* pActor)
     DeleteActor(pActor);
 }
 
-
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIFish::Draw(RunListEvent* ev)
 {
@@ -226,6 +262,12 @@ void AIFish::Draw(RunListEvent* ev)
     ev->pTSprite->ownerActor = nullptr;
     return;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIFish::RadialDamage(RunListEvent* ev)
 {
@@ -247,6 +289,12 @@ void AIFish::RadialDamage(RunListEvent* ev)
     // fall through
     Damage(ev);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void AIFish::Damage(RunListEvent* ev)
 {
@@ -296,6 +344,12 @@ void AIFish::Damage(RunListEvent* ev)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void AIFish::Tick(RunListEvent* ev)
 {
     auto pActor = ev->pObjActor;
@@ -338,8 +392,8 @@ void AIFish::Tick(RunListEvent* ev)
                 pActor->nAction = 2;
                 pActor->nFrame = 0;
 
-                int nAngle = getangle(pTargetActor->spr.pos - pActor->spr.pos);
-                pActor->set_int_zvel(bsin(nAngle, -5));
+                DAngle nAngle = (pTargetActor->spr.pos - pActor->spr.pos).Angle();
+                pActor->vel.Z = nAngle.Sin() * 2;
 
                 pActor->nCount = RandomSize(6) + 90;
             }
@@ -367,12 +421,12 @@ void AIFish::Tick(RunListEvent* ev)
         else
         {
             PlotCourseToSprite(pActor, pTargetActor);
-            double nHeight = GetActorHeightF(pActor) * 0.5;
+            double nHeight = GetActorHeight(pActor) * 0.5;
             double z = fabs(pTargetActor->spr.pos.Z - pActor->spr.pos.Z);
 
             if (z <= nHeight)
             {
-				pActor->vel.XY() = pActor->spr.angle.ToVector() * (32 - 8);
+				pActor->vel.XY() = pActor->spr.Angles.Yaw.ToVector() * (32 - 8);
             }
             else
             {
@@ -380,7 +434,7 @@ void AIFish::Tick(RunListEvent* ev)
                 pActor->vel.Y = 0;
             }
 
-            pActor->set_int_zvel(int((pTargetActor->spr.pos.Z - pActor->spr.pos.Z) * zworldtoint / 8));
+            pActor->vel.Z = (pTargetActor->spr.pos.Z - pActor->spr.pos.Z) / 8.;
         }
         break;
     }
@@ -413,7 +467,7 @@ void AIFish::Tick(RunListEvent* ev)
     auto pSector =pActor->sector();
 
     // loc_2EF54
-    Collision coll = movesprite(pActor, pActor->vel * 4, 2048., 0, 0, CLIPMASK0);
+    Collision coll = movespritevel(pActor, pActor->vel * 4, 8., 0, CLIPMASK0);
 
     if (!(pActor->sector()->Flag & kSectUnderwater))
     {
@@ -452,7 +506,7 @@ void AIFish::Tick(RunListEvent* ev)
                 if (pHitAct->spr.statnum == 100)
                 {
                     pActor->pTarget = coll.actor();
-                    pActor->spr.angle = VecToAngle(pHitAct->spr.pos - pActor->spr.pos);
+                    pActor->spr.Angles.Yaw = (pHitAct->spr.pos - pActor->spr.pos).Angle();
 
                     if (nAction != 3)
                     {

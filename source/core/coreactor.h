@@ -4,6 +4,7 @@
 #include "maptypes.h"
 #include "build.h"
 #include "actorinfo.h"
+#include "clip.h"
 
 enum
 {
@@ -42,11 +43,14 @@ public:
 	spritesmooth_t spsmooth;
 
 	DVector3 opos;
-	int time;
-	DAngle oang;
+	DRotator PrevAngles;
 	DVector3 vel;
+	double oviewzoffset, viewzoffset;
+	double clipdist;
 
+	int time;
 	int16_t spritesetindex;
+	int16_t dispicnum;
 
 
 	DCoreActor() = default;
@@ -59,7 +63,9 @@ public:
 	virtual void BeginPlay() {}
 	void OnDestroy() override;
 	size_t PropagateMark() override;
-	int GetOffsetAndHeight(int& height);
+	double GetOffsetAndHeight(double& height);
+	
+	void initFromSprite(spritetype* pspr);
 
 	bool exists() const
 	{
@@ -77,130 +83,35 @@ public:
 		return { int(spr.pos.X * worldtoint), int(spr.pos.Y * worldtoint), int(spr.pos.Z * zworldtoint) };
 	}
 
-	void set_int_z(int z)
-	{
-		spr.pos.Z = z * zinttoworld;
-	}
-
-	void add_int_z(int z)
-	{
-		spr.pos.Z += z * zinttoworld;
-	}
-
-	void add_int_pos(const vec3_t& add)
-	{
-		spr.pos += { add.X* inttoworld, add.Y* inttoworld, add.Z* zinttoworld };
-	}
-
 	constexpr int int_ang() const
 	{
-		return spr.angle.Buildang();
-	}
-
-	void set_int_ang(int a)
-	{
-		spr.angle = DAngle::fromBuild(a);
-	}
-
-	void add_int_ang(int a)
-	{
-		spr.angle += DAngle::fromBuild(a);
+		return spr.Angles.Yaw.Buildang();
 	}
 
 	void norm_ang()
 	{
-		spr.angle = spr.angle.Normalized360();
-	}
-
-	int int_zvel() const
-	{
-		return vel.Z * zworldtoint;
-	}
-
-	void set_int_zvel(int v)
-	{
-		vel.Z = v * zinttoworld;
-	}
-
-	void add_int_zvel(int v)
-	{
-		vel.Z += v * zinttoworld;
-	}
-
-	// Note: Both Duke and SW use Q12.4 for this, Exhumed doesn't seem to treat horizontal velocity with a fixed factor.
-	int int_xvel() const
-	{
-		return vel.X * worldtoint;
-	}
-
-	void set_int_xvel(int v)
-	{
-		vel.X = v * inttoworld;
-	}
-
-	void add_int_xvel(int v)
-	{
-		vel.X += v * inttoworld;
-	}
-
-	vec3_t int_vel() const
-	{
-		return vec3_t(FloatToFixed(vel.X), FloatToFixed(vel.Y), FloatToFixed(vel.Z));
-	}
-
-	void set_int_bvel_x(int x)
-	{
-		vel .X = FixedToFloat(x);
-	}
-
-	void set_int_bvel_y(int x)
-	{
-		vel .Y = FixedToFloat(x);
-	}
-
-	void set_int_bvel_z(int x)
-	{
-		vel .Z = FixedToFloat(x);
-	}
-
-	void add_int_bvel_x(int x)
-	{
-		vel .X += FixedToFloat(x);
-	}
-
-	void add_int_bvel_y(int x)
-	{
-		vel .Y += FixedToFloat(x);
-	}
-
-	void add_int_bvel_z(int x)
-	{
-		vel .Z += FixedToFloat(x);
-	}
-
-	void ZeroVelocityXY()
-	{
-		vel .X = vel .Y = 0;
-	}
-
-	void ZeroVelocity()
-	{
-		vel = { 0,0,0 };
+		spr.Angles.Yaw = spr.Angles.Yaw.Normalized360();
 	}
 
 	DVector3 interpolatedpos(double const interpfrac)
 	{
-		return ::interpolatedvalue(opos, spr.pos, interpfrac);
+		return interpolatedvalue(opos, spr.pos, interpfrac);
 	}
 
-	DAngle interpolatedangle(double const interpfrac)
+	DAngle interpolatedyaw(double const interpfrac)
 	{
-		return ::interpolatedvalue(oang, spr.angle, interpfrac);
+		return interpolatedvalue(PrevAngles.Yaw, spr.Angles.Yaw, interpfrac);
+	}
+
+	DRotator interpolatedangles(double const interpfrac)
+	{
+		return interpolatedvalue(PrevAngles, spr.Angles, interpfrac);
 	}
 
 	void backupz()
 	{
 		opos.Z = spr.pos.Z;
+		oviewzoffset = viewzoffset;
 	}
 
 	void backupvec2()
@@ -211,17 +122,71 @@ public:
 	void backuppos()
 	{
 		opos = spr.pos;
+		oviewzoffset = viewzoffset;
 	}
 
 	void backupang()
 	{
-		oang = spr.angle;
+		PrevAngles = spr.Angles;
 	}
 
 	void backuploc()
 	{
 		backuppos();
 		backupang();
+	}
+
+	void restorez()
+	{
+		spr.pos.Z = opos.Z;
+		viewzoffset = oviewzoffset;
+	}
+
+	void restorevec2()
+	{
+		spr.pos.XY() = opos.XY();
+	}
+
+	void restorepos()
+	{
+		spr.pos = opos;
+		viewzoffset = oviewzoffset;
+	}
+
+	void restoreang()
+	{
+		spr.Angles = PrevAngles;
+	}
+
+	void restoreloc()
+	{
+		restorepos();
+		restoreang();
+	}
+
+	double getOffsetZ()
+	{
+		return spr.pos.Z + viewzoffset;
+	}
+
+	double getPrevOffsetZ()
+	{
+		return opos.Z + oviewzoffset;
+	}
+
+	DVector3 getPosWithOffsetZ()
+	{
+		return spr.pos.plusZ(viewzoffset);
+	}
+
+	DVector3 getPrevPosWithOffsetZ()
+	{
+		return opos.plusZ(oviewzoffset);
+	}
+
+	DVector3 getRenderPos(const double interpfrac)
+	{
+		return interpolatedpos(interpfrac).plusZ(interpolatedvalue(oviewzoffset, viewzoffset, interpfrac));
 	}
 
 	sectortype* sector() const
@@ -250,34 +215,14 @@ public:
 		return static_cast<PClassActor*>(GetClass())->ActorInfo()->SpriteSet;
 	}
 	
-	double fClipdist() const
-	{
-		return spr. clipdist * 0.25;
-	}
-	
-	int int_clipdist()
-	{
-		return spr. clipdist << 2;
-	}
-	
-	void set_native_clipdist(int val)
-	{
-		spr. clipdist = val;
-	}
-	
 	int native_clipdist()
 	{
-		return spr. clipdist;
-	}
-	
-	void set_const_clipdist(int val) // only for searching purposes
-	{
-		spr. clipdist = val;
+		return int(clipdist * 4);
 	}
 	
 	void copy_clipdist(DCoreActor* other)
 	{
-		spr. clipdist = other->spr. clipdist;
+		clipdist = other->clipdist;
 	}
 
 };
@@ -288,20 +233,14 @@ extern TArray<walltype> wall;
 
 
 // Masking these into the object index to keep it in 16 bit was probably the single most dumbest and pointless thing Build ever did.
-// Gonna be fun to globally replace these to finally lift the limit this imposes on map size.
 // Names taken from DukeGDX
 enum EHitBits
 {
 	kHitNone = 0,
-	kHitTypeMask = 0xC000,
-	kHitTypeMaskSW = 0x1C000, // SW has one more relevant bit
-	kHitIndexMask = 0x3FFF,
 	kHitSector = 0x4000,
 	kHitWall = 0x8000,
 	kHitSprite = 0xC000,
 	kHitVoid = 0x10000,      // SW only
-
-
 };
 
 // This serves as input/output for all functions dealing with collisions, hits, etc.
@@ -319,10 +258,13 @@ struct HitInfoBase
 		hitWall = nullptr;
 		hitActor = nullptr;
 	}
-	
-	const vec3_t int_hitpos() const
+
+	void set(sectortype* sect, walltype* wal, DCoreActor* actor, const DVector3& pos)
 	{
-		return { int(hitpos.X * worldtoint), int(hitpos.Y * worldtoint), int(hitpos.Z * zworldtoint), };
+		hitSector = sect;
+		hitWall = wal;
+		hitActor = actor;
+		hitpos = pos;
 	}
 };
 
@@ -467,7 +409,7 @@ class TSectIterator
 {
 	DCoreActor* next;
 public:
-	//[[deprecated]]
+
 	TSectIterator(int stat)
 	{
 		next = sector[stat].firstEntry;
@@ -478,7 +420,6 @@ public:
 		next = stat->firstEntry;
 	}
 
-	//[[deprecated]]
 	void Reset(int stat)
 	{
 		next = sector[stat].firstEntry;
@@ -543,95 +484,26 @@ void InitSpriteLists();
 void SetActorZ(DCoreActor* actor, const DVector3& newpos);
 void SetActor(DCoreActor* actor, const DVector3& newpos);
 
-inline int clipmove(vec3_t& pos, sectortype** const sect, int xvect, int yvect,
-	int const walldist, int const ceildist, int const flordist, unsigned const cliptype, CollisionBase& result, int clipmoveboxtracenum = 3)
+inline int clipmove(DVector3& pos, sectortype** const sect, const DVector2& mvec,
+	double const walldist, double const ceildist, double const flordist, unsigned const cliptype, CollisionBase& result, int clipmoveboxtracenum = 3)
 {
+	auto vect = vec3_t(int(pos.X * worldtoint), int(pos.Y * worldtoint), int(pos.Z * zworldtoint));
 	int sectno = *sect ? sector.IndexOf(*sect) : -1;
-	result = clipmove_(&pos, &sectno, xvect, yvect, walldist, ceildist, flordist, cliptype, clipmoveboxtracenum);
+	result = clipmove_(&vect, &sectno, FloatToFixed<18>(mvec.X), FloatToFixed<18>(mvec.Y), int(walldist * worldtoint), int(ceildist * zworldtoint), int(flordist * zworldtoint), cliptype, clipmoveboxtracenum);
+	pos = { vect.X * inttoworld, vect.Y * inttoworld, vect.Z * zinttoworld };
 	*sect = sectno == -1 ? nullptr : &sector[sectno];
 	return result.type;
 }
 
-inline int clipmove(DVector3& pos, sectortype** const sect, int xvect, int yvect,
-	int const walldist, int const ceildist, int const flordist, unsigned const cliptype, CollisionBase& result, int clipmoveboxtracenum = 3)
-{
-	auto vect = vec3_t(pos.X * worldtoint, pos.Y * worldtoint, pos.Z * zworldtoint);
-	int res = clipmove(vect, sect, xvect, yvect, walldist, ceildist, flordist, cliptype, result, clipmoveboxtracenum);
-	pos = { vect.X * inttoworld, vect.Y * inttoworld, vect.Z * zinttoworld };
-	return res;
-}
-
-inline int clipmove(DVector3& pos, sectortype** const sect, int xvect, int yvect,
-	int const walldist, double const ceildist, double const flordist, unsigned const cliptype, CollisionBase& result, int clipmoveboxtracenum = 3)
-{
-	auto vect = vec3_t(pos.X * worldtoint, pos.Y * worldtoint, pos.Z * zworldtoint);
-	int res = clipmove(vect, sect, xvect, yvect, walldist, int(ceildist * zworldtoint), int(flordist * zworldtoint), cliptype, result, clipmoveboxtracenum);
-	pos = { vect.X * inttoworld, vect.Y * inttoworld, vect.Z * zinttoworld };
-	return res;
-}
-
-// this one should be the final version everything needs to migrate to
-inline int clipmove(DVector3& pos, sectortype** const sect, const DVector2& mvec,
+inline int clipmove(DVector2& pos, double z, sectortype** const sect, const DVector2& mvec,
 	double const walldist, double const ceildist, double const flordist, unsigned const cliptype, CollisionBase& result, int clipmoveboxtracenum = 3)
 {
-	auto vect = vec3_t(pos.X * worldtoint, pos.Y * worldtoint, pos.Z * zworldtoint);
-	int res = clipmove(vect, sect, int(mvec.X * worldtoint), int(mvec.Y * worldtoint), int(walldist * worldtoint), int(ceildist * zworldtoint), int(flordist * zworldtoint), cliptype, result, clipmoveboxtracenum);
-	pos = { vect.X * inttoworld, vect.Y * inttoworld, vect.Z * zinttoworld };
+	auto vect = DVector3(pos, z);
+	auto res = clipmove(vect, sect, mvec, walldist, ceildist, flordist, cliptype, result);
+	pos = vect.XY();
 	return res;
 }
 
-
-inline int pushmove(vec3_t* const vect, sectortype** const sect, int32_t const walldist, int32_t const ceildist, int32_t const flordist,
-	uint32_t const cliptype, bool clear = true)
-{
-	int sectno = *sect ? sector.IndexOf(*sect) : -1;
-	int res = pushmove_(vect, &sectno, walldist, ceildist, flordist, cliptype, clear);
-	*sect = sectno == -1 ? nullptr : &sector[sectno];
-	return res;
-}
-
-inline int pushmove(DVector3& pos, sectortype** const sect, int32_t const walldist, int32_t const ceildist, int32_t const flordist,
-	uint32_t const cliptype, bool clear = true)
-{
-	auto vect = vec3_t(pos.X * worldtoint, pos.Y * worldtoint, pos.Z * zworldtoint);
-	int sectno = *sect ? sector.IndexOf(*sect) : -1;
-	int res = pushmove_(&vect, &sectno, walldist, ceildist, flordist, cliptype, clear);
-	pos = { vect.X * inttoworld, vect.Y * inttoworld, vect.Z * zinttoworld };
-	*sect = sectno == -1 ? nullptr : &sector[sectno];
-	return res;
-}
-
-inline int pushmove(DVector3& pos, sectortype** const sect, int32_t const walldist, double const ceildist, double const flordist,
-	uint32_t const cliptype, bool clear = true)
-{
-	auto vect = vec3_t(pos.X * worldtoint, pos.Y * worldtoint, pos.Z * zworldtoint);
-	int sectno = *sect ? sector.IndexOf(*sect) : -1;
-	int res = pushmove_(&vect, &sectno, walldist, int(ceildist * zworldtoint), int(flordist * zworldtoint), cliptype, clear);
-	pos = { vect.X * inttoworld, vect.Y * inttoworld, vect.Z * zinttoworld };
-	*sect = sectno == -1 ? nullptr : &sector[sectno];
-	return res;
-}
-
-#if 0
-inline int pushmove(DVector3& pos, sectortype** const sect, double const walldist, double const ceildist, double const flordist,
-	uint32_t const cliptype, bool clear = true)
-{
-	auto vect = vec3_t(pos.X * worldtoint, pos.Y * worldtoint, pos.Z * zworldtoint);
-	int sectno = *sect ? sector.IndexOf(*sect) : -1;
-	int res = pushmove_(&vect, &sectno, walldist * worldtoint, ceildist * worldtoint, flordist * worldtoint, cliptype, clear);
-	pos = { vect.X * inttoworld, vect.Y * inttoworld, vect.Z * zinttoworld };
-	*sect = sectno == -1 ? nullptr : &sector[sectno];
-	return res;
-}
-#endif
-
-inline int pushmove(DCoreActor* actor, sectortype** const sect, int32_t const walldist, int32_t const ceildist, int32_t const flordist,
-	uint32_t const cliptype, bool clear = true)
-{
-	return pushmove(actor->spr.pos, sect, walldist, ceildist, flordist, cliptype, clear);
-}
-
-tspritetype* renderAddTsprite(tspriteArray& tsprites, DCoreActor* actor);
 
 inline PClassActor* PClass::FindActor(FName name)
 {

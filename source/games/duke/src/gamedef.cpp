@@ -1939,8 +1939,8 @@ int ConCompiler::parsecommand()
 		gs.max_armour_amount = parseone();
 		gs.respawnactortime = parseone();
 		gs.respawnitemtime = parseone();
-		gs.playerfriction = parseone();
-		if (isPlutoPak() || isRR()) gs.gravity = parseone();
+		gs.playerfriction = FixedToFloat(parseone());
+		if (isPlutoPak() || isRR()) gs.gravity = FixedToFloat<8>(parseone());
 		gs.rpgblastradius = parseone();
 		gs.pipebombblastradius = parseone();
 		gs.shrinkerblastradius = parseone();
@@ -3108,7 +3108,7 @@ void ConCompiler::compilecon(const char *filenam)
 
 
 	// Install the crosshair toggle messages in the CVAR.
-	cl_crosshair.SetToggleMessages(quoteMgr.GetRawQuote(QUOTE_CROSSHAIR_OFF), quoteMgr.GetRawQuote(QUOTE_CROSSHAIR_OFF-1));
+	cl_crosshair->SetToggleMessages(quoteMgr.GetRawQuote(QUOTE_CROSSHAIR_OFF), quoteMgr.GetRawQuote(QUOTE_CROSSHAIR_OFF-1));
 }
 
 //==========================================================================
@@ -3174,21 +3174,21 @@ void ConCompiler::setmusic()
 
 void loadcons()
 {
-	gs = {};
+	memset(&gs, 0, sizeof(gs));
 	gs.respawnactortime = 768;
 	gs.bouncemineblastradius = 2500;
 	gs.respawnitemtime = 768;
 	gs.morterblastradius = 2500;
 	gs.numfreezebounces = 3;
 	gs.pipebombblastradius = 2500;
-	gs.playerfriction = 0xCFD0;
+	gs.playerfriction = FixedToFloat(0xCFD0);
 	gs.rpgblastradius = 1780;
 	gs.seenineblastradius = 2048;
 	gs.shrinkerblastradius = 650;
-	gs.gravity = 176;
+	gs.gravity = 0.6875;
 	gs.tripbombblastradius = 3880;
-	gs.int_playerheight = PHEIGHT_DUKE << 8;
-	gs.playerheight = PHEIGHT_DUKE;
+	gs.gutsscale = 0.5;
+	gs.playerheight = 40;
 	gs.displayflags = DUKE3D_NO_WIDESCREEN_PINNING;
 
 
@@ -3240,6 +3240,7 @@ void loadcons()
 	// These can only be retrieved AFTER loading the scripts.
 	FinalizeGameVars();
 	S_WorldTourMappingsForOldSounds(); // create a sound mapping for World Tour.
+	soundEngine->HashSounds();
 	S_CacheAllSounds();
 	comp.setmusic();
 

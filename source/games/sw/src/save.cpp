@@ -435,10 +435,7 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, PLAYER& w, PLAYER*
 {
 	if (arc.BeginObject(keyname))
 	{
-		arc("x", w.pos.X)
-			("y", w.pos.Y)
-			("z", w.pos.Z)
-			("lv_sectnum", w.lv_sector)
+		arc("lv_sectnum", w.lv_sector)
 			("lv_x", w.lv.X)
 			("lv_y", w.lv.Y)
 			("lv_z", w.lv.Z)
@@ -476,16 +473,13 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, PLAYER& w, PLAYER*
 			("camera_check_time_delay", w.camera_check_time_delay)
 			("cursectnum", w.cursector)
 			("lastcursectnum", w.lastcursector)
-			("horizon", w.horizon)
-			("angle", w.angle)
+			("horizon", w.Angles)
+			("angle", w.Angles)
 			("recoil_amt", w.recoil_amt)
 			("recoil_speed", w.recoil_speed)
 			("recoil_ndx", w.recoil_ndx)
 			("recoil_horizoff", w.recoil_horizoff)
 			("recoil_ohorizoff", w.recoil_ohorizoff)
-			("oldposx", w.oldpos.X)
-			("oldposy", w.oldpos.Y)
-			("oldposz", w.oldpos.Z)
 			("revolvex", w.Revolve.X)
 			("revolvey", w.Revolve.Y)
 			("RevolveDeltaAng", w.RevolveDeltaAng)
@@ -574,7 +568,6 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, PLAYER& w, PLAYER*
 	}
 	if (arc.isReading())
 	{
-		w.opos = w.pos;
 		w.ovect = w.vect;
 		w.obob_z = w.bob_z;
 		w.input = {};
@@ -1092,7 +1085,9 @@ void DSWActor::Serialize(FSerializer& arc)
 	Super::Serialize(arc);
 	arc("hasuser", hasUser)
 		("tempwall", tempwall)
-		("owner", ownerActor);
+		("owner", ownerActor)
+		("texparam", texparam)
+		("texparam2", texparam2);
 	if (hasUser) arc("user", user); // only write if defined.
 }
 
@@ -1115,7 +1110,6 @@ void GameInterface::SerializeGameState(FSerializer& arc)
 			.Array("players", Player, numplayers)
 			("skill", Skill)
 			("screenpeek", screenpeek)
-			("randomseed", randomseed)
 			.Array("sop", SectorObject, countof(SectorObject))
 			.Array("swf", &SineWaveFloor[0][0], 6 * 21)
 			.Array("sinewall", &SineWall[0][0], 10 * 64)
@@ -1166,7 +1160,7 @@ void GameInterface::SerializeGameState(FSerializer& arc)
 		int SavePlayClock = PlayClock;
 		InitTimingVars();
 		PlayClock = SavePlayClock;
-		defineSky(DEFAULTPSKY, pskybits_override, nullptr, 0, parallaxyscale_override / 65536.f);
+		defineSky(nullptr, pskybits_override, nullptr, 0, parallaxyscale_override / 8192.f);
 		InitNetVars();
 
 		screenpeek = myconnectindex;

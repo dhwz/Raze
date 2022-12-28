@@ -49,6 +49,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "razemenu.h"
 #include "v_draw.h"
 #include "interpolate.h"
+#include "tilesetbuilder.h"
 #include "psky.h"
 
 BEGIN_PS_NS
@@ -116,7 +117,7 @@ void GameInterface::loadPalette()
     LoadPaletteLookups();
 }
 
-void CopyTileToBitmap(int nSrcTile, int nDestTile, int xPos, int yPos);
+void CopyTileToBitmap(FTextureID nSrcTile, FTextureID nDestTile, int xPos, int yPos);
 
 // void TestSaveLoad();
 void LoadStatus();
@@ -177,6 +178,12 @@ int nTimeLimit;
 
 int bVanilla = 0;
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void DebugOut(const char *fmt, ...)
 {
 #ifdef _DEBUG
@@ -194,6 +201,12 @@ void DoClockBeep()
         PlayFX2(StaticSound[kSound74], i);
     }
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void DoRedAlert(int nVal)
 {
@@ -214,11 +227,17 @@ void DoRedAlert(int nVal)
     }
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void DrawClock()
 {
     int ebp = 49;
 
-	auto pixels = TileFiles.tileMakeWritable(kTile3603);
+	auto pixels = GetWritablePixels(tileGetTextureID(kTile3603));
 
     memset(pixels, TRANSPARENT_INDEX, 4096);
 
@@ -233,9 +252,11 @@ void DrawClock()
     while (nVal)
     {
         int v2 = nVal & 0xF;
+        auto texid = tileGetTextureID(v2 + kClockSymbol1);
+        auto tex = TexMan.GetGameTexture(texid);
         int yPos = 32 - tileHeight(v2 + kClockSymbol1) / 2;
 
-        CopyTileToBitmap(v2 + kClockSymbol1, kTile3603, ebp - tileWidth(v2 + kClockSymbol1) / 2, yPos);
+        CopyTileToBitmap(texid, tileGetTextureID(kTile3603), ebp - tex->GetTexelWidth() / 2, yPos);
 
         ebp -= 15;
 
@@ -244,6 +265,12 @@ void DrawClock()
 
     DoEnergyTile();
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 double calc_interpfrac()
 {
@@ -258,6 +285,12 @@ void DoGameOverScene(bool finallevel)
             gameaction = ga_mainmenu;
         });
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void GameMove(void)
 {
@@ -324,6 +357,12 @@ static int SelectAltWeapon(int weap2)
 }
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void GameInterface::Ticker()
 {
 
@@ -333,14 +372,21 @@ void GameInterface::Ticker()
 	}
     else if (EndLevel == 0)
     {
+        // this must be done before the view is backed up.
+        PlayerList[nLocalPlayer].Angles.resetRenderAngles();
+        UpdatePlayerSpriteAngle(&PlayerList[nLocalPlayer]);
+
         inita = inita.Normalized360();
+
+        auto& lPlayerVel = sPlayerInput[nLocalPlayer].vel;
+
+        auto inputvect = DVector2(localInput.fvel, localInput.svel).Rotated(inita) * 0.375;
 
         for (int i = 0; i < 4; i++)
         {
-            lPlayerXVel += localInput.fvel * bcos(inita.Buildang()) + localInput.svel * bsin(inita.Buildang());
-            lPlayerYVel += localInput.fvel * bsin(inita.Buildang()) - localInput.svel * bcos(inita.Buildang());
-            lPlayerXVel -= (lPlayerXVel >> 5) + (lPlayerXVel >> 6);
-            lPlayerYVel -= (lPlayerYVel >> 5) + (lPlayerYVel >> 6);
+            // Velocities are stored as Q14.18
+            lPlayerVel += inputvect;
+            lPlayerVel *= 0.953125;
         }
         UpdateInterpolations();
 
@@ -436,8 +482,6 @@ void GameInterface::Ticker()
         sPlayerInput[nLocalPlayer].actions = localInput.actions;
         if (oldactions & SB_CENTERVIEW) sPlayerInput[nLocalPlayer].actions |= SB_CENTERVIEW;        
 
-        sPlayerInput[nLocalPlayer].xVel = lPlayerXVel;
-        sPlayerInput[nLocalPlayer].yVel = lPlayerYVel;
         sPlayerInput[nLocalPlayer].buttons = lLocalCodes;
         sPlayerInput[nLocalPlayer].pTarget = bestTarget;
         sPlayerInput[nLocalPlayer].nAngle = localInput.avel;
@@ -463,7 +507,7 @@ void GameInterface::Ticker()
         videoTintBlood(flash * 30, flash * 30, flash * 30);
         if (EndLevel == 1)
         {
-            if (!soundEngine->GetSoundPlayingInfo(SOURCE_None, nullptr, StaticSound[59] + 1))
+            if (!soundEngine->GetSoundPlayingInfo(SOURCE_None, nullptr, FSoundID::fromInt(StaticSound[59] + 1)))
             {
                 videoTintBlood(0, 0, 0);
                 CompleteLevel(NextMap);
@@ -474,23 +518,55 @@ void GameInterface::Ticker()
 	}
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 void LevelFinished()
 {
     NextMap = FindNextMap(currentLevel);
     EndLevel = 13;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
 #define x(a, b) registerName(#a, b);
-static void SetTileNames()
+static void SetTileNames(TilesetBuildInfo& info)
 {
-    auto registerName = [](const char* name, int index)
+    auto registerName = [&](const char* name, int index)
     {
-        TexMan.AddAlias(name, tileGetTexture(index));
-        TileFiles.addName(name, index);
+        info.addName(name, index);
     };
 #include "namelist.h"
 }
 #undef x
+
+void GameInterface::SetupSpecialTextures(TilesetBuildInfo& info)
+{
+    SetTileNames(info);
+    info.CreateWritable(kTile4092, kPlasmaWidth, kPlasmaHeight);
+    info.CreateWritable(kTile4093, kPlasmaWidth, kPlasmaHeight);
+    info.CreateWritable(kTileRamsesWorkTile, kSpiritY * 2, kSpiritX * 2);
+    info.MakeWritable(kTileLoboLaptop);
+    for(int i = kTile3603; i < kClockSymbol1 + 145; i++)
+    info.MakeWritable(kTile3603);
+    info.MakeWritable(kEnergy1);
+    info.MakeWritable(kEnergy2);
+    for (int i = 0; i < 16; i++)
+        info.MakeWritable(kClockSymbol1);
+}
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void GameInterface::app_init()
 {
@@ -509,8 +585,7 @@ void GameInterface::app_init()
         nTotalPlayers += nNetPlayerCount;
     }
 
-    SetTileNames();
-    defineSky(DEFAULTPSKY, 2, nullptr, 256, 1.f);
+    defineSky(nullptr, 2, nullptr, 256, 1.f);
 
     InitFX();
     seq_LoadSequences();
@@ -519,10 +594,16 @@ void GameInterface::app_init()
     resettiming();
     GrabPalette();
 
-    enginecompatibility_mode = ENGINECOMPATIBILITY_19950829;
+    enginecompatibility_mode = ENGINECOMPATIBILITY_19961112;
 }
 
-void DeleteActor(DExhumedActor* actor) 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+void DeleteActor(DExhumedActor* actor)
 {
     if (!actor) 
     {
@@ -537,23 +618,30 @@ void DeleteActor(DExhumedActor* actor)
 }
 
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
-void CopyTileToBitmap(int nSrcTile,  int nDestTile, int xPos, int yPos)
+void CopyTileToBitmap(FTextureID nSrcTile,  FTextureID nDestTile, int xPos, int yPos)
 {
-    int nOffs = tileHeight(nDestTile) * xPos;
+    auto pSrcTex = TexMan.GetGameTexture(nSrcTile);
+    auto pDestTex = TexMan.GetGameTexture(nDestTile);
+    int nOffs = pDestTex->GetTexelHeight() * xPos;
 
-	auto pixels = TileFiles.tileMakeWritable(nDestTile);
+	auto pixels = GetWritablePixels(nDestTile);
+    if (!pixels) return;
     uint8_t *pDest = pixels + nOffs + yPos;
     uint8_t *pDestB = pDest;
 
-    tileLoad(nSrcTile);
+    int destYSize = pDestTex->GetTexelHeight();
+    int srcYSize = pSrcTex->GetTexelHeight();
 
-    int destYSize = tileHeight(nDestTile);
-    int srcYSize = tileHeight(nSrcTile);
+    const uint8_t *pSrc = GetRawPixels(nSrcTile);
+    if (!pSrc) return;
 
-    const uint8_t *pSrc = tilePtr(nSrcTile);
-
-    for (int x = 0; x < tileWidth(nSrcTile); x++)
+    for (int x = 0; x < pSrcTex->GetTexelWidth(); x++)
     {
         pDest += destYSize;
 
@@ -571,9 +659,13 @@ void CopyTileToBitmap(int nSrcTile,  int nDestTile, int xPos, int yPos)
         // reset pDestB
         pDestB = pDest;
     }
-
-    TileFiles.InvalidateTile(nDestTile);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void EraseScreen(int nVal)
 {
@@ -600,9 +692,15 @@ std::pair<DVector3, DAngle> GameInterface::GetCoordinates()
 {
     auto pPlayerActor = PlayerList[nLocalPlayer].pActor;
     if (!pPlayerActor) return std::make_pair(DVector3(DBL_MAX, 0, 0), nullAngle);
-    return std::make_pair(pPlayerActor->spr.pos, pPlayerActor->spr.angle);
+    return std::make_pair(pPlayerActor->spr.pos, pPlayerActor->spr.Angles.Yaw);
 }
 
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void DExhumedActor::Serialize(FSerializer& arc)
 {
@@ -618,12 +716,17 @@ void DExhumedActor::Serialize(FSerializer& arc)
         ("index2", nIndex2)
         ("channel", nChannel)
         ("damage", nDamage)
-        ("angle2", angle2)
+        ("angle2", pitch)
 
         ("turn", nTurn)
-        ("x", x)
-        ("y", y);
+        ("vec", vec);
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
 void SerializeState(FSerializer& arc)
 {

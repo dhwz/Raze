@@ -47,6 +47,8 @@ Modifications for JonoF's port by Jonathon Fowler (jf@jonof.id.au)
 #include "gamefuncs.h"
 #include "hw_sections.h"
 #include "coreactor.h"
+#include "texturemanager.h"
+
 CVAR(Bool, am_followplayer, true, CVAR_ARCHIVE)
 CVAR(Bool, am_rotate, true, CVAR_ARCHIVE)
 CVAR(Float, am_linealpha, 1.0f, CVAR_ARCHIVE)
@@ -184,7 +186,7 @@ static void CalcMapBounds()
 static void AutomapControl(const DVector2& cangvect)
 {
 	static double nonsharedtimer;
-	double ms = screen->FrameTime;
+	double ms = (double)screen->FrameTime;
 	double interval;
 
 	if (nonsharedtimer > 0 || ms < nonsharedtimer)
@@ -271,8 +273,8 @@ void MarkSectorSeen(sectortype* sec)
 {
 	if (sec) 
 	{
-		show2dsector.Set(sectnum(sec));
-		for (auto& wal : wallsofsector(sec))
+		show2dsector.Set(sectindex(sec));
+		for (auto& wal : sec->walls)
 		{
 			if (!wal.twoSided()) continue;
 			const auto bits = (CSTAT_WALL_BLOCK | CSTAT_WALL_MASKED | CSTAT_WALL_1WAY | CSTAT_WALL_BLOCK_HITSCAN);
@@ -281,7 +283,7 @@ void MarkSectorSeen(sectortype* sec)
 			auto osec = wal.nextSector();
 			if (osec->lotag == 32767) continue;
 			if (osec->ceilingz >= osec->floorz) continue;
-			show2dsector.Set(sectnum(osec));
+			show2dsector.Set(sectindex(osec));
 		}
 	}
 }
@@ -371,7 +373,7 @@ bool ShowRedLine(int j, int i)
 					if (((wal->cstat | wal->nextWall()->cstat) & (CSTAT_WALL_MASKED | CSTAT_WALL_1WAY)) == 0)
 						if (sector[i].floorz == wal->nextSector()->floorz)
 							return false;
-			if (sector[i].floorpicnum != wal->nextSector()->floorpicnum)
+			if (sector[i].floortexture != wal->nextSector()->floortexture)
 				return false;
 			if (sector[i].floorshade != wal->nextSector()->floorshade)
 				return false;
@@ -395,7 +397,7 @@ static void drawredlines(const DVector2& cpos, const DVector2& cangvect, const D
 		double z1 = sector[i].ceilingz;
 		double z2 = sector[i].floorz;
 
-		for (auto& wal : wallsofsector(i))
+		for (auto& wal : sector[i].walls)
 		{
 			if (!wal.twoSided()) continue;
 
@@ -404,7 +406,7 @@ static void drawredlines(const DVector2& cpos, const DVector2& cangvect, const D
 			if (osec->ceilingz == z1 && osec->floorz == z2)
 				if (((wal.cstat | wal.nextWall()->cstat) & (CSTAT_WALL_MASKED | CSTAT_WALL_1WAY)) == 0) continue;
 
-			if (ShowRedLine(wallnum(&wal), i))
+			if (ShowRedLine(wallindex(&wal), i))
 			{
 				auto v1 = OutAutomapVector(wal.pos - cpos, cangvect, gZoom, xydim);
 				auto v2 = OutAutomapVector(wal.point2Wall()->pos - cpos, cangvect, gZoom, xydim);
@@ -426,12 +428,12 @@ static void drawwhitelines(const DVector2& cpos, const DVector2& cangvect, const
 	{
 		if (!gFullMap && !show2dsector[i] && !isSWALL()) continue;
 
-		for (auto& wal : wallsofsector(i))
+		for (auto& wal : sector[i].walls)
 		{
 			if (wal.nextwall >= 0) continue;
-			if (!gFullMap && !tileGetTexture(wal.picnum)->isValid()) continue;
+			if (!gFullMap && !wal.walltexture().isValid()) continue;
 
-			if (isSWALL() && !gFullMap && !show2dwall[wallnum(&wal)])
+			if (isSWALL() && !gFullMap && !show2dwall[wallindex(&wal)])
 				continue;
 
 			auto v1 = OutAutomapVector(wal.pos - cpos, cangvect, gZoom, xydim);
@@ -522,12 +524,11 @@ static void renderDrawMapView(const DVector2& cpos, const DVector2& cangvect, co
 
 		if (sect->floorstat & CSTAT_SECTOR_SKY) continue;
 
-		int picnum = sect->floorpicnum;
-		if ((unsigned)picnum >= (unsigned)MAXTILES) continue;
+		auto flortex = sect->floortexture;
+		if (!flortex.isValid()) continue;
 
 		int translation = TRANSLATION(Translation_Remap + curbasepal, sector[i].floorpal);
 		PalEntry light = shadeToLight(sector[i].floorshade);
-		gotpic.Set(picnum);
 
 		for (auto section : sectionsPerSector[i])
 		{
@@ -540,7 +541,7 @@ static void renderDrawMapView(const DVector2& cpos, const DVector2& cangvect, co
 				vertices[j] = { float(v.X), float(v.Y), mesh->texcoords[j].X, mesh->texcoords[j].Y };
 			}
 
-			twod->AddPoly(tileGetTexture(picnum, true), vertices.Data(), vertices.Size(), (unsigned*)indices->Data(), indices->Size(), translation, light,
+			twod->AddPoly(TexMan.GetGameTexture(flortex, true), vertices.Data(), vertices.Size(), (unsigned*)indices->Data(), indices->Size(), translation, light,
 				LegacyRenderStyles[STYLE_Translucent], &viewport3d);
 		}
 	}
@@ -558,7 +559,7 @@ static void renderDrawMapView(const DVector2& cpos, const DVector2& cangvect, co
 	{
 		if (!gFullMap && !(actor->spr.cstat2 & CSTAT2_SPRITE_MAPPED)) continue;
 		DVector2 pp[4];
-		GetFlatSpritePosition(actor, actor->spr.pos.XY(), pp, true);
+		GetFlatSpritePosition(actor, actor->spr.pos.XY(), pp, nullptr, true);
 
 		for (unsigned j = 0; j < 4; j++)
 		{
@@ -580,10 +581,8 @@ static void renderDrawMapView(const DVector2& cpos, const DVector2& cangvect, co
 		}
 
 		int translation = TRANSLATION(Translation_Remap + curbasepal, actor->spr.pal);
-		int picnum = actor->spr.picnum;
-		gotpic.Set(picnum);
 		const static unsigned indices[] = { 0, 1, 2, 0, 2, 3 };
-		twod->AddPoly(tileGetTexture(picnum, true), vertices.Data(), vertices.Size(), indices, 6, translation, color, rs, &viewport3d);
+		twod->AddPoly(TexMan.GetGameTexture(actor->spr.spritetexture(), true), vertices.Data(), vertices.Size(), indices, 6, translation, color, rs, &viewport3d);
 	}
 }
 
@@ -628,7 +627,7 @@ void DrawOverheadMap(const DVector2& plxy, const DAngle pl_angle, double const i
 void DrawAutomapAlignmentFacing(const spritetype& spr, const DVector2& bpos, const DVector2& cangvect, const double czoom, const DVector2& xydim, const PalEntry& col)
 {
 	auto v1 = OutAutomapVector(bpos, cangvect, czoom, xydim);
-	auto v2 = OutAutomapVector(spr.angle.ToVector() * 8., cangvect, czoom);
+	auto v2 = OutAutomapVector(spr.Angles.Yaw.ToVector() * 8., cangvect, czoom);
 	auto v3 = v2.Rotated90CW();
 	auto v4 = v1 + v2;
 
@@ -639,19 +638,20 @@ void DrawAutomapAlignmentFacing(const spritetype& spr, const DVector2& bpos, con
 
 //---------------------------------------------------------------------------
 //
-// Draws lines for alls in Duke/SW when cstat is CSTAT_SPRITE_ALIGNMENT_WALL.
+// Draws lines for sprites in Duke/SW when cstat is CSTAT_SPRITE_ALIGNMENT_WALL.
 //
 //---------------------------------------------------------------------------
 
 void DrawAutomapAlignmentWall(const spritetype& spr, const DVector2& bpos, const DVector2& cangvect, const double czoom, const DVector2& xydim, const PalEntry& col)
 {
-	auto xrep = spr.xrepeat * REPEAT_SCALE;
-	auto xspan = tileWidth(spr.picnum);
-	auto xoff = tileLeftOffset(spr.picnum) + spr.xoffset;
+	auto tex = TexMan.GetGameTexture(spr.spritetexture());
+	auto xrep = spr.scale.X;
+	int xspan = (int)tex->GetDisplayWidth();
+	int xoff = (int)tex->GetDisplayLeftOffset() + spr.xoffset;
 
 	if ((spr.cstat & CSTAT_SPRITE_XFLIP) > 0) xoff = -xoff;
 
-	auto sprvec = spr.angle.ToVector().Rotated90CW() * xrep;
+	auto sprvec = spr.Angles.Yaw.ToVector().Rotated90CW() * xrep;
 	
 	auto b1 = bpos - sprvec * ((xspan * 0.5) + xoff);
 	auto b2 = b1 + sprvec * xspan;
@@ -671,12 +671,14 @@ void DrawAutomapAlignmentWall(const spritetype& spr, const DVector2& bpos, const
 
 void DrawAutomapAlignmentFloor(const spritetype& spr, const DVector2& bpos, const DVector2& cangvect, const double czoom, const DVector2& xydim, const PalEntry& col)
 {
-	auto xrep = spr.xrepeat * REPEAT_SCALE;
-	auto yrep = spr.yrepeat * REPEAT_SCALE;
-	auto xspan = tileWidth(spr.picnum);
-	auto yspan = tileHeight(spr.picnum);
-	auto xoff = tileLeftOffset(spr.picnum);
-	auto yoff = tileTopOffset(spr.picnum);
+	auto tex = TexMan.GetGameTexture(spr.spritetexture());
+
+	auto xrep = spr.scale.X;
+	auto yrep = spr.scale.Y;
+	int xspan = (int)tex->GetDisplayWidth();
+	int yspan = (int)tex->GetDisplayHeight();
+	int xoff = (int)tex->GetDisplayLeftOffset();
+	int yoff = (int)tex->GetDisplayTopOffset();
 
 	if (isSWALL() || (spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) != CSTAT_SPRITE_ALIGNMENT_SLOPE)
 	{
@@ -687,7 +689,7 @@ void DrawAutomapAlignmentFloor(const spritetype& spr, const DVector2& bpos, cons
 	if ((spr.cstat & CSTAT_SPRITE_XFLIP) > 0) xoff = -xoff;
 	if ((spr.cstat & CSTAT_SPRITE_YFLIP) > 0) yoff = -yoff;
 
-	auto sprvec = spr.angle.ToVector();
+	auto sprvec = spr.Angles.Yaw.ToVector();
 	auto xscale = sprvec.Rotated90CW() * xspan * xrep;
 	auto yscale = sprvec * yspan * yrep;
 	auto xybase = DVector2(((xspan * 0.5) + xoff) * xrep, ((yspan * 0.5) + yoff) * yrep);
