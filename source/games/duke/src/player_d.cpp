@@ -268,10 +268,10 @@ static void shootknee(DDukeActor* actor, int p, DVector3 pos, DAngle ang)
 				if (p >= 0 && ps[p].steroids_amount > 0 && ps[p].steroids_amount < 400)
 					knee->spr.extra += (gs.max_player_health >> 2);
 			}
-			if (hit.actor() && hit.actor()->spr.picnum != DTILE_ACCESSSWITCH && hit.actor()->spr.picnum != DTILE_ACCESSSWITCH2)
+			if (hit.actor() && ! isaccessswitch(hit.actor()->spr.spritetexture()))
 			{
 				fi.checkhitsprite(hit.actor(), knee);
-				if (p >= 0) fi.checkhitswitch(p, nullptr, hit.actor());
+				if (p >= 0) checkhitswitch(p, nullptr, hit.actor());
 			}
 
 			else if (hit.hitWall)
@@ -281,10 +281,10 @@ static void shootknee(DDukeActor* actor, int p, DVector3 pos, DAngle ang)
 						if (hit.hitpos.Z >= hit.hitWall->nextSector()->floorz)
 							hit.hitWall =hit.hitWall->nextWall();
 
-				if (hit.hitWall->wallpicnum != DTILE_ACCESSSWITCH && hit.hitWall->wallpicnum != DTILE_ACCESSSWITCH2)
+				if (!isaccessswitch(hit.hitWall->walltexture))
 				{
 					checkhitwall(knee, hit.hitWall, hit.hitpos);
-					if (p >= 0) fi.checkhitswitch(p, hit.hitWall, nullptr);
+					if (p >= 0) checkhitswitch(p, hit.hitWall, nullptr);
 				}
 			}
 		}
@@ -441,17 +441,9 @@ static void shootweapon(DDukeActor *actor, int p, DVector3 pos, DAngle ang, int 
 			}
 			else spawn(spark, DTILE_SMALLSMOKE);
 
-			if (p >= 0 && (
-				hit.actor()->spr.picnum == DTILE_DIPSWITCH ||
-				hit.actor()->spr.picnum == DTILE_DIPSWITCHON ||
-				hit.actor()->spr.picnum == DTILE_DIPSWITCH2 ||
-				hit.actor()->spr.picnum == DTILE_DIPSWITCH2ON ||
-				hit.actor()->spr.picnum == DTILE_DIPSWITCH3 ||
-				hit.actor()->spr.picnum == DTILE_DIPSWITCH3ON ||
-				hit.actor()->spr.picnum == DTILE_HANDSWITCH ||
-				hit.actor()->spr.picnum == DTILE_HANDSWITCHON))
+			if (p >= 0 && isshootableswitch(hit.actor()->spr.spritetexture()))
 			{
-				fi.checkhitswitch(p, nullptr, hit.actor());
+				checkhitswitch(p, nullptr, hit.actor());
 				return;
 			}
 		}
@@ -459,21 +451,13 @@ static void shootweapon(DDukeActor *actor, int p, DVector3 pos, DAngle ang, int 
 		{
 			spawn(spark, DTILE_SMALLSMOKE);
 
-			if (isadoorwall(hit.hitWall->walltexture()) == 1)
+			if (isadoorwall(hit.hitWall->walltexture) == 1)
 				goto SKIPBULLETHOLE;
-			if (isablockdoor(hit.hitWall->walltexture()) == 1)
+			if (isablockdoor(hit.hitWall->walltexture) == 1)
 				goto SKIPBULLETHOLE;
-			if (p >= 0 && (
-				hit.hitWall->wallpicnum == DTILE_DIPSWITCH ||
-				hit.hitWall->wallpicnum == DTILE_DIPSWITCHON ||
-				hit.hitWall->wallpicnum == DTILE_DIPSWITCH2 ||
-				hit.hitWall->wallpicnum == DTILE_DIPSWITCH2ON ||
-				hit.hitWall->wallpicnum == DTILE_DIPSWITCH3 ||
-				hit.hitWall->wallpicnum == DTILE_DIPSWITCH3ON ||
-				hit.hitWall->wallpicnum == DTILE_HANDSWITCH ||
-				hit.hitWall->wallpicnum == DTILE_HANDSWITCHON))
+			if (p >= 0 && isshootableswitch(hit.hitWall->walltexture))
 			{
-				fi.checkhitswitch(p, hit.hitWall, nullptr);
+				checkhitswitch(p, hit.hitWall, nullptr);
 				return;
 			}
 
@@ -481,7 +465,7 @@ static void shootweapon(DDukeActor *actor, int p, DVector3 pos, DAngle ang, int 
 				goto SKIPBULLETHOLE;
 
 			if (hit.hitSector && hit.hitSector->lotag == 0)
-				if (hit.hitWall->overpicnum != DTILE_BIGFORCE)
+				if (!(tileflags(hit.hitWall->overtexture) & TFLAG_FORCEFIELD))
 					if ((hit.hitWall->twoSided() && hit.hitWall->nextSector()->lotag == 0) ||
 						(!hit.hitWall->twoSided() && hit.hitSector->lotag == 0))
 						if ((hit.hitWall->cstat & CSTAT_WALL_MASKED) == 0)
@@ -956,7 +940,7 @@ static void shootgrowspark(DDukeActor* actor, int p, DVector3 pos, DAngle ang)
 	else if (hit.actor() != nullptr) fi.checkhitsprite(hit.actor(), spark);
 	else if (hit.hitWall != nullptr)
 	{
-		if (hit.hitWall->wallpicnum != DTILE_ACCESSSWITCH && hit.hitWall->wallpicnum != DTILE_ACCESSSWITCH2)
+		if (!isaccessswitch(hit.hitWall->walltexture))
 		{
 			checkhitwall(spark, hit.hitWall, hit.hitpos);
 		}
@@ -1523,7 +1507,7 @@ int doincrements_d(player_struct* p)
 		{
 			if (p->access_spritenum != nullptr)
 			{
-				fi.checkhitswitch(snum, nullptr, p->access_spritenum);
+				checkhitswitch(snum, nullptr, p->access_spritenum);
 				switch (p->access_spritenum->spr.pal)
 				{
 				case 0:p->got_access &= (0xffff - 0x1); break;
@@ -1534,7 +1518,7 @@ int doincrements_d(player_struct* p)
 			}
 			else
 			{
-				fi.checkhitswitch(snum, p->access_wall, nullptr);
+				checkhitswitch(snum, p->access_wall, nullptr);
 				switch (p->access_wall->pal)
 				{
 				case 0:p->got_access &= (0xffff - 0x1); break;
@@ -2003,7 +1987,7 @@ int operateTripbomb(int snum)
 		return 0;
 
 	if (hit.hitWall != nullptr)
-		if (hit.hitWall->overpicnum == DTILE_BIGFORCE)
+		if (tileflags(hit.hitWall->overtexture) & TFLAG_FORCEFIELD)
 			return 0;
 
 	DDukeActor* act;

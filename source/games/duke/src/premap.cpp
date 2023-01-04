@@ -427,8 +427,6 @@ void resetprestat(int snum,int g)
 	WindDir = nullAngle;
 	fakebubba_spawn = 0;
 	RRRA_ExitedLevel = 0;
-	BellTime = 0;
-	BellSprite = nullptr;
 
 	if(p->curr_weapon == HANDREMOTE_WEAPON)
 	{
@@ -661,8 +659,6 @@ void prelevel_common(int g)
 	fakebubba_spawn = 0;
 	RRRA_ExitedLevel = 0;
 	mamaspawn_count = currentLevel->rr_mamaspawn;
-	BellTime = 0;
-	BellSprite = nullptr;
 
 	// RRRA E2L1 fog handling.
 	fogactive = 0;
@@ -708,6 +704,69 @@ void prelevel_common(int g)
 			continue;
 		}
 	}
+
+	mirrorcnt = 0;
+	numanimwalls = 0;
+	for (auto& wal : wall)
+	{
+		if (wal.overtexture == mirrortex && (wal.cstat & CSTAT_WALL_1WAY) != 0)
+		{
+			auto sectp = wal.nextSector();
+
+			if (mirrorcnt > 63)
+				I_Error("Too many mirrors (64 max.)");
+			if (sectp && sectp->ceilingtexture != mirrortex)
+			{
+				sectp->setceilingtexture(mirrortex);
+				sectp->setfloortexture(mirrortex);
+				mirrorwall[mirrorcnt] = &wal;
+				mirrorsector[mirrorcnt] = sectp;
+				mirrorcnt++;
+				continue;
+			}
+		}
+
+		if (tileflags(wal.overtexture) & (TFLAG_FORCEFIELD | TFLAG_ANIMFORCEFIELD))
+		{
+			animwall[numanimwalls].wall = &wal;
+			animwall[numanimwalls].tag = 0;
+			animwall[numanimwalls].origtex = wal.overtexture;
+			animwall[numanimwalls].overpic = true;
+			numanimwalls++;
+
+			if (tileflags(wal.overtexture) & TFLAG_ANIMFORCEFIELD)
+			{
+				if (wal.shade > 31)
+					wal.cstat = 0;
+				else wal.cstat |= CSTAT_WALL_BLOCK | CSTAT_WALL_ALIGN_BOTTOM | CSTAT_WALL_MASKED | CSTAT_WALL_BLOCK_HITSCAN | CSTAT_WALL_YFLIP;
+
+				if (wal.lotag && wal.twoSided())
+					wal.nextWall()->lotag = wal.lotag;
+			}
+		}
+		if (tileflags(wal.walltexture) & (TFLAG_ANIMSCREEN | TFLAG_ANIMSCREENNOISE))
+		{
+			animwall[numanimwalls].wall = &wal;
+			animwall[numanimwalls].tag = -1;
+			animwall[numanimwalls].origtex = wal.walltexture;
+			animwall[numanimwalls].overpic = false;
+			numanimwalls++;
+		}
+
+		if (numanimwalls >= MAXANIMWALLS)
+			I_Error("Too many 'anim' walls (max 512.)");
+	}
+
+	//Invalidate textures in sector behind mirror
+	for (int i = 0; i < mirrorcnt; i++)
+	{
+		for (auto& wal : mirrorsector[i]->walls)
+		{
+			wal.setwalltexture(mirrortex);
+			wal.setovertexture(mirrortex);
+		}
+	}
+	thunder_brightness = 0;
 }
 
 //---------------------------------------------------------------------------
@@ -805,7 +864,7 @@ static void SpawnPortals()
 {
 	for (auto& wal : wall)
 	{
-		if (wal.overtexture() == mirrortex && (wal.cstat & CSTAT_WALL_1WAY)) wal.portalflags |= PORTAL_WALL_MIRROR;
+		if (wal.overtexture == mirrortex && (wal.cstat & CSTAT_WALL_1WAY)) wal.portalflags |= PORTAL_WALL_MIRROR;
 	}
 
 	portalClear();
@@ -1086,13 +1145,10 @@ void enterlevel(MapRecord *mi, int gamemode)
 	clearfrags();
 	resettimevars();  // Here we go
 	setLevelStarted(mi);
-	if (isRRRA() && ps[screenpeek].sea_sick_stat == 1)
+	for (auto& wal : wall)
 	{
-		for (auto& wal : wall)
-		{
-			if (tileflags(wal.walltexture()) & TFLAG_INTERPOLATEWALL)
-				StartInterpolation(&wal, Interp_Wall_PanX);
-		}
+		if (tileflags(wal.walltexture) & TFLAG_SEASICKWALL)
+			StartInterpolation(&wal, Interp_Wall_PanX);
 	}
 }
 

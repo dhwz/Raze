@@ -1012,24 +1012,6 @@ static void rrra_specialstats()
 
 //---------------------------------------------------------------------------
 //
-// this one's a hack. Can only be replaced with something better when
-// the switch code has been redone.
-//
-//---------------------------------------------------------------------------
-
-void resetswitch(int tag)
-{
-	DukeStatIterator it2(STAT_DEFAULT);
-	while (auto act2 = it2.Next())
-	{
-		if (act2->spr.picnum == RTILE_DIPSWITCH3ON)
-			if (act2->spr.hitag == tag)
-				act2->spr.picnum = RTILE_DIPSWITCH3;
-	}
-}
-
-//---------------------------------------------------------------------------
-//
 // 
 //
 //---------------------------------------------------------------------------
@@ -1862,8 +1844,8 @@ void destroyit(DDukeActor *actor)
 				auto srcwal = srcsect->walls.Data();
 				for (unsigned i = 0; i < destsect->walls.Size(); i++, srcwal++, destwal++)
 				{
-					destwal->setwalltexture(srcwal->walltexture());
-					destwal->setovertexture(srcwal->overtexture());
+					destwal->setwalltexture(srcwal->walltexture);
+					destwal->setovertexture(srcwal->overtexture);
 					destwal->shade = srcwal->shade;
 					destwal->xrepeat = srcwal->xrepeat;
 					destwal->yrepeat = srcwal->yrepeat;

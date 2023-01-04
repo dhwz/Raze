@@ -1241,14 +1241,14 @@ void operatemasterswitches(int low)
 //
 //---------------------------------------------------------------------------
 
-void operateforcefields_common(DDukeActor *effector, int low, const std::initializer_list<int> &tiles)
+void operateforcefields(DDukeActor *effector, int low)
 {
 	for (int p = numanimwalls-1; p >= 0; p--)
 	{
 		auto wal = animwall[p].wall;
 
 		if (low == wal->lotag || low == -1)
-			if (isIn(wal->overpicnum, tiles))
+			if (tileflags(wal->overtexture) & (TFLAG_FORCEFIELD | TFLAG_ANIMFORCEFIELD))
 			{
 				animwall[p].tag = 0;
 
@@ -1273,11 +1273,11 @@ void operateforcefields_common(DDukeActor *effector, int low, const std::initial
 
 void checkhitwall(DDukeActor* spr, walltype* wal, const DVector3& pos)
 {
-	if (wal->overtexture() == mirrortex && actorflag(spr, SFLAG2_BREAKMIRRORS))
+	if (wal->overtexture == mirrortex && actorflag(spr, SFLAG2_BREAKMIRRORS))
 	{
 		lotsofglass(spr, wal, 70);
 		wal->cstat &= ~CSTAT_WALL_MASKED;
-		wal->overpicnum = TILE_MIRRORBROKE;
+		wal->setovertexture(TexMan.CheckForTexture("MIRRORBROKE", ETextureType::Any));
 		wal->portalflags = 0;
 		S_PlayActorSound(GLASS_HEAVYBREAK, spr);
 		return;
@@ -1301,14 +1301,14 @@ void checkhitwall(DDukeActor* spr, walltype* wal, const DVector3& pos)
 
 	if (wal->twoSided() && wal->nextSector()->floorz > pos.Z && wal->nextSector()->floorz - wal->nextSector()->ceilingz)
 	{
-		auto data = breakWallMap.CheckKey(wal->overtexture().GetIndex());
+		auto data = breakWallMap.CheckKey(wal->overtexture.GetIndex());
 		if (data && (data->flags & 1) && (!(data->flags & 2) || wal->cstat & CSTAT_WALL_MASKED))
 		{
 			if (handler(data)) wal->setovertexture(data->brokentex);
 		}
 	}
 
-	auto data = breakWallMap.CheckKey(wal->walltexture().GetIndex());
+	auto data = breakWallMap.CheckKey(wal->walltexture.GetIndex());
 	if (data && !(data->flags & 1))
 	{
 		if (handler(data)) wal->setwalltexture(data->brokentex);
@@ -1429,7 +1429,440 @@ void moveclouds(double interpfrac)
 	}
 }
 
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
 
+void resetswitch(int tag)
+{
+	DukeStatIterator it2(STAT_DEFAULT);
+	while (auto act2 = it2.Next())
+	{
+		auto& ext = GetExtInfo(act2->spr.spritetexture());
+		if (ext.switchindex > 0 && ext.switchphase == 1 && act2->spr.hitag == tag)
+		{
+			auto& swdef = switches[ext.switchindex];
+			if (swdef.type == SwitchDef::Regular && swdef.flags & SwitchDef::resettable)
+			{
+				act2->spr.setspritetexture(swdef.states[0]);
+			}
+		}
+	}
+}
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+void tag10000specialswitch(int snum, DDukeActor* act, const DVector3& v)
+{
+	DDukeActor* switches[3];
+	int switchcount = 0, j;
+	S_PlaySound3D(SWITCH_ON, act, v);
+	DukeSpriteIterator itr;
+	while (auto actt = itr.Next())
+	{
+		int jht = actt->spr.hitag;
+		auto ext = GetExtInfo(actt->spr.spritetexture());
+		if (jht == 10000 && ext.switchphase == 0 && ::switches[ext.switchindex].type == SwitchDef::Multi)
+		{
+			if (switchcount < 3)
+			{
+				switches[switchcount] = actt;
+				switchcount++;
+			}
+		}
+	}
+	if (switchcount == 3)
+	{
+		// This once was a linear search over sprites[] so bring things back in order, just to be safe.
+		if (switches[0]->GetIndex() > switches[1]->GetIndex()) std::swap(switches[0], switches[1]);
+		if (switches[0]->GetIndex() > switches[2]->GetIndex()) std::swap(switches[0], switches[2]);
+		if (switches[1]->GetIndex() > switches[2]->GetIndex()) std::swap(switches[1], switches[2]);
+
+		S_PlaySound3D(78, act, v);
+		for (j = 0; j < switchcount; j++)
+		{
+			switches[j]->spr.hitag = 0;
+			switches[j]->spr.setspritetexture(::switches[GetExtInfo(switches[j]->spr.spritetexture()).switchindex].states[3]);
+			checkhitswitch(snum, nullptr, switches[j]);
+		}
+	}
+}
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+void togglespriteswitches(DDukeActor* act, const TexExtInfo& ext, int lotag, int& correctdips, int& numdips)
+{
+	auto& swdef = switches[ext.switchindex];
+
+	DukeStatIterator it(STAT_DEFAULT);
+	while (auto other = it.Next())
+	{
+		if (lotag != other->spr.lotag) continue;
+
+		auto& other_ext = GetExtInfo(other->spr.spritetexture());
+		auto& other_swdef = switches[other_ext.switchindex];
+
+		switch (other_swdef.type)
+		{
+		case SwitchDef::Combo:
+			if (other_ext.switchphase == 0)
+			{
+				if (act == other) other->spr.setspritetexture(other_swdef.states[1]);
+				else if (other->spr.hitag == 0) correctdips++;
+				numdips++;
+			}
+			else
+			{
+				if (act == other) other->spr.setspritetexture(other_swdef.states[0]);
+				else if (other->spr.hitag == 1) correctdips++;
+				numdips++;
+			}
+			break;
+
+		case SwitchDef::Multi:
+			other->spr.setspritetexture(other_swdef.states[(other_ext.switchphase + 1) & 3]);
+			break;
+
+		case SwitchDef::Access:
+		case SwitchDef::Regular:
+			if (other->spr.hitag != 999 || other_ext.switchphase != 1 || !(other_swdef.flags & SwitchDef::resettable))
+			{
+				other->spr.setspritetexture(other_swdef.states[1 - other_ext.switchphase]);
+			}
+			// one of RR's ugly hacks.
+			if (other->spr.hitag == 999 && other_ext.switchphase == 0 && (other_swdef.flags & SwitchDef::resettable))
+			{
+				DukeStatIterator it1(STAT_LUMBERMILL);
+				while (auto other2 = it1.Next())
+				{
+					CallOnUse(other2, nullptr);
+				}
+			}
+			break;
+		}
+	}
+}
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+void togglewallswitches(walltype* wwal, const TexExtInfo& ext, int lotag, int& correctdips, int& numdips)
+{
+	for (auto& wal : wall)
+	{
+		if (lotag != wal.lotag) continue;
+
+		auto& other_ext = GetExtInfo(wal.walltexture);
+		auto& other_swdef = switches[other_ext.switchindex];
+
+		switch (other_swdef.type)
+		{
+		case SwitchDef::Combo:
+			if (other_ext.switchphase == 0)
+			{
+				if (&wal == wwal) wal.setwalltexture(other_swdef.states[1]);
+				else if (wal.hitag == 0) correctdips++;
+				numdips++;
+			}
+			else
+			{
+				if (&wal == wwal) wal.setwalltexture(other_swdef.states[0]);
+				else if (wal.hitag == 1) correctdips++;
+				numdips++;
+			}
+			break;
+
+		case SwitchDef::Multi:
+			wal.setwalltexture(other_swdef.states[(other_ext.switchphase + 1) & 3]);
+			break;
+
+		case SwitchDef::Access:
+		case SwitchDef::Regular:
+			wal.setwalltexture(other_swdef.states[1 - other_ext.switchphase]);
+			break;
+		}
+	}
+}
+
+//---------------------------------------------------------------------------
+//
+// how NOT to implement switches...
+// (even after cleaning up the hard coded texture checks it's still a disaster)
+//
+//---------------------------------------------------------------------------
+
+bool checkhitswitch(int snum, walltype* wwal, DDukeActor* act)
+{
+	uint8_t switchpal;
+	int lotag, hitag, correctdips, numdips;
+	DVector2 spos;
+	FTextureID texid;
+	int swresult = 0;
+
+	if (wwal == nullptr && act == nullptr) return 0;
+	correctdips = 1;
+	numdips = 0;
+
+	if (act)
+	{
+		lotag = act->spr.lotag;
+		if (lotag == 0) return 0;
+		hitag = act->spr.hitag;
+		spos = act->spr.pos.XY();
+		texid = act->spr.spritetexture();
+		switchpal = act->spr.pal;
+
+		// custom switches that maintain themselves can immediately abort.
+		swresult = CallTriggerSwitch(act, &ps[snum]);
+		if (swresult == 1) return true;
+	}
+	else
+	{
+		lotag = wwal->lotag;
+		if (lotag == 0) return 0;
+		hitag = wwal->hitag;
+		spos = wwal->pos;
+		texid = wwal->walltexture;
+		switchpal = wwal->pal;
+	}
+	auto& ext = GetExtInfo(texid);
+	auto& swdef = switches[ext.switchindex];
+
+	if (swresult == 0)
+	{
+		// check if the switch may be activated.
+		switch (swdef.type)
+		{
+		case SwitchDef::Combo:
+			break;
+
+		case SwitchDef::Access:
+			if (!fi.checkaccessswitch(snum, switchpal, act, wwal))
+				return 0;
+			[[fallthrough]];
+
+		case SwitchDef::Regular:
+		case SwitchDef::Multi:
+			if (check_activator_motion(lotag)) return 0;
+			break;
+
+		default:
+			if (isadoorwall(texid) == 0) return 0;
+			break;
+		}
+
+		togglespriteswitches(act, ext, lotag, correctdips, numdips);
+		togglewallswitches(wwal, ext, lotag, correctdips, numdips);
+
+		if (lotag == -1)
+		{
+			setnextmap(false);
+			return 1;
+		}
+
+		// Yet another crude RRRA hack that cannot be fully generalized.
+		if (hitag == 10001 && swdef.flags & SwitchDef::oneway && isRRRA())
+		{
+			act->spr.setspritetexture(swdef.states[1]);
+			if (ps[snum].SeaSick == 0)
+				ps[snum].SeaSick = 350;
+			operateactivators(668, &ps[snum]);
+			operatemasterswitches(668);
+			S_PlayActorSound(328, ps[snum].GetActor());
+			return 1;
+		}
+	}
+	DVector3 v(spos, ps[snum].GetActor()->getOffsetZ());
+
+	if (swdef.type != SwitchDef::None || isadoorwall(texid))
+	{
+		if (swresult == 0)
+		{
+			if (swdef.type == SwitchDef::Combo)
+			{
+				FSoundID sound = swdef.soundid != NO_SOUND ? swdef.soundid : S_FindSoundByResID(SWITCH_ON);
+				if (act) S_PlaySound3D(sound, act, v);
+				else S_PlaySound3D(sound, ps[snum].GetActor(), v);
+				if (numdips != correctdips) return 0;
+				S_PlaySound3D(END_OF_LEVEL_WARN, ps[snum].GetActor(), v);
+			}
+			if (swdef.type == SwitchDef::Multi)
+			{
+				lotag += ext.switchphase;
+				if (hitag == 10000 && act && isRRRA())	// no idea if the game check is really needed for something this far off the beaten path...
+				{
+					tag10000specialswitch(snum, act, v);
+					return 1;
+				}
+			}
+		}
+
+		DukeStatIterator itr(STAT_EFFECTOR);
+		while (auto other = itr.Next())
+		{
+			if (other->spr.hitag == lotag)
+			{
+				switch (other->spr.lotag)
+				{
+				case 46:
+				case SE_47_LIGHT_SWITCH:
+				case SE_48_LIGHT_SWITCH:
+					if (!isRRRA()) break;
+					[[fallthrough]];
+
+				case SE_12_LIGHT_SWITCH:
+					other->sector()->floorpal = 0;
+					other->temp_data[0]++;
+					if (other->temp_data[0] == 2)
+						other->temp_data[0]++;
+
+					break;
+				case SE_24_CONVEYOR:
+				case SE_34:
+				case SE_25_PISTON:
+					other->temp_data[4] = !other->temp_data[4];
+					if (other->temp_data[4])
+						FTA(15, &ps[snum]);
+					else FTA(2, &ps[snum]);
+					break;
+				case SE_21_DROP_FLOOR:
+					FTA(2, &ps[screenpeek]);
+					break;
+				}
+			}
+		}
+
+		operateactivators(lotag, &ps[snum]);
+		operateforcefields(ps[snum].GetActor(), lotag);
+		operatemasterswitches(lotag);
+
+		if (swdef.type == SwitchDef::Combo) return 1;
+
+		if (hitag == 0 && isadoorwall(texid) == 0)
+		{
+			FSoundID sound = swdef.soundid != NO_SOUND ? swdef.soundid : S_FindSoundByResID(SWITCH_ON);
+			if (act) S_PlaySound3D(sound, act, v);
+			else S_PlaySound3D(sound, ps[snum].GetActor(), v);
+		}
+		else if (hitag != 0)
+		{
+			auto flags = S_GetUserFlags(hitag);
+
+			if (act && (flags & SF_TALK) == 0)
+				S_PlaySound3D(hitag, act, v);
+			else
+				S_PlayActorSound(hitag, ps[snum].GetActor());
+		}
+
+		return 1;
+	}
+	return 0;
+}
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+void animatewalls(void)
+{
+	static FTextureID noise, ff1, ff2;
+
+	// all that was done here is to open the system up sufficiently to allow replacing the textures being used without having to use ART files.
+	// Custom animated textures are better done with newly written controller actors.
+	if (!noise.isValid()) noise = TexMan.CheckForTexture("SCREENBREAK6", ETextureType::Any);
+	if (!ff1.isValid()) ff1 = TexMan.CheckForTexture("W_FORCEFIELD", ETextureType::Any);
+	if (!ff2.isValid()) ff2 = TexMan.CheckForTexture("W_FORCEFIELD2", ETextureType::Any);
+
+	if (ps[screenpeek].sea_sick_stat == 1)
+	{
+		for (auto& wal : wall)
+		{
+			if (tileflags(wal.walltexture) & TFLAG_SEASICKWALL)
+				wal.addxpan(6);
+		}
+	}
+
+	int t;
+
+	for (int p = 0; p < numanimwalls; p++)
+	{
+		auto wal = animwall[p].wall;
+		auto texid = wal->walltexture;
+
+		if (!animwall[p].overpic)
+		{
+			if (tileflags(wal->walltexture) & TFLAG_ANIMSCREEN)
+			{
+				if ((krand() & 255) < 16)
+				{
+					wal->setwalltexture(noise);
+				}
+			}
+			else if (tileflags(wal->walltexture) & TFLAG_ANIMSCREENNOISE)
+			{
+				if (animwall[p].origtex.isValid())
+					wal->setwalltexture(animwall[p].origtex);
+				else
+				{
+					texid = texid + 1;
+					if (texid.GetIndex() > noise.GetIndex() + 3 || texid.GetIndex() < noise.GetIndex()) texid = noise;
+					wal->setwalltexture(texid);
+				}
+			}
+		}
+		else
+		{
+			if (tileflags(wal->overtexture) & TFLAG_ANIMFORCEFIELD && wal->cstat & CSTAT_WALL_MASKED)
+			{
+
+				t = animwall[p].tag;
+
+				if (wal->cstat & CSTAT_WALL_ANY_EXCEPT_BLOCK)
+				{
+					wal->addxpan(-t / 4096.f);
+					wal->addypan(-t / 4096.f);
+
+					if (wal->extra == 1)
+					{
+						wal->extra = 0;
+						animwall[p].tag = 0;
+					}
+					else
+						animwall[p].tag += 128;
+
+					if (animwall[p].tag < (128 << 4))
+					{
+						if (animwall[p].tag & 128)
+							wal->setovertexture(ff1);
+						else wal->setovertexture(ff2);
+					}
+					else
+					{
+						if ((krand() & 255) < 32)
+							animwall[p].tag = 128 << (krand() & 3);
+						else wal->setovertexture(ff2);
+					}
+				}
+			}
+
+		}
+	}
+
+}
 
 END_DUKE_NS

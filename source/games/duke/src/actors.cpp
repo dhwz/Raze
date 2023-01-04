@@ -1108,7 +1108,7 @@ void handle_se30(DDukeActor *actor, int JIBS6)
 				actor->SetOwner(nullptr);
 				actor->spr.Angles.Yaw += DAngle180;
 				actor->temp_data[4] = 0;
-				fi.operateforcefields(actor, actor->spr.hitag);
+				operateforcefields(actor, actor->spr.hitag);
 			}
 		}
 	}
@@ -2152,10 +2152,9 @@ void handle_se19(DDukeActor *actor)
 		if (actor->temp_data[0] == 1)
 		{
 			actor->temp_data[0]++;
-			auto bigforce = TexMan.CheckForTexture("BIGFORCE", ETextureType::Any);
 			for (auto& wal : sc->walls)
 			{
-				if (wal.overtexture() == bigforce)
+				if (tileflags(wal.overtexture) & TFLAG_FORCEFIELD)
 				{
 					wal.cstat &= (CSTAT_WALL_TRANSLUCENT | CSTAT_WALL_1WAY | CSTAT_WALL_XFLIP | CSTAT_WALL_ALIGN_BOTTOM | CSTAT_WALL_BOTTOM_SWAP);
 					wal.setovertexture(FNullTextureID());
@@ -2489,8 +2488,7 @@ void handle_se24(DDukeActor *actor, bool scroll, double mult)
 					continue;
 				}
 
-				if (actorflag(a2, SFLAG_SE24_NOCARRY) ||
-					wallswitchcheck(a2))
+				if (actorflag(a2, SFLAG_SE24_NOCARRY) || wallswitchcheck(a2) || GetExtInfo(a2->spr.spritetexture()).switchindex > 0)
 					continue;
 
 				if (a2->spr.pos.Z > a2->floorz - 16)
@@ -2697,7 +2695,7 @@ void handle_se128(DDukeActor *actor)
 	}
 //	else return;
 
-	auto data = breakWallMap.CheckKey(wal->overtexture().GetIndex());
+	auto data = breakWallMap.CheckKey(wal->overtexture.GetIndex());
 	FTextureID newtex = data? data->brokentex : FNullTextureID();
 	wal->setovertexture(newtex);
 	auto nextwal = wal->nextWall();

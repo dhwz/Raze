@@ -36,6 +36,8 @@ Prepared for public release: 03/28/2005 - Charlie Wiederhold, 3D Realms
 #include "weapon.h"
 
 #include "break.h"
+#include "buildtiles.h"
+
 
 BEGIN_SW_NS
 
@@ -43,94 +45,83 @@ static void DoWallBreakSpriteMatch(int match);
 
 BREAK_INFO WallBreakInfo[] =
 {
-    { 60,  -1, SHRAP_METAL, BF_KILL, 0 },
-    { 82,  -1, SHRAP_METAL, BF_KILL, 0 },
-    { 1, 3593, SHRAP_METAL, 0, 0 },
-//{ 13, -1, SHRAP_PAPER },
-//{ 14, -1, SHRAP_PAPER },
-//{ 49, -1, SHRAP_PAPER },
-//{ 52, -1, SHRAP_PAPER },
-//{ 99, -1, SHRAP_PAPER },
-//{ 102, -1, SHRAP_PAPER },
-//{ 207, -1, SHRAP_PAPER },
-    { 253, 255, SHRAP_GLASS, 0, 0 },
-    { 254, 255, SHRAP_GLASS, 0, 0 },
-    { 282, -1, SHRAP_GLASS, 0, 0 },
-    { 283, 4974, SHRAP_METAL, 0, 0 },
-    { 318, 599, SHRAP_GLASS, 0, 0},
-    { 486, -1, SHRAP_METAL, 0, 0 },
-    { 487, 3676, SHRAP_METAL, 0, 0 },
-    { 628, 3585, SHRAP_METAL, 0, 0},
-    { 630, 3586, SHRAP_METAL, 0, 0},
-    { 633, 608, SHRAP_GLASS, 0, 0},
-    { 634, 608, SHRAP_GLASS, 0, 0 },
-    { 637, 3587, SHRAP_METAL, 0, 0},
-    { 640, 3588, SHRAP_METAL, 0, 0},
-    { 641, 3588, SHRAP_METAL, 0, 0},
-    { 665, 3588, SHRAP_METAL, 0, 0},
-    { 742, 3589, SHRAP_COIN, 0, 0},
-    { 743, 3590, SHRAP_COIN, 0, 0},
-    { 750, 608, SHRAP_GLASS, 0, 0},
-    { 2667, 608, SHRAP_GLASS, 0, 0},
-    { 2769, 3681, SHRAP_GLASS, 0, 0},
-    { 2676, 3591, SHRAP_GLASS, 0, 0},
-    { 2677, 3592, SHRAP_GLASS, 0, 0},
-    { 2687, 2727, SHRAP_GLASS, 0, 0},
-    { 2688, 2728, SHRAP_GLASS, 0, 0},
-//{ 2714, 3593, SHRAP_GLASS},
-    { 2732, 3594, SHRAP_GLASS, 0, 0},
-    { 2777, 3683, SHRAP_METAL, 0, 0},
-    { 2778, 2757, SHRAP_GLASS, 0, 0},
-    { 2801, 3591, SHRAP_GLASS, 0, 0},
-    { 2804, 3595, SHRAP_GLASS, 0, 0},
-    { 2807, 3596, SHRAP_GLASS, 0, 0},
-    { 2810, 4989, SHRAP_METAL, 0, 0},
-    { 4890, 4910, SHRAP_METAL, 0, 0},
-    { 4891, 4911, SHRAP_METAL, 0, 0},
-    { 4892, 4912, SHRAP_METAL, 0, 0},
-    { 4893, 4913, SHRAP_METAL, 0, 0},
-    { 4894, 4914, SHRAP_METAL, 0, 0},
-    { 4895, 4915, SHRAP_METAL, 0, 0},
-    { 3336, 4940, SHRAP_COIN, 0, 0},
-    { 3337, 4941, SHRAP_COIN, 0, 0},
-    { 4885, 4888, SHRAP_METAL, 0, 0},
-    { 4887, 4889, SHRAP_COIN, 0, 0},
-    { 3350, 4942, SHRAP_GLASS, 0, 0},
-    { 3351, 4943, SHRAP_METAL, 0, 0},
-    { 3352, 4944, SHRAP_METAL, 0, 0},
-    { 3353, 4945, SHRAP_METAL, 0, 0},
-    { 4896, 4898, SHRAP_METAL, 0, 0},
-    { 4897, 4899, SHRAP_METAL, 0, 0},
-    { 3385, 4981, SHRAP_METALMIX, 0, 0},
-    { 3389, 4982, SHRAP_METALMIX, 0, 0},
-    { 3393, 4984, SHRAP_METALMIX, 0, 0},
-    { 3397, 4983, SHRAP_METALMIX, 0, 0},
-    { 3401, 4985, SHRAP_METALMIX, 0, 0},
-    { 3405, 4986, SHRAP_METALMIX, 0, 0},
-    { 3409, 4988, SHRAP_METALMIX, 0, 0},
-    { 3413, 4987, SHRAP_METALMIX, 0, 0},
-    { 253, 255,   SHRAP_METALMIX, 0, 0},
-    { 283, 4974,  SHRAP_METALMIX, 0, 0},
-    { 299, 4975,  SHRAP_METALMIX, 0, 0},
-    {5078, 5079,  SHRAP_METALMIX, 0, 0},
-    {5080, 5092,  SHRAP_MARBELS, 0, 0},
-    {5083, 5093,  SHRAP_MARBELS, 0, 0},
-    {5086, 5094,  SHRAP_MARBELS, 0, 0},
-    {5089, 5095,  SHRAP_MARBELS, 0, 0},
-    {4970, 4973,  SHRAP_METAL, 0, 0},
-    {297,  4980,  SHRAP_METAL, 0, 0},
-    {1,    4976,  SHRAP_METAL, 0, 0},
-    {4917, 4918,  SHRAP_METAL, 0, 0},
-    {4902, 4903,  SHRAP_METAL, 0, 0},
+    { IRONRAILING,  -1, SHRAP_METAL, BF_KILL, 0 },
+    { NOTHING,  -1, SHRAP_METAL, BF_KILL, 0 },
+    { METALGRATE, METALGRATEBROKE, SHRAP_METAL, 0, 0 },
+    { COMPASSN, COMPASSBROKE, SHRAP_GLASS, 0, 0 },
+    { COMPASSNW, COMPASSBROKE, SHRAP_GLASS, 0, 0 },
+    { WINDOWGLASS, -1, SHRAP_GLASS, 0, 0 },
+    { ARMATURES, ARMATURESBROKE, SHRAP_METAL, 0, 0 },
+    { COMPDISPLAY, COMPDISPLAYBROKE, SHRAP_GLASS, 0, 0},
+    { DC220, -1, SHRAP_METAL, 0, 0 },
+    { MPHONE, MPHONEBROKE, SHRAP_METAL, 0, 0 },
+    { LITEDISP1, LITEDISP1BROKE, SHRAP_METAL, 0, 0},
+    { LITEDISP2, LITEDISP2BROKE, SHRAP_METAL, 0, 0},
+    { LITEDISP3, LITEDISP3BROKE, SHRAP_GLASS, 0, 0},
+    { LITEDISP4, LITEDISP3BROKE, SHRAP_GLASS, 0, 0 },
+    { LITEDISP5, LITEDISP5BROKE, SHRAP_METAL, 0, 0},
+    { LITEDISP6, LITEDISP6BROKE, SHRAP_METAL, 0, 0},
+    { LITEDISP7, LITEDISP6BROKE, SHRAP_METAL, 0, 0},
+    { LITEDISP8, LITEDISP6BROKE, SHRAP_METAL, 0, 0},
+    { PAYPHONE, PAYPHONEBROKE, SHRAP_COIN, 0, 0},
+    { PAYPHONE2, PAYPHONE2BROKE, SHRAP_COIN, 0, 0},
+    { BIGLIGHT, LITEDISP1BROKE, SHRAP_GLASS, 0, 0},
+    { DARKDISPLAY, LITEDISP1BROKE, SHRAP_GLASS, 0, 0},
+    { TWOLIGHTS, TWOLIGHTSBROKE, SHRAP_GLASS, 0, 0},
+    { DARKDISPLAY2, DARKDISPLAY2BROKE, SHRAP_GLASS, 0, 0},
+    { VENDINGMACHINE, VENDINGMACHINEBROKE, SHRAP_GLASS, 0, 0},
+    { FOURLIGHTS, FOURLIGHTSBROKE, SHRAP_GLASS, 0, 0},
+    { FOURLIGHTSV, FOURLIGHTSVBROKE, SHRAP_GLASS, 0, 0},
+    { VENDINGMACHINE2, VENDINGMACHINE2BROKE, SHRAP_GLASS, 0, 0},
+    { METALGRATE2, METALGRATE2BROKE, SHRAP_METAL, 0, 0},
+    { TWOLIGHTSV, TWOLIGHTSVBROKE, SHRAP_GLASS, 0, 0},
+    { LITEDISP9, LITEDISP9BROKE, SHRAP_GLASS, 0, 0},
+    { LITEDISP10, LITEDISP10BROKE, SHRAP_GLASS, 0, 0},
+    { LITEDISP11, LITEDISP11BROKE, SHRAP_GLASS, 0, 0},
+    { LITEDISP12, LITEDISP12BROKE, SHRAP_METAL, 0, 0},
+    { CARFRONT, CARFRONTBROKE, SHRAP_METAL, 0, 0},
+    { CARBACK, CARBACKBROKE, SHRAP_METAL, 0, 0},
+    { CARHOOD, CARHOODBROKE, SHRAP_METAL, 0, 0},
+    { CARSIDE, CARSIDEBROKE, SHRAP_METAL, 0, 0},
+    { CARROOF, CARROOFBROKE, SHRAP_METAL, 0, 0},
+    { CARWHEEL, CARWHEELBROKE, SHRAP_METAL, 0, 0},
+    { ATMFRONT, ATMFRONTBROKE, SHRAP_COIN, 0, 0},
+    { PAYPHONE3, PAYPHONE3BROKE, SHRAP_COIN, 0, 0},
+    { CASHREGISTER, CASHREGISTER, SHRAP_METAL, 0, 0},
+    { DRAWER, DRAWERBROKE, SHRAP_COIN, 0, 0},
+    { COMPMONITOR, COMPMONITORBROKE, SHRAP_GLASS, 0, 0},
+    { COMPMONITORSIDE, COMPMONITORSIDEBROKE, SHRAP_METAL, 0, 0},
+    { PCFRONT, PCFRONTBROKE, SHRAP_METAL, 0, 0},
+    { PCKEYNOARD, PCKEYNOARDBROKE, SHRAP_METAL, 0, 0},
+    { VANBACK, VANBACKBROKE, SHRAP_METAL, 0, 0},
+    { VANFRONT, VANFRONTBROKE, SHRAP_METAL, 0, 0},
+    { LITEDISP13, LITEDISP13BROKE, SHRAP_METALMIX, 0, 0},
+    { LITEDISP14, LITEDISP14BROKE, SHRAP_METALMIX, 0, 0},
+    { LITEDISP15, LITEDISP15BROKE, SHRAP_METALMIX, 0, 0},
+    { LITEDISP16, LITEDISP16BROKE, SHRAP_METALMIX, 0, 0},
+    { LITEDISP17, LITEDISP17BROKE, SHRAP_METALMIX, 0, 0},
+    { LITEDISP18, LITEDISP18BROKE, SHRAP_METALMIX, 0, 0},
+    { LITEDISP19, LITEDISP19BROKE, SHRAP_METALMIX, 0, 0},
+    { LITEDISP20, LITEDISP20BROKE, SHRAP_METALMIX, 0, 0},
+    { LITEDISP21, LITEDISP21BROKE,  SHRAP_METALMIX, 0, 0},
+    { GAMEROOMSIGN, GAMEROOMSIGNBROKE,  SHRAP_METALMIX, 0, 0},
+    { PINBALL1, PINBALL1BROKE,  SHRAP_MARBELS, 0, 0},
+    { PINBALL2, PINBALL2BROKE,  SHRAP_MARBELS, 0, 0},
+    { PINBALL3, PINBALL3BROKE,  SHRAP_MARBELS, 0, 0},
+    { PINBALL4, PINBALL4BROKE,  SHRAP_MARBELS, 0, 0},
+    { DANGERSIGN, DANGERSIGNBROKE,  SHRAP_METAL, 0, 0},
+    { LITEDISP22, LITEDISP22BROKE,  SHRAP_METAL, 0, 0},
+    { TITSUBISHI, TITSUBISHIBROKE,  SHRAP_METAL, 0, 0},
+    { ZILLACARSIDE, ZILLACARSIDEBROKE,  SHRAP_METAL, 0, 0},
 };
 
 BREAK_INFO SpriteBreakInfo[] =
 {
-    { 60,  -1, SHRAP_METAL, BF_KILL, 0},
-    { 82,  -1, SHRAP_METAL, BF_KILL, 0},
+    { IRONRAILING,  -1, SHRAP_METAL, BF_KILL, 0},
+    { NOTHING,  -1, SHRAP_METAL, BF_KILL, 0},
     { 138, -1, SHRAP_GENERIC, BF_KILL, 0},
-    { 253, 255, SHRAP_GLASS, 0, 0},
-    { 254, 255, SHRAP_GLASS, 0, 0},
+    { COMPASSN, COMPASSBROKE, SHRAP_GLASS, 0, 0},
+    { COMPASSNW, COMPASSBROKE, SHRAP_GLASS, 0, 0},
     { 270, -1, SHRAP_PAPER, BF_BURN, 0},
     { 271, -1, SHRAP_PAPER, BF_BURN, 0},
     { 272, -1, SHRAP_WOOD, 0, 0},
@@ -138,8 +129,8 @@ BREAK_INFO SpriteBreakInfo[] =
 //{ 276, -1, SHRAP_WOOD },
 //{ 277, -1, SHRAP_WOOD },
 //{ 278, -1, SHRAP_WOOD },
-    { 282, -1, SHRAP_GLASS, 0, 0},
-    { 283, -1, SHRAP_METAL, 0, 0},
+    { WINDOWGLASS, -1, SHRAP_GLASS, 0, 0},
+    { ARMATURES, -1, SHRAP_METAL, 0, 0},
     { 297, -1, SHRAP_METAL, 0, 0},
     { 299, -1, SHRAP_METAL, 0, 0},
     { 363, -1, SHRAP_METAL, BF_KILL, 0},
@@ -446,8 +437,9 @@ int CompareSearchBreakInfo(int* picnum, BREAK_INFO* break_info)
     return(*picnum - break_info->picnum);
 }
 
-BREAK_INFO* FindWallBreakInfo(int picnum)
+BREAK_INFO* FindWallBreakInfo(FTextureID texid)
 {
+    int picnum = legacyTileNum(texid);
     return(BREAK_INFO*)(bsearch(&picnum, &WallBreakInfo, SIZ(WallBreakInfo), sizeof(BREAK_INFO), (int(*)(const void*, const void*))CompareSearchBreakInfo));
 }
 
@@ -476,16 +468,16 @@ BREAK_INFO* SetupWallForBreak(walltype* wallp)
 {
     BREAK_INFO* break_info;
 
-    break_info = FindWallBreakInfo(wallp->wallpicnum);
+    break_info = FindWallBreakInfo(wallp->walltexture);
     if (break_info)
     {
         wallp->lotag = TAG_WALL_BREAK;
         wallp->extra |= (WALLFX_DONT_STICK);
     }
 
-    if (wallp->overtexture().isValid() && (wallp->cstat & CSTAT_WALL_MASKED))
+    if (wallp->overtexture.isValid() && (wallp->cstat & CSTAT_WALL_MASKED))
     {
-        break_info = FindWallBreakInfo(wallp->overpicnum);
+        break_info = FindWallBreakInfo(wallp->overtexture);
         if (break_info)
         {
             wallp->lotag = TAG_WALL_BREAK;
@@ -576,17 +568,17 @@ int AutoBreakWall(walltype* wallp, const DVector3& hit_pos, DAngle ang, int type
         // only break ONE of the walls
 
         if (nwp->lotag == TAG_WALL_BREAK &&
-            nwp->overpicnum > 0 &&
+            nwp->overtexture.isValid() &&
             (nwp->cstat & CSTAT_WALL_MASKED))
         {
             nwp->lotag = 0;
         }
     }
 
-    if (wallp->overtexture().isValid() && (wallp->cstat & CSTAT_WALL_MASKED))
-        break_info = FindWallBreakInfo(wallp->overpicnum);
+    if (wallp->overtexture.isValid() && (wallp->cstat & CSTAT_WALL_MASKED))
+        break_info = FindWallBreakInfo(wallp->overtexture);
     else
-        break_info = FindWallBreakInfo(wallp->wallpicnum);
+        break_info = FindWallBreakInfo(wallp->walltexture);
 
     if (!break_info)
     {
@@ -611,7 +603,7 @@ int AutoBreakWall(walltype* wallp, const DVector3& hit_pos, DAngle ang, int type
     }
 
     // change the wall
-    if (wallp->overtexture().isValid() && (wallp->cstat & CSTAT_WALL_MASKED))
+    if (wallp->overtexture.isValid() && (wallp->cstat & CSTAT_WALL_MASKED))
     {
         if (break_info->breaknum == -1)
         {
@@ -627,12 +619,12 @@ int AutoBreakWall(walltype* wallp, const DVector3& hit_pos, DAngle ang, int type
         else
         {
             wallp->cstat &= ~(CSTAT_WALL_BLOCK_HITSCAN|CSTAT_WALL_BLOCK);
-            wallp->overpicnum = break_info->breaknum;
+            wallp->setovertexture(tileGetTextureID(break_info->breaknum));
             if (wallp->twoSided())
             {
                 nwp = wallp->nextWall();
                 nwp->cstat &= ~(CSTAT_WALL_BLOCK_HITSCAN|CSTAT_WALL_BLOCK);
-                nwp->overpicnum = break_info->breaknum;
+                nwp->setovertexture(tileGetTextureID(break_info->breaknum));
             }
         }
     }
@@ -642,7 +634,7 @@ int AutoBreakWall(walltype* wallp, const DVector3& hit_pos, DAngle ang, int type
             wallp->setwalltexture(FNullTextureID()); // temporary break pic
         else
         {
-            wallp->wallpicnum = break_info->breaknum;
+            wallp->setwalltexture(tileGetTextureID(break_info->breaknum));
             if (wallp->hitag < 0)
                 DoWallBreakSpriteMatch(wallp->hitag);
         }
@@ -681,7 +673,7 @@ bool UserBreakWall(walltype* wp)
         return true;
     }
 
-    if (wp->walltexture() == actor->texparam)
+    if (wp->walltexture == actor->texparam)
         return true;
 
     // make it BROKEN
@@ -735,7 +727,7 @@ bool UserBreakWall(walltype* wp)
     else
     {
         // increment picnum
-        wp->setwalltexture(wp->walltexture() + 1);
+        wp->setwalltexture(wp->walltexture + 1);
 
         DoSpawnSpotsForDamage(match);
     }

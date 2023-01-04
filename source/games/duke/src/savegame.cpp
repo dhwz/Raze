@@ -53,7 +53,9 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, animwalltype& w, a
 	{
 	  arc("wall", w.wall)
 		("tag", w.tag)
-		.EndObject();
+		("texid", w.origtex)
+		("overpic", w.overpic)
+		  .EndObject();
 	}
 	return arc;
 }
@@ -428,8 +430,6 @@ void GameInterface::SerializeGameState(FSerializer& arc)
 			("fakebubba_spawn", fakebubba_spawn)
 			("mamaspawn_count", mamaspawn_count)
 			("banjosound", banjosound)
-			("belltime", BellTime)
-			("bellsprite", BellSprite)
 			("enemysizecheat", enemysizecheat)
 			("pistonsound", pistonsound)
 			("chickenphase", chickenphase)

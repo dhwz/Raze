@@ -166,7 +166,7 @@ void DoPlayerDeathExplode(PLAYER* pp);
 void DoPlayerDeathFall(PLAYER* pp);
 
 void PlayerCheckValidMove(PLAYER* pp);
-void PlayerWarpUpdatePos(PLAYER* pp);
+void PlayerWarpUpdatePos(PLAYER* pp, const DVector3& oldpos);
 void DoPlayerBeginDiveNoWarp(PLAYER* pp);
 int PlayerCanDiveNoWarp(PLAYER* pp);
 void DoPlayerCurrent(PLAYER* pp);
@@ -1483,11 +1483,15 @@ void DoPlayerSetWadeDepth(PLAYER* pp)
 //
 //---------------------------------------------------------------------------
 
+void DoPlayerViewOffset(PLAYER* pp)
+{
+    pp->actor->viewzoffset -= pp->getViewHeightDiff() * 0.375;
+}
+
 void DoPlayerHeight(PLAYER* pp)
 {
-    constexpr double scale = 0.375;
-    pp->actor->viewzoffset -= pp->getViewHeightDiff() * scale;
-    pp->actor->spr.pos.Z -= (pp->actor->spr.pos.Z - pp->loz) * scale;
+    DoPlayerViewOffset(pp);
+    pp->actor->spr.pos.Z -= (pp->actor->spr.pos.Z - pp->loz) * 0.375;
 }
 
 void DoPlayerJumpHeight(PLAYER* pp)
@@ -1825,52 +1829,10 @@ void UpdatePlayerUnderSprite(PLAYER* pp)
 
 void UpdatePlayerSprite(PLAYER* pp)
 {
-    DSWActor* actor = pp->actor;
-    if (!actor) return;
-
-    // there are multiple death functions
-    if (pp->Flags & (PF_DEAD))
+    // Adjust player height according to the next action.
+    if (!(pp->Flags & PF_DEAD))
     {
-        ChangeActorSect(pp->actor, pp->cursector);
-        UpdatePlayerUnderSprite(pp);
-        return;
-    }
-
-    if (pp->sop_control)
-    {
-        pp->height = PLAYER_HEIGHTF;
-    }
-    else if (pp->DoPlayerAction == DoPlayerCrawl)
-    {
-        pp->height = PLAYER_CRAWL_HEIGHTF;
-    }
-    else if (pp->DoPlayerAction == DoPlayerWade)
-    {
-        pp->height = PLAYER_HEIGHTF;
-
-        if (pp->WadeDepth > Z(29))
-        {
-            DoPlayerSpriteBob(pp, pp->height, 3, 3);
-        }
-    }
-    else if (pp->DoPlayerAction == DoPlayerDive)
-    {
-        // bobbing and sprite position taken care of in DoPlayerDive
-        pp->height = 10;
-    }
-    else if (pp->DoPlayerAction == DoPlayerClimb)
-    {
-        pp->height = 17;
-    }
-    else if (pp->DoPlayerAction == DoPlayerFly)
-    {
-        // bobbing and sprite position taken care of in DoPlayerFly
-        pp->height = PLAYER_HEIGHTF;
-        DoPlayerSpriteBob(pp, pp->height, 6, 3);
-    }
-    else
-    {
-        pp->height = PLAYER_HEIGHTF;
+        pp->height = (pp->DoPlayerAction == DoPlayerCrawl) ? PLAYER_CRAWL_HEIGHTF : (pp->DoPlayerAction == DoPlayerDive) ? PLAYER_DIVE_HEIGHTF : PLAYER_HEIGHTF;
     }
 
     ChangeActorSect(pp->actor, pp->cursector);
@@ -2128,7 +2090,7 @@ void DoPlayerMove(PLAYER* pp)
     }
     else
     {
-        push_ret = pushmove(pp->actor->spr.pos.XY(), pp->actor->getOffsetZ(), &pp->cursector, actor->clipdist, pp->p_ceiling_dist, pp->p_floor_dist - Z(16), CLIPMASK_PLAYER);
+        push_ret = pushmove(pp->actor->spr.pos.XY(), pp->actor->getOffsetZ(), &pp->cursector, actor->clipdist, pp->p_ceiling_dist, pp->p_floor_dist - 16., CLIPMASK_PLAYER);
 
         if (push_ret < 0)
         {
@@ -2156,7 +2118,7 @@ void DoPlayerMove(PLAYER* pp)
         actor->spr.cstat = save_cstat;
         PlayerCheckValidMove(pp);
 
-        push_ret = pushmove(pp->actor->spr.pos.XY(), pp->actor->getOffsetZ(), &pp->cursector, actor->clipdist, pp->p_ceiling_dist, pp->p_floor_dist - Z(16), CLIPMASK_PLAYER);
+        push_ret = pushmove(pp->actor->spr.pos.XY(), pp->actor->getOffsetZ(), &pp->cursector, actor->clipdist, pp->p_ceiling_dist, pp->p_floor_dist - 16., CLIPMASK_PLAYER);
         if (push_ret < 0)
         {
 
@@ -2178,12 +2140,15 @@ void DoPlayerMove(PLAYER* pp)
     }
 
     // check for warp - probably can remove from CeilingHit
+    const auto oldpos = actor->spr.pos;
     if (WarpPlane(actor->spr.pos, &pp->cursector, actor->getOffsetZ()))
     {
-        PlayerWarpUpdatePos(pp);
+        PlayerWarpUpdatePos(pp, oldpos);
     }
-
-    DoPlayerZrange(pp);
+    else
+    {
+        DoPlayerZrange(pp);
+    }
 
     //PlayerSectorBound(pp, 1);
 
@@ -2215,10 +2180,10 @@ void DoPlayerMove(PLAYER* pp)
         else if (pp->Flags & (PF_SWIMMING|PF_DIVING))
         {
             if (pp->actor->getOffsetZ() > pp->loz)
-                pp->posZset(pp->loz - PLAYER_SWIM_HEIGHTF);
+                pp->posZset(pp->loz - PLAYER_DIVE_HEIGHTF);
 
             if (pp->actor->getOffsetZ() < pp->hiz)
-                pp->posZset(pp->hiz + PLAYER_SWIM_HEIGHTF);
+                pp->posZset(pp->hiz + PLAYER_DIVE_HEIGHTF);
         }
     }
 }
@@ -2353,7 +2318,7 @@ void DoTankTreads(PLAYER* pp)
     if (Prediction)
         return;
 
-    int vel = int(pp->vect.Length() * 1024);
+    double vel = pp->vect.Length() * 64;
 	double dot =  pp->vect.dot(pp->actor->spr.Angles.Yaw.ToVector());
     if (dot < 0)
         reverse = true;
@@ -2386,7 +2351,7 @@ void DoTankTreads(PLAYER* pp)
                     }
                 }
 
-                SP_TAG5(actor) = vel;
+                actor->vel.X = vel;
             }
             else if (actor->spr.statnum == STAT_FLOOR_PAN)
             {
@@ -2407,7 +2372,7 @@ void DoTankTreads(PLAYER* pp)
                     }
                 }
 
-                SP_TAG5(actor) = vel;
+                actor->vel.X = vel;
             }
             else if (actor->spr.statnum == STAT_CEILING_PAN)
             {
@@ -2428,7 +2393,7 @@ void DoTankTreads(PLAYER* pp)
                     }
                 }
 
-                SP_TAG5(actor) = vel;
+                actor->vel.X = vel;
             }
         }
     }
@@ -2643,7 +2608,7 @@ void DoPlayerMoveVehicle(PLAYER* pp)
         pp->vect = (pp->vect + (pp->ovect*1))/2;
     }
 
-    if (abs(pp->vect.X) < 0.5 && abs(pp->vect.Y) < 0.5)
+    if (abs(pp->vect.X) < 0.04883 && abs(pp->vect.Y) < 0.04883)
         pp->vect.X = pp->vect.Y = 0;
 
     pp->lastcursector = pp->cursector;
@@ -2744,7 +2709,7 @@ void DoPlayerMoveVehicle(PLAYER* pp)
         if (pp->sop->clipdist)
         {
             Collision coll;
-            clipmove(pp->actor->spr.pos.XY(), pp->actor->getOffsetZ(), &pp->cursector, pp->vect, pp->sop->clipdist, 4., floordist, CLIPMASK_PLAYER, actor->user.coll);
+            clipmove(pp->actor->spr.pos.XY(), zz, &pp->cursector, pp->vect, pp->sop->clipdist, 4., floordist, CLIPMASK_PLAYER, actor->user.coll);
         }
         else
         {
@@ -3422,7 +3387,6 @@ void DoPlayerClimb(PLAYER* pp)
     }
 
     // setsprite to players location
-    plActor->spr.pos.Z = pp->actor->getOffsetZ() + PLAYER_HEIGHTF;
     ChangeActorSect(pp->actor, pp->cursector);
 
     if (!SyncInput())
@@ -3444,9 +3408,10 @@ void DoPlayerClimb(PLAYER* pp)
         LadderUpdate = true;
     }
 
+    const auto oldpos = pp->actor->spr.pos;
     if (WarpPlane(pp->actor->spr.pos, &pp->cursector, pp->actor->getOffsetZ()))
     {
-        PlayerWarpUpdatePos(pp);
+        PlayerWarpUpdatePos(pp, oldpos);
         LadderUpdate = true;
     }
 
@@ -3694,12 +3659,12 @@ void DoPlayerBeginFly(PLAYER* pp)
 //
 //---------------------------------------------------------------------------
 
-void PlayerWarpUpdatePos(PLAYER* pp)
+void PlayerWarpUpdatePos(PLAYER* pp, const DVector3& oldpos)
 {
     if (Prediction)
         return;
 
-    pp->actor->backuppos();
+    pp->actor->opos += pp->actor->spr.pos - oldpos;
     DoPlayerZrange(pp);
     UpdatePlayerSprite(pp);
 }
@@ -3766,6 +3731,11 @@ void DoPlayerFly(PLAYER* pp)
     }
 
     DoPlayerMove(pp);
+
+    // Adjust view height moving up and down sectors
+    DoPlayerViewOffset(pp);
+
+    DoPlayerSpriteBob(pp, PLAYER_HEIGHTF, 6, 3);
 }
 
 
@@ -4733,6 +4703,9 @@ void DoPlayerDive(PLAYER* pp)
             move_sprite(bubble, DVector3(vec, 0), plActor->user.ceiling_dist, plActor->user.floor_dist, 0, synctics);
         }
     }
+
+    // Adjust view height moving up and down sectors
+    DoPlayerViewOffset(pp);
 }
 
 //---------------------------------------------------------------------------
@@ -4942,10 +4915,6 @@ void DoPlayerWade(PLAYER* pp)
         if (pp->KeyPressBits & SB_JUMP)
         {
             pp->KeyPressBits &= ~SB_JUMP;
-            //DoPlayerHeight(pp);
-            //DoPlayerHeight(pp);
-            //DoPlayerHeight(pp);
-            //DoPlayerHeight(pp);
             DoPlayerBeginJump(pp);
             pp->pbob_amt = 0;
             pp->bob_ndx = 0;
@@ -5030,6 +4999,10 @@ void DoPlayerWade(PLAYER* pp)
     {
         DoPlayerBeginRun(pp);
         return;
+    }
+    else if (pp->WadeDepth > Z(29))
+    {
+        DoPlayerSpriteBob(pp, PLAYER_HEIGHTF, 3, 3);
     }
 }
 
@@ -6031,8 +6004,6 @@ void DoPlayerDeathFollowKiller(PLAYER* pp)
         {
             pp->actor->spr.Angles.Yaw += DAngle::fromDeg(pp->input.avel);
         }
-
-        pp->Angles.doYawKeys(&pp->input.actions);
         UpdatePlayerSpriteAngle(pp);
     }
 
@@ -6559,11 +6530,6 @@ void DoPlayerRun(PLAYER* pp)
         {
             pp->KeyPressBits &= ~SB_JUMP;
             // make sure you stand at full heights for jumps/double jumps
-            //DoPlayerHeight(pp);
-            //DoPlayerHeight(pp);
-            //DoPlayerHeight(pp);
-            //DoPlayerHeight(pp);
-            //DoPlayerHeight(pp);
             pp->posZset(pp->loz - PLAYER_HEIGHTF);
             DoPlayerBeginJump(pp);
             return;
@@ -6738,13 +6704,13 @@ void MoveSkipSavePos(void)
     MoveSkip4 = (MoveSkip4 + 1) & 3;
     MoveSkip2 ^= 1;
 
+    // this must be done before the view is backed up.
+    Player[myconnectindex].Angles.resetRenderAngles();
+
     // Save off player
     TRAVERSE_CONNECT(pnum)
     {
         pp = Player + pnum;
-
-        // this must be done before the view is backed up.
-        pp->Angles.resetRenderAngles();
 
         pp->actor->backuploc();
         pp->obob_z = pp->bob_z;
@@ -6843,7 +6809,8 @@ void ChopsCheck(PLAYER* pp)
                 {
                     ChopTics = 0;
                     // bring weapon back up
-                    pp->Flags &= ~(PF_WEAPON_DOWN);
+                    if (!pp->sop || !(pp->sop->flags & SOBJ_HAS_WEAPON))
+                        pp->Flags &= ~(PF_WEAPON_DOWN);
                     ChopsSetRetract(pp);
                 }
             }
@@ -6979,8 +6946,7 @@ void domovethings(void)
             return;
     }
 
-    PlayClock += synctics;
-    if (PlayClock == 2*synctics) gameaction = ga_autosave;	// let the game run for 1 frame before saving.
+    if (PlayClock == synctics) gameaction = ga_autosave;	// let the game run for 1 frame before saving.
 
     thinktime.Reset();
     thinktime.Clock();
@@ -7062,6 +7028,8 @@ void domovethings(void)
     }
 
     MultiPlayLimits();
+
+    PlayClock += synctics;
 
     thinktime.Unclock();
 

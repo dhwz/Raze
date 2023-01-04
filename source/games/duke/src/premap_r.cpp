@@ -392,7 +392,6 @@ void spriteinit_r(DDukeActor* actor, TArray<DDukeActor*>& actors)
 void prelevel_r(int g, TArray<DDukeActor*>& actors)
 {
 	player_struct* p;
-	int i;
 	int j;
 	int lotaglist;
 	TArray<short> lotags;
@@ -518,10 +517,6 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 		{
 			ps[0].Exit = ac->spr.pos.XY();
 		}
-		else if (ac->spr.picnum == RTILE_CHICKENPLANTBUTTON)
-		{
-			ud.chickenplant = 1;
-		}
 		else
 		{
 			premapcontroller(ac);
@@ -594,27 +589,9 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 	it.Reset(STAT_DEFAULT);
 	while (auto ac = it.Next())
 	{
-		switch (ac->spr.picnum)
+		auto ext = GetExtInfo(ac->spr.spritetexture());
+		if (ext.switchphase == 1 && switches[ext.switchindex].type == SwitchDef::Regular)
 		{
-		case RTILE_IRONWHEELSWITCHON:
-			if (!isRRRA()) break;
-			[[fallthrough]];
-		case RTILE_DIPSWITCHON:
-		case RTILE_DIPSWITCH2ON:
-		case RTILE_PULLSWITCHON:
-		case RTILE_HANDSWITCHON:
-		case RTILE_SLOTDOORON:
-		case RTILE_LIGHTSWITCHON:
-		case RTILE_SPACELIGHTSWITCHON:
-		case RTILE_SPACEDOORSWITCHON:
-		case RTILE_FRANKENSTINESWITCHON:
-		case RTILE_LIGHTSWITCH2ON:
-		case RTILE_POWERSWITCH1ON:
-		case RTILE_LOCKSWITCH1ON:
-		case RTILE_POWERSWITCH2ON:
-		case RTILE_CHICKENPLANTBUTTON:
-		case RTILE_CHICKENPLANTBUTTONON:
-
 			j = lotags.Find(ac->spr.lotag);
 			if (j == lotags.Size()) 
 			{
@@ -626,76 +603,8 @@ void prelevel_r(int g, TArray<DDukeActor*>& actors)
 						actj->temp_data[0] = 1;
 				}
 			}
-			break;
 		}
 	}
-
-	mirrorcnt = 0;
-
-	for (auto& wal : wall)
-	{
-		if (wal.overtexture() == mirrortex && (wal.cstat & CSTAT_WALL_1WAY) != 0)
-		{
-			auto sectp = wal.nextSector();
-
-			if (mirrorcnt > 63)
-				I_Error("Too many mirrors (64 max.)");
-			if (sectp && sectp->ceilingtexture != mirrortex)
-			{
-				sectp->setceilingtexture(mirrortex);
-				sectp->setfloortexture(mirrortex);
-				mirrorwall[mirrorcnt] = &wal;
-				mirrorsector[mirrorcnt] = sectp;
-				mirrorcnt++;
-				continue;
-			}
-		}
-
-		if (numanimwalls >= MAXANIMWALLS)
-			I_Error("Too many 'anim' walls (max 512.)");
-
-		animwall[numanimwalls].tag = 0;
-		animwall[numanimwalls].wall = nullptr;
-
-		switch (wal.overpicnum)
-		{
-		case RTILE_FANSPRITE:
-			//wal.cstat |= CSTAT_WALL_BLOCK | CSTAT_WALL_BLOCK_HITSCAN; Original code assigned this to 'wall', i.e. wall[0]
-			animwall[numanimwalls].wall = &wal;
-			numanimwalls++;
-			break;
-		case RTILE_BIGFORCE:
-			animwall[numanimwalls].wall = &wal;
-			numanimwalls++;
-			continue;
-		}
-
-		wal.extra = -1;
-
-		switch (wal.wallpicnum)
-		{
-		case RTILE_SCREENBREAK6:
-		case RTILE_SCREENBREAK7:
-		case RTILE_SCREENBREAK8:
-			for (j = RTILE_SCREENBREAK6; j <= RTILE_SCREENBREAK8; j++)
-				tloadtile(j);
-			animwall[numanimwalls].wall = &wal;
-			animwall[numanimwalls].tag = -1;
-			numanimwalls++;
-			break;
-		}
-	}
-
-	//Invalidate textures in sector behind mirror
-	for (i = 0; i < mirrorcnt; i++)
-	{
-		for (auto& wal : mirrorsector[i]->walls)
-		{
-			wal.setwalltexture(mirrortex);
-			wal.setovertexture(mirrortex);
-		}
-	}
-	thunder_brightness = 0;
  }
 
 

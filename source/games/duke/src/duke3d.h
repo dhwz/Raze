@@ -73,9 +73,7 @@ struct Dispatcher
 	void (*think)();
 	void (*movetransports)();
 	void (*initactorflags)();
-	void (*animatewalls)();
-	void (*operateforcefields)(DDukeActor* act, int low);
-	bool (*checkhitswitch)(int snum, walltype* w, DDukeActor* act);
+	bool (*checkaccessswitch)(int snum, int switchpal, DDukeActor* act, walltype* w);
 	void (*activatebysector)(sectortype* sect, DDukeActor* j);
 	void (*checkhitsprite)(DDukeActor* i, DDukeActor* sn);
 	void (*checkhitdefault)(DDukeActor* i, DDukeActor* sn);
@@ -125,6 +123,7 @@ void CallStaticSetup(DDukeActor* actor);
 void CallPlayFTASound(DDukeActor* actor);
 void CallStandingOn(DDukeActor* actor, player_struct* p);
 void CallRunState(DDukeActor* actor);
+int CallTriggerSwitch(DDukeActor* actor, player_struct* p);
 
 extern FTextureID mirrortex, foftex;
 

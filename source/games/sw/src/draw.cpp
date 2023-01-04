@@ -784,23 +784,23 @@ static void analyzesprites(tspriteArray& tsprites, const DVector3& viewpos, doub
                     if (pp->Flags & (PF_VIEW_FROM_OUTSIDE))
                         tsp->cstat |= (CSTAT_SPRITE_TRANSLUCENT);
 
-                    DVector3 pos;
+                    auto pos = pp->si.plusZ(tsp->pos.Z + pp->getViewHeightDiff());
+
                     if (pp->Flags & (PF_CLIMBING))
                     {
-                        // move sprite forward some so he looks like he's
-                        // climbing
-                        pos.XY() = pp->si.XY() + tsp->Angles.Yaw.ToVector() * 13;
+                        // move sprite forward some so he looks like he's climbing
+                        pos.XY() += tsp->Angles.Yaw.ToVector() * 13;
+                        pos.Z -= PLAYER_HEIGHTF - 17.;
                     }
-                    else
-                    {
-                        pos.X = pp->si.X;
-                        pos.Y = pp->si.Y;
-                    }
-
-                    pos.Z = tsp->pos.Z + pp->si.Z + pp->getViewHeightDiff();
 
                     if ((pp->Flags & PF_DEAD) && pos.Z > pp->actor->user.loz - pp->actor->user.floor_dist)
+                    {
                         pos.Z = pp->actor->user.loz - pp->actor->user.floor_dist;
+                    }
+                    else if (pp->Flags & (PF_SWIMMING|PF_DIVING))
+                    {
+                        pos.Z -= PLAYER_DIVE_HEIGHTF - 10.;
+                    }
 
 					tsp->pos = pos;
                     tsp->Angles.Yaw = pp->siang;
@@ -1142,7 +1142,7 @@ void UpdateWallPortalState()
             continue;
         }
          walltype* wal = mirror[i].mirrorWall;
-        if (wal->wallpicnum != MIRRORLABEL)
+        if (wal->walltexture != tileGetTextureID(MIRRORLABEL))
         {
             wal->portalflags = 0;
             continue;

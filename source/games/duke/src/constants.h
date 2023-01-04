@@ -415,14 +415,18 @@ DEFINE_TFLAGS_OPERATORS(EDukeFlags3)
 // these get stored as user flags inside the texture manager.
 enum
 {
-	TFLAG_WALLSWITCH			= 1 << 0,
+	TFLAG_WALLSWITCH			= 1 << 0,	// fake switches, actually...
 	TFLAG_ADULT					= 1 << 1,
 	TFLAG_CLEARINVENTORY		= 1 << 2,	// really dumb Duke stuff...
 	TFLAG_DOORWALL				= 1 << 3,
 	TFLAG_BLOCKDOOR				= 1 << 4,
 	TFLAG_NOBLOODSPLAT			= 1 << 5,
 	TFLAG_NOCIRCLEREFLECT		= 1 << 6,
-	TFLAG_INTERPOLATEWALL		= 1 << 7,
+	TFLAG_SEASICKWALL			= 1 << 7,
+	TFLAG_FORCEFIELD			= 1 << 8,
+	TFLAG_ANIMFORCEFIELD		= 1 << 9,
+	TFLAG_ANIMSCREEN			= 1 << 10,
+	TFLAG_ANIMSCREENNOISE		= 1 << 11,
 };
 
 enum
