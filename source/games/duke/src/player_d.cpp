@@ -701,6 +701,7 @@ static void shootrpg(DDukeActor *actor, int p, DVector3 pos, DAngle ang, int atw
 	auto spawned = CreateActor(sect, pos.plusZ(-1) + offset, atwith, 0, DVector2(0.21875, 0.21875), ang, vel, zvel, actor, 4);
 
 	if (!spawned) return;
+	CallInitialize(spawned);
 
 	if (p >= 0)
 	{
@@ -1647,11 +1648,6 @@ static void operateJetpack(int snum, ESyncBits actions, int psectlotag, double f
 	p->pycount &= 2047;
 	p->pyoff = BobVal(p->pycount);
 
-	if (p->jetpack_on && S_CheckActorSoundPlaying(pact, DUKE_SCREAM))
-	{
-		S_StopSound(DUKE_SCREAM, pact);
-	}
-
 	if (p->jetpack_on < 11)
 	{
 		p->jetpack_on++;
@@ -1803,7 +1799,7 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, double floo
 	else
 	{
 		p->falling_counter = 0;
-		S_StopSound(-1, pact, CHAN_VOICE);
+		S_StopSound(DUKE_SCREAM, pact);
 
 		if (psectlotag != ST_1_ABOVE_WATER && psectlotag != ST_2_UNDERWATER && p->on_ground == 0 && p->vel.Z > 12)
 			p->hard_landing = uint8_t(p->vel.Z / 4. );

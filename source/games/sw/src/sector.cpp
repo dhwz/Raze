@@ -499,24 +499,30 @@ void SectorSetup(void)
 
             // set the first on up
             swf = &SineWaveFloor[NextSineWave][swf_ndx];
-            if (tag != TAG_SINE_WAVE_CEILING) StartInterpolation(sectp, Interp_Sect_Floorz);
-            if (tag != TAG_SINE_WAVE_FLOOR) StartInterpolation(sectp, Interp_Sect_Ceilingz);
 
             swf->flags = 0;
 
             switch (num)
             {
             case 0:
+                StartInterpolation(sectp, Interp_Sect_Floorz);
+                sectp->interpolate |= 1;
                 swf->flags |= (SINE_FLOOR);
                 if ((sectp->floorstat & CSTAT_SECTOR_SLOPE))
                 {
+                    StartInterpolation(sectp, Interp_Sect_Floorheinum);
                     swf->flags |= (SINE_SLOPED);
                 }
                 break;
             case 1:
+                StartInterpolation(sectp, Interp_Sect_Ceilingz);
+                sectp->interpolate |= 2;
                 swf->flags |= (SINE_CEILING);
                 break;
             case 2:
+                StartInterpolation(sectp, Interp_Sect_Floorz);
+                StartInterpolation(sectp, Interp_Sect_Ceilingz);
+                sectp->interpolate |= 3;
                 swf->flags |= (SINE_FLOOR | SINE_CEILING);
                 break;
             }
