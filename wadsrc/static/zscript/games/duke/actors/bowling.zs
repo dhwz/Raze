@@ -2,17 +2,19 @@ class RedneckBowlingPin : DukeActor
 {
 	default
 	{
-		statnum STAT_ZOMBIEACTOR;
-		clipdist 12;
-		scaleX 0.359375;
-		scaleY 0.359375;
-		detail 0;
-		spriteset "BOWLINGPIN", "BOWLINGPIN1";
+		RedneckBowlingPin.Behavior 0;
+		spriteset "BOWLINGPIN", "BOWLINGPIN1", "BOWLINGPIN2";
 	}
+
+	meta int behavior;
+	property behavior: behavior;
 	
 	override void Initialize()
 	{
 		self.cstat |= CSTAT_SPRITE_BLOCK_ALL;
+		self.clipdist = 12;
+		self.scale = (0.359375, 0.359375);
+		self.ChangeStat(STAT_ZOMBIEACTOR);
 	}
 	
 	protected void DoTick(int type)
@@ -63,12 +65,17 @@ class RedneckBowlingPin : DukeActor
 			}
 			if (type < 2 && self.vel.X == 0)
 			{
+				if (type == 0 && self.spritesetindex == 1) self.setSpritesetImage(2);
 				return;
 			}
 		}
 		else if (self.sector.lotag == 900 && type != 2)
 		{
 			self.Destroy();
+		}
+		else
+		{
+			if (type == 0 && self.spritesetindex == 1) self.setSpritesetImage(2);
 		}
 	}
 	
@@ -84,14 +91,14 @@ class RedneckBowlingPin : DukeActor
 		let targ = RedneckBowlingPin(targa);
 		if (!targ) return;
 		
-		if (targ.detail == 0)
+		if (targ.behavior == 0)
 		{
 			self.vel.X *= 0.75;
 			self.angle -= targ.angle * 2 + frandom(0, 11.25);
 			targ.angle += frandom(0, 22.5 / 8);
 			targ.PlayActorSound("BOWLPIN");
 		}
-		else if (targ.detail == 1)
+		else if (targ.behavior == 1)
 		{
 			self.vel.X *= 0.75;
 			self.angle -= targ.angle * 2 + frandom(0, 22.5 / 8);
@@ -115,10 +122,16 @@ class RedneckHenstand : RedneckBowlingPin
 {
 	default
 	{
-		scaleY 0.234375;
 		spriteset "HENSTAND", "HENSTAND1";
-		detail 1;
+		RedneckBowlingPin.Behavior 1;
 	}
+	
+	override void Initialize()
+	{
+		Super.Initialize();
+		self.scale.Y = 234375;
+	}
+	
 	
 	override void Tick()
 	{
@@ -138,12 +151,15 @@ class RedneckBowlingBall : RedneckBowlingPin
 {
 	default
 	{
-		clipdist 17;
-		scaleX 0.171875;
-		scaleY 0.140625;
-		statnum STAT_ACTOR;
 		pic "BOWLINGBALL";
-		detail 2;
+		RedneckBowlingPin.Behavior 2;
+	}
+	
+	override void Initialize()
+	{
+		self.clipdist = 16;
+		self.scale = (0.171875, 0.140625);
+		self.ChangeStat(STAT_ACTOR);
 	}
 	
 	override void Tick()
@@ -226,18 +242,13 @@ class RedneckBowlingBall : RedneckBowlingPin
 
 class RedneckBowlingController : DukeActor
 {
-	default
-	{
-		statnum STAT_BOWLING;
-		scaleX 0;
-		scaleY 0;
-		clipdist 0;
-		extra 0;
-	}
-	
 	override void Initialize()
 	{
 		self.cstat = CSTAT_SPRITE_INVISIBLE;
+		self.clipdist = 0;
+		self.extra = 0;
+		
+		self.ChangeStat(STAT_BOWLING);
 	}
 }
 

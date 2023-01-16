@@ -250,7 +250,7 @@ DDukeActor* aim(DDukeActor* actor, int abase)
 				setFreeAimVelocity(vel, zvel, plr->Angles.getPitchWithView(), 16.);
 
 				HitInfo hit{};
-				hitscan(plr->GetActor()->getPosWithOffsetZ().plusZ(4), actor->sector(), DVector3(actor->spr.Angles.Yaw.ToVector() * vel, zvel), hit, CLIPMASK1);
+				hitscan(plr->GetActor()->getPosWithOffsetZ().plusZ(4), actor->sector(), DVector3(actor->spr.Angles.Yaw.ToVector() * vel, zvel * 64), hit, CLIPMASK1);
 
 				if (hit.actor() != nullptr)
 				{
@@ -1003,7 +1003,7 @@ void purplelavacheck(player_struct* p)
 	{
 		auto sect = pact->sector();
 		// one texflag for a single texture again, just to avoid one hard coded check...
-		if ((tilesurface(sect->floortexture) & TSURF_PURPLELAVA) || (tilesurface(sect->ceilingtexture) & TSURF_PURPLELAVA))
+		if ((tilesurface(sect->floortexture) == TSURF_PURPLELAVA) || (tilesurface(sect->ceilingtexture) == TSURF_PURPLELAVA))
 		{
 			if (p->boot_amount > 0)
 			{

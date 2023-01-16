@@ -2,11 +2,6 @@
 
 class DukeSoundController : DukeActor
 {
-	default
-	{
-		statnum STAT_FX;
-	}
-	
 	override void Initialize()
 	{
 		if (ud.multimode < 2 && self.pal == 1)
@@ -16,6 +11,7 @@ class DukeSoundController : DukeActor
 			return;
 		}
 		self.cstat = CSTAT_SPRITE_INVISIBLE;
+		self.ChangeStat(STAT_FX);
 	}
 	
 	override void Tick()
@@ -49,7 +45,7 @@ class DukeSoundController : DukeActor
 			let sec = self.sector;
 			if (self.lotag < 999 && sec.lotag >= 0 && sec.lotag < ST_9_SLIDING_ST_DOOR && snd_ambience && sec.floorz != sec.ceilingz)
 			{
-				int flags = Duke.GetSoundFlags(self.lotag);
+				int flags = Duke.GetSoundFlags(Raze.FindSoundByResID(self.lotag));
 				if (flags & Duke.SF_MSFX)
 				{
 					double distance = (p.actor.pos - self.pos).Length();

@@ -3,19 +3,21 @@ class RedneckGamblingMachine : DukeActor
 {
 	default
 	{
-		statnum STAT_ACTOR;
-		lotag 1;
-		clipdist 0;
-		extra 0;
 		spriteset "GAMBLINGMACHINE2", "GAMBLINGMACHINE3", "GAMBLINGMACHINE4", "GAMBLINGMACHINE5", "GAMBLINGMACHINE6", "GAMBLINGMACHINE7", "GAMBLINGMACHINE8", "GAMBLINGMACHINEBROKE";
 		spritesetindex 3;
+		RedneckGamblingMachine.winsound "COW3";
+
 	}
 	
-	Sound winsound;
+	meta Sound winsound;
+	property winsound: winsound;
 	
 	override void Initialize()
 	{
-		winsound = "COW3";
+		self.lotag = 1;
+		self.clipdist = 0;
+		self.extra = 0;
+		self.ChangeStat(STAT_ACTOR);
 	}
 
 	override void Tick()
@@ -123,10 +125,6 @@ class RedneckGamblingMachine2 : RedneckGamblingMachine
 	default
 	{
 		spriteset "GAMBLINGMACHINE2_2", "GAMBLINGMACHINE2_3", "GAMBLINGMACHINE2_4", "GAMBLINGMACHINE2_5", "GAMBLINGMACHINE2_6", "GAMBLINGMACHINE2_7", "GAMBLINGMACHINE2_8", "GAMBLINGMACHINE2_BROKE";
-	}
-	
-	override void Initialize()
-	{
-		winsound = "VX_TPIN2";
+		RedneckGamblingMachine.winsound "VX_TPIN2";
 	}
 }

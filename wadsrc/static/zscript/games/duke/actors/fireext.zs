@@ -3,7 +3,6 @@ class DukeFireext : DukeActor
 {
 	default
 	{
-		statnum STAT_STANDABLE;
 		pic "FIREEXT";
 	}
 
@@ -23,6 +22,7 @@ class DukeFireext : DukeActor
 		self.ownerActor = self;
 		self.vel.X = 0.5;
 		self.DoMove(CLIPMASK0);
+		self.ChangeStat(STAT_STANDABLE);
 	}
 	
 	override void Tick()
@@ -35,7 +35,7 @@ class DukeFireext : DukeActor
 			let a = frandom(0, 360);
 			let vel = frandom(0, 4) + 4;
 			let zvel = -frandom(0, 16) - self.vel.Z * 0.25;
-			let spawned = dlevel.SpawnActor(self.sector, self.pos.plusZ(frandom(-48, 0)), 'DukeScrap', -8, (0.75, 0.75), a, vel, zvel, self);
+			let spawned = dlevel.SpawnActor(self.sector, self.pos.plusZ(frandom(-48, 0)), 'DukeScrap', -8, (0.75, 0.75), a, vel, zvel, self, STAT_MISC);
 			if (spawned)
 			{
 				if (spawned) spawned.spriteextra = DukeScrap.Scrap3 + random(0, 3);

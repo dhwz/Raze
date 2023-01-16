@@ -5,13 +5,12 @@ class DukeRespawnMarker : DukeActor
 	default
 	{
 		spriteset "RESPAWNMARKERRED", "RESPAWNMARKERYELLOW", "RESPAWNMARKERGREEN";
-		scalex 0.375;
-		scaley 0.375;
 	}
 	
 	override void Initialize()
 	{
 		if (!self.mapSpawned && ownerActor != null) self.pos.Z = ownerActor.floorZ;
+		self.scale = (0.375, 0.375);
 	}
 	
 	override void Tick()
@@ -43,8 +42,11 @@ class RedneckRespawnMarker : DukeRespawnMarker
 	{
 		spriteset "RESPAWNMARKER1", "RESPAWNMARKER2", "RESPAWNMARKER3", "RESPAWNMARKER4", "RESPAWNMARKER5", "RESPAWNMARKERRED", "RESPAWNMARKER7", 
 			"RESPAWNMARKER8", "RESPAWNMARKER9", "RESPAWNMARKER10", "RESPAWNMARKER11", "RESPAWNMARKER12", "RESPAWNMARKER13", "RESPAWNMARKER14";
-		scalex 0.125;
-		scaley 0.125;
+	}
+
+	override void Initialize()
+	{
+		self.scale = (0.125, 0.125);
 	}
 
 	override bool Animate(tspritetype t)
