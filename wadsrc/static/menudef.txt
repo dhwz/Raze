@@ -1743,6 +1743,7 @@ OptionString "LanguageOptions"
 	"eng", "English (UK)"
 	"cs", "Česky (Czech)"
 	"de", "Deutsch (German)"
+
 	//"es", "Español (España) (Castilian Spanish)"
 	//"esm", "Español (Latino) (Latin American Spanish)"
 	//"eo", "Esperanto"
@@ -1758,6 +1759,16 @@ OptionString "LanguageOptions"
 	"ro", "Română (Romanian)"
 	//"ru", "Русский (Russian)"
 	//"sr", "Српски (Serbian)"
+}
+
+OptionString "LanguageOptionsDuke"
+{
+	"auto", "Auto"
+	"default", "English (US)"
+	"eng", "English (UK)"
+	"cs", "Česky (Czech)"
+	"de", "Deutsch (German)"
+	"es", "Español (Spanish)"
 }
 
 OptionMenu "MiscOptions" protected
@@ -1787,7 +1798,14 @@ OptionMenu "MiscOptions" protected
 		Option "$MISCMNU_NINJA",				"sw_ninjahack", "OnOff"
 	}
 	//StaticText " "
-	Option "$OPTMNU_LANGUAGE", "language", "LanguageOptions"
+	ifgame(Duke, Nam, WW2GI, Redneck, RedneckRides)
+	{
+		Option "$OPTMNU_LANGUAGE", "language", "LanguageOptionsDuke"
+	}
+	else
+	{
+		Option "$OPTMNU_LANGUAGE", "language", "LanguageOptions"
+	}
 	IfOption(Windows)
 	{
 		StaticText " "
