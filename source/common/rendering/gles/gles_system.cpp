@@ -208,6 +208,7 @@ namespace OpenGLESRenderer
 			gles.npotAvailable = CheckExtension("GL_OES_texture_npot");
 			gles.depthClampAvailable = CheckExtension("GL_EXT_depth_clamp");
 			gles.anistropicFilterAvailable = CheckExtension("GL_EXT_texture_filter_anisotropic");
+			gles.useMappedBuffers = true;
 		}
 		else if (gles.glesMode == GLES_MODE_OGL2)
 		{
