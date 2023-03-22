@@ -44,9 +44,6 @@ EXTERN_CVAR(Float, m_yaw)
 
 BEGIN_DUKE_NS
 
-// State timer counters. 
-static InputPacket loc; // input accumulation buffer.
-
 //---------------------------------------------------------------------------
 //
 // handles all HUD related input, i.e. inventory item selection and activation plus weapon selection.
@@ -73,6 +70,24 @@ void hud_input(int plnum)
 	// Backup weapon here as hud_input() is the first function where any one of the weapon variables can change.
 	p->backupweapon();
 
+	// Set-up crouch bools.
+	const int sectorLotag = p->insector() ? p->cursector->lotag : 0;
+	const bool crouchable = sectorLotag != ST_2_UNDERWATER && (sectorLotag != ST_1_ABOVE_WATER || p->spritebridge);
+	const bool disableToggle = p->jetpack_on || (!crouchable && p->on_ground) || (isRRRA() && (p->OnMotorcycle || p->OnBoat));
+
+	if (isRR() && (p->sync.actions & SB_CROUCH)) p->sync.actions &= ~SB_JUMP;
+
+	if (crouch_toggle && (!crouchable || disableToggle))
+	{
+		crouch_toggle = false;
+		p->sync.actions &= ~SB_CROUCH;
+	}
+
+	if ((isRR() && p->drink_amt > 88))
+		p->sync.actions |= SB_LOOK_LEFT;
+	if ((isRR() && p->drink_amt > 99))
+		p->sync.actions |= SB_LOOK_DOWN;
+
 	if (isRR())
 	{
 		if (PlayerInput(plnum, SB_QUICK_KICK) && p->last_pissed_time == 0)
@@ -85,7 +100,6 @@ void hud_input(int plnum)
 				{
 					p->GetActor()->spr.extra += 2;
 					p->last_extra = p->GetActor()->spr.extra;
-					p->resurrected = true;
 				}
 				else if (p->GetActor()->spr.extra < gs.max_player_health)
 					p->GetActor()->spr.extra = gs.max_player_health;
@@ -490,239 +504,70 @@ void hud_input(int plnum)
 
 //---------------------------------------------------------------------------
 //
-// Main input routine.
-// This includes several input improvements from EDuke32, but this code
-// has been mostly rewritten completely to make it clearer and reduce redundancy.
-//
-//---------------------------------------------------------------------------
-
-#if 0
-enum
-{
-
-	TURBOTURNTIME = (TICRATE/8), // 7
-	NORMALTURN    = 15,
-	PREAMBLETURN  = 5,
-	NORMALKEYMOVE = 40,
-	MAXVEL        = ((NORMALKEYMOVE*2)+10),
-	MAXSVEL       = ((NORMALKEYMOVE*2)+10),
-	MAXANGVEL     = 1024, // 127
-	MAXHORIZVEL   = 256,  // 127
-};
-#endif
-
-enum
-{
-	MAXVELMOTO    = 120,
-	VEHICLETURN   = 20
-};
-
-//---------------------------------------------------------------------------
-//
-// handles the input bits
-//
-//---------------------------------------------------------------------------
-
-static void processInputBits(player_struct *p, ControlInfo* const hidInput)
-{
-	// Set-up crouch bools.
-	int const sectorLotag = p->insector() ? p->cursector->lotag : 0;
-	bool const crouchable = sectorLotag != ST_2_UNDERWATER && (sectorLotag != ST_1_ABOVE_WATER || p->spritebridge);
-	bool const disableToggle = p->jetpack_on || (!crouchable && p->on_ground) || (isRRRA() && (p->OnMotorcycle || p->OnBoat));
-
-	ApplyGlobalInput(loc, hidInput, crouchable, disableToggle);
-	if (isRR() && (loc.actions & SB_CROUCH)) loc.actions &= ~SB_JUMP;
-
-	if (p->OnMotorcycle || p->OnBoat)
-	{
-		// mask out all actions not compatible with vehicles.
-		loc.actions &= ~(SB_WEAPONMASK_BITS | SB_TURNAROUND | SB_CENTERVIEW | SB_HOLSTER | SB_JUMP | SB_CROUCH | SB_RUN | 
-			SB_AIM_UP | SB_AIM_DOWN | SB_AIMMODE | SB_LOOK_UP | SB_LOOK_DOWN | SB_LOOK_LEFT | SB_LOOK_RIGHT);
-	}
-	else
-	{
-		if (buttonMap.ButtonDown(gamefunc_Quick_Kick)) // this shares a bit with another function so cannot be in the common code.
-			loc.actions |= SB_QUICK_KICK;
-
-		if ((isRR() && p->drink_amt > 88)) loc.actions |= SB_LOOK_LEFT;
-		if ((isRR() && p->drink_amt > 99)) loc.actions |= SB_LOOK_DOWN;
-	}
-}
-
-//---------------------------------------------------------------------------
-//
 // split out for readability
 //
 //---------------------------------------------------------------------------
 
-static FAngle motoApplyTurn(player_struct* p, ControlInfo* const hidInput, bool const kbdLeft, bool const kbdRight, double const factor)
+static void doVehicleTilting(player_struct* const p, const int turndir, const float factor)
 {
-	double turnvel = 0;
-	p->oTiltStatus = p->TiltStatus;
-
-	if (p->MotoSpeed == 0 || !p->on_ground)
+	if (turndir)
 	{
-		resetTurnHeldAmt();
-
-		if (kbdLeft || hidInput->mouseturnx < 0 || hidInput->dyaw < 0)
-		{
-			p->TiltStatus -= (float)factor;
-			if (p->TiltStatus < -10)
-				p->TiltStatus = -10;
-		}
-		else if (kbdRight || hidInput->mouseturnx > 0 || hidInput->dyaw > 0)
-		{
-			p->TiltStatus += (float)factor;
-			if (p->TiltStatus > 10)
-				p->TiltStatus = 10;
-		}
+		p->oTiltStatus = p->TiltStatus;
+		p->TiltStatus += factor * turndir;
+		if (abs(p->TiltStatus) > 10)
+			p->TiltStatus = 10.f * turndir;
 	}
-	else
-	{
-		if (kbdLeft || kbdRight || p->moto_drink || hidInput->mouseturnx || hidInput->dyaw)
-		{
-			double const velScale = 3. / 10;
-			auto const baseVel = (buttonMap.ButtonDown(gamefunc_Move_Backward) || hidInput->dz < 0) && p->MotoSpeed <= 0 ? -VEHICLETURN : VEHICLETURN;
-
-			if (kbdLeft || p->moto_drink < 0 || hidInput->mouseturnx < 0 || hidInput->dyaw < 0)
-			{
-				p->TiltStatus -= (float)factor;
-
-				if (p->TiltStatus < -10)
-					p->TiltStatus = -10;
-
-				if (kbdLeft)
-					turnvel -= isTurboTurnTime() && p->MotoSpeed > 0 ? baseVel : baseVel * velScale;
-
-				if (hidInput->mouseturnx < 0)
-					turnvel -= Sgn(baseVel) * sqrt((p->MotoSpeed > 0 ? abs(baseVel) : abs(baseVel) * velScale) * -(hidInput->mouseturnx / factor) * 2.);
-
-				if (hidInput->dyaw < 0)
-					turnvel += (p->MotoSpeed > 0 ? baseVel : baseVel * velScale) * hidInput->dyaw;
-
-				updateTurnHeldAmt(factor);
-			}
-
-			if (kbdRight || p->moto_drink > 0 || hidInput->mouseturnx > 0 || hidInput->dyaw > 0)
-			{
-				p->TiltStatus += (float)factor;
-
-				if (p->TiltStatus > 10)
-					p->TiltStatus = 10;
-
-				if (kbdRight)
-					turnvel += isTurboTurnTime() && p->MotoSpeed > 0 ? baseVel : baseVel * velScale;
-
-				if (hidInput->mouseturnx > 0)
-					turnvel += Sgn(baseVel) * sqrt((p->MotoSpeed > 0 ? abs(baseVel) : abs(baseVel) * velScale) * (hidInput->mouseturnx / factor) * 2.);
-
-				if (hidInput->dyaw > 0)
-					turnvel += (p->MotoSpeed > 0 ? baseVel : baseVel * velScale) * hidInput->dyaw;
-
-				updateTurnHeldAmt(factor);
-			}
-		}
-		else
-		{
-			resetTurnHeldAmt();
-
-			if (p->TiltStatus > 0)
-				p->TiltStatus -= (float)factor;
-			else if (p->TiltStatus < 0)
-				p->TiltStatus += (float)factor;
-		}
-	}
-
-	if (fabs(p->TiltStatus) < factor)
-		p->TiltStatus = 0;
-
-	return FAngle::fromBuild(turnvel * factor);
 }
 
-//---------------------------------------------------------------------------
-//
-// same for the boat
-//
-//---------------------------------------------------------------------------
-
-static FAngle boatApplyTurn(player_struct *p, ControlInfo* const hidInput, bool const kbdLeft, bool const kbdRight, double const factor)
+static float getVehicleTurnVel(player_struct* p, HIDInput* const hidInput, const float factor, const float baseVel, const float velScale)
 {
-	double turnvel = 0;
-	p->oTiltStatus = p->TiltStatus;
+	float turnvel = 0;
 
-	if (p->MotoSpeed)
-	{
-		if (kbdLeft || kbdRight || p->moto_drink || hidInput->mouseturnx || hidInput->dyaw)
-		{
-			double const velScale = !p->NotOnWater? 1. : 6. / 19.;
-			auto const baseVel = +VEHICLETURN * velScale;
+	// Cancel out micro-movement
+	if (fabs(hidInput->mouseturnx) < (m_sensitivity_x * m_yaw * backendinputscale() * 2.f)) 
+		hidInput->mouseturnx = 0;
 
-			if (kbdLeft || p->moto_drink < 0 || hidInput->mouseturnx < 0 || hidInput->dyaw < 0)
-			{
-				if (!p->NotOnWater)
-				{
-					p->TiltStatus -= (float)factor;
-					if (p->TiltStatus < -10)
-						p->TiltStatus = -10;
-				}
+	// Yes, we need all these bools...
+	const bool kbdLeft = buttonMap.ButtonDown(gamefunc_Turn_Left) || buttonMap.ButtonDown(gamefunc_Strafe_Left);
+	const bool kbdRight = buttonMap.ButtonDown(gamefunc_Turn_Right) || buttonMap.ButtonDown(gamefunc_Strafe_Right);
+	const bool hidLeft = hidInput->mouseturnx < 0 || hidInput->joyaxes[JOYAXIS_Yaw] > 0;
+	const bool hidRight = hidInput->mouseturnx > 0 || hidInput->joyaxes[JOYAXIS_Yaw] < 0;
+	const int turndir = (kbdRight || hidRight) - (kbdLeft || hidLeft);
 
-				if (kbdLeft)
-					turnvel -= isTurboTurnTime() ? baseVel : baseVel * velScale;
-
-				if (hidInput->mouseturnx < 0)
-					turnvel -= Sgn(baseVel) * sqrt(abs(baseVel) * -(hidInput->mouseturnx / factor) * 2.);
-
-				if (hidInput->dyaw < 0)
-					turnvel += baseVel * hidInput->dyaw;
-
-				updateTurnHeldAmt(factor);
-			}
-
-			if (kbdRight || p->moto_drink > 0 || hidInput->mouseturnx > 0 || hidInput->dyaw > 0)
-			{
-				if (!p->NotOnWater)
-				{
-					p->TiltStatus += (float)factor;
-					if (p->TiltStatus > 10)
-						p->TiltStatus = 10;
-				}
-
-				if (kbdRight)
-					turnvel += isTurboTurnTime() ? baseVel : baseVel * velScale;
-
-				if (hidInput->mouseturnx > 0)
-					turnvel += Sgn(baseVel) * sqrt(abs(baseVel) * (hidInput->mouseturnx / factor) * 2.);
-
-				if (hidInput->dyaw > 0)
-					turnvel += baseVel * hidInput->dyaw;
-
-				updateTurnHeldAmt(factor);
-			}
-		}
-		else if (!p->NotOnWater)
-		{
-			resetTurnHeldAmt();
-
-			if (p->TiltStatus > 0)
-				p->TiltStatus -= (float)factor;
-			else if (p->TiltStatus < 0)
-				p->TiltStatus += (float)factor;
-		}
-	}
-	else if (!p->NotOnWater)
+	if (p->OnMotorcycle && (p->MotoSpeed == 0 || !p->on_ground))
 	{
 		resetTurnHeldAmt();
+		doVehicleTilting(p, turndir, factor);
+	}
+	else if ((p->OnMotorcycle || p->MotoSpeed) && (turndir || p->moto_drink))
+	{
+		if (p->OnMotorcycle || !p->NotOnWater)
+			doVehicleTilting(p, turndir, factor);
 
-		if (p->TiltStatus > 0)
-			p->TiltStatus -= (float)factor;
-		else if (p->TiltStatus < 0)
-			p->TiltStatus += (float)factor;
+		const bool noattenuate = (isTurboTurnTime() || hidLeft || hidRight) && (!p->OnMotorcycle || p->MotoSpeed > 0);
+		const auto vel = (noattenuate) ? (baseVel) : (baseVel * velScale);
+
+		turnvel = vel * -hidInput->joyaxes[JOYAXIS_Yaw];
+
+		if (const auto kbdDir = kbdRight - kbdLeft)
+		{
+			turnvel += vel * kbdDir;
+			updateTurnHeldAmt(factor);
+		}
+
+		if (hidInput->mouseturnx)
+			turnvel += sqrtf(abs(vel * hidInput->mouseturnx / factor) * (7.f / 20.f)) * Sgn(vel) * Sgn(hidInput->mouseturnx);
+	}
+	else if (p->OnMotorcycle || !p->NotOnWater)
+	{
+		resetTurnHeldAmt();
+		p->TiltStatus -= factor * Sgn(p->TiltStatus);
 	}
 
 	if (fabs(p->TiltStatus) < factor)
 		p->TiltStatus = 0;
 
-	return FAngle::fromBuild(turnvel * factor);
+	return turnvel * factor;
 }
 
 //---------------------------------------------------------------------------
@@ -731,71 +576,37 @@ static FAngle boatApplyTurn(player_struct *p, ControlInfo* const hidInput, bool 
 //
 //---------------------------------------------------------------------------
 
-static void processVehicleInput(player_struct *p, ControlInfo* const hidInput, InputPacket& input, double const scaleAdjust)
+static void processVehicleInput(player_struct *p, HIDInput* const hidInput, InputPacket* const inputBuffer, InputPacket* const currInput, const double scaleAdjust)
 {
-	bool const kbdLeft = buttonMap.ButtonDown(gamefunc_Turn_Left) || buttonMap.ButtonDown(gamefunc_Strafe_Left);
-	bool const kbdRight = buttonMap.ButtonDown(gamefunc_Turn_Right) || buttonMap.ButtonDown(gamefunc_Strafe_Right);
+	static constexpr float VEHICLETURN = (20.f * 360.f / 2048.f);
+	float baseVel, velScale;
 
-	// Cancel out micro-movement
-	if (fabs(hidInput->mouseturnx) < (m_sensitivity_x * m_yaw * backendinputscale() * 2.f)) hidInput->mouseturnx = 0;
-
-	p->vehTurnLeft = kbdLeft || hidInput->mouseturnx < 0 || hidInput->dyaw < 0;
-	p->vehTurnRight = kbdRight || hidInput->mouseturnx > 0 || hidInput->dyaw > 0;
+	// mask out all actions not compatible with vehicles.
+	inputBuffer->actions &= ~(SB_WEAPONMASK_BITS | SB_TURNAROUND | SB_CENTERVIEW | SB_HOLSTER | SB_JUMP | SB_CROUCH | SB_RUN | 
+		SB_AIM_UP | SB_AIM_DOWN | SB_AIMMODE | SB_LOOK_UP | SB_LOOK_DOWN | SB_LOOK_LEFT | SB_LOOK_RIGHT);
 
 	if (p->OnBoat || !p->moto_underwater)
 	{
-		p->vehForwardScale = min((buttonMap.ButtonDown(gamefunc_Move_Forward) || buttonMap.ButtonDown(gamefunc_Strafe)) + hidInput->dz, 1.f); 
-		p->vehReverseScale = min(buttonMap.ButtonDown(gamefunc_Move_Backward) + -hidInput->dz, 1.f);
-		p->vehBraking = buttonMap.ButtonDown(gamefunc_Run);
+		const bool kbdForwards = buttonMap.ButtonDown(gamefunc_Move_Forward) || buttonMap.ButtonDown(gamefunc_Strafe);
+		const bool kbdBackward = buttonMap.ButtonDown(gamefunc_Move_Backward);
+		inputBuffer->fvel = clamp(kbdForwards - kbdBackward + hidInput->joyaxes[JOYAXIS_Forward], -1.f, 1.f);
+		
+		if (buttonMap.ButtonDown(gamefunc_Run))
+			inputBuffer->actions |= SB_CROUCH;
 	}
 
 	if (p->OnMotorcycle)
 	{
-		input.avel = motoApplyTurn(p, hidInput, kbdLeft, kbdRight, scaleAdjust).Degrees();
-		if (p->moto_underwater) p->MotoSpeed = 0;
+		velScale = (3.f / 10.f);
+		baseVel = VEHICLETURN * Sgn(p->MotoSpeed);
 	}
 	else
 	{
-		input.avel = boatApplyTurn(p, hidInput, kbdLeft, kbdRight, scaleAdjust).Degrees();
+		velScale = !p->NotOnWater? 1.f : (6.f / 19.f);
+		baseVel = VEHICLETURN * velScale;
 	}
 
-	loc.fvel = clamp<float>((float)p->MotoSpeed, -(MAXVELMOTO >> 3), MAXVELMOTO) * (1.f / 40.f);
-	loc.avel += input.avel;
-}
-
-//---------------------------------------------------------------------------
-//
-// finalizes the input and passes it to the global input buffer
-//
-//---------------------------------------------------------------------------
-
-static void FinalizeInput(player_struct *p, InputPacket& input)
-{
-	if (gamestate != GS_LEVEL || movementBlocked(p) || p->GetActor()->spr.extra <= 0 || (p->dead_flag && !ud.god && !p->resurrected))
-	{
-		// neutralize all movement when not in a game, blocked or in automap follow mode
-		loc.fvel = loc.svel = 0;
-		loc.avel = loc.horz = 0;
-		input.avel = input.horz = 0;
-	}
-	else
-	{
-		if (p->on_crane != nullptr)
-		{
-			loc.fvel = input.fvel = 0;
-			loc.svel = input.svel = 0;
-		}
-
-		if (p->newOwner != nullptr || p->on_crane != nullptr)
-		{
-			loc.avel = input.avel = 0;
-		}
-
-		if (p->newOwner != nullptr || (p->sync.actions & SB_CENTERVIEW && abs(p->GetActor()->spr.Angles.Pitch.Degrees()) > 2.2370))
-		{
-			loc.horz = input.horz = 0;
-		}
-	}
+	inputBuffer->avel += (currInput->avel = getVehicleTurnVel(p, hidInput, (float)scaleAdjust, baseVel, velScale));
 }
 
 
@@ -805,52 +616,18 @@ static void FinalizeInput(player_struct *p, InputPacket& input)
 //
 //---------------------------------------------------------------------------
 
-void GameInterface::GetInput(ControlInfo* const hidInput, double const scaleAdjust, InputPacket* packet)
+void GameInterface::GetInput(HIDInput* const hidInput, InputPacket* const inputBuffer, InputPacket* const currInput, const double scaleAdjust)
 {
-	if (paused || gamestate != GS_LEVEL)
-	{
-		loc = {};
-		return;
-	}
-
 	auto const p = &ps[myconnectindex];
-	InputPacket input{};
-
-	processInputBits(p, hidInput);
 
 	if (isRRRA() && (p->OnMotorcycle || p->OnBoat))
 	{
-		processVehicleInput(p, hidInput, input, scaleAdjust);
+		processVehicleInput(p, hidInput, inputBuffer, currInput, scaleAdjust);
 	}
 	else
 	{
-		processMovement(&input, &loc, hidInput, scaleAdjust, p->drink_amt);
+		processMovement(hidInput, inputBuffer, currInput, scaleAdjust, p->drink_amt);
 	}
-
-	FinalizeInput(p, input);
-
-	if (!SyncInput() && p->GetActor()->spr.extra > 0)
-	{
-		p->Angles.RenderAngles.Yaw += p->adjustavel(input.avel);
-		p->Angles.RenderAngles.Pitch += DAngle::fromDeg(input.horz);
-	}
-
-	if (packet)
-	{
-		*packet = loc;
-		loc = {};
-	}
-}
-
-//---------------------------------------------------------------------------
-//
-// This is called from InputState::ClearAllInput and resets all static state being used here.
-//
-//---------------------------------------------------------------------------
-
-void GameInterface::clearlocalinputstate()
-{
-	loc = {};
 }
 
 

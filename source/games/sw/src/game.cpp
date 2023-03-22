@@ -502,9 +502,6 @@ void InitRunLevel(void)
     // send packets with player info
     InitNetPlayerOptions();
 
-    // Initialize Game part of network code
-    InitNetVars();
-
     if (currentLevel)
     {
         PlaySong(currentLevel->music, currentLevel->cdSongId);
@@ -718,15 +715,6 @@ int GameInterface::GetCurrentSkill()
 
 void GameInterface::Ticker(void)
 {
-    int i;
-    TRAVERSE_CONNECT(i)
-    {
-        auto pp = Player + i;
-        pp->lastinput = pp->input;
-        pp->input = playercmds[i].ucmd;
-        if (pp->lastinput.actions & SB_CENTERVIEW) pp->input.actions |= SB_CENTERVIEW;
-    }
-
     domovethings();
     r_NoInterpolate = paused;
 }

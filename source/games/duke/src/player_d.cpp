@@ -1738,7 +1738,7 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, double floo
 
 		p->on_warping_sector = 0;
 
-		if ((actions & SB_CROUCH) || crouch_toggle)	// FIXME: The crouch_toggle check here is not network safe and needs revision when multiplayer is going.
+		if (actions & SB_CROUCH)
 		{
 			playerCrouch(snum);
 		}
@@ -2600,6 +2600,7 @@ void processinput_d(int snum)
 
 	ESyncBits& actions = p->sync.actions;
 
+	processinputvel(snum);
 	auto sb_fvel = PlayerInputForwardVel(snum);
 	auto sb_svel = PlayerInputSideVel(snum);
 
@@ -2619,6 +2620,8 @@ void processinput_d(int snum)
 
 	shrunk = (pact->spr.scale.Y < 0.5);
 	getzrange(p->GetActor()->getPosWithOffsetZ(), psectp, &ceilingz, chz, &floorz, clz, 10.1875, CLIPMASK0);
+
+	setPlayerActorViewZOffset(pact);
 
 	p->truefz = getflorzofslopeptr(psectp, p->GetActor()->getPosWithOffsetZ());
 	p->truecz = getceilzofslopeptr(psectp, p->GetActor()->getPosWithOffsetZ());
@@ -2711,6 +2714,7 @@ void processinput_d(int snum)
 
 	if (p->newOwner != nullptr)
 	{
+		setForcedSyncInput();
 		p->vel.X = p->vel.Y = 0;
 		pact->vel.X = 0;
 
@@ -2724,11 +2728,13 @@ void processinput_d(int snum)
 	doubvel = TICSPERFRAME;
 
 	checklook(snum,actions);
-	double iif = 2.5;
-	auto oldpos = p->GetActor()->opos;
+	p->Angles.doViewYaw(&p->sync);
 
 	if (p->on_crane != nullptr)
+	{
+		setForcedSyncInput();
 		goto HORIZONLY;
+	}
 
 	p->playerweaponsway(pact->vel.X);
 
@@ -2736,6 +2742,8 @@ void processinput_d(int snum)
 	if (p->on_ground) p->bobcounter += int(p->GetActor()->vel.X * 8);
 
 	p->backuppos(ud.clipping == 0 && ((p->insector() && p->cursector->floortexture == mirrortex) || !p->insector()));
+
+	p->Angles.doYawKeys(&p->sync);
 
 	// Shrinking code
 
@@ -2755,14 +2763,18 @@ void processinput_d(int snum)
 
 	p->psectlotag = psectlotag;
 
-	//Do the quick lefts and rights
-	p->Angles.doViewYaw(actions);
+	if (p->centeringView())
+	{
+		p->sync.horz = 0;
+		setForcedSyncInput();
+	}
 
 	if (movementBlocked(p))
 	{
 		doubvel = 0;
 		p->vel.X = 0;
 		p->vel.Y = 0;
+		setForcedSyncInput();
 	}
 	else if (SyncInput())
 	{
@@ -2773,7 +2785,6 @@ void processinput_d(int snum)
 		p->GetActor()->spr.Angles.Yaw += p->adjustavel(PlayerInputAngVel(snum));
 	}
 
-	p->Angles.doYawKeys(&actions);
 	purplelavacheck(p);
 
 	if (p->spritebridge == 0 && pact->insector())
@@ -2871,8 +2882,7 @@ void processinput_d(int snum)
 
 HORIZONLY:
 
-	if (psectlotag == 1 || p->spritebridge == 1) iif = 4;
-	else iif = 20;
+	double iif = (psectlotag == 1 || p->spritebridge == 1) ? 4 : 20;
 
 	if (p->insector() && p->cursector->lotag == 2) k = 0;
 	else k = 1;
@@ -2910,7 +2920,7 @@ HORIZONLY:
 	}
 
 	// RBG***
-	SetActor(pact, p->GetActor()->spr.pos);
+	SetActor(pact, pact->spr.pos);
 
 	if (psectlotag < 3)
 	{
@@ -2933,6 +2943,7 @@ HORIZONLY:
 	if (p->cursector != pact->sector())
 		ChangeActorSect(pact, p->cursector);
 
+	auto oldpos = p->GetActor()->opos;
 	int retry = 0;
 	while (ud.clipping == 0)
 	{
@@ -2983,14 +2994,14 @@ HORIZONLY:
 		playerAimDown(snum, actions);
 	}
 
+	p->Angles.doPitchKeys(&p->sync);
+
+	p->checkhardlanding();
+
 	if (SyncInput())
 	{
 		p->GetActor()->spr.Angles.Pitch += GetPlayerHorizon(snum);
 	}
-
-	p->Angles.doPitchKeys(&actions, GetPlayerHorizon(snum).Sgn());
-
-	p->checkhardlanding();
 
 	//Shooting code/changes
 

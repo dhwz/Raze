@@ -545,6 +545,9 @@ void playerisdead(int snum, int psectlotag, double floorz, double ceilingz)
 	auto p = &ps[snum];
 	auto actor = p->GetActor();
 
+	// lock input when dead.
+	setForcedSyncInput();
+
 	if (p->dead_flag == 0)
 	{
 		if (actor->spr.pal != 1)
@@ -597,8 +600,8 @@ void playerisdead(int snum, int psectlotag, double floorz, double ceilingz)
 	{
 		if (p->on_warping_sector == 0)
 		{
-			if (abs(p->GetActor()->getOffsetZ() - floorz) > (gs.playerheight * 0.5))
-				p->GetActor()->spr.pos.Z += 348/ 256.;
+			if (abs(actor->getOffsetZ() - floorz) > (gs.playerheight * 0.5))
+				actor->spr.pos.Z += 348/ 256.;
 		}
 		else
 		{
@@ -607,19 +610,19 @@ void playerisdead(int snum, int psectlotag, double floorz, double ceilingz)
 		}
 
 		Collision coll;
-		clipmove(p->GetActor()->spr.pos.XY(), p->GetActor()->getOffsetZ(), &p->cursector, DVector2( 0, 0), 10.25, 4., 4., CLIPMASK0, coll);
+		clipmove(actor->spr.pos.XY(), actor->getOffsetZ(), &p->cursector, DVector2( 0, 0), 10.25, 4., 4., CLIPMASK0, coll);
 	}
 
 	actor->backuploc();
 
-	p->Angles.ViewAngles.Pitch = p->GetActor()->spr.Angles.Pitch = nullAngle;
+	p->Angles.ViewAngles.Pitch = actor->spr.Angles.Pitch = nullAngle;
 
-	updatesector(p->GetActor()->getPosWithOffsetZ(), &p->cursector);
+	updatesector(actor->getPosWithOffsetZ(), &p->cursector);
 
-	pushmove(p->GetActor()->spr.pos.XY(), p->GetActor()->getOffsetZ(), &p->cursector, 8, 4, 20, CLIPMASK0);
+	pushmove(actor->spr.pos.XY(), actor->getOffsetZ(), &p->cursector, 8, 4, 20, CLIPMASK0);
 	
 	if (floorz > ceilingz + 16 && actor->spr.pal != 1)
-		p->Angles.ViewAngles.Roll = DAngle::fromBuild(-(p->dead_flag + ((floorz + p->GetActor()->getOffsetZ()) * 2)));
+		p->Angles.ViewAngles.Roll = DAngle::fromBuild(-(p->dead_flag + ((floorz + actor->getOffsetZ()) * 2)));
 
 	p->on_warping_sector = 0;
 
@@ -726,7 +729,7 @@ void playerJump(int snum, double floorz, double ceilingz)
 
 void player_struct::apply_seasick()
 {
-	if (isRRRA() && SeaSick && (dead_flag == 0 || (dead_flag && resurrected)))
+	if (isRRRA() && SeaSick && (dead_flag == 0))
 	{
 		if (SeaSick < 250)
 		{
@@ -958,6 +961,8 @@ bool movementBlocked(player_struct *p)
 		p->hard_landing ||
 		p->access_incs > 0 ||
 		p->knee_incs > 0 ||
+		p->GetActor()->spr.extra <= 0 ||
+		(p->dead_flag && !ud.god) ||
 		(blockingweapon() && p->kickback_pic > 1 && p->kickback_pic < weapondelay()));
 }
 

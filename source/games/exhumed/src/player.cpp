@@ -100,9 +100,10 @@ size_t MarkPlayers()
         GC::Mark(p.pDoppleSprite);
         GC::Mark(p.pPlayerFloorSprite);
         GC::Mark(p.pPlayerGrenade);
+        GC::Mark(p.pTarget);
     }
     GC::MarkArray(nNetStartSprite, kMaxPlayers);
-    return 5 * kMaxPlayers;
+    return 6 * kMaxPlayers;
 }
 
 //---------------------------------------------------------------------------
@@ -431,8 +432,7 @@ void RestartPlayer(int nPlayer)
 
 	plr->ototalvel = plr->totalvel = 0;
 
-	memset(&sPlayerInput[nPlayer], 0, sizeof(PlayerInput));
-	sPlayerInput[nPlayer].nItem = -1;
+    PlayerList[nPlayer].nCurrentItem = -1;
 
 	plr->nDeathType = 0;
 	nQuake[nPlayer] = 0;
@@ -664,17 +664,6 @@ static void pickupMessage(int no)
 //
 //---------------------------------------------------------------------------
 
-void UpdatePlayerSpriteAngle(Player* pPlayer)
-{
-    if (pPlayer->pActor) inita = pPlayer->pActor->spr.Angles.Yaw.Normalized360();
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
 void AIPlayer::Draw(RunListEvent* ev)
 {
     int nPlayer = RunData[ev->nRun].nObjIndex;
@@ -854,7 +843,7 @@ bool CheckMovingBlocks(int nPlayer, Collision& nMove, DVector3& spr_pos, sectort
                 {
                     PlayerList[nPlayer].pPlayerPushSect = sect;
 
-                    DVector2 vel = sPlayerInput[nPlayer].vel;
+                    DVector2 vel = PlayerList[nPlayer].vel;
                     auto nMyAngle = vel.Angle().Normalized360();
 
                     setsectinterpolate(sect);
@@ -905,12 +894,12 @@ void AIPlayer::Tick(RunListEvent* ev)
     int nAction = PlayerList[nPlayer].nAction;
     int nActionB = PlayerList[nPlayer].nAction;
 
-    pPlayerActor->vel.XY() = sPlayerInput[nPlayer].vel;
+    pPlayerActor->vel.XY() = PlayerList[nPlayer].vel;
 
-    if (sPlayerInput[nPlayer].nItem > -1)
+    if (PlayerList[nPlayer].nCurrentItem > -1)
     {
-        UseItem(nPlayer, sPlayerInput[nPlayer].nItem);
-        sPlayerInput[nPlayer].nItem = -1;
+        UseItem(nPlayer, PlayerList[nPlayer].nCurrentItem);
+        PlayerList[nPlayer].nCurrentItem = -1;
     }
 
     pPlayerActor->spr.picnum = seq_GetSeqPicnum(PlayerList[nPlayer].nSeq, PlayerSeq[nHeightTemplate[nAction]].a, PlayerList[nPlayer].nSeqSize);
@@ -978,16 +967,15 @@ void AIPlayer::Tick(RunListEvent* ev)
         }
     }
 
-    PlayerList[nPlayer].Angles.doViewYaw(sPlayerInput[nLocalPlayer].actions);
+    PlayerList[nPlayer].Angles.doViewYaw(&PlayerList[nLocalPlayer].input);
 
     // loc_1A494:
     if (SyncInput())
     {
-        PlayerList[nPlayer].pActor->spr.Angles.Yaw += DAngle::fromDeg(sPlayerInput[nPlayer].nAngle);
+        PlayerList[nPlayer].pActor->spr.Angles.Yaw += DAngle::fromDeg(PlayerList[nPlayer].input.avel);
     }
 
-    PlayerList[nPlayer].Angles.doYawKeys(&sPlayerInput[nLocalPlayer].actions);
-    UpdatePlayerSpriteAngle(&PlayerList[nPlayer]);
+    PlayerList[nPlayer].Angles.doYawKeys(&PlayerList[nLocalPlayer].input);
 
     // player.zvel is modified within Gravity()
 	double zVel = pPlayerActor->vel.Z;
@@ -1005,7 +993,7 @@ void AIPlayer::Tick(RunListEvent* ev)
 
     auto playerPos = pPlayerActor->spr.pos.XY();
 
-    DVector2 vect = sPlayerInput[nPlayer].vel;
+    DVector2 vect = PlayerList[nPlayer].vel;
     double zz = pPlayerActor->vel.Z;
 
     if (pPlayerActor->vel.Z > 32)
@@ -1073,7 +1061,7 @@ void AIPlayer::Tick(RunListEvent* ev)
             pPlayerActor->spr.Angles = DRotator(nullAngle, GetAngleToSprite(pPlayerActor, pSpiritSprite), nullAngle);
             pPlayerActor->backupang();
 
-            sPlayerInput[nPlayer].vel.Zero();
+            PlayerList[nPlayer].vel.Zero();
             pPlayerActor->vel.Zero();
 
             if (nFreeze < 1)
@@ -1217,7 +1205,7 @@ sectdone:
 
     int var_5C = pViewSect->Flag & kSectUnderwater;
 
-    auto actions = sPlayerInput[nPlayer].actions;
+    auto actions = PlayerList[nPlayer].input.actions;
 
     // loc_1AEF5:
     if (PlayerList[nPlayer].nHealth > 0)
@@ -2427,7 +2415,7 @@ sectdone:
 
             // loc_1BE70:
             // Handle player pressing number keys to change weapon
-            uint8_t var_90 = sPlayerInput[nPlayer].getNewWeapon();
+            uint8_t var_90 = PlayerList[nPlayer].input.getNewWeapon();
 
             if (var_90)
             {
@@ -2471,12 +2459,12 @@ sectdone:
 
         if (SyncInput())
         {
-            pPlayer->pActor->spr.Angles.Pitch += DAngle::fromDeg(sPlayerInput[nPlayer].pan);
+            pPlayer->pActor->spr.Angles.Pitch += DAngle::fromDeg(PlayerList[nPlayer].input.horz);
         }
 
-        pPlayer->Angles.doPitchKeys(&sPlayerInput[nLocalPlayer].actions, sPlayerInput[nPlayer].pan);
+        pPlayer->Angles.doPitchKeys(&PlayerList[nLocalPlayer].input);
 
-        if (actions & (SB_AIM_UP | SB_AIM_DOWN) || sPlayerInput[nPlayer].pan)
+        if (actions & (SB_AIM_UP | SB_AIM_DOWN) || PlayerList[nPlayer].input.horz)
         {
             pPlayer->nDestVertPan = pPlayer->pActor->spr.Angles.Pitch;
             pPlayer->bPlayerPan = pPlayer->bLockPan = true;
@@ -2595,14 +2583,6 @@ sectdone:
         }
     }
 
-    // loc_1C3B4:
-    if (nPlayer == nLocalPlayer)
-    {
-        initpos = pPlayerActor->spr.pos;
-        initsectp = pPlayerActor->sector();
-        inita = pPlayerActor->spr.Angles.Yaw;
-    }
-
     if (!PlayerList[nPlayer].nHealth)
     {
         PlayerList[nPlayer].nThrust.Zero();
@@ -2623,7 +2603,7 @@ sectdone:
             {
                 PlayerList[nPlayer].pActor->spr.Angles.Pitch -= maphoriz(dVertPan[nPlayer]);
 
-                if (PlayerList[nPlayer].pActor->spr.Angles.Pitch.Degrees() <= 38)
+                if (PlayerList[nPlayer].pActor->spr.Angles.Pitch.Degrees() <= -38)
                 {
                     PlayerList[nPlayer].pActor->spr.Angles.Pitch = DAngle::fromDeg(-37.72);
                 }

@@ -862,6 +862,7 @@ void WeaponLower(PLAYER* pPlayer)
 			}
 			else
 			{
+				pPlayer->weaponState = 1;
 				StartQAV(pPlayer, kQAVBUNDOWN2);
 			}
 			break;
@@ -2381,6 +2382,9 @@ void WeaponProcess(PLAYER* pPlayer) {
 	}
 #endif
 
+	int newweap = pPlayer->input.getNewWeapon();
+	if (newweap > 0 && newweap <= WeaponSel_MaxBlood) pPlayer->newWeapon = newweap;
+
 	if (pPlayer->actor->xspr.health == 0)
 	{
 		pPlayer->qavLoop = 0;
@@ -2400,7 +2404,7 @@ void WeaponProcess(PLAYER* pPlayer) {
 			{
 				pPlayer->fuseTime = pPlayer->weaponTimer;
 				DropBundle(1, pPlayer);
-				pPlayer->weaponState = 1;
+				pPlayer->weaponState = 3;
 			}
 		}
 		WeaponLower(pPlayer);

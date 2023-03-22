@@ -276,8 +276,6 @@ struct player_struct
 
 	int max_secret_rooms, secret_rooms, max_actors_killed, actors_killed;
 
-	bool resurrected;
-
 	// Redneck Rampage additions. Those which did not have names in the reconstructed source got one from either RedneckGDX or RedNukem.
 	// Items were reordered by size.
 	int stairs;
@@ -310,8 +308,7 @@ struct player_struct
 	uint8_t hurt_delay2, nocheat;
 	uint8_t OnMotorcycle, OnBoat, moto_underwater, NotOnWater, MotoOnGround;
 	uint8_t moto_do_bump, moto_bump_fast, moto_on_oil, moto_on_mud;
-	double vehForwardScale, vehReverseScale, MotoSpeed;
-	bool vehTurnLeft, vehTurnRight, vehBraking;
+	double MotoSpeed;
 
 	TArray<GameVarValue> uservars;
 
@@ -346,6 +343,11 @@ struct player_struct
 	void setbobpos()
 	{
 		bobpos = GetActor()->spr.pos.XY();
+	}
+
+	bool centeringView()
+	{
+		return (sync.actions & SB_CENTERVIEW) && abs(GetActor()->spr.Angles.Pitch.Degrees()) > 2.2370;
 	}
 };
 

@@ -146,7 +146,6 @@ void DoPlayerFly(PLAYER* pp);
 void DoPlayerBeginClimb(PLAYER* pp);
 void DoPlayerClimb(PLAYER* pp);
 void DoPlayerBeginDie(PLAYER* pp);
-void DoPlayerDie(PLAYER* pp);
 // void DoPlayerBeginOperateBoat(PLAYER* pp);
 void DoPlayerBeginOperateVehicle(PLAYER* pp);
 void DoPlayerBeginOperate(PLAYER* pp);
@@ -174,6 +173,7 @@ int GetOverlapSector2(const DVector2& pos, sectortype** over, sectortype** under
 void PlayerToRemote(PLAYER* pp);
 void PlayerRemoteInit(PLAYER* pp);
 void PlayerSpawnPosition(PLAYER* pp);
+void processWeapon(PLAYER* const pp);
 
 extern short target_ang;
 
@@ -1485,7 +1485,7 @@ void DoPlayerSetWadeDepth(PLAYER* pp)
 
 void DoPlayerViewOffset(PLAYER* pp)
 {
-    pp->actor->viewzoffset -= pp->getViewHeightDiff() * 0.375;
+    pp->actor->viewzoffset -= (pp->actor->viewzoffset + pp->height) * 0.375;
 }
 
 void DoPlayerHeight(PLAYER* pp)
@@ -1529,28 +1529,28 @@ void UpdatePlayerSpriteAngle(PLAYER* pp)
 //
 //---------------------------------------------------------------------------
 
-void DoPlayerTurnVehicle(PLAYER* pp, DAngle& plyaw, float avel, double zz, double floordist)
+void DoPlayerTurnVehicle(PLAYER* pp, double zz, double floordist)
 {
     SECTOR_OBJECT* sop = pp->sop;
 
     if (sop->drive_angspeed)
     {
         float drive_oavel = pp->drive_avel;
-        pp->drive_avel = float((avel * sop->drive_angspeed + (drive_oavel * (sop->drive_angslide - 1))) / sop->drive_angslide);
+        pp->drive_avel = float((pp->input.avel * sop->drive_angspeed + (drive_oavel * (sop->drive_angslide - 1))) / sop->drive_angslide);
 
-        avel = pp->drive_avel;
+        pp->input.avel = pp->drive_avel;
     }
     else
     {
-        avel *= synctics * 0.125f;
+        pp->input.avel *= synctics * 0.125f;
     }
 
-    if (avel != 0)
+    if (pp->input.avel != 0)
     {
-        auto sum = plyaw + DAngle::fromDeg(avel);
+        auto sum = pp->actor->spr.Angles.Yaw + DAngle::fromDeg(pp->input.avel);
         if (MultiClipTurn(pp, sum, zz, floordist))
         {
-            plyaw = sum;
+            pp->actor->spr.Angles.Yaw = sum;
         }
     }
 }
@@ -1594,7 +1594,7 @@ void DoPlayerTurnVehicleRect(PLAYER* pp, DVector2* pos, DVector2* opos)
 //
 //---------------------------------------------------------------------------
 
-void DoPlayerTurnTurret(PLAYER* pp, DAngle& plyaw, float avel)
+void DoPlayerTurnTurret(PLAYER* pp)
 {
     DAngle new_ang, diff;
     SECTOR_OBJECT* sop = pp->sop;
@@ -1602,18 +1602,18 @@ void DoPlayerTurnTurret(PLAYER* pp, DAngle& plyaw, float avel)
     if (sop->drive_angspeed)
     {
         float drive_oavel = pp->drive_avel;
-        pp->drive_avel = float((avel * sop->drive_angspeed + (drive_oavel * (sop->drive_angslide - 1))) / sop->drive_angslide);
+        pp->drive_avel = float((pp->input.avel * sop->drive_angspeed + (drive_oavel * (sop->drive_angslide - 1))) / sop->drive_angslide);
 
-        avel = pp->drive_avel;
+        pp->input.avel = pp->drive_avel;
     }
     else
     {
-        avel = avel * synctics * 0.25f;
+        pp->input.avel = pp->input.avel * synctics * 0.25f;
     }
 
-    if (fabs(avel) >= FLT_EPSILON)
+    if (fabs(pp->input.avel) >= FLT_EPSILON)
     {
-        new_ang = plyaw + DAngle::fromDeg(avel);
+        new_ang = pp->actor->spr.Angles.Yaw + DAngle::fromDeg(pp->input.avel);
 
         if (sop->limit_ang_center >= nullAngle)
         {
@@ -1628,10 +1628,10 @@ void DoPlayerTurnTurret(PLAYER* pp, DAngle& plyaw, float avel)
             }
         }
 
-        plyaw = new_ang;
+        pp->actor->spr.Angles.Yaw = new_ang;
     }
 
-    OperateSectorObject(pp->sop, plyaw, pp->sop->pmid);
+    OperateSectorObject(pp->sop, pp->actor->spr.Angles.Yaw, pp->sop->pmid);
 }
 
 //---------------------------------------------------------------------------
@@ -1663,8 +1663,8 @@ void SlipSlope(PLAYER* pp)
 
 void DoPlayerSlopeTilting(PLAYER* pp)
 {
-    bool const canslopetilt = !(pp->Flags & (PF_FLYING|PF_SWIMMING|PF_DIVING|PF_CLIMBING|PF_JUMPING|PF_FALLING)) && pp->cursector && (pp->cursector->floorstat & CSTAT_SECTOR_SLOPE);
-    pp->Angles.doViewPitch(pp->actor->spr.pos.XY(), pp->actor->spr.Angles.Yaw, pp->input.actions & SB_AIMMODE, canslopetilt, pp->cursector, (pp->Flags & PF_CLIMBING));
+    const bool canslopetilt = (pp->input.actions & SB_AIMMODE) && !(pp->Flags & (PF_FLYING|PF_SWIMMING|PF_DIVING|PF_CLIMBING|PF_JUMPING|PF_FALLING));
+    pp->Angles.doViewPitch(canslopetilt, pp->Flags & PF_CLIMBING);
 }
 
 //---------------------------------------------------------------------------
@@ -2024,18 +2024,14 @@ void DoPlayerMove(PLAYER* pp)
 
     SlipSlope(pp);
 
-    pp->Angles.doViewYaw(pp->input.actions);
+    pp->Angles.doViewYaw(&pp->input);
 
-    if (!SyncInput())
-    {
-        pp->Flags2 |= (PF2_INPUT_CAN_TURN_GENERAL);
-    }
-    else
+    if (SyncInput())
     {
         pp->actor->spr.Angles.Yaw += DAngle::fromDeg(pp->input.avel);
     }
 
-    pp->Angles.doYawKeys(&pp->input.actions);
+    pp->Angles.doYawKeys(&pp->input);
     UpdatePlayerSpriteAngle(pp);
 
     pp->lastcursector = pp->cursector;
@@ -2154,16 +2150,12 @@ void DoPlayerMove(PLAYER* pp)
 
     DoPlayerSetWadeDepth(pp);
 
-    if (!SyncInput())
-    {
-        pp->Flags2 |= (PF2_INPUT_CAN_AIM);
-    }
-    else
+    if (SyncInput())
     {
         pp->actor->spr.Angles.Pitch += DAngle::fromDeg(pp->input.horz);
     }
 
-    pp->Angles.doPitchKeys(&pp->input.actions, pp->input.horz);
+    pp->Angles.doPitchKeys(&pp->input);
 
     DoPlayerSlopeTilting(pp);
 
@@ -2581,9 +2573,6 @@ void DoPlayerMoveVehicle(PLAYER* pp)
             PlaySOsound(pp->sop->mid_sector,SO_IDLE_SOUND);
     }
 
-    // force synchronised input here for now.
-    setForcedSyncInput();
-
     if (PLAYER_MOVING(pp) == 0)
         pp->Flags &= ~(PF_PLAYER_MOVED);
     else
@@ -2695,14 +2684,8 @@ void DoPlayerMoveVehicle(PLAYER* pp)
     }
     else
     {
-        if (!SyncInput())
-        {
-            pp->Flags2 |= (PF2_INPUT_CAN_TURN_VEHICLE);
-        }
-        else
-        {
-            DoPlayerTurnVehicle(pp, pp->actor->spr.Angles.Yaw, pp->input.avel, zz, floordist);
-        }
+        setForcedSyncInput();
+        DoPlayerTurnVehicle(pp, zz, floordist);
 
         auto save_cstat = plActor->spr.cstat;
         plActor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK);
@@ -2741,16 +2724,12 @@ void DoPlayerMoveVehicle(PLAYER* pp)
     OperateSectorObject(pp->sop, pp->actor->spr.Angles.Yaw, pp->actor->spr.pos.XY());
     pp->cursector = save_sect; // for speed
 
-    if (!SyncInput())
-    {
-        pp->Flags2 |= (PF2_INPUT_CAN_AIM);
-    }
-    else
+    if (SyncInput())
     {
         pp->actor->spr.Angles.Pitch += DAngle::fromDeg(pp->input.horz);
     }
 
-    pp->Angles.doPitchKeys(&pp->input.actions, pp->input.horz);
+    pp->Angles.doPitchKeys(&pp->input);
 
     DoPlayerSlopeTilting(pp);
 
@@ -2773,30 +2752,20 @@ void DoPlayerMoveTurret(PLAYER* pp)
             PlaySOsound(pp->sop->mid_sector, SO_IDLE_SOUND);
     }
 
-    if (!SyncInput())
-    {
-        pp->Flags2 |= (PF2_INPUT_CAN_TURN_TURRET);
-    }
-    else
-    {
-        DoPlayerTurnTurret(pp, pp->actor->spr.Angles.Yaw, pp->input.avel);
-    }
+    setForcedSyncInput();
+    DoPlayerTurnTurret(pp);
 
     if (PLAYER_MOVING(pp) == 0)
         pp->Flags &= ~(PF_PLAYER_MOVED);
     else
         pp->Flags |= (PF_PLAYER_MOVED);
 
-    if (!SyncInput())
-    {
-        pp->Flags2 |= (PF2_INPUT_CAN_AIM);
-    }
-    else
+    if (SyncInput())
     {
         pp->actor->spr.Angles.Pitch += DAngle::fromDeg(pp->input.horz);
     }
 
-    pp->Angles.doPitchKeys(&pp->input.actions, pp->input.horz);
+    pp->Angles.doPitchKeys(&pp->input);
 
     DoPlayerSlopeTilting(pp);
 }
@@ -3389,16 +3358,12 @@ void DoPlayerClimb(PLAYER* pp)
     // setsprite to players location
     ChangeActorSect(pp->actor, pp->cursector);
 
-    if (!SyncInput())
-    {
-        pp->Flags2 |= (PF2_INPUT_CAN_AIM);
-    }
-    else
+    if (SyncInput())
     {
         pp->actor->spr.Angles.Pitch += DAngle::fromDeg(pp->input.horz);
     }
 
-    pp->Angles.doPitchKeys(&pp->input.actions, pp->input.horz);
+    pp->Angles.doPitchKeys(&pp->input);
 
     DoPlayerSlopeTilting(pp);
 
@@ -5904,6 +5869,7 @@ void DoPlayerBeginDie(PLAYER* pp)
     pp->Flags |= (PF_DEAD);
     plActor->user.Flags &= ~(SPR_BOUNCE);
     pp->Flags &= ~(PF_HEAD_CONTROL);
+    setForcedSyncInput();
 }
 
 //---------------------------------------------------------------------------
@@ -5996,14 +5962,7 @@ void DoPlayerDeathFollowKiller(PLAYER* pp)
     // allow turning
     if (pp->Flags & (PF_DEAD_HEAD|PF_HEAD_CONTROL))
     {  
-        if (!SyncInput())
-        {
-            pp->Flags2 |= (PF2_INPUT_CAN_TURN_GENERAL);
-        }
-        else
-        {
-            pp->actor->spr.Angles.Yaw += DAngle::fromDeg(pp->input.avel);
-        }
+        pp->actor->spr.Angles.Yaw += DAngle::fromDeg(pp->input.avel);
         UpdatePlayerSpriteAngle(pp);
     }
 
@@ -6704,14 +6663,12 @@ void MoveSkipSavePos(void)
     MoveSkip4 = (MoveSkip4 + 1) & 3;
     MoveSkip2 ^= 1;
 
-    // this must be done before the view is backed up.
-    Player[myconnectindex].Angles.resetRenderAngles();
-
     // Save off player
     TRAVERSE_CONNECT(pnum)
     {
         pp = Player + pnum;
 
+        pp->Angles.resetCameraAngles();
         pp->actor->backuploc();
         pp->obob_z = pp->bob_z;
         pp->opbob_amt = pp->pbob_amt;
@@ -6930,7 +6887,7 @@ void PauseMultiPlay(void)
 
 void domovethings(void)
 {
-    short i, pnum;
+    short pnum;
 
     PLAYER* pp;
     extern int FinishTimer;
@@ -6978,6 +6935,9 @@ void domovethings(void)
         pp = Player + pnum;
         GlobPlayerP = pp;
 
+        pp->lastinput = pp->input;
+        pp->input = playercmds[pnum].ucmd;
+
         if (pp->cookieTime)
         {
             pp->cookieTime -= synctics;
@@ -6987,6 +6947,9 @@ void domovethings(void)
                 pp->cookieTime = 0;
             }
         }
+
+        // process weapon bits
+        processWeapon(pp);
 
         // auto tracking mode for single player multi-game
         if (numplayers <= 1 && PlayerTrackingMode && pnum == screenpeek && screenpeek != myconnectindex)
@@ -6998,17 +6961,12 @@ void domovethings(void)
         {
             WeaponOperate(pp);
             PlayerOperateEnv(pp);
+            resetForcedSyncInput();
         }
 
         // do for moving sectors
         DoPlayerSectorUpdatePreMove(pp);
         ChopsCheck(pp);
-
-        // Reset flags used while tying input to framerate
-        pp->Flags2 &= ~(PF2_INPUT_CAN_AIM|PF2_INPUT_CAN_TURN_GENERAL|PF2_INPUT_CAN_TURN_VEHICLE|PF2_INPUT_CAN_TURN_TURRET);
-
-        // disable synchronised input if set by game.
-        resetForcedSyncInput();
 
         // convert fvel/svel into a vector before performing actions.
         const auto velvect = DVector2(pp->input.fvel, pp->input.svel).Rotated(pp->actor->spr.Angles.Yaw);
@@ -7464,7 +7422,6 @@ DEFINE_FIELD_X(SWPlayer, PLAYER, circle_camera_dist)
 //DEFINE_FIELD_X(SWPlayer, PLAYER, six)
 //DEFINE_FIELD_X(SWPlayer, PLAYER, siy)
 //DEFINE_FIELD_X(SWPlayer, PLAYER, siz)
-DEFINE_FIELD_X(SWPlayer, PLAYER, siang)
 //DEFINE_FIELD_X(SWPlayer, PLAYER, xvect)
 //DEFINE_FIELD_X(SWPlayer, PLAYER, yvect)
 //DEFINE_FIELD_X(SWPlayer, PLAYER, oxvect)

@@ -46,13 +46,6 @@ BEGIN_DUKE_NS
 
 void GameInterface::Ticker()
 {
-	// Make copies so that the originals do not have to be modified.
-	for (int i = 0; i < MAXPLAYERS; i++)
-	{
-		auto oldactions = ps[i].sync.actions;
-		ps[i].sync = playercmds[i].ucmd;
-		if (oldactions & SB_CENTERVIEW) ps[i].sync.actions |= SB_CENTERVIEW;
-	}
 	if (rtsplaying > 0) rtsplaying--;
 
 	if (show_shareware > 0)
@@ -67,10 +60,17 @@ void GameInterface::Ticker()
 		if (ud.earthquaketime > 0) ud.earthquaketime--;
 
 		ud.cameraactor = nullptr;
-		everyothertime++;
+
+		// temporary workaround for issue where first packet
+		// seems captured after the playsim has ran once.
+		playercmds[myconnectindex].ucmd.actions |= gi->GetNeededInputBits();
 
 		// this must be done before the view is backed up.
-		ps[myconnectindex].Angles.resetRenderAngles();
+		for (int i = connecthead; i >= 0; i = connectpoint2[i])
+		{
+			ps[i].Angles.resetCameraAngles();
+			ps[i].sync = playercmds[i].ucmd;
+		}
 
 		// disable synchronised input if set by game.
 		resetForcedSyncInput();
@@ -87,22 +87,18 @@ void GameInterface::Ticker()
 
 		for (int i = connecthead; i >= 0; i = connectpoint2[i])
 		{
-			if (playrunning())
-			{
-				auto p = &ps[i];
-				if (p->pals.a > 0)
-					p->pals.a--;
+			auto p = &ps[i];
+			if (p->pals.a > 0)
+				p->pals.a--;
 
-				hud_input(i);
-				processinputvel(i);
-				fi.processinput(i);
-				fi.checksectors(i);
-			}
+			hud_input(i);
+			fi.processinput(i);
+			fi.checksectors(i);
 		}
 
 		fi.think();
 
-		if ((everyothertime & 1) == 0)
+		if (PlayClock & 4)
 		{
 			animatewalls();
 			movecyclers();

@@ -1462,153 +1462,67 @@ void checkweapons_r(player_struct* p)
 //
 //---------------------------------------------------------------------------
 
-static void onMotorcycle(int snum, ESyncBits &actions)
+enum : unsigned
 {
-	auto p = &ps[snum];
-	auto pact = p->GetActor();
+	VEH_FORWARD = 1,
+	VEH_REVERSE = 2,
+	VEH_TURNLEFT = 4,
+	VEH_TURNRIGHT = 8,
+	VEH_TURNING = VEH_TURNLEFT|VEH_TURNRIGHT,
+	VEH_BRAKING = 16,
+	VEH_FWDBRAKING = VEH_FORWARD|VEH_BRAKING,
+};
 
-	int rng;
+static unsigned outVehicleFlags(player_struct* p, ESyncBits& actions)
+{
+	unsigned flags = 0;
+	flags += VEH_FORWARD * (p->sync.fvel > 0);
+	flags += VEH_REVERSE * (p->sync.fvel < 0);
+	flags += VEH_TURNLEFT * (p->sync.avel < 0);
+	flags += VEH_TURNRIGHT * (p->sync.avel > 0);
+	flags += VEH_BRAKING * !!(actions & SB_CROUCH);
+	actions &= ~SB_CROUCH;
+	return flags;
+}
 
-	if (p->MotoSpeed < 0)
-		p->MotoSpeed = 0;
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
 
-	if (p->vehForwardScale != 0)
-	{
-		if (p->on_ground)
-		{
-			if (p->MotoSpeed == 0 && p->vehBraking)
-			{
-				if (!S_CheckActorSoundPlaying(pact, 187))
-					S_PlayActorSound(187, pact);
-			}
-			else if (p->MotoSpeed == 0 && !S_CheckActorSoundPlaying(pact, 214))
-			{
-				if (S_CheckActorSoundPlaying(pact, 187))
-					S_StopSound(187, pact);
-				S_PlayActorSound(214, pact);
-			}
-			else if (p->MotoSpeed >= 50 && !S_CheckActorSoundPlaying(pact, 188))
-			{
-				S_PlayActorSound(188, pact);
-			}
-			else if (!S_CheckActorSoundPlaying(pact, 188) && !S_CheckActorSoundPlaying(pact, 214))
-			{
-				S_PlayActorSound(188, pact);
-			}
-		}
-	}
-	else
-	{
-		if (S_CheckActorSoundPlaying(pact, 214))
-		{
-			S_StopSound(214, pact);
-			if (!S_CheckActorSoundPlaying(pact, 189))
-				S_PlayActorSound(189, pact);
-		}
-		if (S_CheckActorSoundPlaying(pact, 188))
-		{
-			S_StopSound(188, pact);
-			if (!S_CheckActorSoundPlaying(pact, 189))
-				S_PlayActorSound(189, pact);
-		}
-		if (!S_CheckActorSoundPlaying(pact, 189) && !S_CheckActorSoundPlaying(pact, 187))
-			S_PlayActorSound(187, pact);
-	}
-
-	if (p->drink_amt > 88 && p->moto_drink == 0)
-	{
-		rng = krand() & 63;
-		if (rng == 1)
-			p->moto_drink = -10;
-		else if (rng == 2)
-			p->moto_drink = 10;
-	}
-	else if (p->drink_amt > 99 && p->moto_drink == 0)
-	{
-		rng = krand() & 31;
-		if (rng == 1)
-			p->moto_drink = -20;
-		else if (rng == 2)
-			p->moto_drink = 20;
-	}
-
-	if (p->on_ground == 1)
-	{
-		if (p->vehBraking && p->MotoSpeed > 0)
-		{
-			p->MotoSpeed -= p->moto_on_oil ? 2 : 4;
-			if (p->MotoSpeed < 0)
-				p->MotoSpeed = 0;
-			p->VBumpTarget = -30;
-			p->moto_do_bump = 1;
-		}
-		else if (p->vehForwardScale != 0 && !p->vehBraking)
-		{
-			if (p->MotoSpeed < 40)
-			{
-				p->VBumpTarget = 70;
-				p->moto_bump_fast = 1;
-			}
-
-			p->MotoSpeed += 2 * p->vehForwardScale;
-			p->vehForwardScale = 0;
-
-			if (p->MotoSpeed > 120)
-				p->MotoSpeed = 120;
-
-			if (!p->NotOnWater && p->MotoSpeed > 80)
-				p->MotoSpeed = 80;
-		}
-		else if (p->MotoSpeed > 0)
-			p->MotoSpeed--;
-
-		if (p->moto_do_bump && (!p->vehBraking || p->MotoSpeed == 0))
-		{
-			p->VBumpTarget = 0;
-			p->moto_do_bump = 0;
-		}
-
-		if (p->vehReverseScale != 0 && p->MotoSpeed <= 0 && !p->vehBraking)
-		{
-			bool temp = p->vehTurnRight;
-			p->vehTurnRight = p->vehTurnLeft;
-			p->vehTurnLeft = temp;
-			p->MotoSpeed = -15 * p->vehReverseScale;
-			p->vehReverseScale = 0;
-		}
-	}
+static void doVehicleBumping(player_struct* p, DDukeActor* pact, unsigned flags, bool bumptest, int bumpscale)
+{
 	if (p->MotoSpeed != 0 && p->on_ground == 1)
 	{
-		if (!p->VBumpNow && (krand() & 3) == 2)
-			p->VBumpTarget = p->MotoSpeed * (1. / 16.) * ((krand() & 7) - 4);
+		if (!p->VBumpNow && bumptest)
+			p->VBumpTarget = p->MotoSpeed * (1. / 16.) * bumpscale;
 
-		if (p->vehTurnLeft || p->moto_drink < 0)
+		if ((flags & VEH_TURNLEFT) || p->moto_drink < 0)
 		{
 			if (p->moto_drink < 0)
 				p->moto_drink++;
 		}
-		else if (p->vehTurnRight || p->moto_drink > 0)
+		else if ((flags & VEH_TURNRIGHT) || p->moto_drink > 0)
 		{
 			if (p->moto_drink > 0)
 				p->moto_drink--;
 		}
 	}
 
-	double horiz = FRACUNIT;
 	if (p->TurbCount)
 	{
 		if (p->TurbCount <= 1)
 		{
-			horiz = 0;
 			p->TurbCount = 0;
 			p->VBumpTarget = 0;
 			p->VBumpNow = 0;
 		}
 		else
 		{
-			horiz = ((krand() & 15) - 7);
 			p->TurbCount--;
 			p->moto_drink = (krand() & 3) - 2;
+			pact->spr.Angles.Pitch = -maphoriz((krand() & 15) - 7);
 		}
 	}
 	else if (p->VBumpTarget > p->VBumpNow)
@@ -1616,33 +1530,207 @@ static void onMotorcycle(int snum, ESyncBits &actions)
 		p->VBumpNow += p->moto_bump_fast ? 6 : 1;
 		if (p->VBumpTarget < p->VBumpNow)
 			p->VBumpNow = p->VBumpTarget;
-		horiz = p->VBumpNow * (1. / 3.);
+		pact->spr.Angles.Pitch = -maphoriz(p->VBumpNow * (1. / 3.));
 	}
 	else if (p->VBumpTarget < p->VBumpNow)
 	{
 		p->VBumpNow -= p->moto_bump_fast ? 6 : 1;
 		if (p->VBumpTarget > p->VBumpNow)
 			p->VBumpNow = p->VBumpTarget;
-		horiz = p->VBumpNow * (1. / 3.);
+		pact->spr.Angles.Pitch = -maphoriz(p->VBumpNow * (1. / 3.));
 	}
 	else
 	{
 		p->VBumpTarget = 0;
 		p->moto_bump_fast = 0;
 	}
-	if (horiz != FRACUNIT)
-	{
-		p->GetActor()->spr.Angles.Pitch = -maphoriz(horiz);
-	}
+}
 
-	const DAngle adjust = mapangle(-510);
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+static void doVehicleDrunk(player_struct* const p)
+{
+	if (p->drink_amt > 88 && p->moto_drink == 0)
+	{
+		const int rng = krand() & 63;
+		if (rng == 1)
+			p->moto_drink = -10;
+		else if (rng == 2)
+			p->moto_drink = 10;
+	}
+	else if (p->drink_amt > 99 && p->moto_drink == 0)
+	{
+		const int rng = krand() & 31;
+		if (rng == 1)
+			p->moto_drink = -20;
+		else if (rng == 2)
+			p->moto_drink = 20;
+	}
+}
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+static void doVehicleSounds(player_struct* p, DDukeActor* pact, unsigned flags, unsigned sound1, unsigned sound2, unsigned sound3, unsigned sound4)
+{
+	if ((p->OnBoat && (flags & VEH_FWDBRAKING) == VEH_FORWARD) || flags & VEH_FORWARD)
+	{
+		if (p->OnBoat || p->on_ground)
+		{
+			if (p->OnMotorcycle && p->MotoSpeed == 0 && (flags & VEH_BRAKING))
+			{
+				if (!S_CheckActorSoundPlaying(pact, sound1))
+					S_PlayActorSound(sound1, pact);
+			}
+			else if (p->MotoSpeed == 0 && !S_CheckActorSoundPlaying(pact, sound3))
+			{
+				if (S_CheckActorSoundPlaying(pact, sound1))
+					S_StopSound(sound1, pact);
+				S_PlayActorSound(sound3, pact);
+			}
+			else if (p->MotoSpeed >= 50 && !S_CheckActorSoundPlaying(pact, sound2))
+			{
+				S_PlayActorSound(sound2, pact);
+			}
+			else if (!S_CheckActorSoundPlaying(pact, sound2) && !S_CheckActorSoundPlaying(pact, sound3))
+			{
+				S_PlayActorSound(sound2, pact);
+			}
+		}
+	}
+	else
+	{
+		if (S_CheckActorSoundPlaying(pact, sound3))
+		{
+			S_StopSound(sound3, pact);
+			if (!S_CheckActorSoundPlaying(pact, sound4))
+				S_PlayActorSound(sound4, pact);
+		}
+		if (S_CheckActorSoundPlaying(pact, sound2))
+		{
+			S_StopSound(sound2, pact);
+			if (!S_CheckActorSoundPlaying(pact, sound4))
+				S_PlayActorSound(sound4, pact);
+		}
+		if (!S_CheckActorSoundPlaying(pact, sound4) && !S_CheckActorSoundPlaying(pact, sound1))
+			S_PlayActorSound(sound1, pact);
+	}
+}
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+static void doVehicleThrottling(player_struct* p, DDukeActor* pact, unsigned& flags, int fwdSpeed, int revSpeed, int brakeSpeed, int vBmpFwd, int vBmpBrake)
+{
+	if (p->on_ground == 1)
+	{
+		if (p->OnBoat && (flags & VEH_FWDBRAKING) == VEH_FWDBRAKING)
+		{
+			if (p->MotoSpeed <= 25)
+			{
+				p->MotoSpeed++;
+				if (!S_CheckActorSoundPlaying(pact, 182))
+					S_PlayActorSound(182, pact);
+			}
+			else
+			{
+				p->MotoSpeed -= brakeSpeed;
+				if (p->MotoSpeed < 0)
+					p->MotoSpeed = 0;
+				p->VBumpTarget = vBmpBrake;
+				p->moto_do_bump = 1;
+			}
+		}
+		else if ((flags & VEH_BRAKING) && p->MotoSpeed > 0)
+		{
+			p->MotoSpeed -= brakeSpeed;
+			if (p->MotoSpeed < 0)
+				p->MotoSpeed = 0;
+			p->VBumpTarget = vBmpBrake;
+			p->moto_do_bump = 1;
+		}
+		else if ((flags & VEH_FORWARD) && (p->OnBoat || !(flags & VEH_BRAKING)))
+		{
+			if (p->MotoSpeed < 40 && (p->OnMotorcycle || !p->NotOnWater))
+			{
+				p->VBumpTarget = vBmpFwd;
+				p->moto_bump_fast = 1;
+			}
+
+			p->MotoSpeed += fwdSpeed * p->sync.fvel;
+			flags &= ~VEH_FORWARD;
+
+			if (p->MotoSpeed > 120)
+				p->MotoSpeed = 120;
+
+			if (p->OnMotorcycle && !p->NotOnWater && p->MotoSpeed > 80)
+				p->MotoSpeed = 80;
+		}
+		else if (p->MotoSpeed > 0)
+			p->MotoSpeed--;
+
+		if (p->moto_do_bump && (!(flags & VEH_BRAKING) || p->MotoSpeed == 0))
+		{
+			p->VBumpTarget = 0;
+			p->moto_do_bump = 0;
+		}
+
+		if ((flags & VEH_REVERSE) && p->MotoSpeed <= 0 && !(flags & VEH_BRAKING))
+		{
+			if (flags & VEH_TURNLEFT)
+			{
+				flags &= ~VEH_TURNLEFT;
+				flags |= VEH_TURNRIGHT;
+			}
+			else
+			{
+				flags &= ~VEH_TURNRIGHT;
+				flags |= VEH_TURNLEFT;
+			}
+			p->MotoSpeed = revSpeed * p->sync.fvel;
+			flags &= ~VEH_REVERSE;
+		}
+	}
+}
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+static void onMotorcycle(int snum, ESyncBits &actions)
+{
+	auto p = &ps[snum];
+	auto pact = p->GetActor();
+
+	if (p->MotoSpeed < 0 || p->moto_underwater)
+		p->MotoSpeed = 0;
+
+	unsigned flags = outVehicleFlags(p, actions);
+	doVehicleSounds(p, pact, flags, 187, 188, 214, 189);
+	doVehicleDrunk(p);
+	doVehicleThrottling(p, pact, flags, 2, 15, p->moto_on_oil ? 2 : 4, 70, -30);
+	doVehicleBumping(p, pact, flags, (krand() & 3) == 2, (krand() & 7) - 4);
+
+	constexpr DAngle adjust = mapangle(-510);
 	DAngle velAdjustment;
 
 	int currSpeed = int(p->MotoSpeed);
-	if (p->MotoSpeed >= 20 && p->on_ground == 1 && (p->vehTurnLeft || p->vehTurnRight))
+	if (p->MotoSpeed >= 20 && p->on_ground == 1 && (flags & VEH_TURNING))
 	{
-		velAdjustment = p->vehTurnLeft ? -adjust : adjust;
-		auto angAdjustment = velAdjustment > nullAngle ? 734003200 : -734003200;
+		velAdjustment = (flags & VEH_TURNLEFT) ? -adjust : adjust;
+		auto angAdjustment = (350 << 21) * velAdjustment.Sgn();
 
 		if (p->moto_on_mud || p->moto_on_oil || !p->NotOnWater)
 		{
@@ -1678,19 +1766,18 @@ static void onMotorcycle(int snum, ESyncBits &actions)
 			}
 		}
 
-		p->vel.XY() += (p->GetActor()->spr.Angles.Yaw + velAdjustment).ToVector() * currSpeed;
-		p->GetActor()->spr.Angles.Yaw = (p->GetActor()->spr.Angles.Yaw - DAngle::fromBam(angAdjustment)).Normalized360();
+		p->vel.XY() += (pact->spr.Angles.Yaw + velAdjustment).ToVector() * currSpeed;
+		pact->spr.Angles.Yaw -= DAngle::fromBam(angAdjustment);
 	}
 	else if (p->MotoSpeed >= 20 && p->on_ground == 1 && (p->moto_on_mud || p->moto_on_oil))
 	{
-		rng = krand() & 1;
-		velAdjustment = rng == 0 ? -adjust : adjust;
+		velAdjustment = krand() & 1 ? adjust : -adjust;
 		currSpeed = MulScale(currSpeed, p->moto_on_oil ? 10 : 5, 7);
-		p->vel.XY() += (p->GetActor()->spr.Angles.Yaw + velAdjustment).ToVector() * currSpeed;
+		p->vel.XY() += (pact->spr.Angles.Yaw + velAdjustment).ToVector() * currSpeed;
 	}
 
 	p->moto_on_mud = p->moto_on_oil = 0;
-	p->vehTurnLeft = p->vehTurnRight = p->vehBraking = false;
+	p->sync.fvel = clamp<float>((float)p->MotoSpeed, -15.f, 120.f) * (1.f / 40.f);
 }
 
 //---------------------------------------------------------------------------
@@ -1703,9 +1790,6 @@ static void onBoat(int snum, ESyncBits &actions)
 {
 	auto p = &ps[snum];
 	auto pact = p->GetActor();
-
-	bool heeltoe;
-	int rng;
 
 	if (p->NotOnWater)
 	{
@@ -1724,192 +1808,26 @@ static void onBoat(int snum, ESyncBits &actions)
 	if (p->MotoSpeed < 0)
 		p->MotoSpeed = 0;
 
-	if (p->vehBraking && (p->vehForwardScale != 0))
-	{
-		heeltoe = true;
-		p->vehBraking = false;
-		p->vehForwardScale = 0;
-	}
-	else
-		heeltoe = false;
-
-	if (p->vehForwardScale != 0)
-	{
-		if (p->MotoSpeed == 0 && !S_CheckActorSoundPlaying(pact, 89))
-		{
-			if (S_CheckActorSoundPlaying(pact, 87))
-				S_StopSound(87, pact);
-			S_PlayActorSound(89, pact);
-		}
-		else if (p->MotoSpeed >= 50 && !S_CheckActorSoundPlaying(pact, 88))
-			S_PlayActorSound(88, pact);
-		else if (!S_CheckActorSoundPlaying(pact, 88) && !S_CheckActorSoundPlaying(pact, 89))
-			S_PlayActorSound(88, pact);
-	}
-	else
-	{
-		if (S_CheckActorSoundPlaying(pact, 89))
-		{
-			S_StopSound(89, pact);
-			if (!S_CheckActorSoundPlaying(pact, 90))
-				S_PlayActorSound(90, pact);
-		}
-		if (S_CheckActorSoundPlaying(pact, 88))
-		{
-			S_StopSound(88, pact);
-			if (!S_CheckActorSoundPlaying(pact, 90))
-				S_PlayActorSound(90, pact);
-		}
-		if (!S_CheckActorSoundPlaying(pact, 90) && !S_CheckActorSoundPlaying(pact, 87))
-			S_PlayActorSound(87, pact);
-	}
-
-	if (p->vehTurnLeft && !S_CheckActorSoundPlaying(pact, 91) && p->MotoSpeed > 30 && !p->NotOnWater)
-		S_PlayActorSound(91, pact);
-
-	if (p->vehTurnRight && !S_CheckActorSoundPlaying(pact, 91) && p->MotoSpeed > 30 && !p->NotOnWater)
-		S_PlayActorSound(91, pact);
+	unsigned flags = outVehicleFlags(p, actions);
+	doVehicleSounds(p, pact, flags, 87, 88, 89, 90);
 
 	if (!p->NotOnWater)
 	{
-		if (p->drink_amt > 88 && p->moto_drink == 0)
-		{
-			rng = krand() & 63;
-			if (rng == 1)
-				p->moto_drink = -10;
-			else if (rng == 2)
-				p->moto_drink = 10;
-		}
-		else if (p->drink_amt > 99 && p->moto_drink == 0)
-		{
-			rng = krand() & 31;
-			if (rng == 1)
-				p->moto_drink = -20;
-			else if (rng == 2)
-				p->moto_drink = 20;
-		}
+		if ((flags & VEH_TURNING) && !S_CheckActorSoundPlaying(pact, 91) && p->MotoSpeed > 30)
+			S_PlayActorSound(91, pact);
+
+		doVehicleDrunk(p);
 	}
 
-	if (p->on_ground == 1)
-	{
-		if (heeltoe)
-		{
-			if (p->MotoSpeed <= 25)
-			{
-				p->MotoSpeed++;
-				if (!S_CheckActorSoundPlaying(pact, 182))
-					S_PlayActorSound(182, pact);
-			}
-			else
-			{
-				p->MotoSpeed -= 2;
-				if (p->MotoSpeed < 0)
-					p->MotoSpeed = 0;
-				p->VBumpTarget = 30;
-				p->moto_do_bump = 1;
-			}
-		}
-		else if (p->vehBraking && p->MotoSpeed > 0)
-		{
-			p->MotoSpeed -= 2;
-			if (p->MotoSpeed < 0)
-				p->MotoSpeed = 0;
-			p->VBumpTarget = 30;
-			p->moto_do_bump = 1;
-		}
-		else if (p->vehForwardScale != 0)
-		{
-			if (p->MotoSpeed < 40 && !p->NotOnWater)
-			{
-				p->VBumpTarget = -30;
-				p->moto_bump_fast = 1;
-			}
-			p->MotoSpeed += 1 * p->vehForwardScale;
-			p->vehForwardScale = 0;
-			if (p->MotoSpeed > 120)
-				p->MotoSpeed = 120;
-		}
-		else if (p->MotoSpeed > 0)
-			p->MotoSpeed--;
+	doVehicleThrottling(p, pact, flags, 1, !p->NotOnWater ? 25 : 20, 2, -30, 30);
+	doVehicleBumping(p, pact, flags, (krand() & 15) == 14, (krand() & 7) - 4);
 
-		if (p->moto_do_bump && (!p->vehBraking || p->MotoSpeed == 0))
-		{
-			p->VBumpTarget = 0;
-			p->moto_do_bump = 0;
-		}
-
-		if (p->vehReverseScale != 0 && p->MotoSpeed == 0 && !p->vehBraking)
-		{
-			bool temp = p->vehTurnRight;
-			p->vehTurnRight = p->vehTurnLeft;
-			p->vehTurnLeft = temp;
-			p->MotoSpeed = -(!p->NotOnWater ? 25 : 20) * p->vehReverseScale;
-			p->vehReverseScale = 0;
-		}
-	}
-	if (p->MotoSpeed != 0 && p->on_ground == 1)
+	if (p->MotoSpeed > 0 && p->on_ground == 1 && (flags & VEH_TURNING))
 	{
-		if (!p->VBumpNow && (krand() & 15) == 14)
-			p->VBumpTarget = p->MotoSpeed * (1. / 16.) * ((krand() & 3) - 2);
-
-		if (p->vehTurnLeft && p->moto_drink < 0)
-		{
-			p->moto_drink++;
-		}
-		else if (p->vehTurnRight && p->moto_drink > 0)
-		{
-			p->moto_drink--;
-		}
-	}
-
-	double horiz = FRACUNIT;
-	if (p->TurbCount)
-	{
-		if (p->TurbCount <= 1)
-		{
-			horiz = 0;
-			p->TurbCount = 0;
-			p->VBumpTarget = 0;
-			p->VBumpNow = 0;
-		}
-		else
-		{
-			horiz = ((krand() & 15) - 7);
-			p->TurbCount--;
-			p->moto_drink = (krand() & 3) - 2;
-		}
-	}
-	else if (p->VBumpTarget > p->VBumpNow)
-	{
-		p->VBumpNow += p->moto_bump_fast ? 6 : 1;
-		if (p->VBumpTarget < p->VBumpNow)
-			p->VBumpNow = p->VBumpTarget;
-		horiz = p->VBumpNow * (1. / 3.);
-	}
-	else if (p->VBumpTarget < p->VBumpNow)
-	{
-		p->VBumpNow -= p->moto_bump_fast ? 6 : 1;
-		if (p->VBumpTarget > p->VBumpNow)
-			p->VBumpNow = p->VBumpTarget;
-		horiz = p->VBumpNow * (1. / 3.);
-	}
-	else
-	{
-		p->VBumpTarget = 0;
-		p->moto_bump_fast = 0;
-	}
-	if (horiz != FRACUNIT)
-	{
-		p->GetActor()->spr.Angles.Pitch = -maphoriz(horiz);
-	}
-
-	if (p->MotoSpeed > 0 && p->on_ground == 1 && (p->vehTurnLeft || p->vehTurnRight))
-	{
-		const DAngle adjust = mapangle(-510);
-
 		int currSpeed = int(p->MotoSpeed * 4.);
-		DAngle velAdjustment = p->vehTurnLeft ? -adjust : adjust;
-		auto angAdjustment = velAdjustment > nullAngle ? 734003200 : -734003200;
+		constexpr DAngle adjust = mapangle(-510);
+		DAngle velAdjustment = (flags & VEH_TURNLEFT) ? -adjust : adjust;
+		auto angAdjustment = (350 << 21) * velAdjustment.Sgn();
 
 		if (p->moto_do_bump)
 		{
@@ -1922,13 +1840,13 @@ static void onBoat(int snum, ESyncBits &actions)
 			angAdjustment >>= 6;
 		}
 
-		p->vel.XY() += (p->GetActor()->spr.Angles.Yaw + velAdjustment).ToVector() * currSpeed;
-		p->GetActor()->spr.Angles.Yaw = (p->GetActor()->spr.Angles.Yaw - DAngle::fromBam(angAdjustment)).Normalized360();
+		p->vel.XY() += (pact->spr.Angles.Yaw + velAdjustment).ToVector() * currSpeed;
+		pact->spr.Angles.Yaw -= DAngle::fromBam(angAdjustment);
 	}
 	if (p->NotOnWater && p->MotoSpeed > 50)
-		p->MotoSpeed -= (p->MotoSpeed / 2.);
+		p->MotoSpeed *= 0.5;
 
-	p->vehTurnLeft = p->vehTurnRight = p->vehBraking = false;
+	p->sync.fvel = clamp<float>((float)p->MotoSpeed, -15.f, 120.f) * (1.f / 40.f);
 }
 
 //---------------------------------------------------------------------------
@@ -2106,7 +2024,7 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, double floo
 
 		p->on_warping_sector = 0;
 
-		if (((actions & SB_CROUCH) || crouch_toggle) && !p->OnMotorcycle)	// FIXME: The crouch_toggle check here is not network safe and needs revision when multiplayer is going.
+		if ((actions & SB_CROUCH) && !p->OnMotorcycle)
 		{
 			playerCrouch(snum);
 		}
@@ -3188,9 +3106,6 @@ void processinput_r(int snum)
 
 	ESyncBits& actions = p->sync.actions;
 
-	auto sb_fvel = PlayerInputForwardVel(snum);
-	auto sb_svel = PlayerInputSideVel(snum);
-
 	auto psectp = p->cursector;
 	if (p->OnMotorcycle && pact->spr.extra > 0)
 	{
@@ -3200,6 +3115,11 @@ void processinput_r(int snum)
 	{
 		onBoat(snum, actions);
 	}
+
+	processinputvel(snum);
+	auto sb_fvel = PlayerInputForwardVel(snum);
+	auto sb_svel = PlayerInputSideVel(snum);
+
 	if (psectp == nullptr)
 	{
 		if (pact->spr.extra > 0 && ud.clipping == 0)
@@ -3235,22 +3155,21 @@ void processinput_r(int snum)
 	p->spritebridge = 0;
 
 	shrunk = (pact->spr.scale.Y < 0.125);
-	double tempfz;
 	if (pact->clipdist == 16)
 	{
 		getzrange(p->GetActor()->getPosWithOffsetZ(), psectp, &ceilingz, chz, &floorz, clz, 10.1875, CLIPMASK0);
-		tempfz = getflorzofslopeptr(psectp, p->GetActor()->getPosWithOffsetZ());
 	}
 	else
 	{
 		getzrange(p->GetActor()->getPosWithOffsetZ(), psectp, &ceilingz, chz, &floorz, clz, 0.25, CLIPMASK0);
-		tempfz = getflorzofslopeptr(psectp, p->GetActor()->getPosWithOffsetZ());
 	}
 
-	p->truefz = tempfz;
+	setPlayerActorViewZOffset(pact);
+
+	p->truefz = getflorzofslopeptr(psectp, p->GetActor()->getPosWithOffsetZ());
 	p->truecz = getceilzofslopeptr(psectp, p->GetActor()->getPosWithOffsetZ());
 
-	double truefdist = abs(p->GetActor()->getOffsetZ() - tempfz);
+	double truefdist = abs(p->GetActor()->getOffsetZ() - p->truefz);
 	if (clz.type == kHitSector && psectlotag == 1 && truefdist > gs.playerheight + 16)
 		psectlotag = 0;
 
@@ -3383,6 +3302,7 @@ void processinput_r(int snum)
 
 	if (p->newOwner != nullptr)
 	{
+		setForcedSyncInput();
 		p->vel.X = p->vel.Y = 0;
 		pact->vel.X = 0;
 
@@ -3395,12 +3315,14 @@ void processinput_r(int snum)
 	doubvel = TICSPERFRAME;
 
 	checklook(snum, actions);
+	p->Angles.doViewYaw(&p->sync);
 	p->apply_seasick();
 
-	auto oldpos = p->GetActor()->opos;
-
 	if (p->on_crane != nullptr)
+	{
+		setForcedSyncInput();
 		goto HORIZONLY;
+	}
 
 	p->playerweaponsway(pact->vel.X);
 
@@ -3408,6 +3330,8 @@ void processinput_r(int snum)
 	if (p->on_ground) p->bobcounter += int(p->GetActor()->vel.X * 8);
 
 	p->backuppos(ud.clipping == 0 && ((p->insector() && p->cursector->floortexture == mirrortex) || !p->insector()));
+
+	p->Angles.doYawKeys(&p->sync);
 
 	// Shrinking code
 
@@ -3441,14 +3365,18 @@ void processinput_r(int snum)
 
 	p->psectlotag = psectlotag;
 
-	//Do the quick lefts and rights
-	p->Angles.doViewYaw(actions);
+	if (p->centeringView())
+	{
+		p->sync.horz = 0;
+		setForcedSyncInput();
+	}
 
 	if (movementBlocked(p))
 	{
 		doubvel = 0;
 		p->vel.X = 0;
 		p->vel.Y = 0;
+		setForcedSyncInput();
 	}
 	else if (SyncInput())
 	{
@@ -3459,7 +3387,6 @@ void processinput_r(int snum)
 		p->GetActor()->spr.Angles.Yaw += p->adjustavel(PlayerInputAngVel(snum));
 	}
 
-	p->Angles.doYawKeys(&actions);
 	purplelavacheck(p);
 
 	if (p->spritebridge == 0 && pact->insector())
@@ -3605,10 +3532,8 @@ void processinput_r(int snum)
 	}
 
 HORIZONLY:
-	double iif = 40;
 
-	if (psectlotag == 1 || p->spritebridge == 1) iif = 4;
-	else iif = 20;
+	double iif = (psectlotag == 1 || p->spritebridge == 1) ? 4 : 20;
 
 	if (p->insector() && p->cursector->lotag == 2) k = 0;
 	else k = 1;
@@ -3700,7 +3625,7 @@ HORIZONLY:
 	}
 
 	// RBG***
-	SetActor(pact, p->GetActor()->spr.pos);
+	SetActor(pact, pact->spr.pos);
 
 	if (psectlotag == 800 && (!isRRRA() || !p->lotag800kill))
 	{
@@ -3731,6 +3656,7 @@ HORIZONLY:
 	if (p->cursector != pact->sector())
 		ChangeActorSect(pact, p->cursector);
 
+	auto oldpos = p->GetActor()->opos;
 	int retry = 0;
 	while (ud.clipping == 0)
 	{
@@ -3797,14 +3723,14 @@ HORIZONLY:
 		p->GetActor()->spr.Angles.Pitch += maphoriz(d);
 	}
 
+	p->Angles.doPitchKeys(&p->sync);
+
+	p->checkhardlanding();
+
 	if (SyncInput())
 	{
 		p->GetActor()->spr.Angles.Pitch += GetPlayerHorizon(snum);
 	}
-
-	p->Angles.doPitchKeys(&actions, GetPlayerHorizon(snum).Sgn());
-
-	p->checkhardlanding();
 
 	//Shooting code/changes
 

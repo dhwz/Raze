@@ -303,8 +303,6 @@ struct DukePlayer native
 
 	native int max_secret_rooms, secret_rooms, max_actors_killed, actors_killed;
 
-	native bool resurrected;
-
 	// Redneck Rampage additions. Those which did not have names in the reconstructed source got one from either RedneckGDX or RedNukem.
 	// Items were reordered by size.
 	native int stairs;
@@ -336,8 +334,7 @@ struct DukePlayer native
 	native uint8 hurt_delay2, nocheat;
 	native uint8 OnMotorcycle, OnBoat, moto_underwater, NotOnWater, MotoOnGround;
 	native uint8 moto_do_bump, moto_bump_fast, moto_on_oil, moto_on_mud;
-	native double vehForwardScale, vehReverseScale, MotoSpeed;
-	native bool vehTurnLeft, vehTurnRight, vehBraking;
+	native double MotoSpeed;
 
 	// input stuff.
 	//InputPacket sync;
