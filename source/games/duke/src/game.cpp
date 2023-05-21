@@ -44,6 +44,7 @@ Modifications for JonoF's port by Jonathon Fowler (jf@jonof.id.au)
 #include "vm.h"
 #include "thingdef.h"
 #include "tilesetbuilder.h"
+#include "concmd.h"
 
 BEGIN_DUKE_NS
 
@@ -274,35 +275,8 @@ static void setupbackdrop()
 	}
 }
 
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-#define x(a, b) registerName(#a, b);
-#define y(a, b)	registerName(#a, b);
-static void SetTileNames(TilesetBuildInfo& info)
-{
-	auto registerName = [&](const char* name, int index)
-	{
-		info.addName(name, index);
-	};
-	if (!isRR())
-	{
-#include "namelist_d.h"
-	}
-	else
-	{
-#include "namelist_r.h"
-	}
-}
-#undef x
-#undef y
-
 void GameInterface::SetupSpecialTextures(TilesetBuildInfo& info)
 {
-	SetTileNames(info);
 	// set up all special tiles here, before we fully hook up with the texture manager.
 	info.Delete(FOF);	// portal marker
 
@@ -310,17 +284,17 @@ void GameInterface::SetupSpecialTextures(TilesetBuildInfo& info)
 	if (!isRR())
 	{
 		info.Delete(MIRROR_DUKE); // the mirror tile.
-		viewscreen = info.tile[502].tileimage;
+		viewscreen = info.tile[VIEWSCREEN_DUKE].tileimage;
 	}
 	else
 	{
 		info.Delete(MIRROR_RR);	// the mirror tile.
 		info.Delete(0);		// RR uses this as an empty texture
-		info.MakeWritable(2025);	// bowling lane pin displays
-		info.MakeWritable(2026);
-		info.MakeWritable(2027);
-		info.MakeWritable(2028);
-		viewscreen = info.tile[1055].tileimage;
+		info.MakeWritable(BOWLINGLANE);	// bowling lane pin displays
+		info.MakeWritable(BOWLINGLANE + 1);
+		info.MakeWritable(BOWLINGLANE + 2);
+		info.MakeWritable(BOWLINGLANE + 3);
+		viewscreen = info.tile[VIEWSCREEN_RR].tileimage;
 	}
 	info.MakeCanvas(TILE_VIEWSCR, viewscreen? viewscreen->GetWidth() : 128, viewscreen? viewscreen->GetHeight() : 128);
 }
@@ -331,6 +305,11 @@ void GameInterface::loadPalette()
 {
 	paletteLoadFromDisk();
 	genspriteremaps();
+
+	// Not exactly palette stuff, but this needs to be done before the LoadScripts call and here's a convenient place for that.
+	moves.Push({});		// make sure the first entry in 'moves' is a null move.
+	actions.Push({});	// make sure the first entry in 'actions' is a null action.
+	ais.Push({});	// make sure the first entry in 'actions' is a null action.
 }
 
 int GameInterface::GetCurrentSkill()
@@ -352,12 +331,62 @@ void setTextureIDs()
 
 //---------------------------------------------------------------------------
 //
+//
+//
+//---------------------------------------------------------------------------
+
+void initactorflags()
+{
+	if (!isRR())
+	{
+		gs.weaponsandammosprites[0] = DukeRPGSpriteClass;
+		gs.weaponsandammosprites[1] = DukeChaingunSpriteClass;
+		gs.weaponsandammosprites[2] = DukeDevastatorAmmoClass;
+		gs.weaponsandammosprites[3] = DukeRPGAmmoClass;
+		gs.weaponsandammosprites[4] = DukeRPGAmmoClass;
+		gs.weaponsandammosprites[5] = DukeJetpackClass;
+		gs.weaponsandammosprites[6] = DukeShieldClass;
+		gs.weaponsandammosprites[7] = DukeFirstAidClass;
+		gs.weaponsandammosprites[8] = DukeSteroidsClass;
+		gs.weaponsandammosprites[9] = DukeRPGAmmoClass;
+		gs.weaponsandammosprites[10] = DukeRPGAmmoClass;
+		gs.weaponsandammosprites[11] = DukeRPGSpriteClass;
+		gs.weaponsandammosprites[12] = DukeRPGAmmoClass;
+		gs.weaponsandammosprites[13] = DukeFreezeSpriteClass;
+		gs.weaponsandammosprites[14] = DukeFreezeAmmoClass;
+	}
+	else
+	{
+		gs.weaponsandammosprites[0] = RedneckCrossbowClass;
+		gs.weaponsandammosprites[1] = RedneckRiflegunClass;
+		gs.weaponsandammosprites[2] = RedneckBlasterammoClass;
+		gs.weaponsandammosprites[3] = RedneckDynamiteAmmoClass;
+		gs.weaponsandammosprites[4] = RedneckDynamiteAmmoClass;
+		gs.weaponsandammosprites[5] = RedneckCowpieClass;
+		gs.weaponsandammosprites[6] = RedneckWhiskeyClass;
+		gs.weaponsandammosprites[7] = RedneckPorkRindsClass;
+		gs.weaponsandammosprites[8] = RedneckMoonshineClass;
+		gs.weaponsandammosprites[9] = RedneckDynamiteAmmoClass;
+		gs.weaponsandammosprites[10] = RedneckDynamiteAmmoClass;
+		gs.weaponsandammosprites[11] = RedneckCrossbowClass;
+		gs.weaponsandammosprites[12] = RedneckDynamiteAmmoClass;
+		gs.weaponsandammosprites[13] = RedneckTitgunClass;
+		gs.weaponsandammosprites[14] = RedneckTitAmmoClass;
+
+		gs.gutsscale = 0.125;
+	}
+}
+
+
+//---------------------------------------------------------------------------
+//
 // set up the game module's state
 //
 //---------------------------------------------------------------------------
 
 void GameInterface::app_init()
 {
+	RegisterClasses();
 	GC::AddMarkerFunc(markgcroots);
 
 	if (isRR()) C_SetNotifyFontScale(0.5);
@@ -393,7 +422,7 @@ void GameInterface::app_init()
 	SetDispatcher();
 	
 	loadcons();
-	fi.initactorflags();
+	initactorflags();
 	setTextureIDs();			// sets a few texture IDs needed for map checking.
 	duke_menufont->Callback(); // depends on the .CON files so it must be after loadcons
 
@@ -421,13 +450,159 @@ void GameInterface::app_init()
 	S_ParseDeveloperCommentary();
 }
 
+void GameInterface::FinalizeSetup()
+{
+	for (int i = 0; i < MAXTILES; i++)
+	{
+		auto& actinf = gs.actorinfo[i];
+		if (actinf.scriptaddress != 0)
+		{
+			int act = ScriptCode[actinf.scriptaddress + 1];
+			int cmd = ScriptCode[actinf.scriptaddress + 4];
+			auto info = spawnMap.CheckKey(i);
+			PClassActor* cls = nullptr;
 
-void CallInitialize(DDukeActor* actor)
+			if (info != nullptr && !info->basetex.isValid())
+			{
+				cls = info->cls;
+			}
+			else if (info == nullptr || !info->basetex.isValid())
+			{
+				// No unique actor class exists here. Since we need one, create a new class here, directly derived from DDukeActor.
+				auto newcls = (PClassActor*)RUNTIME_CLASS(DDukeActor)->CreateDerivedClass(FStringf("NewConActor%d", i), RUNTIME_CLASS(DDukeActor)->Size);
+				newcls->InitializeDefaults();
+				insertSpawnType(i, { newcls, FNullTextureID(), FNullTextureID(), NO_SOUND, int8_t(0), int8_t(0), int16_t(0x8000) });
+				cls = newcls;
+				GetDefaultByType(newcls)->spr.setspritetexture(tileGetTextureID(i)); // make it show the right pic.
+			}
+			else
+			{
+				// the ugly case: This tries to replace a variant of a special actor.
+				// All of Duke's entries falling in this category are coded to not execute scripts at all with no possible override.
+				// this means that none of these actors can ever run its scripts.
+
+			}
+
+			// now copy all data over so that we don't have to do double maintenance.
+			if (cls)
+			{
+				cls->ActorInfo()->TypeNum = i;
+				GetDefaultByType(cls)->IntVar(NAME_strength) = ScriptCode[actinf.scriptaddress];
+				if (actinf.enemyflags &  EDukeFlags1::FromInt(1))
+				{
+					auto def = static_cast<DDukeActor*>(GetDefaultByType(cls));
+					auto fb = (SFLAG_BADGUY | SFLAG_KILLCOUNT | SFLAG_BADGUYSTAYPUT);
+					auto check = (def->flags1 & (SFLAG_BADGUY | SFLAG_KILLCOUNT));
+					// do not enable KILLCOUNT if it the base is a non-counting badguy. This is needed for RR's animals.
+					if (check == EDukeFlags1::FromInt(SFLAG_BADGUY)) fb &= ~SFLAG_KILLCOUNT; 
+					def->flags1 = (def->flags1 & ~fb) | (actinf.enemyflags & fb);
+				}
+
+			}
+		}
+		ScriptCode[actinf.scriptaddress] = 0; // ignore strength values for hashing the script code.
+		// todo: hash the entire script code and compare against precalculated value for the current game.
+		// If identical, remove all ScriptAddresses from the class list.
+
+	}
+
+	// flag all actors which override RunState so we can quickly check for this in the game,
+	auto VIndex = GetVirtualIndex(RUNTIME_CLASS(DDukeActor), "RunState");
+	assert(VIndex != ~0u);
+	auto RunState = RUNTIME_CLASS(DDukeActor)->Virtuals[VIndex];
+
+	for (auto& cls : PClassActor::AllActorClasses)
+	{
+		if (cls->IsDescendantOf(RUNTIME_CLASS(DDukeActor)) && cls->Virtuals[VIndex] != RunState)
+		{
+			auto def = static_cast<DDukeActor*>(GetDefaultByType(cls));
+			def->flags4 |= SFLAG4_CONOVERRIDE;
+
+			auto ainf = static_cast<PClassActor*>(cls)->ActorInfo();
+			for (int i = 0; i < ainf->NumAIs; i++)
+			{
+				auto ai = &ais[ainf->FirstAI + i];
+
+				if (ai->move & 0x80000000)
+				{
+					auto nm = FName(ENamedName(ai->move & ~0x80000000));
+					int newmove = LookupMove(cls, nm);
+					if (newmove == 0)
+					{
+						Printf(TEXTCOLOR_RED "Invalid move '%s' in AI '%s' for class '%s'\n", nm.GetChars(), ai->name.GetChars(), cls->TypeName.GetChars());
+					}
+					ai->move = newmove;
+				}
+				if (ai->action & 0x80000000)
+				{
+					auto nm = FName(ENamedName(ai->action & ~0x80000000));
+					int newaction = LookupAction(cls, nm);
+					if (newaction == 0)
+					{
+						Printf(TEXTCOLOR_RED "Invalid action '%s' in AI '%s' for class '%s'\n", nm.GetChars(), ai->name.GetChars(), cls->TypeName.GetChars());
+					}
+					ai->action = newaction;
+				}
+			}
+
+
+
+		}
+	}
+
+}
+
+
+int LookupAction(PClass* cls, FName name)
+{
+	while (true)
+	{
+		auto ainf = static_cast<PClassActor*>(cls)->ActorInfo();
+		for (int i = 0; i < ainf->NumActions; i++)
+		{
+			if (actions[ainf->FirstAction + i].name == name) return ainf->FirstAction + i;
+		}
+		if (cls == RUNTIME_CLASS(DDukeActor)) return 0;
+		cls = cls->ParentClass;
+	}
+}
+
+int LookupMove(PClass* cls, FName name)
+{
+	while (true)
+	{
+		auto ainf = static_cast<PClassActor*>(cls)->ActorInfo();
+		for (int i = 0; i < ainf->NumMoves; i++)
+		{
+			if (moves[ainf->FirstMove + i].name == name) return ainf->FirstMove + i;
+		}
+		if (cls == RUNTIME_CLASS(DDukeActor)) return 0;
+		cls = cls->ParentClass;
+	}
+}
+
+int LookupAI(PClass* cls, FName name)
+{
+	while (true)
+	{
+		auto ainf = static_cast<PClassActor*>(cls)->ActorInfo();
+		for (int i = 0; i < ainf->NumAIs; i++)
+		{
+			if (ais[ainf->FirstAI + i].name == name) return ainf->FirstAI + i;
+		}
+		if (cls == RUNTIME_CLASS(DDukeActor)) return 0;
+		cls = cls->ParentClass;
+	}
+}
+
+
+
+void CallInitialize(DDukeActor* actor, DDukeActor* spawner)
 {
 	IFVIRTUALPTR(actor, DDukeActor, Initialize)
 	{
-		VMValue val = actor;
-		VMCall(func, &val, 1, nullptr, 0);
+		VMValue val[] = { actor, spawner };
+		VMCall(func, val, 2, nullptr, 0);
 	}
 }
 
@@ -449,7 +624,7 @@ void CallAction(DDukeActor* actor)
 	}
 }
 
-void CallOnHit(DDukeActor* actor, DDukeActor* hitter)
+void checkhitsprite(DDukeActor* actor, DDukeActor* hitter)
 {
 	IFVIRTUALPTR(actor, DDukeActor, onHit)
 	{
@@ -541,12 +716,12 @@ bool CallShootThis(DDukeActor* clsdef, DDukeActor* actor, int pn, const DVector3
 	return rv;
 }
 
-void CallPlayFTASound(DDukeActor* actor)
+void CallPlayFTASound(DDukeActor* actor, int mode)
 {
 	IFVIRTUALPTR(actor, DDukeActor, PlayFTASound)
 	{
-		VMValue val = actor;
-		VMCall(func, &val, 1, nullptr, 0);
+		VMValue val[] = { actor, mode };
+		VMCall(func, val, 2, nullptr, 0);
 	}
 }
 
@@ -571,6 +746,157 @@ int CallTriggerSwitch(DDukeActor* actor, player_struct* p)
 	return nval;
 }
 
+PClassActor* CallGetRadiusDamageType(DDukeActor* actor, int targhealth)
+{
+	PClassActor* nval = nullptr;
+	IFVIRTUALPTR(actor, DDukeActor, GetRadiusDamageType)
+	{
+		VMReturn ret;
+		ret.PointerAt((void**)&nval);
+		VMValue val[] = { actor, targhealth };
+		VMCall(func, val, 2, &ret, 1);
+	}
+	return nval;
+}
+
+
+//==========================================================================
+//
+// Sets up the flag defaults which differ between RR and Duke.
+// 
+//==========================================================================
+
+DEFINE_PROPERTY(setgamedefaults, 0, DukeActor)
+{
+	if (!isRR())
+	{
+		defaults->flags1 |= SFLAG_LOOKALLAROUND; // feature comes from RR, but we want the option in Duke as well, so this fake property sets the default
+		defaults->FloatVar(NAME_shootzoffset) = -7;
+	}
+	else
+	{
+		defaults->flags1 |= SFLAG_MOVEFTA_WAKEUPCHECK; // Animals were not supposed to have this, but due to a coding bug the logic was unconditional for everything in the game.
+		defaults->flags2 |= SFLAG2_NODAMAGEPUSH;		// RR does not have this feature, so set the flag for everything, this allows disabling it if wanted later.
+		defaults->flags3 |= SFLAG3_RANDOMANGLEONWATER;	// RR does this for all badguys, Duke only for the LizMan.
+	}
+}
+
+//==========================================================================
+//
+// The 3 major CON related properties - moves, actions, ais.
+// 
+//==========================================================================
+
+DEFINE_PROPERTY(move, Sii, DukeActor)
+{
+	if (info->ActorInfo()->NumMoves++ == 0) info->ActorInfo()->FirstMove = moves.Size();
+	auto move = &moves[moves.Reserve(1)];
+	move->movex = move->movez = 0;
+	PROP_STRING_PARM(n, 0);
+	move->name = n;
+	move->qualifiedName = FStringf("%s.%s", info->TypeName.GetChars(), n);
+	if (PROP_PARM_COUNT > 1)
+	{
+		PROP_INT_PARM(v, 1);
+		move->movex = v / 16.f;
+		if (PROP_PARM_COUNT > 2)
+		{
+			PROP_INT_PARM(v2, 2);
+			move->movez = v2 / 16.f;
+		}
+	}
+}
+
+DEFINE_PROPERTY(movef, Sff, DukeActor)
+{
+	if (info->ActorInfo()->NumMoves++ == 0) info->ActorInfo()->FirstMove = moves.Size();
+	auto move = &moves[moves.Reserve(1)];
+	move->movex = move->movez = 0;
+	PROP_STRING_PARM(n, 0);
+	move->name = n;
+	move->qualifiedName = FStringf("%s.%s", info->TypeName.GetChars(), n);
+	if (PROP_PARM_COUNT > 1)
+	{
+		PROP_FLOAT_PARM(v, 1);
+		move->movex = v;
+		if (PROP_PARM_COUNT > 2)
+		{
+			PROP_FLOAT_PARM(v2, 2);
+			move->movez = v2;
+		}
+	}
+}
+
+DEFINE_PROPERTY(action, SZIiiii, DukeActor)
+{
+	if (info->ActorInfo()->NumActions++ == 0) info->ActorInfo()->FirstAction = actions.Size();
+	auto action = &actions[actions.Reserve(1)];
+	memset(action, 0, sizeof(*action));
+	PROP_STRING_PARM(n, 0);
+	action->name = n;
+	action->qualifiedName = FStringf("%s.%s", info->TypeName.GetChars(), n);
+	PROP_STRING_PARM(b, 1);
+	action->base = b == nullptr ? FNullTextureID() : TexMan.CheckForTexture(b, ETextureType::Any, FTextureManager::TEXMAN_ReturnAll | FTextureManager::TEXMAN_TryAny | FTextureManager::TEXMAN_ForceLookup);
+	PROP_INT_PARM(v2, 2);
+	action->offset = v2;
+
+	if (PROP_PARM_COUNT > 3)
+	{
+		PROP_INT_PARM(v3, 3);
+		action->numframes = v3;
+		if (PROP_PARM_COUNT > 4)
+		{
+			PROP_INT_PARM(v4, 4);
+			action->rotationtype = v4;
+			if (PROP_PARM_COUNT > 5)
+			{
+				PROP_INT_PARM(v5, 5);
+				action->increment = v5;
+				if (PROP_PARM_COUNT > 6)
+				{
+					PROP_INT_PARM(v6, 6);
+					action->delay = v6;
+				}
+			}
+		}
+	}
+}
+
+DEFINE_PROPERTY(ai, SSSi, DukeActor)
+{
+	if (info->ActorInfo()->NumAIs++ == 0) info->ActorInfo()->FirstAI = ais.Size();
+	auto ai = &ais[ais.Reserve(1)];
+	ai->moveflags = 0;
+	PROP_STRING_PARM(n, 0);
+	ai->name = n;
+	PROP_NAME_PARM(na, 1);
+	ai->action = na == NAME_None? 0 : na.GetIndex() | 0x80000000;	// don't look it up yet if not 'none'
+	PROP_NAME_PARM(nm, 2);
+	ai->move = nm == NAME_None ? 0 : nm.GetIndex() | 0x80000000;	// don't look it up yet if not 'none'
+	if (PROP_PARM_COUNT > 3)
+	{
+		PROP_INT_PARM(v3, 3);
+		ai->moveflags = v3;
+	}
+}
+
+DEFINE_PROPERTY(startaction, S, DukeActor)
+{
+	PROP_STRING_PARM(n, 0);
+	info->ActorInfo()->DefaultAction = n;
+}
+
+DEFINE_PROPERTY(startmove, S, DukeActor)
+{
+	PROP_STRING_PARM(n, 0);
+	info->ActorInfo()->DefaultMove = n;
+}
+
+DEFINE_PROPERTY(moveflags, I, DukeActor)
+{
+	PROP_INT_PARM(n, 0);
+	info->ActorInfo()->DefaultMoveflags = n;
+}
 
 CCMD(changewalltexture)
 {
@@ -584,6 +910,7 @@ CCMD(changewalltexture)
 		hit.hitWall->setwalltexture(tile);
 	}
 }
+
 
 
 END_DUKE_NS

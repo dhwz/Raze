@@ -208,7 +208,6 @@ extern double cameradist, cameraclock;
 bool calcChaseCamPos(DVector3& ppos, DCoreActor* pspr, sectortype** psectnum, const DRotator& angles, double const interpfrac, double const backamp);
 int getslopeval(sectortype* sect, const DVector3& pos, double bazez);
 bool cansee(const DVector3& start, sectortype* sect1, const DVector3& end, sectortype* sect2);
-double intersectSprite(DCoreActor* actor, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor);
 double intersectWallSprite(DCoreActor* actor, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor, bool checktex = false);
 double intersectFloorSprite(DCoreActor* actor, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor);
 double intersectSlopeSprite(DCoreActor* actor, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor);
@@ -241,8 +240,6 @@ inline int pushmove(DVector2& pos, double z, sectortype** pSect, double walldist
 
 int FindBestSector(const DVector3& pos);
 
-
-tspritetype* renderAddTsprite(tspriteArray& tsprites, DCoreActor* actor);
 
 void setWallSectors();
 void GetWallSpritePosition(const spritetypebase* spr, const DVector2& pos, DVector2* out, bool render = false);
@@ -422,7 +419,7 @@ inline int shadeToLight(int shade)
 
 inline void copyfloorpal(tspritetype* spr, const sectortype* sect)
 {
-	if (!lookups.noFloorPal(sect->floorpal)) spr->pal = sect->floorpal;
+	if (sect && !lookups.noFloorPal(sect->floorpal)) spr->pal = sect->floorpal;
 }
 
 inline int I_GetBuildTime()
@@ -484,6 +481,11 @@ inline void setFreeAimVelocity(double& vel, double& zvel, const DAngle pitch, co
 {
 	vel *= pitch.Cos();
 	zvel = pitch.Sin() * zvspeed;
+}
+
+inline int getWrappedIndex(const int index, const int maxvalue)
+{
+    return ((index % maxvalue) + maxvalue) % maxvalue;
 }
 
 #include "updatesector.h"

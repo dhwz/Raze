@@ -20,9 +20,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "player.h"
 #include "exhumed.h"
 #include "sound.h"
-#include "status.h"
 #include "engine.h"
-#include "input.h"
 #include "mapinfo.h"
 
 BEGIN_PS_NS
@@ -135,7 +133,7 @@ void BuildItemAnim(DExhumedActor* pActor)
 
     if (nItemAnimInfo[nItem].a >= 0)
     {
-        auto pAnimActor = BuildAnim(pActor, 41, nItemAnimInfo[nItem].a, pActor->spr.pos, pActor->sector(), nItemAnimInfo[nItem].repeat * REPEAT_SCALE, 20);
+        auto pAnimActor = BuildAnim(pActor, "items", nItemAnimInfo[nItem].a, pActor->spr.pos, pActor->sector(), nItemAnimInfo[nItem].repeat * REPEAT_SCALE, 20);
 
         if (nItem == 44) {
             pAnimActor->spr.cstat |= CSTAT_SPRITE_TRANSLUCENT;
@@ -404,16 +402,7 @@ void DropMagic(DExhumedActor* pActor)
 
     if (nMagicCount <= 0)
     {
-        auto pAnimActor = BuildAnim(
-            nullptr,
-            64,
-            0,
-            pActor->spr.pos,
-            pActor->sector(),
-            0.75,
-            4);
-
-        if (pAnimActor)
+        if (const auto pAnimActor = BuildAnim(nullptr, "magic2", 0, pActor->spr.pos, pActor->sector(), 0.75,4))
         {
             AddFlash(pAnimActor->sector(), pAnimActor->spr.pos, 128);
             ChangeActorStat(pAnimActor, 950);
@@ -481,7 +470,7 @@ void DoRegenerates()
 
             if (pActor->spr.extra <= 0)
             {
-                BuildAnim(nullptr, 38, 0, pActor->spr.pos, pActor->sector(), 1, 4);
+                BuildAnim(nullptr, "firepoof", 0, pActor->spr.pos, pActor->sector(), 1, 4);
                 D3PlayFX(StaticSound[kSoundTorchOn], pActor);
             }
             else {

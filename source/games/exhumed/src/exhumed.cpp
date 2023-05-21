@@ -22,10 +22,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "sequence.h"
 #include "names.h"
 #include "player.h"
-#include "input.h"
 #include "sound.h"
 #include "view.h"
-#include "status.h"
 #include "version.h"
 #include "aistuff.h"
 #include "mapinfo.h"
@@ -54,8 +52,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "psky.h"
 
 BEGIN_PS_NS
-
-TObjPtr<DExhumedActor*> bestTarget;
 
 IMPLEMENT_CLASS(DExhumedActor, false, true)
 IMPLEMENT_POINTERS_START(DExhumedActor)
@@ -86,7 +82,6 @@ static void markgcroots()
     MarkSnake();
     MarkRunlist();
 
-    GC::Mark(bestTarget);
     GC::Mark(pSpiritSprite);
 }
 
@@ -104,7 +99,6 @@ int EndLevel = 0;
 void ResetEngine()
 {
     EraseScreen(-1);
-    resettiming();
 }
 
 void GameInterface::loadPalette()
@@ -121,10 +115,6 @@ void LoadStatus();
 void MySetView(int x1, int y1, int x2, int y2);
 
 char sHollyStr[40];
-
-int nFontFirstChar;
-int nBackgroundPic;
-int nShadowPic;
 
 int nCreaturesKilled = 0, nCreaturesTotal = 0;
 
@@ -232,7 +222,7 @@ void DrawClock()
 {
     int ebp = 49;
 
-	auto pixels = GetWritablePixels(tileGetTextureID(kTile3603));
+	auto pixels = GetWritablePixels(aTexIds[kTexClockTile]);
 
     memset(pixels, TRANSPARENT_INDEX, 4096);
 
@@ -247,11 +237,11 @@ void DrawClock()
     while (nVal)
     {
         int v2 = nVal & 0xF;
-        auto texid = tileGetTextureID(v2 + kClockSymbol1);
+        auto texid = aTexIds[v2 + kTexClockSymbol1];
         auto tex = TexMan.GetGameTexture(texid);
-        int yPos = 32 - tileHeight(v2 + kClockSymbol1) / 2;
+        int yPos = 32 - tex->GetTexelHeight() / 2;
 
-        CopyTileToBitmap(texid, tileGetTextureID(kTile3603), ebp - tex->GetTexelWidth() / 2, yPos);
+        CopyTileToBitmap(texid, aTexIds[kTexClockTile], ebp - tex->GetTexelWidth() / 2, yPos);
 
         ebp -= 15;
 
@@ -266,11 +256,6 @@ void DrawClock()
 //
 //
 //---------------------------------------------------------------------------
-
-double calc_interpfrac()
-{
-    return bRecord || bPlayback || nFreeze != 0 || paused || cl_capfps || !cl_interpolate || EndLevel ? 1. : I_GetTimeFrac();
-}
 
 void DoGameOverScene(bool finallevel)
 {
@@ -287,12 +272,13 @@ void DoGameOverScene(bool finallevel)
 //
 //---------------------------------------------------------------------------
 
-void GameMove(void)
+static void GameMove(void)
 {
+    UpdateInterpolations();
     FixPalette();
 
 	ExhumedSpriteIterator it;
-    while (auto ac = it.Next())
+    while (const auto ac = it.Next())
     {
 		ac->backuploc();
     }
@@ -304,53 +290,21 @@ void GameMove(void)
             DoGameOverScene(true);
             return;
         }
-        // Pink section
+
+        nButtonColor--;
         lCountDown--;
         DrawClock();
 
-        if (nRedTicks)
-        {
-            nRedTicks--;
+        if (nRedTicks && --nRedTicks <= 0)
+            DoRedAlert(0);
 
-            if (nRedTicks <= 0) {
-                DoRedAlert(0);
-            }
-        }
-
-        nAlarmTicks--;
-        nButtonColor--;
-
-        if (nAlarmTicks <= 0) {
+        if (--nAlarmTicks <= 0)
             DoRedAlert(1);
-        }
     }
 
-    // YELLOW SECTION
     MoveThings();
-
-    obobangle = bobangle;
-
-    if (PlayerList[nLocalPlayer].totalvel == 0)
-    {
-        bobangle = 0;
-    }
-    else
-    {
-        bobangle += 56;
-    }
-
-    UpdateCreepySounds();
-
-    // loc_120E9:
     totalmoves++;
 }
-
-static int SelectAltWeapon(int weap2)
-{
-    // todo
-    return 0;
-}
-
 
 //---------------------------------------------------------------------------
 //
@@ -360,139 +314,26 @@ static int SelectAltWeapon(int weap2)
 
 void GameInterface::Ticker()
 {
-
 	if (paused)
 	{
 		r_NoInterpolate = true;
 	}
     else if (EndLevel == 0)
     {
-        // Shorten some constant array accesses.
-        const auto pPlayer = &PlayerList[nLocalPlayer];
-        auto& pInput = pPlayer->input;
-
-        // this must be done before the view is backed up.
-        pPlayer->Angles.resetCameraAngles();
-
         // disable synchronised input if set by game.
         resetForcedSyncInput();
 
-        // set new player input.
-        pInput = playercmds[nLocalPlayer].ucmd;
-
-        const auto inputvect = DVector2(pInput.fvel, pInput.svel).Rotated(pPlayer->pActor->spr.Angles.Yaw) * 0.375;
-
-        for (int i = 0; i < 4; i++)
+        for (int i = connecthead; i >= 0; i = connectpoint2[i])
         {
-            // Velocities are stored as Q14.18
-            pPlayer->vel += inputvect;
-            pPlayer->vel *= 0.953125;
-        }
-        UpdateInterpolations();
-
-        if (nFreeze) setForcedSyncInput();
-
-        if (pPlayer->nHealth <= 0)
-        {
-            setForcedSyncInput();
-            auto& packet = pInput;
-            packet.fvel = packet.svel = packet.avel = packet.horz = 0;
-            pPlayer->vel.Zero();
+            const auto pPlayer = &PlayerList[i];
+            pPlayer->Angles.resetCameraAngles();
+            pPlayer->input = playercmds[i].ucmd;
+            updatePlayerTarget(pPlayer);
         }
 
-        if (pInput.actions & SB_INVPREV)
-        {
-            int nItem = pPlayer->nItem;
-
-            int i;
-            for (i = 6; i > 0; i--)
-            {
-                nItem--;
-                if (nItem < 0) nItem = 5;
-
-                if (pPlayer->items[nItem] != 0)
-                    break;
-            }
-
-            if (i > 0) pPlayer->nItem = nItem;
-        }
-
-        if (pInput.actions & SB_INVNEXT)
-        {
-            int nItem = pPlayer->nItem;
-
-            int i;
-            for (i = 6; i > 0; i--)
-            {
-                nItem++;
-                if (nItem == 6) nItem = 0;
-
-                if (pPlayer->items[nItem] != 0)
-                    break;
-            }
-
-            if (i > 0) pPlayer->nItem = nItem;
-        }
-
-        if (pInput.actions & SB_INVUSE)
-        {
-            if (pPlayer->nItem != -1)
-            {
-                pInput.setItemUsed(pPlayer->nItem);
-            }
-        }
-
-        for (int i = 0; i < 6; i++)
-        {
-            if (pInput.isItemUsed(i))
-            {
-                pInput.clearItemUsed(i);
-                if (pPlayer->items[i] > 0)
-                {
-                    if (nItemMagic[i] <= pPlayer->nMagic)
-                    {
-                        pPlayer->nCurrentItem = i;
-                        break;
-                    }
-                }
-            }
-        }
-
-        auto currWeap = pPlayer->nCurrentWeapon;
-        int weap2 = pInput.getNewWeapon();
-        if (weap2 == WeaponSel_Next)
-        {
-            auto newWeap = currWeap == 6 ? 0 : currWeap + 1;
-            while (newWeap != 0 && (!(pPlayer->nPlayerWeapons & (1 << newWeap)) || (pPlayer->nPlayerWeapons & (1 << newWeap) && pPlayer->nAmmo[newWeap] == 0)))
-            {
-                newWeap++;
-                if (newWeap > 6) newWeap = 0;
-            }
-            pInput.setNewWeapon(newWeap + 1);
-        }
-        else if (weap2 == WeaponSel_Prev)
-        {
-            auto newWeap = currWeap == 0 ? 6 : currWeap - 1;
-            while (newWeap != 0 && ((!(pPlayer->nPlayerWeapons & (1 << newWeap)) || (pPlayer->nPlayerWeapons & (1 << newWeap) && pPlayer->nAmmo[newWeap] == 0))))
-            {
-                newWeap--;
-            }
-            pInput.setNewWeapon(newWeap + 1);
-        }
-        else if (weap2 == WeaponSel_Alt)
-        {
-            weap2 = SelectAltWeapon(weap2);
-        }
-
-        // make weapon selection persist until it gets used up.
-        int weap = pInput.getNewWeapon();
-        if (weap2 <= 0 || weap2 > 7) pInput.setNewWeapon(weap);     
-
-        pPlayer->pTarget = Ra[nLocalPlayer].pTarget = bestTarget;
+        GameMove();
 
         PlayClock += 4;
-        if (PlayClock == 8) gameaction = ga_autosave;	// let the game run for 1 frame before saving.
-        GameMove();
         r_NoInterpolate = false;
     }
 	else
@@ -548,17 +389,26 @@ static void SetTileNames(TilesetBuildInfo& info)
 
 void GameInterface::SetupSpecialTextures(TilesetBuildInfo& info)
 {
+    // This is the ONLY place that should use tile indices!
+    enum
+    {
+        kPlasmaTile1 = 4092,
+        kPlasmaTile2 = 4093,
+        kClockTile = 3603,
+        kEnergy1 = 3604,
+        kEnergy2 = 3605,
+        kTileLoboLaptop = 3623,
+        kTileRamsesWorkTile = 591,
+    };
+
     SetTileNames(info);
-    info.CreateWritable(kTile4092, kPlasmaWidth, kPlasmaHeight);
-    info.CreateWritable(kTile4093, kPlasmaWidth, kPlasmaHeight);
+    info.CreateWritable(kPlasmaTile1, kPlasmaWidth, kPlasmaHeight);
+    info.CreateWritable(kPlasmaTile2, kPlasmaWidth, kPlasmaHeight);
     info.CreateWritable(kTileRamsesWorkTile, kSpiritY * 2, kSpiritX * 2);
     info.MakeWritable(kTileLoboLaptop);
-    for(int i = kTile3603; i < kClockSymbol1 + 145; i++)
-    info.MakeWritable(kTile3603);
+    info.MakeWritable(kClockTile);
     info.MakeWritable(kEnergy1);
     info.MakeWritable(kEnergy2);
-    for (int i = 0; i < 16; i++)
-        info.MakeWritable(kClockSymbol1);
 }
 
 //---------------------------------------------------------------------------
@@ -570,7 +420,7 @@ void GameInterface::SetupSpecialTextures(TilesetBuildInfo& info)
 void GameInterface::app_init()
 {
     GC::AddMarkerFunc(markgcroots);
-
+	InitTextureIDs();
 
 #if 0
     help_disabled = true;
@@ -588,12 +438,14 @@ void GameInterface::app_init()
 
     InitFX();
     seq_LoadSequences();
-    InitStatus();
 
-    resettiming();
     GrabPalette();
 
     enginecompatibility_mode = ENGINECOMPATIBILITY_19961112;
+
+    myconnectindex = connecthead = 0;
+    numplayers = 1;
+    connectpoint2[0] = -1;
 }
 
 //---------------------------------------------------------------------------
@@ -607,10 +459,6 @@ void DeleteActor(DExhumedActor* actor)
     if (!actor) 
     {
         return;
-    }
-
-    if (actor == bestTarget) {
-        bestTarget = nullptr;
     }
 
     UnlinkIgnitedAnim(actor);
@@ -675,7 +523,7 @@ void EraseScreen(int nVal)
 
 bool GameInterface::CanSave()
 {
-    return gamestate == GS_LEVEL && !bRecord && !bPlayback && !bInDemo && nTotalPlayers == 1 && nFreeze == 0;
+    return !bRecord && !bPlayback && !bInDemo && nTotalPlayers == 1 && nFreeze == 0;
 }
 
 ::GameStats GameInterface::getStats()
@@ -709,6 +557,9 @@ void DExhumedActor::Serialize(FSerializer& arc)
         ("index2", nIndex2)
         ("channel", nChannel)
         ("damage", nDamage)
+        ("seqidx", nSeqIndex)
+        ("seqfile", nSeqFile)
+        ("flags", nFlags)
         ("angle2", pitch)
 
         ("turn", nTurn)
@@ -730,12 +581,11 @@ void SerializeState(FSerializer& arc)
             InitEnergyTile();
     }
 
-        arc ("besttarget", bestTarget)
-            ("creaturestotal", nCreaturesTotal)
+        arc ("creaturestotal", nCreaturesTotal)
             ("creatureskilled", nCreaturesKilled)
             ("freeze", nFreeze)
             ("snakecam", nSnakeCam)
-            ("clockval", nClockVal)  // kTile3603
+            ("clockval", nClockVal)
             ("redticks", nRedTicks)
             ("alarmticks", nAlarmTicks)
             ("buttoncolor", nButtonColor)

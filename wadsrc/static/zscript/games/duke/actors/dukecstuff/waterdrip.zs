@@ -1,0 +1,72 @@
+class DukeWaterDrip : DukeActor
+{
+	default
+	{
+		pic "WATERDRIP";
+	}
+	
+	override void Initialize(DukeActor spawner)
+	{
+		if (spawner && (spawner.statnum == STAT_PLAYER || spawner.statnum == STAT_ACTOR))
+		{
+			self.shade = 32;
+			if (spawner.pal != 1)
+			{
+				self.pal = 2;
+				self.pos.Z -= 18;
+			}
+			else self.pos.Z -= 13;
+			self.angle = (Duke.GetViewPlayer().actor.pos.XY - self.pos.XY).Angle();
+			self.vel.X = frandom(1, 3);
+			self.DoMove(CLIPMASK0);
+		}
+		else if (self.mapSpawned)
+		{
+			self.pos.Z += 4;
+			self.temp_pos.Z = self.pos.Z;
+			self.temp_data[1] = random(0, 127);
+		}
+		self.Scale = (0.375, 0.375);
+		self.ChangeStat(STAT_STANDABLE);
+	}
+	
+	override void Tick()
+	{
+		if (self.temp_data[1])
+		{
+			self.temp_data[1]--;
+			if (self.temp_data[1] == 0)
+				self.cstat &= ~CSTAT_SPRITE_INVISIBLE;
+		}
+		else
+		{
+			self.makeitfall();
+			self.DoMove(CLIPMASK0);
+			if(self.vel.X > 0) self.vel.X -= 1/8.;
+
+			if (self.vel.Z == 0)
+			{
+				self.cstat |= CSTAT_SPRITE_INVISIBLE;
+
+				if (self.pal != 2 && (self.hitag == 0 || isRR()))
+					self.PlayActorSound("SOMETHING_DRIPPING");
+
+				if (!self.mapSpawned)
+				{
+					self.Destroy();
+				}
+				else
+				{
+					self.pos.Z = self.temp_pos.Z;
+					self.backuppos();
+					self.temp_data[1] = random(48, 79);
+				}
+			}
+		}
+	}
+
+	
+}
+
+
+

@@ -23,6 +23,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "sound.h"
 #include <assert.h>
 
+CVARD(Bool, cl_exdamagepush, false, CVAR_ARCHIVE, "enables player damage pushback from explosions, etc.")
+
 BEGIN_PS_NS
 
 enum
@@ -1747,8 +1749,7 @@ int runlist_CheckRadialDamage(DExhumedActor* pActor)
         return 0;
     }
 
-	auto pos = (pActor->spr.pos - pRadialActor->spr.pos) / 16.;
-
+	const auto pos = (pActor->spr.pos - pRadialActor->spr.pos) * (1. / 16.);
 
 	if (abs(pos.X) > nDamageRadius) {
 		return 0;
@@ -1763,44 +1764,41 @@ int runlist_CheckRadialDamage(DExhumedActor* pActor)
 	}
 
 	double nDist = pos.XY().Length();
+	double nPush = 0;
 
-	int edi = 0;
     if (nDist < nDamageRadius)
     {
         auto nCStat = pActor->spr.cstat;
         pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
 
         if (((kStatExplodeTarget - pActor->spr.statnum) <= 1) ||
-            cansee(pRadialActor->spr.pos.plusZ(-2),
-                pRadialActor->sector(),
-                pActor->spr.pos.plusZ(-32),
-                pActor->sector()))
+            cansee(pRadialActor->spr.pos.plusZ(-2), pRadialActor->sector(), pActor->spr.pos.plusZ(-32), pActor->sector()))
         {
-            edi = int((nRadialDamage * (nDamageRadius - nDist)) / nDamageRadius);
-
-            if (edi < 0) {
-                edi = 0;
-            }
-            else if (edi > 20)
+            if ((nPush = max((nRadialDamage * (nDamageRadius - nDist)) / nDamageRadius, 0.)) > 20)
             {
-                auto nAngle = pos.Angle();
-				pActor->vel.XY() += nAngle.ToVector() * edi * 128;
-
-                pActor->vel.Z = (- edi * 24) / 256.;
+                const auto nVel = DVector3(pos.Angle().ToVector(), -24 * (1. / 256.)) * nPush;
+                pActor->vel.Z += nVel.Z;
 
                 if (pActor->vel.Z < -14)
 					pActor->vel.Z = -14;
+
+                if (pActor->spr.statnum == 100)
+                {
+                    // The player's max vel is 15.25 for reference.
+                    pActor->vel.XY() += nVel.XY() * 0.1875 * cl_exdamagepush;
+                    PlayerList[GetPlayerFromActor(pActor)].bJumping = true;
+                }
+                else
+                {
+                    pActor->vel.XY() += nVel.XY() * 128.;
+                }
             }
         }
 
         pActor->spr.cstat = nCStat;
     }
 
-    if (edi > 0x7FFF) {
-        edi = 0x7FFF;
-    }
-
-    return edi;
+    return min((int)nPush, 0x7FFF);
 }
 
 //---------------------------------------------------------------------------

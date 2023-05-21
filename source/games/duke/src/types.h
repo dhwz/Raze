@@ -22,16 +22,41 @@ struct STATUSBARTYPE
 	bool gotweapon[MAX_WEAPONS];
 };
 
-// Todo - put more state in here
+struct ActorMove
+{
+	FName qualifiedName;	// this is only used for serialization.
+	FName name;
+	float movex, movez;
+};
+struct ActorAction
+{
+	FName qualifiedName;	// this is only used for serialization.
+	FName name;
+	FTextureID base;
+	int offset;
+	int16_t numframes;
+	int16_t rotationtype;
+	int16_t increment;
+	int16_t delay;
+};
+
+struct ActorAI
+{
+	FName name;
+	uint32_t move;
+	uint32_t action;
+	int moveflags;
+};
+
+inline TArray<ActorMove> moves;
+inline TArray<ActorAction> actions;
+inline TArray<ActorAI> ais;
+
 struct ActorInfo
 {
+	uint32_t loadeventscriptptr;
 	uint32_t scriptaddress;
-	EDukeFlags1 flags;
-	EDukeFlags2 flags2;
-	EDukeFlags3 flags3;
-	int aimoffset;
-	int falladjustz;
-	int gutsoffset;
+	EDukeFlags1 enemyflags;	// placeholder during parsing. Since CON gets parsed before the spawn type table we cannot copy these to their final location yet.
 };
 
 class DDukeActor : public DCoreActor
@@ -40,14 +65,21 @@ class DDukeActor : public DCoreActor
 	HAS_OBJECT_POINTERS
 public:
 	TObjPtr<DDukeActor*> ownerActor, hitOwnerActor;
+	PClassActor* attackertype;
+
+	const DDukeActor* attackerDefaults()
+	{
+		return static_cast<DDukeActor*>(GetDefaultByType(attackertype? attackertype : RUNTIME_CLASS(DDukeActor)));
+	}
 
 	uint8_t cgg;
 	uint8_t spriteextra;	// moved here for easier maintenance. This was originally a hacked in field in the sprite structure called 'filler'.
 	uint16_t movflag;
-	short attackertype, hitextra;
+	short hitextra;
 	short tempval, basepicnum;
 	unsigned short timetosleep;
 	bool mapSpawned;
+	uint8_t killit_flag;
 	DVector2 ovel;
 	DAngle hitang;
 	double floorz, ceilingz;
@@ -58,28 +90,29 @@ public:
 		int tempsound;
 	};
 	// note: all this temp shit needs to be moved to subclass specific variables once things get cleaned up. This is a major issue with code readability.
-	int temp_data[6];
+	int counter;	// sprite animation counters - were previously stored in temp_data.
+	int temp_data[5];
 	// Some SE's stored indices in temp_data. For purposes of clarity avoid that. These variables are meant to store these elements now
 	walltype* temp_walls[2]; // SE20 + SE128
 	sectortype* temp_sect, *actorstayput;
 	DAngle temp_angle;
 	DVector3 temp_pos, temp_pos2;
-
-	TObjPtr<DDukeActor*> temp_actor, seek_actor;
-
-	TArray<GameVarValue> uservars;
+	ActorMove* curMove;
+	ActorAction* curAction;
+	FName curAI;	// no need to store the pointer here.
+	int16_t actioncounter, curframe;	// sprite animation counters - were previously stored in temp_data.
 
 	EDukeFlags1 flags1;
 	EDukeFlags2 flags2;
 	EDukeFlags3 flags3;
+	EDukeFlags4 flags4;
 
-	// these two variables are only valid while RunState is executed. They are explicitly nulled right afterward and only accessible throgh the CON emulation interface.
-	struct player_struct* state_player;
-	double state_dist;
+	TObjPtr<DDukeActor*> temp_actor, seek_actor;
+	TArray<GameVarValue> uservars;
 
 	DDukeActor() = default;
 	size_t PropagateMark() override;
-	const ActorInfo* actorInfo() const;
+	const ActorInfo* conInfo() const;
 
 	// This once was stored in the owner field of the sprite
 	inline DDukeActor* GetOwner()
@@ -108,10 +141,7 @@ public:
 		return spr.yint;
 	}
 
-	bool isPlayer() const
-	{
-		return spr.picnum == TILE_APLAYER;
-	}
+	bool isPlayer() const;
 
 	void Serialize(FSerializer& arc) override;
 
@@ -122,6 +152,7 @@ public:
 			// It sucks having to do this but the game heavily depends on being able to swap out the class type and often uses this to manage actor state.
 			// We'll allow this only for classes that do not add their own data, though.
 			SetClass(newtype);
+			spr.setspritetexture(GetDefaultByType(newtype)->spr.spritetexture());
 		}
 	}
 	
@@ -130,12 +161,23 @@ public:
 		auto tex = TexMan.GetGameTexture(spr.spritetexture());
 		clipdist = spr.scale.X * tex->GetDisplayWidth() * 0.125;
 	}
-
 };
 
 // subclassed to add a game specific actor() method
 using HitInfo = THitInfo<DDukeActor>;
 using Collision = TCollision<DDukeActor>;
+
+
+// This is to satisfy the CON-based requirement of 'killit' immediately aborting all script code execution.
+class CDukeKillEvent : public std::exception
+{
+	int Type_;
+public:
+	CDukeKillEvent(int type): Type_(type) {}
+	int Type() const { return Type_; }
+	// to print a meaningful message if killit got called from the wrong place.
+	const char* what() const noexcept override { return "killit called from outside RunState!"; }
+};
 
 struct animwalltype
 {
@@ -145,18 +187,14 @@ struct animwalltype
 	bool overpic;
 };
 
-// legacy CON baggage which needs to be refactored later.
-struct TileInfo
-{
-	int loadeventscriptptr;
-};
-
 struct user_defs
 {
+	int mapflags;
 	uint8_t god, cashman, eog;
 	uint8_t clipping;
 	uint8_t user_pals[MAXPLAYERS];
 	uint8_t ufospawnsminion;
+	uint8_t pistonsound, fogactive;
 
 	short from_bonus;
 	short last_level, secretlevel;
@@ -250,7 +288,8 @@ struct player_struct
 	short extra_extra8, quick_kick, last_quick_kick;
 	short heat_amount, timebeforeexit, customexitsound;
 
-	short weaprecs[32], weapreccnt;
+	PClass* weaprecs[32];
+	int weapreccnt;
 	unsigned int interface_toggle_flag;
 
 	short dead_flag, show_empty_weapon;
@@ -299,7 +338,7 @@ struct player_struct
 	int SeaSick;
 	short MamaEnd; // raat609
 	short moto_drink;
-	float TiltStatus, oTiltStatus;
+	DAngle TiltStatus, oTiltStatus;
 	double VBumpNow, VBumpTarget;
 	short TurbCount;
 	short drug_stat[3]; // raat5f1..5
@@ -312,6 +351,7 @@ struct player_struct
 
 	TArray<GameVarValue> uservars;
 
+	bool crouch_toggle;
 
 	// input stuff.
 	InputPacket sync;
@@ -325,9 +365,9 @@ struct player_struct
 	void checkhardlanding();
 	void playerweaponsway(double xvel);
 
-	DAngle adjustavel(float avel)
+	float adjustavel(float avel)
 	{
-		return DAngle::fromDeg((psectlotag == ST_2_UNDERWATER)? avel * 0.875f : avel);
+		return (psectlotag == ST_2_UNDERWATER)? avel * 0.875f : avel;
 	}
 
 	void setCursector(sectortype* sect)
@@ -345,9 +385,23 @@ struct player_struct
 		bobpos = GetActor()->spr.pos.XY();
 	}
 
-	bool centeringView()
+	void updatecentering(const int snum)
 	{
-		return (sync.actions & SB_CENTERVIEW) && abs(GetActor()->spr.Angles.Pitch.Degrees()) > 2.2370;
+		if (!(sync.actions & SB_CENTERVIEW))
+			return;
+
+		const bool returnlock = cl_dukepitchmode & kDukePitchLockReturn;
+		const bool centertest = abs(GetActor()->spr.Angles.Pitch.Degrees()) > 2.2370; // Build horizon value of 5.
+
+		if ((centertest && returnlock) || !sync.horz)
+		{
+			setForcedSyncInput(snum);
+			sync.horz = 0;
+		}
+		else
+		{
+			sync.actions &= ~SB_CENTERVIEW;
+		}
 	}
 };
 

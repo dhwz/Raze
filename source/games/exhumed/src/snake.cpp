@@ -19,10 +19,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "engine.h"
 #include "exhumed.h"
 #include "aistuff.h"
-#include "status.h"
 #include "player.h"
 #include "sequence.h"
-#include "input.h"
 #include "sound.h"
 #include <string.h>
 #include <assert.h>
@@ -146,7 +144,7 @@ void ExplodeSnakeSprite(DExhumedActor* pActor, int nPlayer)
 
     pActor->pTarget = nOwner;
 
-    BuildAnim(nullptr, 23, 0, pActor->spr.pos, pActor->sector(), 0.625, 4);
+    BuildAnim(nullptr, "cobrapow", 0, pActor->spr.pos, pActor->sector(), 0.625, 4);
 
     AddFlash(pActor->sector(), pActor->spr.pos, 128);
 
@@ -165,7 +163,7 @@ void BuildSnake(int nPlayer, double zVal)
 
     auto pPlayerActor = PlayerList[nPlayer].pActor;
     auto pViewSect = PlayerList[nPlayer].pPlayerViewSect;
-    int nPic = seq_GetSeqPicnum(kSeqSnakBody, 0, 0);
+    auto nPic = getSequence("snakbody", 0)->getFirstFrameTexture();
 
 	auto pos = pPlayerActor->spr.pos.plusZ(zVal - 10);
 
@@ -209,7 +207,7 @@ void BuildSnake(int nPlayer, double zVal)
 
 			pActor->pTarget = pPlayerActor;
             //pActor->spr.intowner = nPlayerSprite;
-            pActor->spr.picnum = nPic;
+            pActor->spr.setspritetexture(nPic);
 
             if (i == 0)
             {
@@ -298,7 +296,7 @@ DExhumedActor* FindSnakeEnemy(int nSnake)
         {
             if (pAct2 != pPlayerActor && !(pAct2->spr.cstat & CSTAT_SPRITE_INVISIBLE))
             {
-                DAngle nAngle2 = absangle(nAngle, GetAngleToSprite(pActor, pAct2));
+                DAngle nAngle2 = absangle(nAngle, (pAct2->spr.pos.XY() - pActor->spr.pos.XY()).Angle());
                 if (nAngle2 < maxangle)
                 {
                     pEnemy = pAct2;
@@ -340,7 +338,7 @@ void AISnake::Tick(RunListEvent* ev)
     DExhumedActor* pActor = SnakeList[nSnake].pSprites[0];
     if (!pActor) return;
 
-    seq_MoveSequence(pActor, SeqOffsets[kSeqSnakehed], 0);
+    getSequence("snakehed")->frames[0].playSound(pActor);
 
     DExhumedActor* pEnemySprite = SnakeList[nSnake].pEnemy;
 
@@ -425,15 +423,8 @@ void AISnake::Tick(RunListEvent* ev)
 
 void AISnake::Draw(RunListEvent* ev)
 {
-    int nSnake = RunData[ev->nRun].nObjIndex;
-    int nSprite = ev->nParam;
-
-    if ((nSnake & 0xFF) == 0) {
-        seq_PlotSequence(nSprite, SeqOffsets[kSeqSnakehed], 0, 0);
-    }
-    else {
-        seq_PlotSequence(nSprite, SeqOffsets[kSeqSnakBody], 0, 0);
-    }
+    const int nSnake = RunData[ev->nRun].nObjIndex;
+    seq_PlotSequence(ev->nParam, (nSnake & 0xFF) == 0 ? "snakehed" : "snakbody", 0, 0, 0);
 
     ev->pTSprite->ownerActor = nullptr;
 }

@@ -41,7 +41,6 @@ source as it is released.
 #include "mapinfo.h"
 
 // This currently only works for WW2GI.
-#include "names_d.h"
 
 BEGIN_DUKE_NS
 
@@ -499,7 +498,6 @@ int g_iWorksLikeVarID = -1;	// var ID of "WORKSLIKE"
 int g_iZRangeVarID = -1;	// var ID of "ZRANGE"
 int g_iAngRangeVarID = -1;	// var ID of "ANGRANGE"
 int g_iAimAngleVarID = -1;	// var ID of "AUTOAIMANGLE"
-int g_iAtWithVarID = -1;	// var ID of "AtWith"
 int g_iLoTagID = -1;			// var ID of "LOTAG"
 int g_iHiTagID = -1;			// ver ID of "HITAG"
 int g_iTextureID = -1;		// var ID of "TEXTURE"
@@ -549,6 +547,8 @@ void InitGameVarPointers(void)
 	int i;
 	char aszBuf[64];
 	// called from game Init AND when level is loaded...
+
+	if (!isWW2GI()) return;
 
 	for (i = 0; i < 12/*MAX_WEAPONS*/; i++)	// Setup only exists for the original 12 weapons.
 	{
@@ -618,8 +618,8 @@ void AddSystemVars()
 {
 	// only call ONCE
 	char aszBuf[64];
-
-/////////////////////////////		
+	if (isWW2GI())
+	{
 		sprintf(aszBuf, "WEAPON%d_WORKSLIKE", KNEE_WEAPON);
 		AddGameVar(aszBuf, KNEE_WEAPON, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
@@ -642,7 +642,7 @@ void AddSystemVars()
 		AddGameVar(aszBuf, WEAPON_FLAG_NOVISIBLE | WEAPON_FLAG_AUTOMATIC | WEAPON_FLAG_RANDOMRESTART, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SHOOTS", KNEE_WEAPON);
-		AddGameVar(aszBuf, DTILE_KNEE, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
+		AddGameVar(aszBuf, DukeMeleeAttackClass->ActorInfo()->TypeNum, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SPAWNTIME", KNEE_WEAPON);
 		AddGameVar(aszBuf, 0, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
@@ -689,13 +689,13 @@ void AddSystemVars()
 		AddGameVar(aszBuf, WEAPON_FLAG_AUTOMATIC | WEAPON_FLAG_HOLSTER_CLEARS_CLIP, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SHOOTS", PISTOL_WEAPON);
-		AddGameVar(aszBuf, DTILE_SHOTSPARK1, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
+		AddGameVar(aszBuf, DukeShotSparkClass->ActorInfo()->TypeNum, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SPAWNTIME", PISTOL_WEAPON);
 		AddGameVar(aszBuf, 2, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SPAWN", PISTOL_WEAPON);
-		AddGameVar(aszBuf, DTILE_SHELL, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
+		AddGameVar(aszBuf, DukeShellClass->ActorInfo()->TypeNum, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SHOTSPERBURST", PISTOL_WEAPON);
 		AddGameVar(aszBuf, 0, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
@@ -735,13 +735,13 @@ void AddSystemVars()
 		AddGameVar(aszBuf, WEAPON_FLAG_CHECKATRELOAD, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SHOOTS", SHOTGUN_WEAPON);
-		AddGameVar(aszBuf, DTILE_SHOTGUN, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
+		AddGameVar(aszBuf, DukeShotgunShotClass->ActorInfo()->TypeNum, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SPAWNTIME", SHOTGUN_WEAPON);
 		AddGameVar(aszBuf, 24, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SPAWN", SHOTGUN_WEAPON);
-		AddGameVar(aszBuf, DTILE_SHOTGUNSHELL, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
+		AddGameVar(aszBuf, DukeShotgunShellClass->ActorInfo()->TypeNum, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SHOTSPERBURST", SHOTGUN_WEAPON);
 		AddGameVar(aszBuf, 7, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
@@ -783,13 +783,13 @@ void AddSystemVars()
 
 
 		sprintf(aszBuf, "WEAPON%d_SHOOTS", CHAINGUN_WEAPON);
-		AddGameVar(aszBuf, DTILE_CHAINGUN, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
+		AddGameVar(aszBuf, DukeChaingunShotClass->ActorInfo()->TypeNum, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SPAWNTIME", CHAINGUN_WEAPON);
 		AddGameVar(aszBuf, 0, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SPAWN", CHAINGUN_WEAPON);
-		AddGameVar(aszBuf, DTILE_SHELL, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
+		AddGameVar(aszBuf, DukeShellClass->ActorInfo()->TypeNum, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SHOTSPERBURST", CHAINGUN_WEAPON);
 		AddGameVar(aszBuf, 0, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
@@ -829,7 +829,7 @@ void AddSystemVars()
 		AddGameVar(aszBuf, 0, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SHOOTS", RPG_WEAPON);
-		AddGameVar(aszBuf, DTILE_RPG, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
+		AddGameVar(aszBuf, DukeRPGClass->ActorInfo()->TypeNum, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SPAWNTIME", RPG_WEAPON);
 		AddGameVar(aszBuf, 0, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
@@ -875,7 +875,7 @@ void AddSystemVars()
 		AddGameVar(aszBuf, WEAPON_FLAG_THROWIT, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SHOOTS", HANDBOMB_WEAPON);
-		AddGameVar(aszBuf, DTILE_HEAVYHBOMB, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
+		AddGameVar(aszBuf, DukePipeBombClass->ActorInfo()->TypeNum, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SPAWNTIME", HANDBOMB_WEAPON);
 		AddGameVar(aszBuf, 0, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
@@ -923,7 +923,7 @@ void AddSystemVars()
 		AddGameVar(aszBuf, WEAPON_FLAG_GLOWS, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SHOOTS", SHRINKER_WEAPON);
-		AddGameVar(aszBuf, DTILE_SHRINKER, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
+		AddGameVar(aszBuf, DukeShrinkerClass->ActorInfo()->TypeNum, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SPAWNTIME", SHRINKER_WEAPON);
 		AddGameVar(aszBuf, 0, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
@@ -969,7 +969,7 @@ void AddSystemVars()
 		AddGameVar(aszBuf, WEAPON_FLAG_FIREEVERYOTHER, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SHOOTS", DEVISTATOR_WEAPON);
-		AddGameVar(aszBuf, DTILE_RPG, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
+		AddGameVar(aszBuf, DukeRPGClass->ActorInfo()->TypeNum, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SPAWNTIME", DEVISTATOR_WEAPON);
 		AddGameVar(aszBuf, 0, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
@@ -1015,7 +1015,7 @@ void AddSystemVars()
 		AddGameVar(aszBuf, WEAPON_FLAG_STANDSTILL, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SHOOTS", TRIPBOMB_WEAPON);
-		AddGameVar(aszBuf, DTILE_HANDHOLDINGLASER, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
+		AddGameVar(aszBuf, DukeHandHoldingLaserClass->ActorInfo()->TypeNum, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SPAWNTIME", TRIPBOMB_WEAPON);
 		AddGameVar(aszBuf, 0, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
@@ -1061,7 +1061,7 @@ void AddSystemVars()
 		AddGameVar(aszBuf, WEAPON_FLAG_FIREEVERYOTHER, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SHOOTS", FREEZE_WEAPON);
-		AddGameVar(aszBuf, DTILE_FREEZEBLAST, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
+		AddGameVar(aszBuf, DukeFreezeBlastClass->ActorInfo()->TypeNum, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SPAWNTIME", FREEZE_WEAPON);
 		AddGameVar(aszBuf, 0, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
@@ -1156,7 +1156,7 @@ void AddSystemVars()
 		AddGameVar(aszBuf, WEAPON_FLAG_GLOWS, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SHOOTS", GROW_WEAPON);
-		AddGameVar(aszBuf, DTILE_GROWSPARK, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
+		AddGameVar(aszBuf, DukeGrowSparkClass->ActorInfo()->TypeNum, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 
 		sprintf(aszBuf, "WEAPON%d_SPAWNTIME", GROW_WEAPON);
 		AddGameVar(aszBuf, 0, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
@@ -1178,14 +1178,9 @@ void AddSystemVars()
 
 		sprintf(aszBuf, "WEAPON%d_SOUND2SOUND", GROW_WEAPON);
 		AddGameVar(aszBuf, 0, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
+	}
 	AddGameVar("GRENADE_LIFETIME", NAM_GRENADE_LIFETIME, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
 	AddGameVar("GRENADE_LIFETIME_VAR", NAM_GRENADE_LIFETIME_VAR, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
-
-	AddGameVar("STICKYBOMB_LIFETIME", NAM_GRENADE_LIFETIME, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
-	AddGameVar("STICKYBOMB_LIFETIME_VAR", NAM_GRENADE_LIFETIME_VAR, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
-
-	AddGameVar("TRIPBOMB_CONTROL", TRIPBOMB_TRIPWIRE, GAMEVAR_FLAG_PERPLAYER | GAMEVAR_FLAG_SYSTEM);
-
 
 	AddGameVar("WEAPON", 0, GAMEVAR_FLAG_READONLY | GAMEVAR_FLAG_SYSTEM);
 	AddGameVar("WORKSLIKE", 0, GAMEVAR_FLAG_READONLY | GAMEVAR_FLAG_SYSTEM);
@@ -1240,7 +1235,6 @@ void FinalizeGameVars(void)
 	g_iZRangeVarID=GetGameID("ZRANGE");
 	g_iAngRangeVarID=GetGameID("ANGRANGE");
 	g_iAimAngleVarID=GetGameID("AUTOAIMANGLE");
-	g_iAtWithVarID = GetGameID("ATWITH");
 	g_iLoTagID = GetGameID("LOTAG");
 	g_iHiTagID = GetGameID("HITAG");
 	g_iTextureID = GetGameID("TEXTURE");

@@ -245,7 +245,6 @@ void StartLevel(MapRecord* level, bool newgame)
 	if (!level) return;
 	gFrameCount = 0;
 	PlayClock = 0;
-	inputState.ClearAllInput();
 	currentLevel = level;
 
 	if (gGameOptions.nGameType == 0)
@@ -271,6 +270,8 @@ void StartLevel(MapRecord* level, bool newgame)
 	STAT_NewLevel(currentLevel->fileName);
 	TITLE_InformName(currentLevel->name);
 	wsrand(dbReadMapCRC(currentLevel->LabelName()));
+	gHitInfo.hitSector = nullptr;
+	gHitInfo.hitWall = nullptr;
 	gKillMgr.Clear();
 	gSecretMgr.Clear();
 	automapping = 1;
@@ -360,7 +361,6 @@ void StartLevel(MapRecord* level, bool newgame)
 	if (!gPlayer[myconnectindex].packSlots[1].isActive) // if diving suit is not active, turn off reverb sound effect
 		sfxSetReverb(0);
 	ambInit();
-	Net_ClearFifo();
 	gChokeCounter = 0;
 	M_ClearMenus();
 	// viewSetMessage("");
@@ -383,7 +383,6 @@ void NewLevel(MapRecord *sng, int skill, bool newgame)
 	if (skill != -1) gGameOptions.nDifficulty = skill;
 	gSkill = gGameOptions.nDifficulty;
 	StartLevel(sng, newgame);
-	gameaction = ga_level;
 }
 
 void GameInterface::NewGame(MapRecord *sng, int skill, bool)
@@ -500,8 +499,7 @@ void GameInterface::Ticker()
 void GameInterface::DrawBackground()
 {
 	twod->ClearScreen();
-	auto tex = TexMan.CheckForTexture("titlescreen", ETextureType::Any);
-	DrawTexture(twod, TexMan.GetGameTexture(tex), 0, 0, DTA_FullscreenEx, FSMode_ScaleToFit43, TAG_DONE);
+	DrawTexture(twod, TexMan.GetGameTexture(aTexIds[kTexTitlescreen]), 0, 0, DTA_FullscreenEx, FSMode_ScaleToFit43, TAG_DONE);
 }
 
 
@@ -590,6 +588,7 @@ void GameInterface::loadPalette(void)
 void GameInterface::app_init()
 {
 	mirrortile = tileGetTextureID(504);
+	InitTextureIDs();
 
 	GC::AddMarkerFunc(markgcroots);
 
@@ -601,7 +600,7 @@ void GameInterface::app_init()
 	levelLoadDefaults();
 
 	//---------
-	C_InitConback(TexMan.CheckForTexture("BACKTILE", ETextureType::Any), true, 0.25);
+	C_InitConback(aTexIds[kTexBACKTILE], true, 0.25);
 
 	Printf(PRINT_NONOTIFY, "Initializing view subsystem\n");
 	viewInit();
@@ -638,11 +637,6 @@ static void gameInit()
 	gViewIndex = myconnectindex;
 
 	UpdateNetworkMenus();
-	if (gGameOptions.nGameType > 0)
-	{
-		inputState.ClearAllInput();
-	}
-
 }
 
 
@@ -715,8 +709,13 @@ DEFINE_ACTION_FUNCTION(_Blood, OriginalLoadScreen)
 	static int bLoadScreenCrcMatch = -1;
 	if (bLoadScreenCrcMatch == -1)
 	{
-		auto tex = tileGetTexture(kLoadScreen)->GetTexture()->GetImage(); // if this is invalid we have a bigger problem on our hand than the inevitable crash.
-		bLoadScreenCrcMatch = tileGetCRC32(tex) == kLoadScreenCRC;
+		auto gtex = TexMan.FindGameTexture("LOADSCREEN", ETextureType::Any);
+		if (gtex)
+		{
+			auto img = gtex->GetTexture()->GetImage();
+			bLoadScreenCrcMatch = tileGetCRC32(img) == kLoadScreenCRC;
+		}
+		else bLoadScreenCrcMatch = true;	// if the LOADSCREEN texture is invalid, allow the widescreen fallback.
 	}
 	ACTION_RETURN_INT(bLoadScreenCrcMatch);
 }
@@ -753,12 +752,12 @@ DEFINE_ACTION_FUNCTION(_Blood, PowerupIcon)
 {
 	PARAM_PROLOGUE;
 	PARAM_INT(pwup);
-	int tile = -1;
+	FTextureID tile = FNullTextureID();
 	if (pwup >= 0 && pwup < (int)countof(gPowerUpInfo))
 	{
-		tile = gPowerUpInfo[pwup].picnum;
+		tile = gPowerUpInfo[pwup].textureID();
 	}
-	FGameTexture* tex = tileGetTexture(tile);
+	FGameTexture* tex = TexMan.GetGameTexture(tile);
 	ACTION_RETURN_INT(tex ? tex->GetID().GetIndex() : -1);
 }
 

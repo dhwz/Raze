@@ -29,7 +29,6 @@ Prepared for public release: 03/21/2003 - Charlie Wiederhold, 3D Realms
 
 #include "ns.h"
 #include "global.h"
-#include "names_r.h"
 #include "prediction.h"
 #include "dukeactor.h"
 #include "gamefuncs.h"
@@ -41,7 +40,6 @@ BEGIN_DUKE_NS
 void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle viewang, double interpfrac)
 {
 	int k, p;
-	int t1, t3, t4;
 	tspritetype* t;
 	DDukeActor* h;
 
@@ -52,7 +50,7 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 		t = tsprites.get(j);
 		h = static_cast<DDukeActor*>(t->ownerActor);
 
-		if (!actorflag(h, SFLAG2_FORCESECTORSHADE) && ((t->cstat & CSTAT_SPRITE_ALIGNMENT_WALL)) || (badguypic(t->picnum) && t->extra > 0) || t->statnum == STAT_PLAYER)
+		if (!(h->flags2 & SFLAG2_FORCESECTORSHADE) && ((t->cstat & CSTAT_SPRITE_ALIGNMENT_WALL)) || badguy(static_cast<DDukeActor*>(t->ownerActor)) || t->statnum == STAT_PLAYER)
 		{
 			if (h->sector()->shadedsector == 1 && h->spr.statnum != 1)
 			{
@@ -76,11 +74,12 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 		{
 			if (t->lotag == SE_27_DEMO_CAM && ud.recstat == 1)
 			{
-				t->picnum = 11 + ((PlayClock >> 3) & 1);
+				t->setspritetexture(TexMan.CheckForTexture("DEMOCAM", ETextureType::Any));
 				t->cstat |= CSTAT_SPRITE_YCENTER;
 			}
 			else
 				t->scale = DVector2(0, 0);
+			break;
 		}
 
 		if (t->statnum == STAT_TEMP) continue;
@@ -91,7 +90,7 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 			t->Angles.Yaw = h->interpolatedyaw(interpfrac);
 			h->spr.scale = DVector2(0.375, 0.265625);
 		}
-		else if (!actorflag(h, SFLAG_NOINTERPOLATE))
+		else if (!(h->flags1 & SFLAG_NOINTERPOLATE))
 		{
 			t->pos = h->interpolatedpos(interpfrac);
 			t->Angles.Yaw = h->interpolatedyaw(interpfrac);
@@ -101,52 +100,22 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 		auto sectp = h->sector();
 		bool res = CallAnimate(h, t);
 		// some actors have 4, some 6 rotation frames - in true Build fashion there's no pointers what to do here without flagging it.
-		if (actorflag(h, SFLAG2_ALWAYSROTATE1) || (t->clipdist & TSPR_ROTATE8FRAMES))
+		if ((h->flags2 & SFLAG2_ALWAYSROTATE1) || (t->clipdist & TSPR_ROTATE8FRAMES))
 			applyRotation1(h, t, viewang);
-		else if (actorflag(h, SFLAG2_ALWAYSROTATE2) || (t->clipdist & TSPR_ROTATE12FRAMES))
+		else if ((h->flags2 & SFLAG2_ALWAYSROTATE2) || (t->clipdist & TSPR_ROTATE12FRAMES))
 			applyRotation2(h, t, viewang);
-		if (sectp->floorpal && !actorflag(h, SFLAG2_NOFLOORPAL) && !(t->clipdist & TSPR_NOFLOORPAL))
+		if (sectp->floorpal && !(h->flags2 & SFLAG2_NOFLOORPAL) && !(t->clipdist & TSPR_NOFLOORPAL))
 			copyfloorpal(t, sectp);
 
 		if (res)
 		{
-			if (h->dispicnum >= 0)
-				h->dispicnum = t->picnum;
+			if (h->dispictex.isValid())
+				h->dispictex = t->spritetexture();
 			continue;
 		}
 
-		t1 = h->temp_data[1];
-		t3 = h->temp_data[3];
-		t4 = h->temp_data[4];
-
-		switch (h->spr.picnum)
+		if (h->isPlayer())
 		{
-		case RTILE_DUKELYINGDEAD:
-			h->spr.scale = DVector2(0.375, 0.265625);
-			if (h->spr.extra > 0)
-				t->pos.Z += 6;
-			break;
-		case RTILE_BURNING:
-			if (OwnerAc && OwnerAc->spr.statnum == STAT_PLAYER)
-			{
-				if (display_mirror == 0 && OwnerAc->PlayerIndex() == screenpeek && ps[OwnerAc->PlayerIndex()].over_shoulder_on == 0)
-					t->scale = DVector2(0, 0);
-				else
-				{
-					t->Angles.Yaw = (viewVec - t->pos.XY()).Angle();
-					t->pos.XY() = OwnerAc->spr.pos.XY() + t->Angles.Yaw.ToVector();
-				}
-			}
-			break;
-
-		case RTILE_ATOMICHEALTH:
-			t->pos.Z -= 4;
-			break;
-		case RTILE_CRYSTALAMMO:
-			t->shade = int(BobVal(PlayClock << 4) * 16);
-			break;
-		case RTILE_APLAYER:
-
 			p = h->PlayerIndex();
 
 			if (t->pal == 1) t->pos.Z -= 18;
@@ -176,22 +145,24 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 				newtspr->shade = t->shade;
 				newtspr->cstat = 0;
 
+				const char* texname = nullptr;
 				switch (ps[p].curr_weapon)
 				{
-				case PISTOL_WEAPON:      newtspr->picnum = RTILE_FIRSTGUNSPRITE;       break;
-				case SHOTGUN_WEAPON:     newtspr->picnum = RTILE_SHOTGUNSPRITE;        break;
-				case RIFLEGUN_WEAPON:    newtspr->picnum = RTILE_RIFLEGUNSPRITE;       break;
-				case CROSSBOW_WEAPON:         newtspr->picnum = RTILE_CROSSBOWSPRITE;            break;
-				case CHICKEN_WEAPON:        newtspr->picnum = RTILE_CROSSBOWSPRITE; break;
+				case PISTOL_WEAPON:           texname = "FIRSTGUNSPRITE";       break;
+				case SHOTGUN_WEAPON:          texname = "SHOTGUNSPRITE";        break;
+				case RIFLEGUN_WEAPON:         texname = "RIFLEGUNSPRITE";       break;
+				case CROSSBOW_WEAPON:         texname = "CROSSBOWSPRITE";       break;
+				case CHICKEN_WEAPON:          texname = "CROSSBOWSPRITE";       break;
 				case THROWINGDYNAMITE_WEAPON:
-				case DYNAMITE_WEAPON:    newtspr->picnum = RTILE_DYNAMITE;           break;
-				case POWDERKEG_WEAPON:    newtspr->picnum = RTILE_POWDERKEG;       break;
-				case BOWLING_WEAPON:     newtspr->picnum = RTILE_BOWLINGBALLSPRITE;                 break;
-				case THROWSAW_WEAPON:    newtspr->picnum = RTILE_RIPSAWSPRITE;          break;
-				case BUZZSAW_WEAPON:        newtspr->picnum = RTILE_RIPSAWSPRITE;          break;
-				case ALIENBLASTER_WEAPON:      newtspr->picnum = RTILE_ALIENBLASTERSPRITE;     break;
-				case TIT_WEAPON:  newtspr->picnum = RTILE_TITSPRITE;         break;
+				case DYNAMITE_WEAPON:         texname = "DYNAMITE";             break;
+				case POWDERKEG_WEAPON:        texname = "POWDERKEG";            break;
+				case BOWLING_WEAPON:          texname = "BOWLINGBALLSPRITE";    break;
+				case THROWSAW_WEAPON:         texname = "RIPSAWSPRITE";         break;
+				case BUZZSAW_WEAPON:          texname = "RIPSAWSPRITE";         break;
+				case ALIENBLASTER_WEAPON:     texname = "ALIENBLASTERSPRITE";   break;
+				case TIT_WEAPON:              texname = "TITSPRITE";            break;
 				}
+				t->setspritetexture(TexMan.CheckForTexture(texname, ETextureType::Any));
 
 				if (h->GetOwner()) newtspr->pos.Z = ps[p].GetActor()->getOffsetZ() - 12;
 				else newtspr->pos.Z = h->spr.pos.Z - 51;
@@ -210,45 +181,12 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 				newtspr->pal = 0;
 			}
 
-			if (!h->GetOwner())
-			{
-				if (hw_models && modelManager.CheckModel(h->spr.picnum, h->spr.pal)) 
-				{
-					k = 0;
-					t->cstat &= ~CSTAT_SPRITE_XFLIP;
-				} else
-				{
-					k = angletorotation1(t->Angles.Yaw, viewang);
-					if (k > 4)
-					{
-						k = 8 - k;
-						t->cstat |= CSTAT_SPRITE_XFLIP;
-					}
-					else t->cstat &= ~CSTAT_SPRITE_XFLIP;
-				}
-
-				if (t->sectp->lotag == 2) k += 1795 - 1405;
-				else if ((h->floorz - h->spr.pos.Z) > 64) k += 60;
-
-				t->picnum += k;
-				t->pal = ps[p].palookup;
-
-				goto PALONLY;
-			}
-
 			if (ps[p].on_crane == nullptr && (h->sector()->lotag & 0x7ff) != 1)
 			{
 				double v = h->spr.pos.Z - ps[p].GetActor()->floorz + 3;
 				if (v > 4 && h->spr.scale.Y > 0.5 && h->spr.extra > 0)
 					h->spr.yoffset = (int8_t)(v / h->spr.scale.Y);
 				else h->spr.yoffset = 0;
-			}
-
-			if (ps[p].newOwner != nullptr)
-			{
-				t4 = ScriptCode[gs.actorinfo[RTILE_APLAYER].scriptaddress + 1];
-				t3 = 0;
-				t1 = ScriptCode[gs.actorinfo[RTILE_APLAYER].scriptaddress + 2];
 			}
 
 			if (ud.cameraactor == nullptr && ps[p].newOwner == nullptr)
@@ -260,80 +198,40 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 						continue;
 					}
 
-		PALONLY:
-
-			if (sectp->floorpal)
-				copyfloorpal(t, sectp);
-
-			if (!h->GetOwner()) continue;
-
 			if (t->pos.Z > h->floorz && t->scale.X < 0.5)
 				t->pos.Z = h->floorz;
 
 			if (ps[p].OnMotorcycle && p == screenpeek)
 			{
-				t->picnum = RTILE_RRTILE7219;
+				t->setspritetexture(TexMan.CheckForTexture("PLAYERONBIKEBACK", ETextureType::Any));
 				t->scale = DVector2(0.28125, 0.28125);
-				t4 = 0;
-				t3 = 0;
-				t1 = 0;
+				drawshadows(tsprites, t, h);
+				continue;
 			}
 			else if (ps[p].OnMotorcycle)
 			{
-				k = angletorotation2(h->spr.Angles.Yaw, viewang);
-				if (k > 6)
-				{
-					k = 12 - k;
-					t->cstat |= CSTAT_SPRITE_XFLIP;
-				}
-				else t->cstat &= ~CSTAT_SPRITE_XFLIP;
-
-				t->picnum = RTILE_RRTILE7213 + k;
+				t->setspritetexture(TexMan.CheckForTexture("PLAYERONBIKE", ETextureType::Any));
+				applyRotation2(h, t, viewang);
 				t->scale = DVector2(0.28125, 0.28125);
-				t4 = 0;
-				t3 = 0;
-				t1 = 0;
+				drawshadows(tsprites, t, h);
+				continue;
 			}
 			else if (ps[p].OnBoat && p == screenpeek)
 			{
-				t->picnum = RTILE_RRTILE7190;
+				t->setspritetexture(TexMan.CheckForTexture("PLAYERONBOATBACK", ETextureType::Any));
 				t->scale = DVector2(0.5, 0.5);
-				t4 = 0;
-				t3 = 0;
-				t1 = 0;
+				drawshadows(tsprites, t, h);
+				continue;
 			}
 			else if (ps[p].OnBoat)
 			{
+				t->setspritetexture(TexMan.CheckForTexture("PLAYERONBOAT", ETextureType::Any));
 				k = angletorotation2(h->spr.Angles.Yaw, viewang);
-
-				if (k > 6)
-				{
-					k = 12 - k;
-					t->cstat |= CSTAT_SPRITE_XFLIP;
-				}
-				else t->cstat &= ~CSTAT_SPRITE_XFLIP;
-
-				t->picnum = RTILE_RRTILE7184 + k;
+				applyRotation2(h, t, viewang);
 				t->scale = DVector2(0.5, 0.5);
-				t4 = 0;
-				t3 = 0;
-				t1 = 0;
+				drawshadows(tsprites, t, h);
+				continue;
 			}
-
-			break;
-
-		case RTILE_WATERBUBBLE:
-			if (tilesurface(t->sectp->floortexture) == TSURF_SLIME)
-			{
-				t->pal = 7;
-				break;
-			}
-			[[fallthrough]];
-		default:
-
-			if (sectp->floorpal)
-				copyfloorpal(t, sectp);
-			break;
 		}
 		applyanimations(t, h, viewVec, viewang);
 
@@ -342,87 +240,7 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 			drawshadows(tsprites, t, h);
 		}
 
-
-		switch (h->spr.picnum)
-		{
-		case RTILE_SBMOVE:
-			if (!isRRRA())
-				t->shade = -127;
-			break;
-
-		case RTILE_EXPLOSION2:
-		case RTILE_ATOMICHEALTH:
-		case RTILE_CHAINGUN:
-		case RTILE_EXPLOSION3:
-			if (t->picnum == RTILE_EXPLOSION2)
-			{
-				ps[screenpeek].visibility = -127;
-				lastvisinc = PlayClock + 32;
-				t->pal = 0;
-			}
-			t->shade = -127;
-			break;
-		case RTILE_UFOBEAM:
-		case RTILE_RRTILE3586:
-		case RTILE_LADDER:
-			t->cstat |= CSTAT_SPRITE_INVISIBLE;
-			h->spr.cstat |= CSTAT_SPRITE_INVISIBLE;
-			break;
-		case RTILE_DESTRUCTO:
-			t->cstat |= CSTAT_SPRITE_INVISIBLE;
-			break;
-		case RTILE_FIRE:
-		case RTILE_BURNING:
-			if (!OwnerAc || !actorflag(OwnerAc, SFLAG_NOFLOORFIRE))
-				t->pos.Z = getflorzofslopeptr(t->sectp, t->pos);
-			t->shade = -127;
-			break;
-		case RTILE_CHEER:
-			if (!isRRRA()) break;
-			if (t->picnum >= RTILE_CHEER + 102 && t->picnum <= RTILE_CHEER + 151)
-				t->shade = -127;
-			break;
-		case RTILE_MINION:
-			if (!isRRRA()) break;
-			if (t->pal == 19)
-				t->shade = -127;
-			break;
-		case RTILE_BIKER:
-			if (!isRRRA()) break;
-			if (t->picnum >= RTILE_BIKER + 54 && t->picnum <= RTILE_BIKER + 58)
-				t->shade = -127;
-			else if (t->picnum >= RTILE_BIKER + 84 && t->picnum <= RTILE_BIKER + 88)
-				t->shade = -127;
-			break;
-		case RTILE_BILLYRAY:
-		case RTILE_BILLYRAYSTAYPUT:
-			if (!isRRRA()) break;
-			if (t->picnum >= RTILE_BILLYRAY + 5 && t->picnum <= RTILE_BILLYRAY + 9)
-				t->shade = -127;
-			break;
-		case RTILE_RRTILE2034:
-			t->picnum = RTILE_RRTILE2034 + ((PlayClock >> 2) & 1);
-			break;
-		case RTILE_RRTILE2944:
-			t->shade = -127;
-			t->picnum = RTILE_RRTILE2944 + ((PlayClock >> 2) & 4);
-			break;
-		case RTILE_PLAYERONWATER:
-
-			k = angletorotation1(t->Angles.Yaw, viewang);
-			if (k > 4)
-			{
-				k = 8 - k;
-				t->cstat |= CSTAT_SPRITE_XFLIP;
-			}
-			else t->cstat &= ~CSTAT_SPRITE_XFLIP;
-
-			t->picnum = h->spr.picnum + k + ((h->temp_data[0] < 4) * 5);
-			if (OwnerAc) t->shade = OwnerAc->spr.shade;
-			break;
-		}
-
-		h->dispicnum = t->picnum;
+		h->dispictex = t->spritetexture();
 		if (t->sectp->floortexture == mirrortex)
 			t->scale = DVector2(0, 0);
 	}

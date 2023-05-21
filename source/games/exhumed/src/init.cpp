@@ -23,14 +23,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "engine.h"
 #include "sound.h"
 #include "exhumed.h"
-#include "input.h"
 #include "mapinfo.h"
 #include "gamecontrol.h"
 #include "v_video.h"
-#include "status.h"
 #include <stdio.h>
 #include <string.h>
 #include "statusbar.h"
+#include "precache.h"
 
 BEGIN_PS_NS
 
@@ -78,6 +77,25 @@ static TArray<DExhumedActor*> spawnactors(SpawnSpriteDef& sprites)
     return spawns;
 }
 
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+static void precache()
+{
+    if (!r_precache) return;
+
+    precacheMap();
+
+    ExhumedSpriteIterator it;
+    while (auto ac = it.Next())
+    {
+        markTextureForPrecache(ac->spr.spritetexture(), ac->spr.pal);
+    }
+    precacheMarkedTiles();
+}
 
 //---------------------------------------------------------------------------
 //
@@ -110,7 +128,6 @@ uint8_t LoadLevel(MapRecord* map)
         InitRats();
         InitBullets();
         InitWeapons();
-        InitAnims();
         InitSnakes();
         InitLights();
         ClearAutomap();
@@ -145,14 +162,6 @@ uint8_t LoadLevel(MapRecord* map)
     int16_t mapang;
     loadMap(currentLevel->fileName, 0, &initpos, &mapang, &initsect, spawned);
     auto actors = spawnactors(spawned);
-
-    int i;
-
-    for (i = 0; i < kMaxPlayers; i++)
-    {
-        PlayerList[i].pActor = nullptr;
-        PlayerList[i].Angles = {};
-    }
 
     g_visibility = 1024;
     flash = 0;

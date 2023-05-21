@@ -1,6 +1,13 @@
 #pragma once
 #include "c_cvars.h"
 
+enum
+{
+	kDukePitchLockReturn = 1,
+	kDukePitchHardLanding = 2,
+	kDukePitchLandingRecenter = 4,
+};
+
 EXTERN_CVAR(Bool, cl_crosshair)
 EXTERN_CVAR(Bool, cl_automsg)
 EXTERN_CVAR(Int, cl_autoaim)
@@ -11,7 +18,7 @@ EXTERN_CVAR(Bool, cl_autosavedeletion)
 EXTERN_CVAR(Int, cl_maxautosaves)
 EXTERN_CVAR(Bool, cl_obituaries)
 EXTERN_CVAR(Bool, cl_idplayers)
-EXTERN_CVAR(Bool, cl_viewbob)
+EXTERN_CVAR(Int, cl_viewbob)
 EXTERN_CVAR(Bool, cl_weaponsway)
 EXTERN_CVAR(Bool, cl_viewhbob)
 EXTERN_CVAR(Bool, cl_viewvbob)
@@ -36,6 +43,7 @@ EXTERN_CVAR(Bool, cl_bloodweapinterp)
 EXTERN_CVAR(Bool, cl_bloodoldweapbalance)
 EXTERN_CVAR(Bool, cl_loadingscreens)
 EXTERN_CVAR(Bool, cl_clampedpitch)
+EXTERN_CVAR(Int, cl_dukepitchmode)
 
 EXTERN_CVAR(Bool, demorec_seeds_cvar)
 EXTERN_CVAR(Bool, demoplay_diffs)

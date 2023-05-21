@@ -148,6 +148,9 @@ struct sectortype native
 	native readonly int16 ceilingheinum;
 	native readonly int16 floorheinum;
 
+	native readonly TextureID ceilingtexture;
+	native readonly TextureID floortexture;
+
 	native Array<@walltype> walls;
 	native int16 ceilingstat;
 	native int16 floorstat;
@@ -265,16 +268,14 @@ struct walltype native
 	native readonly int nextwall;
 	native readonly int sector;	// Build never had this...
 	native readonly int nextsector;
+	native readonly TextureID walltexture, overtexture;	
 
 	// Again, panning fields extended for interpolation.
 	native readonly float xpan;
 	native readonly float ypan;
 
 	native int16 cstat;
-	
-	// no access to pics!
-	//int16 picnum;
-	//int16 overpicnum;
+
 	native int16 lotag;
 	native int16 type; // type is an alias of lotag for Blood.
 	native int16 hitag;
@@ -318,7 +319,6 @@ struct tspritetype native
 	native double angle;
 	native sectortype sector;
 	native int16 cstat;
-	//native int16 picnum;
 	native int16 statnum;
 	//native int16 ang;
 	/* these are not needed for tsprites
@@ -343,6 +343,7 @@ struct tspritetype native
 
 	native void setSpritePic(CoreActor actor, int index); // index into actor's spriteset.
 	native void setWeaponOrAmmoSprite(int num);
+	native void copyfloorpal(sectortype sect);
 
 }
 

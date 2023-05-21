@@ -61,7 +61,7 @@ DExhumedActor* BuildWasp(DExhumedActor* pActor, const DVector3& pos, sectortype*
 
     if (bEggWasp)
     {
-        pActor->spr.scale = DVector2(0.34375, 0.3125);
+        pActor->spr.scale = DVector2(0.3125, 0.3125);
     }
     else
     {
@@ -70,7 +70,7 @@ DExhumedActor* BuildWasp(DExhumedActor* pActor, const DVector3& pos, sectortype*
 
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->spr.picnum = 1;
+    setvalidpic(pActor);
     pActor->spr.Angles.Yaw = nAngle;
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
@@ -106,6 +106,8 @@ DExhumedActor* BuildWasp(DExhumedActor* pActor, const DVector3& pos, sectortype*
 
     pActor->nRun = runlist_AddRunRec(NewRun, pActor, 0x1E0000);
 
+    pActor->nSeqFile = "wasp";
+
     nCreaturesTotal++;
     return pActor;
 }
@@ -118,12 +120,11 @@ DExhumedActor* BuildWasp(DExhumedActor* pActor, const DVector3& pos, sectortype*
 
 void AIWasp::Draw(RunListEvent* ev)
 {
-    auto pActor = ev->pObjActor;
-    if (!pActor) return;
-    int nAction = pActor->nAction;
-
-    seq_PlotSequence(ev->nParam, SeqOffsets[kSeqWasp] + WaspSeq[nAction].a, pActor->nFrame, WaspSeq[nAction].b);
-    return;
+    if (const auto pActor = ev->pObjActor)
+    {
+        const auto waspSeq = &WaspSeq[pActor->nAction];
+        seq_PlotSequence(ev->nParam, pActor->nSeqFile, waspSeq->nSeqId, pActor->nFrame, waspSeq->nFlags);
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -165,13 +166,7 @@ void AIWasp::Damage(RunListEvent* ev)
 
         if (pActor->nHealth > 0)
         {
-            if (!RandomSize(4))
-            {
-                pActor->nAction = 3;
-                pActor->nFrame = 0;
-            }
-
-            pActor->nAction = 1;
+            pActor->nAction = !RandomSize(4) ? 3 : 1;
 			pActor->spr.Angles.Yaw += DAngle45 + DAngle90 + RandomAngle9();
             pActor->norm_ang();
 
@@ -194,6 +189,7 @@ void AIWasp::Damage(RunListEvent* ev)
 
             nCreaturesKilled++;
         }
+        pActor->nFrame = 0;
     }
     return;
 }
@@ -214,14 +210,15 @@ void AIWasp::Tick(RunListEvent* ev)
 
     bool bVal = false;
 
-    int nSeq = SeqOffsets[kSeqWasp] + WaspSeq[nAction].a;
+    const auto waspSeq = getSequence(pActor->nSeqFile, WaspSeq[nAction].nSeqId);
+    const auto& seqFrame = waspSeq->frames[pActor->nFrame];
 
-    pActor->spr.picnum = seq_GetSeqPicnum2(nSeq, pActor->nFrame);
+    pActor->spr.setspritetexture(seqFrame.getFirstChunkTexture());
 
-    seq_MoveSequence(pActor, nSeq, pActor->nFrame);
+    seqFrame.playSound(pActor);
 
     pActor->nFrame++;
-    if (pActor->nFrame >= SeqSize[nSeq])
+    if (pActor->nFrame >= waspSeq->frames.Size())
     {
         pActor->nFrame = 0;
         bVal = true;
@@ -236,6 +233,7 @@ void AIWasp::Tick(RunListEvent* ev)
             // goto pink
             pActor->pTarget = nullptr;
             pActor->nAction = 0;
+            pActor->nFrame = 0;
             pActor->nCount = RandomSize(6);
             return;
         }
@@ -289,6 +287,7 @@ void AIWasp::Tick(RunListEvent* ev)
         if (pActor->nCount <= 0)
         {
             pActor->nAction = 0;
+            pActor->nFrame = 0;
             pActor->nCount = RandomSize(6);
             return;
         }
@@ -331,6 +330,7 @@ void AIWasp::Tick(RunListEvent* ev)
             pActor->vel.Z = ((-20) - RandomSize(6)) / 256.;
 
             pActor->nAction = 1;
+            pActor->nFrame = 0;
             pActor->nVel = 3000;
         }
         return;

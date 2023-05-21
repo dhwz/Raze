@@ -86,7 +86,7 @@ void GameInterface::MenuSound(EMenuSounds snd)
 
 bool GameInterface::CanSave()
 {
-    return (gamestate == GS_LEVEL && !CommEnabled && numplayers ==1 && /*!DemoMode &&*/ !(Player[myconnectindex].Flags & PF_DEAD));
+    return (!CommEnabled && numplayers ==1 && /*!DemoMode &&*/ !(Player[myconnectindex].Flags & PF_DEAD));
 }
 
 //---------------------------------------------------------------------------
@@ -122,7 +122,6 @@ bool GameInterface::StartGame(FNewGameStartup& gs)
 			soundEngine->UpdateSounds(I_GetTime());
 			I_GetEvent();
 		}
-		Net_ClearFifo();
 	}
 	return true;
 }

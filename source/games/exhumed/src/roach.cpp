@@ -58,7 +58,7 @@ void BuildRoach(int nType, DExhumedActor* pActor, const DVector3& pos, sectortyp
     pActor->spr.shade = -12;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->spr.picnum = 1;
+    setvalidpic(pActor);
     pActor->spr.pal = pActor->sector()->ceilingpal;
 	pActor->clipdist = 15;
     pActor->spr.Angles.Yaw = angle;
@@ -90,6 +90,8 @@ void BuildRoach(int nType, DExhumedActor* pActor, const DVector3& pos, sectortyp
     pActor->spr.intowner = runlist_AddRunRec(pActor->spr.lotag - 1, pActor, 0x1C0000);
     pActor->nRun = runlist_AddRunRec(NewRun, pActor, 0x1C0000);
 
+    pActor->nSeqFile = "roach";
+
     nCreaturesTotal++;
 }
 
@@ -106,12 +108,11 @@ void GoRoach(DExhumedActor* pActor)
 
 void AIRoach::Draw(RunListEvent* ev)
 {
-	auto pActor = ev->pObjActor;
-	if (!pActor) return;
-    int nAction = pActor->nAction;
-
-    seq_PlotSequence(ev->nParam, RoachSeq[nAction].a + SeqOffsets[kSeqRoach], pActor->nFrame, RoachSeq[nAction].b);
-    return;
+	if (const auto pActor = ev->pObjActor)
+    {
+        const auto roachSeq = &RoachSeq[pActor->nAction];
+        seq_PlotSequence(ev->nParam, pActor->nSeqFile, roachSeq->nSeqId, pActor->nFrame, roachSeq->nFlags);
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -211,19 +212,19 @@ void AIRoach::Tick(RunListEvent* ev)
 
     Gravity(pActor);
 
-    int nSeq = SeqOffsets[kSeqRoach] + RoachSeq[pActor->nAction].a;
+    const auto roachSeq = getSequence(pActor->nSeqFile, RoachSeq[nAction].nSeqId);
+    const auto& seqFrame = roachSeq->frames[pActor->nFrame];
 
-    pActor->spr.picnum = seq_GetSeqPicnum2(nSeq, pActor->nFrame);
-    seq_MoveSequence(pActor, nSeq, pActor->nFrame);
+    pActor->spr.setspritetexture(seqFrame.getFirstChunkTexture());
+    seqFrame.playSound(pActor);
 
     pActor->nFrame++;
-    if (pActor->nFrame >= SeqSize[nSeq])
+    if (pActor->nFrame >= roachSeq->frames.Size())
     {
         bVal = true;
         pActor->nFrame = 0;
     }
 
-    int nFlag = FrameFlag[SeqBase[nSeq] + pActor->nFrame];
     DExhumedActor* pTarget = pActor->pTarget;
 
     if (nAction > 5) {
@@ -363,7 +364,7 @@ void AIRoach::Tick(RunListEvent* ev)
         }
         else
         {
-            if (nFlag & 0x80)
+            if (seqFrame.flags & 0x80)
             {
                 BuildBullet(pActor, 13, INT_MAX, pActor->spr.Angles.Yaw, pTarget, 1);
             }

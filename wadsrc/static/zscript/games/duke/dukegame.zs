@@ -77,6 +77,11 @@ struct Duke native
 		TFLAG_BLOCKDOOR				= 1 << 4,
 		TFLAG_NOBLOODSPLAT			= 1 << 5,
 		TFLAG_NOCIRCLEREFLECT		= 1 << 6,
+		TFLAG_SEASICKWALL			= 1 << 7,
+		TFLAG_FORCEFIELD			= 1 << 8,
+		TFLAG_ANIMFORCEFIELD		= 1 << 9,
+		TFLAG_ANIMSCREEN			= 1 << 10,
+		TFLAG_ANIMSCREENNOISE		= 1 << 11,
 	};
 
 	enum ETexSurfaces
@@ -136,19 +141,20 @@ struct Duke native
 		SB_AIM_DOWN = 1 << 22,
 		SB_LOOK_LEFT = 1 << 23,
 		SB_LOOK_RIGHT = 1 << 24,
-		SB_LOOK_UP = 1 << 25,
-		SB_LOOK_DOWN = 1 << 26,
+		SB_LOOK_UP = SB_AIM_UP|SB_CENTERVIEW,
+		SB_LOOK_DOWN = SB_AIM_DOWN|SB_CENTERVIEW,
+		SB_CROUCH = 1 << 25,
+		SB_CROUCH_LOCK = 1 << 26,
 		SB_RUN = 1 << 27,
 		SB_JUMP = 1 << 28,
-		SB_CROUCH = 1 << 29,
-		SB_FIRE = 1 << 30,
-		SB_ALTFIRE = 1u << 31,
+		SB_FIRE = 1 << 29,
+		SB_ALTFIRE = 1 << 30,
 
 		SB_WEAPONMASK_BITS = (15u * SB_FIRST_WEAPON_BIT), // Weapons take up 4 bits
 		SB_ITEMUSE_BITS = (127u * SB_ITEM_BIT_1),
 
-		SB_BUTTON_MASK = SB_ALTFIRE|SB_FIRE|SB_CROUCH|SB_JUMP|SB_LOOK_UP|SB_LOOK_DOWN|SB_AIM_UP|SB_AIM_DOWN|SB_LOOK_LEFT|SB_LOOK_RIGHT,     // all input from buttons (i.e. active while held)
-		SB_INTERFACE_MASK = (SB_INVPREV|SB_INVNEXT|SB_INVUSE|SB_CENTERVIEW|SB_TURNAROUND|SB_HOLSTER|SB_OPEN|SB_ESCAPE|SB_QUICK_KICK),  // all input from CCMDs
+		SB_BUTTON_MASK = SB_ALTFIRE|SB_FIRE|SB_CROUCH|SB_JUMP|SB_LOOK_UP|SB_LOOK_DOWN|SB_AIM_UP|SB_AIM_DOWN|SB_LOOK_LEFT|SB_LOOK_RIGHT|SB_QUICK_KICK,     // all input from buttons (i.e. active while held)
+		SB_INTERFACE_MASK = (SB_INVPREV|SB_INVNEXT|SB_INVUSE|SB_CENTERVIEW|SB_TURNAROUND|SB_HOLSTER|SB_OPEN|SB_ESCAPE),  // all input from CCMDs
 		SB_INTERFACE_BITS = (SB_WEAPONMASK_BITS | SB_ITEMUSE_BITS | SB_INTERFACE_MASK),
 		SB_ALL = ~0u
 	};
@@ -171,10 +177,12 @@ struct Duke native
 	native static bool StartCommentary(int tag, DukeActor act);
 	native static void StopCommentary();
 	static native int getPlayerIndex(DukePlayer p);
-	static int rnd(int val)
-	{
-		return (random(0, 255) >= (255 - (val)));
-	}
+	static native void setlastvisinc(int amount);
+	static native bool isaccessswitch(TextureID tex);
+	static native bool isshootableswitch(TextureID tex);
+	static native bool CheckSprite(class<DukeActor> tex);
+	static native bool setnextmap(bool checksecret);
+	static native int rnd(int val);
 
 	static void PlayBonusMusic()
 	{
@@ -192,7 +200,7 @@ struct Duke native
 	static void BigText(double x, double y, String text, int align = -1, double alpha = 1.)
 	{
 		let myfont = Raze.PickBigFont();
-		if (!Raze.isRR())
+		if (!isRR())
 		{
 			if (align != -1) x -= myfont.StringWidth(text) * (align == 0 ? 0.5 : 1);
 			Screen.DrawText(myfont, Font.CR_UNTRANSLATED, x, y - 12, text, DTA_FullscreenScale, FSMode_Fit320x200, DTA_Alpha, alpha);
@@ -208,7 +216,7 @@ struct Duke native
 	{
 		let myfont = Raze.PickSmallFont();
 		int fsmode = FSMode_Fit320x200;
-		if (Raze.isRR())
+		if (isRR())
 		{
 			x *= 2;
 			y *= 2;
@@ -230,6 +238,7 @@ struct DukePlayer native
 	uint16_t frags[MAXPLAYERS];
 	*/
 
+	native vector3 vel;
 	native bool gotweapon[DukeWpn.MAX_WEAPONS];
 
 	// Palette management uses indices into the engine's palette table now.
@@ -301,7 +310,7 @@ struct DukePlayer native
 	native uint8 walking_snd_toggle, palookup;
 	native bool quick_kick_msg;
 
-	native int max_secret_rooms, secret_rooms, max_actors_killed, actors_killed;
+	native int max_secret_rooms, secret_rooms;
 
 	// Redneck Rampage additions. Those which did not have names in the reconstructed source got one from either RedneckGDX or RedNukem.
 	// Items were reordered by size.
@@ -325,7 +334,7 @@ struct DukePlayer native
 	native int SeaSick;
 	native int16 MamaEnd; // raat609
 	native int16 moto_drink;
-	native float TiltStatus, oTiltStatus;
+	native double TiltStatus, oTiltStatus;
 	native double VBumpNow, VBumpTarget;
 	native int16 TurbCount;
 	native int16 drug_stat[3]; // raat5f1..5
@@ -376,8 +385,22 @@ struct DukePlayer native
 	native void setbobpos();
 	native void StartMotorcycle();
 	native void StartBoat();
+	native void checkhitswitch(walltype wal, DukeActor act);
 
-
+	native void playerkick(DukeActor target);
+	native void playerstomp(DukeActor target);
+	native void addphealth(int amount, bool bigitem = false);
+	native void wackplayer();
+	native void checkweapons();
+	native void playerreset(DukeActor ac);
+	native void FTA(int num);
+	native bool playercheckinventory(DukeActor item, int type, int amount);
+	native void playeraddinventory(DukeActor item, int type, int amount);
+	native bool playeraddweapon(int type, int amount);
+	native bool playeraddammo(int type, int amount);
+	native void forceplayerangle();
+	native bool playereat(int amount, bool bigitem);
+	native void playerdrink(int amount);
 }
 
 struct DukeWpn
@@ -459,12 +482,24 @@ struct DukeGameInfo native
 	readonly native double playerheight;
 	readonly native double gutsscale;
 	readonly native int displayflags;
+	readonly native int tripbombcontrol;
+	readonly native int stickybomb_lifetime;
+	readonly native int stickybomb_lifetime_var;
+	readonly native int grenade_lifetime;
+	readonly native int grenade_lifetime_var;
+	readonly native class<DukeActor> weaponsandammosprites[15];
+
 }
 
+enum mapflags_t
+{
+	MFLAG_ALLSECTORTYPES =2,					// enables RRRA's sector types regardless of the game being played.
+};
 
 struct DukeUserDefs native
 {
-	native readonly uint8 god, cashman, eog;
+	native readonly int mapflags;
+	native uint8 god, cashman, eog;
 	native readonly uint8 clipping;
 	native readonly uint8 user_pals[MAXPLAYERS];
 	native readonly int16 from_bonus;
@@ -476,8 +511,27 @@ struct DukeUserDefs native
 	native readonly int player_skill, marker;
 	
 	native int earthquaketime, chickenplant;
-	native uint8 ufospawnsminion;
+	native uint8 ufospawnsminion, pistonsound, fogactive;
 	native int16 bomb_tag;
 	native DukeActor cameraactor;
 	native bool joe9000;
 }
+
+struct ActorMove native
+{
+	native Name qualifiedName;	// this is only used for serialization.
+	native Name name;
+	native float movex, movez;
+}
+
+struct ActorAction native 
+{
+	native Name qualifiedName;	// this is only used for serialization.
+	native Name name;
+	native TextureID base;
+	native int offset;
+	native int16 numframes;
+	native int16 rotationtype;
+	native int16 increment;
+	native int16 delay;
+};

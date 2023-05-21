@@ -36,7 +36,6 @@ source as it is released.
 #include "ns.h"
 #include "global.h"
 #include "prediction.h"
-#include "names_d.h"
 #include "dukeactor.h"
 #include "gamefuncs.h"
 #include "models/modeldata.h"
@@ -47,8 +46,7 @@ BEGIN_DUKE_NS
 
 void animatesprites_d(tspriteArray& tsprites, const DVector2& viewVec, DAngle viewang, double interpfrac)
 {
-	int k, p;
-	int t1, t3, t4;
+	int p;
 	tspritetype* t;
 	DDukeActor* h;
 
@@ -57,9 +55,9 @@ void animatesprites_d(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 		t = tsprites.get(j);
 		h = static_cast<DDukeActor*>(t->ownerActor);
 
-		if (!actorflag(h, SFLAG2_FORCESECTORSHADE) && ((t->cstat & CSTAT_SPRITE_ALIGNMENT_WALL)) || (badguypic(t->picnum) && t->extra > 0) || t->statnum == STAT_PLAYER)
+		if (!(h->flags2 & SFLAG2_FORCESECTORSHADE) && ((t->cstat & CSTAT_SPRITE_ALIGNMENT_WALL)) || (badguy(static_cast<DDukeActor*>(t->ownerActor)) && t->extra > 0) || t->statnum == STAT_PLAYER)
 		{
-			if (h->sector()->shadedsector == 1 && h->spr.statnum != 1)
+			if (h->sector()->shadedsector == 1 && h->spr.statnum != STAT_ACTOR)
 			{
 				t->shade = 16;
 			}
@@ -83,7 +81,7 @@ void animatesprites_d(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 		{
 			if (t->lotag == SE_27_DEMO_CAM && ud.recstat == 1)
 			{
-				t->picnum = 11 + ((PlayClock >> 3) & 1);
+				t->setspritetexture(TexMan.CheckForTexture("DEMOCAM", ETextureType::Any));
 				t->cstat |= CSTAT_SPRITE_YCENTER;
 			}
 			else
@@ -93,7 +91,7 @@ void animatesprites_d(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 
 		if (t->statnum == STAT_TEMP) continue;
 		auto pp = &ps[h->PlayerIndex()];
-		if ((h->spr.statnum != STAT_ACTOR && h->isPlayer() && pp->newOwner == nullptr && h->GetOwner()) || !actorflag(h, SFLAG_NOINTERPOLATE))
+		if ((h->spr.statnum != STAT_ACTOR && h->isPlayer() && pp->newOwner == nullptr && h->GetOwner()) || !(h->flags1 & SFLAG_NOINTERPOLATE))
 		{
 			t->pos = h->interpolatedpos(interpfrac);
 			t->Angles.Yaw = h->interpolatedyaw(interpfrac);
@@ -103,54 +101,22 @@ void animatesprites_d(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 		auto sectp = h->sector();
 		bool res = CallAnimate(h, t);
 		// some actors have 4, some 6 rotation frames - in true Build fashion there's no pointers what to do here without flagging it.
-		if (actorflag(h, SFLAG2_ALWAYSROTATE1) || (t->clipdist & TSPR_ROTATE8FRAMES))
+		if ((h->flags2 & SFLAG2_ALWAYSROTATE1) || (t->clipdist & TSPR_ROTATE8FRAMES))
 			applyRotation1(h, t, viewang);
-		else if (actorflag(h, SFLAG2_ALWAYSROTATE2) || (t->clipdist & TSPR_ROTATE12FRAMES))
+		else if ((h->flags2 & SFLAG2_ALWAYSROTATE2) || (t->clipdist & TSPR_ROTATE12FRAMES))
 			applyRotation2(h, t, viewang);
-		if (sectp->floorpal && !actorflag(h, SFLAG2_NOFLOORPAL) && !(t->clipdist & TSPR_NOFLOORPAL))
+		if (sectp->floorpal && !(h->flags2 & SFLAG2_NOFLOORPAL) && !(t->clipdist & TSPR_NOFLOORPAL))
 			copyfloorpal(t, sectp);
 
 		if (res)
 		{
-			if (h->dispicnum >= 0)
-				h->dispicnum = t->picnum;
+			if (h->dispictex.isValid())
+				h->dispictex = t->spritetexture();
 			continue;
 		}
 
-		t1 = h->temp_data[1];
-		t3 = h->temp_data[3];
-		t4 = h->temp_data[4];
-
-		switch (h->spr.picnum)
+		if (h->isPlayer())
 		{
-		case DTILE_DUKELYINGDEAD:
-			t->pos.Z += 24;
-			break;
-		case DTILE_BURNING:
-		case DTILE_BURNING2:
-			if (OwnerAc && OwnerAc->spr.statnum == STAT_PLAYER)
-			{
-				if (display_mirror == 0 && OwnerAc->PlayerIndex() == screenpeek && ps[screenpeek].over_shoulder_on == 0)
-					t->scale = DVector2(0, 0);
-				else
-				{
-					t->Angles.Yaw = (viewVec - t->pos.XY()).Angle();
-					t->pos.XY() = OwnerAc->spr.pos.XY() + t->Angles.Yaw.ToVector();
-				}
-			}
-			break;
-
-		case DTILE_ATOMICHEALTH:
-			t->pos.Z -= 4;
-			break;
-		case DTILE_CRYSTALAMMO:
-			t->shade = int(BobVal(PlayClock << 4) * 16);
-			continue;
-		case DTILE_GROWSPARK:
-			t->picnum = DTILE_GROWSPARK + ((PlayClock >> 4) & 3);
-			break;
-		case DTILE_APLAYER:
-
 			p = h->PlayerIndex();
 
 			if (t->pal == 1) t->pos.Z -= 18;
@@ -180,24 +146,23 @@ void animatesprites_d(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 				newtspr->shade = t->shade;
 				newtspr->cstat = 0;
 
+				const char* texname = nullptr;
 				switch (ps[p].curr_weapon)
 				{
-				case PISTOL_WEAPON:      newtspr->picnum = DTILE_FIRSTGUNSPRITE;       break;
-				case SHOTGUN_WEAPON:     newtspr->picnum = DTILE_SHOTGUNSPRITE;        break;
-				case CHAINGUN_WEAPON:    newtspr->picnum = DTILE_CHAINGUNSPRITE;       break;
-				case RPG_WEAPON:         newtspr->picnum = DTILE_RPGSPRITE;            break;
-				case HANDREMOTE_WEAPON:
-				case HANDBOMB_WEAPON:    newtspr->picnum = DTILE_HEAVYHBOMB;           break;
-				case TRIPBOMB_WEAPON:    newtspr->picnum = DTILE_TRIPBOMBSPRITE;       break;
-				case GROW_WEAPON:        newtspr->picnum = DTILE_GROWSPRITEICON;       break;
-				case SHRINKER_WEAPON:    newtspr->picnum = DTILE_SHRINKERSPRITE;       break;
-				case FREEZE_WEAPON:      newtspr->picnum = DTILE_FREEZESPRITE;         break;
-				case FLAMETHROWER_WEAPON: //Twentieth Anniversary World Tour
-					if (isWorldTour())
-						newtspr->picnum = DTILE_FLAMETHROWERSPRITE;   
-					break;
-				case DEVISTATOR_WEAPON:  newtspr->picnum = DTILE_DEVISTATORSPRITE;     break;
+				case PISTOL_WEAPON:      texname = "FIRSTGUNSPRITE";       break;
+				case SHOTGUN_WEAPON:     texname = "SHOTGUNSPRITE";        break;
+				case CHAINGUN_WEAPON:    texname = "CHAINGUNSPRITE";       break;
+				case RPG_WEAPON:         texname = "RPGSPRITE";            break;
+				case HANDREMOTE_WEAPON:	 
+				case HANDBOMB_WEAPON:    texname = "HEAVYHBOMB";           break;
+				case TRIPBOMB_WEAPON:    texname = "TRIPBOMBSPRITE";       break;
+				case GROW_WEAPON:        texname = "GROWSPRITEICON";       break;
+				case SHRINKER_WEAPON:    texname = "SHRINKERSPRITE";       break;
+				case FREEZE_WEAPON:      texname = "FREEZESPRITE";         break;
+				case FLAMETHROWER_WEAPON:texname = "FLAMETHROWERSPRITE";   break;
+				case DEVISTATOR_WEAPON:  texname = "DEVISTATORSPRITE";     break;
 				}
+				t->setspritetexture(TexMan.CheckForTexture(texname, ETextureType::Any));
 
 				if (h->GetOwner()) newtspr->pos.Z = ps[p].GetActor()->getOffsetZ() - 12;
 				else newtspr->pos.Z = h->spr.pos.Z - 51;
@@ -214,44 +179,23 @@ void animatesprites_d(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 
 			if (!h->GetOwner())
 			{
-				if (hw_models && modelManager.CheckModel(h->spr.picnum, h->spr.pal)) 
-				{
-					k = 0;
-					t->cstat &= ~CSTAT_SPRITE_XFLIP;
-				}
-				else
-				{
-					k = angletorotation1(t->Angles.Yaw, viewang);
-					if (k > 4)
-					{
-						k = 8 - k;
-						t->cstat |= CSTAT_SPRITE_XFLIP;
-					}
-					else t->cstat &= ~CSTAT_SPRITE_XFLIP;
-				}
+				FTextureID base = FNullTextureID();
+				if (t->sectp->lotag == ST_2_UNDERWATER) base = TexMan.CheckForTexture("APLAYERSWIMMING", ETextureType::Any);
+				else if ((h->floorz - h->spr.pos.Z) > 64) base = TexMan.CheckForTexture("APLAYERJUMP", ETextureType::Any);
+				if (!base.isValid()) base = h->spr.spritetexture();
 
-				if (t->sectp->lotag == 2) k += 1795 - 1405;
-				else if ((h->floorz - h->spr.pos.Z) > 64) k += 60;
+				applyRotation1(h, t, viewang, base);
 
-				t->picnum += k;
+
 				t->pal = ps[p].palookup;
-
-				goto PALONLY;
+				continue;
 			}
-
 			if (ps[p].on_crane == nullptr && (h->sector()->lotag & 0x7ff) != 1)
 			{
 				double v = h->spr.pos.Z - ps[p].GetActor()->floorz + 3;
 				if (v > 4 && h->spr.scale.Y > 0.5 && h->spr.extra > 0)
 					h->spr.yoffset = (int8_t)(v / h->spr.scale.Y);
 				else h->spr.yoffset = 0;
-			}
-
-			if (ps[p].newOwner != nullptr)
-			{
-				t4 = ScriptCode[gs.actorinfo[DTILE_APLAYER].scriptaddress + 1];
-				t3 = 0;
-				t1 = ScriptCode[gs.actorinfo[DTILE_APLAYER].scriptaddress + 2];
 			}
 
 			if (ud.cameraactor == nullptr && ps[p].newOwner == nullptr)
@@ -263,30 +207,13 @@ void animatesprites_d(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 						continue;
 					}
 
-		PALONLY:
 
 			if (sectp->floorpal)
 				copyfloorpal(t, sectp);
 
-			if (!h->GetOwner()) continue;
-
 			if (t->pos.Z > h->floorz && t->scale.X < 0.5)
 				t->pos.Z = h->floorz;
 
-			break;
-
-		case DTILE_WATERBUBBLE:
-			if (tilesurface(t->sectp->floortexture) == TSURF_SLIME)
-			{
-				t->pal = 7;
-				break;
-			}
-			[[fallthrough]];
-		default:
-
-			if (sectp->floorpal && !actorflag(h, SFLAG2_NOFLOORPAL))
-				copyfloorpal(t, sectp);
-			break;
 		}
 
 		applyanimations(t, h, viewVec, viewang);
@@ -301,57 +228,7 @@ void animatesprites_d(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 			}
 		}
 
-		switch (h->spr.picnum)
-		{
-		case DTILE_EXPLOSION2:
-		case DTILE_EXPLOSION2BOT:
-		case DTILE_ATOMICHEALTH:
-		case DTILE_GROWSPARK:
-		case DTILE_CHAINGUN:
-		case DTILE_SHRINKEREXPLOSION:
-		case DTILE_FLOORFLAME:
-			if (t->picnum == DTILE_EXPLOSION2)
-			{
-				ps[screenpeek].visibility = -127;
-				lastvisinc = PlayClock + 32;
-			}
-			t->shade = -127;
-			break;
-		case DTILE_FIRE:
-		case DTILE_FIRE2:
-			t->cstat |= CSTAT_SPRITE_YCENTER;
-			[[fallthrough]];
-		case DTILE_BURNING:
-		case DTILE_BURNING2:
-			if (!OwnerAc || !actorflag(OwnerAc, SFLAG_NOFLOORFIRE))
-				t->pos.Z = getflorzofslopeptr(t->sectp, t->pos);
-			t->shade = -127;
-			break;
-		case DTILE_PLAYERONWATER:
-			if (hw_models && modelManager.CheckModel(h->spr.picnum, h->spr.pal)) 
-			{
-				k = 0;
-				t->cstat &= ~CSTAT_SPRITE_XFLIP;
-			}
-			else
-			{
-			k = angletorotation1(t->Angles.Yaw, viewang);
-			if (k > 4)
-			{
-				k = 8 - k;
-				t->cstat |= CSTAT_SPRITE_XFLIP;
-			}
-			else t->cstat &= ~CSTAT_SPRITE_XFLIP;
-		}
-
-			t->picnum = h->spr.picnum + k + ((h->temp_data[0] < 4) * 5);
-			if (OwnerAc) t->shade = OwnerAc->spr.shade;
-
-			break;
-
-		}
-
-		h->dispicnum = t->picnum;
+		h->dispictex = t->spritetexture();
 		if (t->sectp->floortexture == mirrortex)
 			t->scale = DVector2(0, 0);
 	}

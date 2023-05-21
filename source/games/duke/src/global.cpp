@@ -67,7 +67,7 @@ int lastlevel;								// Set at the end of RRRA's E2L7.
 short fakebubba_spawn, mamaspawn_count, banjosound; // RRRA special effects
 int WindTime;
 DAngle WindDir;
-uint8_t enemysizecheat /*raat607*/, pistonsound, chickenphase /* raat605*/, RRRA_ExitedLevel, fogactive;
+uint8_t enemysizecheat /*raat607*/, chickenphase /* raat605*/, RRRA_ExitedLevel;
 
 //------------------------------------------------------------------------- 
 //
@@ -114,5 +114,38 @@ double geox2[MAXGEOSECTORS];
 double geoy2[MAXGEOSECTORS];
 int geocnt;
 
+
+
+// Register all internally used classes at game startup so that we can find naming errors right away without having them cause bugs later.
+void RegisterClasses()
+{
+#define xx(n) { #n, &n##Class},
+	static std::pair<const char*, PClassActor**> classreg[] = {
+	#include "classnames.h"
+	};
+#undef xx
+
+	int error = 0;
+	for (auto& classdef : classreg)
+	{
+		auto cls = PClass::FindActor(classdef.first);
+		if (cls == nullptr || !cls->IsDescendantOf(RUNTIME_CLASS(DDukeActor)))
+		{
+			Printf(TEXTCOLOR_RED "%s: Attempt to register unknown actor class\n", classdef.first);
+			error++;
+		}
+
+		*classdef.second = cls;
+	}
+	if (error > 0)
+	{
+		I_FatalError("Unable to register %d actor classes", error);
+	}
+
+	if (isRR()) // save some mess elsewhere
+	{
+		DukeMoneyClass = DukeMailClass = DukePaperClass = RedneckFeatherClass;
+	}
+}
 
 END_DUKE_NS

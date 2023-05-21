@@ -27,7 +27,6 @@ Prepared for public release: 03/21/2003 - Charlie Wiederhold, 3D Realms
 //-------------------------------------------------------------------------
 #include "ns.h"
 #include "global.h"
-#include "names_r.h"
 #include "serializer.h"
 #include "savegamehelp.h"
 #include "dukeactor.h"
@@ -162,7 +161,7 @@ void addtorch(sectortype* sect, int shade, int lotag)
 void addlightning(sectortype* sect, int shade)
 {
 	if (lightnincnt >= 64)
-		I_Error("Too many lightnin effects");
+		I_Error("Too many lightning effects");
 
 	lightninsector[lightnincnt] = sect;
 	lightninsectorshade[lightnincnt] = shade;
@@ -459,7 +458,7 @@ void thunder(void)
 			{
 				thunderflash = 1;
 				thundertime = 256;
-				S_PlaySound(351 + (rand() % 3));
+				S_PlaySound(soundEngine->FindSound("THUNDER"));
 			}
 		}
 		else
@@ -477,16 +476,26 @@ void thunder(void)
 			thunder_brightness = brightness;
 		}
 	}
-	if (!winderflash && isRR())
+	if (!winderflash)
 	{
-		auto tex = tileGetTexture(RTILE_CATACOMB);	// this cannot be easily generalized. :(
-		if (tex->isSeen(true))
+		bool seen = false;
+		for (i = 0; i < lightnincnt; i++)
+		{
+			auto sectp = lightninsector[i];
+			if (sectp->exflags & SECTOREX_SEEN)
+			{
+				seen = true;
+				sectp->exflags &= ~SECTOREX_SEEN;
+			}
+		}
+
+		if (seen)
 		{
 			if (krand() > 65000)
 			{
 				winderflash = 1;
 				windertime = 128;
-				S_PlaySound(351 + (rand() % 3));
+				S_PlaySound(soundEngine->FindSound("THUNDER"));
 			}
 		}
 	}

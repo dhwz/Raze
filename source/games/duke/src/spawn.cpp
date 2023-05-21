@@ -39,19 +39,22 @@ source as it is released.
 #include "automap.h"
 #include "dukeactor.h"
 #include "interpolate.h"
+#include "vm.h"
 
 BEGIN_DUKE_NS
 
 
 void setFromSpawnRec(DDukeActor* act, SpawnRec* info)
 {
+	act->curMove = &moves[0];
+	act->curAction = &actions[0];
 	if (info)
 	{
-		if (info->basetex > 0 && act->IsKindOf(NAME_DukeGenericDestructible))
+		if (info->basetex.isValid() && act->IsKindOf(DukeGenericDestructibleClass))
 		{
 			// allow defining simple destructibles without actual actor definitions.
-			act->IntVar(NAME_spawnstate) = info->basetex;
-			act->IntVar(NAME_brokenstate) = info->brokentex;
+			act->IntVar(NAME_spawnstate) = info->basetex.GetIndex();
+			act->IntVar(NAME_brokenstate) = info->brokentex.GetIndex();
 			act->IntVar(NAME_breaksound) = info->breaksound.index();
 			act->IntVar(NAME_fullbright) = info->fullbright;
 			act->spr.inittype = info->flags;
@@ -59,9 +62,44 @@ void setFromSpawnRec(DDukeActor* act, SpawnRec* info)
 		}
 		else
 		{
-			if (info->basetex >= 0 && info->basetex < MAXTILES) act->spr.picnum = info->basetex;
+			// same for simple sprite replacements with existing implementations.
+			if (info->basetex.isValid()) act->spr.setspritetexture(info->basetex);
 			if (info->fullbright & 1) act->spr.cstat2 |= CSTAT2_SPRITE_FULLBRIGHT;
 		}
+	}
+}
+
+//---------------------------------------------------------------------------
+//
+// set default pointers for scripted animation data
+//
+//---------------------------------------------------------------------------
+EXTERN_CVAR(Bool, overridecon)	// This is for debugging the CON replacement code only.
+
+static void initanimations(DDukeActor* act)
+{
+	auto coninf = act->conInfo();
+
+	if ((!coninf || overridecon) && (act->flags4 & SFLAG4_CONOVERRIDE))
+	{
+		auto ainf = static_cast<PClassActor*>(act->GetClass())->ActorInfo();
+		int ndx = LookupAction(act->GetClass(),ainf->DefaultAction);
+		act->curAction = &actions[ndx];
+		act->actioncounter = act->curframe = 0;
+
+		ndx = LookupMove(act->GetClass(), ainf->DefaultMove);
+		act->curMove = &moves[ndx];
+		if (ainf->DefaultMoveflags && act->spr.hitag == 0)
+			act->spr.hitag = ainf->DefaultMoveflags;
+	}
+	else if (coninf)
+	{
+		auto sa = &ScriptCode[coninf->scriptaddress];
+		act->curAction = &actions[sa[1]];
+		act->curMove = &moves[sa[2]];
+		int s3 = sa[3];
+		if (s3 && act->spr.hitag == 0)
+			act->spr.hitag = s3;
 	}
 }
 
@@ -72,29 +110,20 @@ void setFromSpawnRec(DDukeActor* act, SpawnRec* info)
 //
 //---------------------------------------------------------------------------
 
-DDukeActor* CreateActor(sectortype* whatsectp, const DVector3& pos, PClassActor* clstype, int s_pn, int8_t s_shd, const DVector2& scale, DAngle s_ang, double s_vel, double s_zvel, DDukeActor* s_ow, int8_t s_stat)
+DDukeActor* CreateActor(sectortype* whatsectp, const DVector3& pos, PClassActor* clstype, int8_t s_shd, const DVector2& scale, DAngle s_ang, double s_vel, double s_zvel, DDukeActor* s_ow, int8_t s_stat)
 {
 	// sector pointer must be strictly validated here or the engine will crash.
 	if (whatsectp == nullptr || !validSectorIndex(sectindex(whatsectp))) return nullptr;
 	// spawning out of range sprites will also crash.
-	if (clstype == nullptr && (s_pn < 0 || s_pn >= MAXTILES)) return nullptr;
-	SpawnRec* info = nullptr;
+	if (clstype == nullptr) return nullptr;
 
-	if (!clstype)
-	{
-		info = spawnMap.CheckKey(s_pn);
-		if (info)
-		{
-			clstype = static_cast<PClassActor*>(info->Class(s_pn));
-		}
-	}
+	if (s_stat < 0) s_stat = clstype ? GetDefaultByType(clstype)->spr.statnum : 0;
 
 	auto act = static_cast<DDukeActor*>(InsertActor(clstype? clstype : RUNTIME_CLASS(DDukeActor), whatsectp, s_stat));
 	if (act == nullptr) return nullptr;
 	SetupGameVarsForActor(act);
 
-	if (s_pn != -1) act->spr.picnum = s_pn;	// if -1 use the class default.
-	setFromSpawnRec(act, info);
+	setFromSpawnRec(act, nullptr);
 	act->spr.pos = pos;
 	act->spr.shade = s_shd;
 	if (!scale.isZero()) act->spr.scale = DVector2(scale.X, scale.Y);
@@ -110,7 +139,7 @@ DDukeActor* CreateActor(sectortype* whatsectp, const DVector3& pos, PClassActor*
 
 	if (s_ow)
 	{
-		act->attackertype = s_ow->spr.picnum;
+		act->attackertype = static_cast<PClassActor*>(s_ow->GetClass());
 		act->floorz = s_ow->floorz;
 		act->ceilingz = s_ow->ceilingz;
 	}
@@ -119,46 +148,26 @@ DDukeActor* CreateActor(sectortype* whatsectp, const DVector3& pos, PClassActor*
 
 	}
 
-	s_pn = act->spr.picnum;
 	memset(act->temp_data, 0, sizeof(act->temp_data));
-	if (gs.actorinfo[s_pn].scriptaddress)
-	{
-		auto sa = &ScriptCode[gs.actorinfo[s_pn].scriptaddress];
-		act->spr.extra = sa[0];
-		act->temp_data[4] = sa[1];
-		act->temp_data[1] = sa[2];
-		act->spr.hitag = sa[3];
-	}
-	else
-	{
-		act->spr.extra = 0;
-		act->spr.hitag = 0;
-	}
+	initanimations(act);
+	act->spr.extra = act->IntVar(NAME_strength);
 
 	if (show2dsector[act->sectno()]) act->spr.cstat2 |= CSTAT2_SPRITE_MAPPED;
 	else act->spr.cstat2 &= ~CSTAT2_SPRITE_MAPPED;
-
-	act->sprext = {};
-	act->spsmooth = {};
 
 	return act;
 
 }
 
-DDukeActor* CreateActor(sectortype* whatsectp, const DVector3& pos, int s_pn, int8_t s_shd, const DVector2& scale, DAngle s_ang, double s_vel, double s_zvel, DDukeActor* s_ow, int8_t s_stat)
-{
-	return CreateActor(whatsectp, pos, nullptr, s_pn, s_shd, scale, s_ang, s_vel, s_zvel, s_ow, s_stat);
-}
-
-DDukeActor* CreateActor(sectortype* whatsectp, const DVector3& pos, PClassActor* cls, int8_t s_shd, const DVector2& scale, DAngle s_ang, double s_vel, double s_zvel, DDukeActor* s_ow, int8_t s_stat)
-{
-	return CreateActor(whatsectp, pos, cls, -1, s_shd, scale, s_ang, s_vel, s_zvel, s_ow, s_stat);
-}
-
 DDukeActor* SpawnActor(sectortype* whatsectp, const DVector3& pos, PClassActor* cls, int8_t s_shd, const DVector2& scale, DAngle s_ang, double s_vel, double s_zvel, DDukeActor* s_ow, int8_t s_stat)
 {
 	auto actor = CreateActor(whatsectp, pos, cls, s_shd, scale, s_ang, s_vel, s_zvel, s_ow, s_stat);
-	if (actor) fi.spawninit(s_ow, actor, nullptr);
+	if (actor)
+	{
+		actor->flags3 |= SFLAG3_SIMPLEINIT; // at this point we only want to run custom Initialize code, but not the default for scripted actors, even if this one has scripts.
+		spawninit(s_ow, actor, nullptr);
+		actor->flags3 &= ~SFLAG3_SIMPLEINIT; // from now on act normally.
+	}
 	return actor;
 }
 
@@ -171,28 +180,15 @@ DDukeActor* SpawnActor(sectortype* whatsectp, const DVector3& pos, PClassActor* 
 bool initspriteforspawn(DDukeActor* act)
 {
 	SetupGameVarsForActor(act);
-	act->attackertype = act->spr.picnum;
-	act->timetosleep = 0;
+	act->attackertype = static_cast<PClassActor*>(act->GetClass());
 	act->hitextra = -1;
 
 	act->backuppos();
 
 	act->SetOwner(act);
 	act->SetHitOwner(act);
-	act->cgg = 0;
-	act->movflag = 0;
-	act->tempval = 0;
-	act->dispicnum = 0;
 	act->floorz = act->sector()->floorz;
 	act->ceilingz = act->sector()->ceilingz;
-
-	act->ovel.Zero();
-	act->actorstayput = nullptr;
-
-	act->temp_data[0] = act->temp_data[1] = act->temp_data[2] = act->temp_data[3] = act->temp_data[4] = act->temp_data[5] = 0;
-	act->temp_actor = nullptr;
-	act->temp_angle = nullAngle;
-	act->temp_pos = DVector3(0, 0, 0);
 
 	auto ext = GetExtInfo(act->spr.spritetexture());
 	bool overrideswitch = false;
@@ -228,7 +224,7 @@ bool initspriteforspawn(DDukeActor* act)
 
 	}
 
-	if (!actorflag(act, SFLAG_NOFALLER) && (act->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK))
+	if (!(act->flags1 & SFLAG_NOFALLER) && (act->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK))
 	{
 		if (act->spr.shade == 127) return false;
 
@@ -241,20 +237,11 @@ bool initspriteforspawn(DDukeActor* act)
 		}
 	}
 
-	int s = act->spr.picnum;
-
 	if (act->spr.cstat & CSTAT_SPRITE_BLOCK) act->spr.cstat |= CSTAT_SPRITE_BLOCK_HITSCAN;
 
-	if (gs.actorinfo[s].scriptaddress)
-	{
-		act->spr.extra = ScriptCode[gs.actorinfo[s].scriptaddress];
-		act->temp_data[4] = ScriptCode[gs.actorinfo[s].scriptaddress+1];
-		act->temp_data[1] = ScriptCode[gs.actorinfo[s].scriptaddress+2];
-		int s3 = ScriptCode[gs.actorinfo[s].scriptaddress+3];
-		if (s3 && act->spr.hitag == 0)
-			act->spr.hitag = s3;
-	}
-	else act->temp_data[1] = act->temp_data[4] = 0;
+	initanimations(act);
+	act->spr.extra = act->IntVar(NAME_strength);
+
 	return true;
 }
 
@@ -264,20 +251,6 @@ bool initspriteforspawn(DDukeActor* act)
 //
 //---------------------------------------------------------------------------
 
-DDukeActor* spawn(DDukeActor* actj, int pn)
-{
-	if (actj)
-	{
-		auto spawned = CreateActor(actj->sector(), actj->spr.pos, pn, 0, DVector2(0, 0), nullAngle, 0., 0., actj, 0);
-		if (spawned)
-		{
-			spawned->attackertype = actj->spr.picnum;
-			return fi.spawninit(actj, spawned, nullptr);
-		}
-	}
-	return nullptr;
-}
-
 DDukeActor* spawn(DDukeActor* actj, PClassActor * cls)
 {
 	if (actj && cls)
@@ -285,8 +258,8 @@ DDukeActor* spawn(DDukeActor* actj, PClassActor * cls)
 		auto spawned = CreateActor(actj->sector(), actj->spr.pos, cls, 0, DVector2(0, 0), nullAngle, 0., 0., actj, 0);
 		if (spawned)
 		{
-			spawned->attackertype = actj->spr.picnum;
-			return fi.spawninit(actj, spawned, nullptr);
+			spawned->attackertype = static_cast<PClassActor*>(actj->GetClass());
+			return spawninit(actj, spawned, nullptr);
 		}
 	}
 	return nullptr;
@@ -294,114 +267,69 @@ DDukeActor* spawn(DDukeActor* actj, PClassActor * cls)
 
 //---------------------------------------------------------------------------
 //
+// This spawns an actor from a spawnclasses type ID.
+//
+//---------------------------------------------------------------------------
+
+DDukeActor* spawnsprite(DDukeActor* origin, int typeId)
+{
+	auto srec = spawnMap.CheckKey(typeId);
+	if (srec && !srec->basetex.isValid()) return spawn(origin, srec->cls);
+
+	PClassActor* cls = srec ? srec->cls : (PClassActor*)RUNTIME_CLASS(DDukeActor);
+	auto spawned = spawn(origin, cls);
+	if (!spawned) return nullptr;
+	setFromSpawnRec(spawned, srec);
+	if (!srec) spawned->spr.setspritetexture(tileGetTextureID(typeId));
+	return spawned;
+}
+
+
+//---------------------------------------------------------------------------
+//
 // 
 //
 //---------------------------------------------------------------------------
 
-bool commonEnemySetup(DDukeActor* self, DDukeActor* owner)
+static void commonEnemySetup(DDukeActor* self, DDukeActor* owner)
 {
 	if (!self->mapSpawned) self->spr.lotag = 0;
 
-	//  Init the size. This is different for internal and user enemies.
-	if (actorflag(self, SFLAG_INTERNAL_BADGUY))
+	if (self->flags1 & SFLAG_BADGUYSTAYPUT)
 	{
-		self->spr.scale = DVector2(0.625, 0.625);
-	}
-	else if (self->spr.scale.X == 0 || self->spr.scale.Y == 0)
-	{
-		self->spr.scale = DVector2(REPEAT_SCALE, REPEAT_SCALE);
+		self->actorstayput = self->spr.sectp;
 	}
 
-	if ((self->spr.lotag > ud.player_skill) || ud.monsters_off == 1)
+	if (gs.actorinfo[self->spr.picnum].scriptaddress)	// default scale only applies to actors with a CON part. Note: needs fixing later!
 	{
-		self->spr.scale.Zero();
-		ChangeActorStat(self, STAT_MISC);
-		return false;
-	}
-	else
-	{
-		makeitfall(self);
-
-		self->spr.cstat |= CSTAT_SPRITE_BLOCK_ALL;
-
-		if (!isRR() && actorflag(self, SFLAG_KILLCOUNT))
-			ps[myconnectindex].max_actors_killed++;
-
-		self->timetosleep = 0;
-		if (!self->mapSpawned)
+		//  Init the size. This is different for internal and user enemies.
+		self->clipdist = 20;
+		if (self->flags1 & SFLAG_INTERNAL_BADGUY)
 		{
-			CallPlayFTASound(self);
-			ChangeActorStat(self, STAT_ACTOR);
-			if (owner && !actorflag(self, SFLAG_INTERNAL_BADGUY)) self->spr.Angles.Yaw = owner->spr.Angles.Yaw;
+			self->spr.scale = DVector2(0.625, 0.625);
 		}
-		else ChangeActorStat(self, STAT_ZOMBIEACTOR);
-		return true;
-	}
-}
-
-
-//---------------------------------------------------------------------------
-//
-// 
-//
-//---------------------------------------------------------------------------
-
-void spawntransporter(DDukeActor *actj, DDukeActor* act, bool beam)
-{
-	if (actj == nullptr) return;
-	if (beam)
-	{
-		act->spr.scale = DVector2(0.484375, REPEAT_SCALE);
-		act->spr.pos.Z = actj->sector()->floorz - gs.playerheight;
-	}
-	else
-	{
-		if (actj->spr.statnum == 4)
+		else if (self->spr.scale.X == 0 || self->spr.scale.Y == 0)
 		{
-			act->spr.scale = DVector2(0.125, 0.125);
-		}
-		else
-		{
-			act->spr.scale = DVector2(0.75, 1);
-			if (actj->spr.statnum == 10 || badguy(actj))
-				act->spr.pos.Z -= 32;
+			self->spr.scale = DVector2(REPEAT_SCALE, REPEAT_SCALE);
 		}
 	}
 
-	act->spr.shade = -127;
-	act->spr.cstat = CSTAT_SPRITE_YCENTER | CSTAT_SPRITE_TRANSLUCENT;
-	act->spr.Angles.Yaw = actj->spr.Angles.Yaw;
+	makeitfall(self);
 
-	act->vel.X = 8;
-	ChangeActorStat(act, STAT_MISC);
-	ssp(act, CLIPMASK0);
-	SetActor(act, act->spr.pos);
+	self->spr.cstat |= CSTAT_SPRITE_BLOCK_ALL;
+
+	addtokills(self);
+
+	self->timetosleep = 0;
+	if (!self->mapSpawned)
+	{
+		CallPlayFTASound(self);
+		ChangeActorStat(self, STAT_ACTOR);
+		if (owner && !(self->flags1 & SFLAG_INTERNAL_BADGUY)) self->spr.Angles.Yaw = owner->spr.Angles.Yaw;
+	}
+	else ChangeActorStat(self, STAT_ZOMBIEACTOR);
 }
 
-//---------------------------------------------------------------------------
-//
-// 
-//
-//---------------------------------------------------------------------------
-
-int spawnbloodpoolpart1(DDukeActor* act)
-{
-	bool away = isAwayFromWall(act, 6.75);
-	
-	if (!away)
-	{
-		act->spr.scale = DVector2(0, 0); 
-		ChangeActorStat(act, STAT_MISC); 
-		return true;
-	}
-
-	if (act->sector()->lotag == 1)
-	{
-		ChangeActorStat(act, STAT_MISC);
-		return true;
-	}
-	return false;
-}
 
 //---------------------------------------------------------------------------
 //
@@ -421,7 +349,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 	switch (actor->spr.lotag)
 	{
 		case SE_28_LIGHTNING:
-			if (!isRR()) actor->temp_data[5] = 65;// Delay for lightning
+			if (!isRR()) actor->temp_data[0] = 65;// Delay for lightning
 			break;
 		case SE_7_TELEPORT: // Transporters!!!!
 		case SE_23_ONE_WAY_TELEPORT:// XPTR END
@@ -446,7 +374,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 			return;
 		case SE_1_PIVOT:
 			actor->SetOwner(nullptr);
-			actor->temp_data[0] = 1;
+			actor->counter = 1;
 			break;
 		case SE_18_INCREMENTAL_SECTOR_RISE_FALL:
 
@@ -688,7 +616,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 		case SE_8_UP_OPEN_DOOR_LIGHTS:
 			//First, get the ceiling-floor shade
 
-			actor->temp_data[0] = sectp->floorshade;
+			actor->counter = sectp->floorshade;
 			actor->temp_data[1] = sectp->ceilingshade;
 
 			for (auto& wal : sectp->walls)
@@ -703,7 +631,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 			//First, get the ceiling-floor shade
 			if (!isRR()) break;
 
-			actor->temp_data[0] = sectp->floorshade;
+			actor->counter = sectp->floorshade;
 			actor->temp_data[1] = sectp->ceilingshade;
 
 			for (auto& wal : sectp->walls)
@@ -757,7 +685,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 				}
 				if (!found)
 				{
-					actor->spr.picnum = 0;
+					actor->spr.setspritetexture(FNullTextureID());
 					actor->spr.cstat2 = CSTAT2_SPRITE_NOFIND;
 					actor->spr.cstat = CSTAT_SPRITE_INVISIBLE;
 					ChangeActorStat(actor, STAT_REMOVED);
@@ -785,7 +713,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 				{
 					if (wal.twoSided() &&
 						wal.nextSector()->hitag == 0 &&
-						(wal.nextSector()->lotag < 3 || (isRRRA() && wal.nextSector()->lotag == ST_160_FLOOR_TELEPORT)))
+						(wal.nextSector()->lotag < 3 || ((ud.mapflags & MFLAG_ALLSECTORTYPES) && wal.nextSector()->lotag == ST_160_FLOOR_TELEPORT)))
 					{
 						s = wal.nextSector();
 						break;
@@ -798,7 +726,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 				}
 
 				actor->SetOwner(nullptr);
-				actor->temp_data[0] = sectindex(s);
+				actor->counter = sectindex(s);
 
 				if (actor->spr.lotag != SE_30_TWO_WAY_TRAIN)
 					actor->temp_data[3] = actor->spr.hitag;
@@ -819,7 +747,7 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 			}
 			else if (actor->spr.lotag == SE_2_EARTHQUAKE)
 			{
-				actor->temp_data[5] = actor->sector()->getfloorslope();
+				actor->temp_data[0] = actor->sector()->getfloorslope();
 				actor->sector()->setfloorslope(0);
 			}
 			break;
@@ -888,18 +816,82 @@ void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors)
 //
 //---------------------------------------------------------------------------
 
+DDukeActor* spawninit(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* actors)
+{
+	if ((act->flags2 & SFLAG2_TRIGGERRESPAWN))
+	{
+		act->spr.yint = act->spr.hitag;
+		act->spr.hitag = -1;
+	}
+
+	if (iseffector(act))
+	{
+		// for in-game spawned SE's the init code must not run. The only type ever being spawned that way is SE128 - 
+		// but we cannot check that here as the number has not been set yet.
+		if (actj == 0) spawneffector(act, actors);
+	}
+	else if (!act->isPlayer())
+	{
+		if (act->flags1 & SFLAG_SKILLFILTER)
+		{
+			if (act->spr.lotag > ud.player_skill)
+			{
+				act->spr.scale.Zero();
+				ChangeActorStat(act, STAT_MISC);
+				return nullptr;
+			}
+		}
+		if (badguy(act))
+		{
+			if (ud.monsters_off == 1)
+			{
+				act->spr.scale.Zero();
+				ChangeActorStat(act, STAT_MISC);
+				return nullptr;
+			}
+			commonEnemySetup(act, actj);
+		}
+
+		CallInitialize(act, actj);
+	}
+	else
+	{
+		act->spr.scale = DVector2(0, 0);
+		int j = ud.coop;
+		if (j == 2) j = 0;
+
+		if (ud.multimode < 2 || (ud.multimode > 1 && j != act->spr.lotag))
+			ChangeActorStat(act, STAT_MISC);
+		else
+			ChangeActorStat(act, STAT_PLAYER);
+		CallInitialize(act, nullptr);
+	}
+	return act;
+}
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
+void spriteinit(DDukeActor* actor, TArray<DDukeActor*>& actors)
+{
+	actor->mapSpawned = true;
+	bool res = initspriteforspawn(actor);
+	if (res) spawninit(nullptr, actor, &actors);
+}
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
 inline PClassActor* GlassClass(int j)
 {
-	static PClassActor* glasses[3];
-	if (glasses[0] == nullptr)
-	{
-		static const FName glassnames[] = { NAME_DukeGlassPieces, NAME_DukeGlassPieces1, NAME_DukeGlassPieces2 };
-		for (int i = 0; i < 3; i++)
-		{
-			glasses[i] = PClass::FindActor(glassnames[i]);
-		}
-	}
-	return glasses[j % 3];
+	static PClassActor* const* glasses[] = { &DukeGlassPiecesClass, &DukeGlassPieces1Class, &DukeGlassPieces2Class };
+	return *glasses[j % 3];
 }
 
 void lotsofglass(DDukeActor *actor, walltype* wal, int n)
@@ -1038,7 +1030,5 @@ void lotsofcolourglass(DDukeActor* actor, walltype* wal, int n)
 		if (k) k->spr.pal = krand() & 7;
 	}
 }
-
-
 
 END_DUKE_NS

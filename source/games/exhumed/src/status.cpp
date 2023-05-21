@@ -24,7 +24,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "ns.h"
 #include "engine.h"
 #include "player.h"
-#include "status.h"
 #include "exhumed.h"
 #include "sequence.h"
 #include "names.h"
@@ -40,90 +39,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_PS_NS
 
-
-
-// All this must be moved into the status bar once it is made persistent!
-int nStatusSeqOffset;
-
-void InitStatus()
-{
-    nStatusSeqOffset = SeqOffsets[kSeqStatus];
-}
-
-
-//---------------------------------------------------------------------------
-//
-// This is to hide the dirt from the script code.
-// These sequence arrays later need to be refactored 
-// if this is ever supposed to become a useful feature, 
-// so hide the dirty internals behind a handful of functions.
-//
-//---------------------------------------------------------------------------
-
-struct ChunkFrame
-{
-    FTextureID tex;
-    int x, y;
-    int flags;
-
-    void GetChunkFrame(int nFrameBase)
-    {
-        x = ChunkXpos[nFrameBase];
-        y = ChunkYpos[nFrameBase];
-        auto ttex = tileGetTexture(ChunkPict[nFrameBase]);
-        if (ttex) tex = ttex->GetID();
-        else tex.SetInvalid();
-        flags = ChunkFlag[nFrameBase];
-    }
-};
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-DEFINE_ACTION_FUNCTION(_ChunkFrame, GetChunkFrame)
-{
-    PARAM_SELF_STRUCT_PROLOGUE(ChunkFrame);
-    PARAM_INT(index);
-    self->GetChunkFrame(index);
-    return 0;
-}
-
-DEFINE_ACTION_FUNCTION(_Exhumed, GetStatusSequence)
-{
-    PARAM_PROLOGUE;
-    PARAM_INT(nSequence);
-    PARAM_INT(frameindex);
-
-    frameindex += SeqBase[nStatusSeqOffset + nSequence];
-    if (numret > 0) ret[0].SetInt(FrameBase[frameindex]);
-    if (numret > 1) ret[1].SetInt(FrameSize[frameindex]);
-    return min(numret, 2);
-}
-
-DEFINE_ACTION_FUNCTION(_Exhumed, MoveStatusSequence)
-{
-    PARAM_PROLOGUE;
-    PARAM_INT(s1);
-    PARAM_INT(s2);
-    seq_MoveSequence(nullptr, nStatusSeqOffset + s1, s2);
-    ACTION_RETURN_INT(SeqSize[nStatusSeqOffset + s1]);
-}
-
-int SizeOfStatusSequence(int s1)
-{
-    return SeqSize[nStatusSeqOffset + s1];
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(_Exhumed, SizeOfStatusSequence, SizeOfStatusSequence)
-{
-    PARAM_PROLOGUE;
-    PARAM_INT(s1);
-    ACTION_RETURN_INT(SeqSize[nStatusSeqOffset + s1]);
-}
-
 //---------------------------------------------------------------------------
 //
 //
@@ -132,7 +47,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(_Exhumed, SizeOfStatusSequence, SizeOfStatusSequen
 
 void UpdateFrame()
 {
-    auto tex = tileGetTexture(nBackgroundPic);
+    static const auto tex = TexMan.GetGameTexture(getSequence("backgrnd")->getFirstFrameTexture());
 
     twod->AddFlatFill(0, 0, twod->GetWidth(), viewport3d.Top() - 3, tex);
     twod->AddFlatFill(0, viewport3d.Bottom() + 3, twod->GetWidth(), twod->GetHeight(), tex);

@@ -137,7 +137,7 @@ void G_BuildTiccmd(ticcmd_t* cmd)
 	}
 	cmd->ucmd = {};
 	I_GetEvent();
-	getInput(inputScale, gi->getConsoleAngles(), &cmd->ucmd);
+	gameInput.getInput(inputScale, &cmd->ucmd);
 	cmd->consistency = consistency[myconnectindex][(maketic / ticdup) % BACKUPTICS];
 }
 
@@ -153,8 +153,8 @@ void NewGame(MapRecord* map, int skill, bool ns = false)
 	newGameStarted = true;
 	ShowIntermission(nullptr, map, nullptr, [=](bool) { 
 		gi->NewGame(map, skill, ns); 
+		gameaction = ga_level;
 		ResetStatusBar();
-		Net_ClearFifo();
 		});
 }
 
@@ -189,7 +189,6 @@ static void GameTicker()
 				FX_StopAllSounds();
 				FX_SetReverb(0);
 				gi->FreeLevelData();
-				gameaction = ga_level;
 				NewGame(g_nextmap, -1);
 				BackupSaveGame = "";
 			}
@@ -206,7 +205,7 @@ static void GameTicker()
 			gameaction = ga_level;
 			gi->NextLevel(g_nextmap, g_nextskill);
 			ResetStatusBar();
-			Net_ClearFifo();
+			if (!isBlood()) M_Autosave();
 			break;
 
 		case ga_newgame:
@@ -217,7 +216,6 @@ static void GameTicker()
 			FX_SetReverb(0);
 			gi->FreeLevelData();
 			C_FlushDisplay();
-			gameaction = ga_level;
 			BackupSaveGame = "";
 			NewGame(g_nextmap, g_nextskill, ga == ga_newgamenostopsound);
 			break;
@@ -268,8 +266,11 @@ static void GameTicker()
 			break;
 
 		case ga_level:
+			Net_ClearFifo();
+			inputState.ClearAllInput();
+			gameInput.Clear();
 			gamestate = GS_LEVEL;
-			break;
+			return;
 
 		case ga_intro:
 			gamestate = GS_INTRO;
@@ -564,9 +565,6 @@ void TryRunTics (void)
 	realtics = entertic - oldentertics;
 	oldentertics = entertic;
 
-	// update the scale factor for unsynchronised input here.
-	inputScale = I_GetInputFrac();
-
 	// get available tics
 	NetUpdate ();
 
@@ -615,7 +613,7 @@ void TryRunTics (void)
 		if (!SyncInput())
 		{
 			I_GetEvent();
-			getInput(inputScale, gi->getConsoleAngles());
+			gameInput.getInput(inputScale);
 		}
 		return;
 	}
@@ -745,6 +743,9 @@ void MainLoop ()
 				I_StartFrame ();
 			}
 			I_SetFrameTime();
+
+			// update the scale factor for unsynchronised input here.
+			inputScale = I_GetInputFrac();
 
 			TryRunTics (); // will run at least one tic
 			// Update display, next frame, with current state.

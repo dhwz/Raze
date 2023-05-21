@@ -31,8 +31,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_PS_NS
 
-static const int8_t ObjectSeq[] = {
-    46, -1, 72, -1
+static const FName ObjectSeq[] = {
+    "firepot", NAME_None, "drum", NAME_None
 };
 
 static const int16_t ObjectStatnum[] = {
@@ -1398,7 +1398,7 @@ DExhumedActor* BuildSpark(DExhumedActor* pActor, int nVal)
 
     if (nVal >= 2)
     {
-        pSpark->spr.picnum = kEnergy2;
+        pSpark->spr.setspritetexture(aTexIds[kTexEnergy2]);
         nSmokeSparks++;
 
         if (nVal == 3)
@@ -1424,7 +1424,7 @@ DExhumedActor* BuildSpark(DExhumedActor* pActor, int nVal)
         }
 
         pSpark->vel.Z = -RandomSize(4) * 0.5;
-        pSpark->spr.picnum = kTile985 + nVal;
+        pSpark->spr.setspritetexture(aTexIds[kTexSpark1 + nVal]);
     }
 
     pSpark->spr.pos.Z = pActor->spr.pos.Z;
@@ -1461,12 +1461,12 @@ void AISpark::Tick(RunListEvent* ev)
 		pActor->spr.scale.Y += (-0.03125);
 
         // calling BuildSpark() with 2nd parameter as '1' will set kTile986
-        if (pActor->spr.picnum == kTile986 && int((pActor->spr.scale.X * INV_REPEAT_SCALE)) & 2) // hack alert
+        if (pActor->spr.spritetexture() == aTexIds[kTexSpark2] && int((pActor->spr.scale.X * INV_REPEAT_SCALE)) & 2) // hack alert
         {
             BuildSpark(pActor, 2);
         }
 
-        if (pActor->spr.picnum >= kTile3000) {
+        if (pActor->spr.spritetexture() == aTexIds[kTexEnergy2]) {
             return;
         }
 
@@ -1486,7 +1486,7 @@ void AISpark::Tick(RunListEvent* ev)
     pActor->vel.Y = 0;
     pActor->vel.Z = 0;
 
-    if (pActor->spr.picnum > kTile3000) {
+    if (pActor->spr.spritetexture() == aTexIds[kTexEnergy2]) {
         nSmokeSparks--;
     }
 
@@ -1556,7 +1556,7 @@ void DoFinale()
             PlayFX2(StaticSound[kSound78] | 0x2000, pFinaleSpr);
 
             for (int i = 0; i < nTotalPlayers; i++) {
-                nQuake[i] = 5.;
+                PlayerList[i].nQuake = 5.;
             }
         }
     }
@@ -1884,19 +1884,16 @@ DExhumedActor* BuildObject(DExhumedActor* pActor, int nOjectType, int nHitag)
     }
 
     pActor->nRun = runlist_AddRunRec(NewRun, pActor, 0x170000);
+    pActor->nSeqFile = ObjectSeq[nOjectType];
 
-    int nSeq = ObjectSeq[nOjectType];
-
-    if (nSeq > -1)
+    if (pActor->nSeqFile != NAME_None)
     {
-        pActor->nIndex = SeqOffsets[nSeq];
-
         if (!nOjectType) // if not Explosion Trigger (e.g. Exploding Fire Cauldron)
         {
-            pActor->nFrame = RandomSize(4) % (SeqSize[pActor->nIndex] - 1);
+            pActor->nFrame = RandomSize(4) % (getSequence(pActor->nSeqFile)->frames.Size() - 1);
         }
 
-        auto  pActor2 = insertActor(pActor->sector(), 0);
+        auto pActor2 = insertActor(pActor->sector(), 0);
         pActor->pTarget = pActor2;
         pActor->nIndex2 = -1;
 
@@ -1906,7 +1903,6 @@ DExhumedActor* BuildObject(DExhumedActor* pActor, int nOjectType, int nHitag)
     else
     {
         pActor->nFrame = 0;
-        pActor->nIndex = -1;
 
         if (pActor->spr.statnum == kStatDestructibleSprite) {
             pActor->nIndex2 = -1;
@@ -1949,7 +1945,6 @@ void AIObject::Tick(RunListEvent* ev)
     auto pActor = ev->pObjActor;
     if (!pActor) return;
     int nStat = pActor->spr.statnum;
-    int bx = pActor->nIndex;
 
     if (nStat == 97 || (!(pActor->spr.cstat & CSTAT_SPRITE_BLOCK_ALL))) {
         return;
@@ -1960,14 +1955,14 @@ void AIObject::Tick(RunListEvent* ev)
     }
 
     // do animation
-    if (bx != -1)
+    if (pActor->nSeqFile != NAME_None)
     {
-        pActor->nFrame++;
-        if (pActor->nFrame >= SeqSize[bx]) {
-            pActor->nFrame = 0;
-        }
+        const auto& nSeqFrames = getSequence(pActor->nSeqFile)->frames;
 
-        pActor->spr.picnum = seq_GetSeqPicnum2(bx, pActor->nFrame);
+        if (++pActor->nFrame >= nSeqFrames.Size())
+            pActor->nFrame = 0;
+
+        pActor->spr.setspritetexture(nSeqFrames[pActor->nFrame].getFirstChunkTexture());
     }
 
     if (pActor->nHealth >= 0) {
@@ -2003,35 +1998,28 @@ void AIObject::Tick(RunListEvent* ev)
     }
     else
     {
-        int var_18;
-
-        // red branch
-        if ((nStat == kStatExplodeTarget) || (pActor->spr.pos.Z < pActor->sector()->floorz))
-        {
-            var_18 = 36;
-        }
-        else
-        {
-            var_18 = 34;
-        }
-
+        const FName animFile = (nStat == kStatExplodeTarget) || (pActor->spr.pos.Z < pActor->sector()->floorz) ? "grenpow" : "grenboom";
         AddFlash(pActor->sector(), pActor->spr.pos, 128);
-        BuildAnim(nullptr, var_18, 0, DVector3(pActor->spr.pos.XY(), pActor->sector()->floorz), pActor->sector(), 3.75, 4);
+        BuildAnim(nullptr, animFile, 0, DVector3(pActor->spr.pos.XY(), pActor->sector()->floorz), pActor->sector(), 3.75, 4);
 
         //				int edi = nSprite | 0x4000;
 
         if (nStat == kStatExplodeTrigger)
         {
+            const auto firepotSeqs = getFileSeqs("firepot");
+
             for (int i = 4; i < 8; i++) {
-                BuildCreatureChunk(pActor, seq_GetSeqPicnum(kSeqFirePot, (i >> 2) + 1, 0), true);
+                BuildCreatureChunk(pActor, firepotSeqs->Data((i >> 2) + 1)->getFirstFrameTexture(), true);
             }
 
             runlist_RadialDamageEnemy(pActor, 200, 20);
         }
         else if (nStat == kStatExplodeTarget)
         {
+            const auto firepotSeqs = getFileSeqs("firepot");
+
             for (int i = 0; i < 8; i++) {
-                BuildCreatureChunk(pActor, seq_GetSeqPicnum(kSeqFirePot, (i >> 1) + 3, 0), true);
+                BuildCreatureChunk(pActor, firepotSeqs->Data((i >> 1) + 3)->getFirstFrameTexture(), true);
             }
         }
 
@@ -2100,15 +2088,10 @@ void AIObject::Damage(RunListEvent* ev)
 
 void AIObject::Draw(RunListEvent* ev)
 {
-    auto pActor = ev->pObjActor;
-    if (!pActor) return;
-    int bx = pActor->nIndex;
-
-    if (bx > -1)
+    if (ev->pObjActor && ev->pObjActor->nSeqFile != NAME_None)
     {
-        seq_PlotSequence(ev->nParam, bx, pActor->nFrame, 1);
+        seq_PlotSequence(ev->nParam, ev->pObjActor->nSeqFile, 0, ev->pObjActor->nFrame, 1);
     }
-    return;
 }
 
 //---------------------------------------------------------------------------
@@ -2199,13 +2182,9 @@ void DoDrips()
         {
             DExhumedActor* pActor = sDrip[i].pActor;
             if (!pActor) continue;
-            int nSeqOffset = SeqOffsets[kSeqDrips];
 
-            if (!(pActor->sector()->Flag & kSectLava)) {
-                nSeqOffset++;
-            }
-
-            seq_MoveSequence(pActor, nSeqOffset, RandomSize(2) % SeqSize[nSeqOffset]);
+            const auto dripSeq = getSequence("drips", !(pActor->sector()->Flag & kSectLava));
+            dripSeq->frames[RandomSize(2) % dripSeq->frames.Size()].playSound(pActor);
 
             sDrip[i].nCount = RandomSize(8) + 90;
         }
@@ -2611,7 +2590,7 @@ void PostProcess()
     }
     else // nMap == kMap20)
     {
-        auto texid3603 = tileGetTextureID(kTile3603);
+        auto clocktile = aTexIds[kTexClockTile];
         for(auto& sect: sector)
         {
             sect.pSoundSect = &sect;
@@ -2619,7 +2598,7 @@ void PostProcess()
 
             for(auto& wal : sect.walls)
             {
-                if (wal.walltexture == texid3603)
+                if (wal.walltexture == clocktile)
                 {
                     wal.pal = 1;
                     auto pActor = insertActor(&sect, 407);
@@ -2631,7 +2610,7 @@ void PostProcess()
         ExhumedSpriteIterator it;
         while (auto act = it.Next())
         {
-            if (act->spr.statnum < kMaxStatus && act->spr.spritetexture() == texid3603)
+            if (act->spr.statnum < kMaxStatus && act->spr.spritetexture() == clocktile)
             {
                 ChangeActorStat(act, 407);
                 act->spr.pal = 1;

@@ -86,7 +86,7 @@ void ThrowGrenade(int nPlayer, double dz, double push1)
 
     if (push1 <= 23.4375)
     {
-        int nVel = PlayerList[nPlayer].totalvel << 5;
+        int nVel = (int)(PlayerList[nPlayer].totalvel * 512.);
 
         pActor->nTurn = ((90 - pActor->nIndex2) * (90 - pActor->nIndex2)) + nVel;
         pActor->vel.Z = ((32. * push1) - 17);
@@ -96,7 +96,7 @@ void ThrowGrenade(int nPlayer, double dz, double push1)
         auto nMov = movesprite(pActor, vec, dz, 0, CLIPMASK1);
         if (nMov.type == kHitWall)
         {
-            nAngle = GetWallNormal(nMov.hitWall);
+            nAngle = nMov.hitWall->normalAngle();
             BounceGrenade(pActor, nAngle);
         }
     }
@@ -127,9 +127,9 @@ void BuildGrenade(int nPlayer)
 
 	pActor->spr.pos = pPlayerActor->spr.pos.plusZ(-15);
     pActor->spr.shade = -64;
-    pActor->spr.scale = DVector2(0.34375, 0.3125);
+    pActor->spr.scale = DVector2(0.3125, 0.3125);
     pActor->spr.cstat = CSTAT_SPRITE_INVISIBLE;
-    pActor->spr.picnum = 1;
+    setvalidpic(pActor);
     pActor->spr.pal = 0;
 	pActor->clipdist = 7.5;
     pActor->spr.xoffset = 0;
@@ -166,7 +166,7 @@ void BuildGrenade(int nPlayer)
 
 void ExplodeGrenade(DExhumedActor* pActor)
 {
-    int var_28;
+    FName animFile;
 	double scale;
 
     int nPlayer = pActor->spr.intowner;
@@ -176,7 +176,7 @@ void ExplodeGrenade(DExhumedActor* pActor)
 
     if (pGrenadeSect->Flag & kSectUnderwater)
     {
-        var_28 = 75;
+        animFile = "grenbubb";
         scale = 0.9375;
     }
     else
@@ -184,13 +184,13 @@ void ExplodeGrenade(DExhumedActor* pActor)
         if (pActor->spr.pos.Z < pGrenadeSect->floorz)
         {
             scale = 3.125;
-            var_28 = 36;
+            animFile = "grenpow";
 
 // TODO		MonoOut("GRENPOW\n");
         }
         else
         {
-            var_28 = 34;
+            animFile = "grenboom";
             scale = 2.3475;
 
 // TODO		MonoOut("GRENBOOM\n");
@@ -220,7 +220,7 @@ void ExplodeGrenade(DExhumedActor* pActor)
 
     runlist_RadialDamageEnemy(pActor, nDamage, BulletInfo[kWeaponGrenade].nRadius);
 
-    BuildAnim(nullptr, var_28, 0, pActor->spr.pos, pActor->sector(), scale, 4);
+    BuildAnim(nullptr, animFile, 0, pActor->spr.pos, pActor->sector(), scale, 4);
     AddFlash(pActor->sector(), pActor->spr.pos, 128);
 
     DestroyGrenade(pActor);
@@ -234,13 +234,18 @@ void ExplodeGrenade(DExhumedActor* pActor)
 
 void AIGrenade::Draw(RunListEvent* ev)
 {
-    auto pActor = ev->pObjActor;
-    if (!pActor) return;
-
-    int nSeq = pActor->nFrame ? SeqOffsets[kSeqGrenBoom] : SeqOffsets[kSeqGrenRoll] + pActor->nIndex;
-    seq_PlotSequence(ev->nParam, nSeq, pActor->nHealth >> 8, 1);
+    if (const auto pActor = ev->pObjActor)
+    {
+        if (pActor->nFrame)
+        {
+            seq_PlotSequence(ev->nParam, "grenboom", 0, pActor->nHealth >> 8, 1);
+        }
+        else
+        {
+            seq_PlotSequence(ev->nParam, "grenroll", pActor->nIndex, pActor->nHealth >> 8, 1);
+        }
+    }
 }
-
 
 //---------------------------------------------------------------------------
 //
@@ -253,10 +258,11 @@ void AIGrenade::Tick(RunListEvent* ev)
     auto pActor = ev->pObjActor;
     if (!pActor) return;
 
-    int nSeq = pActor->nFrame ? SeqOffsets[kSeqGrenBoom] : SeqOffsets[kSeqGrenRoll] + pActor->nIndex;
+    const auto grenadeSeq = pActor->nFrame ? getSequence("grenboom") : getSequence("grenroll", pActor->nIndex);
+    const auto& seqFrame = grenadeSeq->frames[pActor->nHealth >> 8];
 
-    seq_MoveSequence(pActor, nSeq, pActor->nHealth >> 8);
-    pActor->spr.picnum = seq_GetSeqPicnum2(nSeq, pActor->nHealth >> 8);
+    seqFrame.playSound(pActor);
+    pActor->spr.setspritetexture(seqFrame.getFirstChunkTexture());
 
     pActor->nIndex2--;
     if (!pActor->nIndex2)
@@ -266,7 +272,7 @@ void AIGrenade::Tick(RunListEvent* ev)
         if (pActor->nTurn < 0)
         {
             PlayerList[nPlayer].nState = 0;
-            PlayerList[nPlayer].nSeqSize2 = 0;
+            PlayerList[nPlayer].nWeapFrame = 0;
 
             if (PlayerList[nPlayer].nAmmo[kWeaponGrenade])
             {
@@ -296,11 +302,11 @@ void AIGrenade::Tick(RunListEvent* ev)
 
         if (ebp < 0)
         {
-            pActor->nHealth += SeqSize[nSeq] << 8;
+            pActor->nHealth += grenadeSeq->frames.Size() << 8;
         }
         else
         {
-            if (ebp >= SeqSize[nSeq])
+            if (ebp >= (signed)grenadeSeq->frames.Size())
             {
                 if (pActor->nFrame)
                 {
@@ -359,7 +365,7 @@ void AIGrenade::Tick(RunListEvent* ev)
         // loc_2CF60:
         if (nMov.type == kHitWall)
         {
-            BounceGrenade(pActor, GetWallNormal(nMov.hitWall));
+            BounceGrenade(pActor, nMov.hitWall->normalAngle());
         }
         else if (nMov.type == kHitSprite)
         {

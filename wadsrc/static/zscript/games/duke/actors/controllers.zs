@@ -1,7 +1,7 @@
 
 class DukeActivator : DukeActor
 {
-	override void Initialize()
+	override void Initialize(DukeActor spawner)
 	{
 		self.cstat = CSTAT_SPRITE_INVISIBLE;
 		self.ChangeStat(STAT_ACTIVATOR);
@@ -37,12 +37,12 @@ class DukeActivator : DukeActor
 				if (a2.statnum == STAT_EFFECTOR) switch (a2.lotag)
 				{
 				case SE_18_INCREMENTAL_SECTOR_RISE_FALL:
-					if (Raze.isRRRA()) break;
+					if (isRRRA()) break;
 
 				case SE_36_PROJ_SHOOTER:
 				case SE_31_FLOOR_RISE_FALL:
 				case SE_32_CEILING_RISE_FALL:
-					a2.temp_data[0] = 1 - a2.temp_data[0];
+					a2.counter = 1 - a2.counter;
 					a2.callsound(self.sector());
 					break;
 				}
@@ -59,7 +59,7 @@ class DukeActivator : DukeActor
 
 class DukeLocator : DukeActor
 {
-	override void Initialize()
+	override void Initialize(DukeActor spawner)
 	{
 		self.cstat = CSTAT_SPRITE_INVISIBLE;
 		self.ChangeStat(STAT_LOCATOR);
@@ -68,10 +68,10 @@ class DukeLocator : DukeActor
 
 class DukeActivatorLocked : DukeActor
 {
-	override void Initialize()
+	override void Initialize(DukeActor spawner)
 	{
 		self.cstat = CSTAT_SPRITE_INVISIBLE;
-		if (!Raze.IsRR()) self.sector.lotag |= 16384;
+		if (!isRR()) self.sector.lotag |= 16384;
 		else self.sector.lotag ^= 16384;
 		self.ChangeStat(STAT_ACTIVATOR);
 	}
@@ -142,30 +142,6 @@ class DukeShadeCtrl : DukeActor
 	}
 }
 
-class DukeDummyCtrl : DukeActor
-{
-	override void StaticSetup()
-	{
-		self.cstat |= CSTAT_SPRITE_INVISIBLE;
-	}
-}
-
-class DukeSoundFX : DukeActor
-{
-	override void StaticSetup()
-	{
-		self.cstat = CSTAT_SPRITE_INVISIBLE;
-		self.detail = dlevel.addambient(self.hitag, self.lotag);
-		self.lotag = self.hitag = 0;
-	}
-	
-	// this actor needs to start on STAT_DEFAULT.
-	override void Initialize()
-	{
-		self.ChangeStat(STAT_ZOMBIEACTOR);
-	}
-}
-
 class RedneckMinecartDef : DukeActor
 {
 }
@@ -193,3 +169,62 @@ class RedneckGeometryEffect : DukeActor
 class RedneckKeyinfoSetter : DukeActor
 {
 }
+
+class RedneckInvisible : DukeActor
+{
+	default
+	{
+		pic "RRTILE3586";
+	}
+	
+	override bool animate(tspritetype t)
+	{
+		t.cstat |= CSTAT_SPRITE_INVISIBLE;
+		self.cstat |= CSTAT_SPRITE_INVISIBLE;
+		return true;
+	}
+}
+
+class RedneckLadder : DukeActor
+{
+	default
+	{
+		pic "Ladder";
+	}
+	
+	override bool animate(tspritetype t)
+	{
+		t.cstat |= CSTAT_SPRITE_INVISIBLE;
+		self.cstat |= CSTAT_SPRITE_INVISIBLE;
+		return true;
+	}
+}
+
+class RedneckPistonSoundEnabler : DukeActor
+{
+	override void StaticSetup()
+	{
+		ud.pistonsound = true;
+		self.Destroy();
+	}
+}
+
+class RedneckFogEnabler : DukeActor
+{
+	override void StaticSetup()
+	{
+		ud.fogactive = true;
+		self.Destroy();
+	}
+}
+
+class RedneckSeasickEnabler : DukeActor
+{
+	override void StaticSetup()
+	{
+		// this is so wrong... :(
+		Duke.GetViewPlayer().sea_sick_stat = true;
+		self.Destroy();
+	}
+}
+

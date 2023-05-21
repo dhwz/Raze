@@ -100,6 +100,7 @@ enum ESectorExBits
 	SECTOREX_CLOUDSCROLL			= 1,
 	SECTOREX_DRAGGED				= 2,
 	SECTOREX_DONTCLIP				= 4,
+	SECTOREX_SEEN					= 8,
 };
 
 // Flags for retriangulation
@@ -187,6 +188,7 @@ enum ESpriteBits2
 	CSTAT2_SPRITE_FULLBRIGHT = 16,	// always draw fullbright with shade -127
 	CSTAT2_SPRITE_NOANIMATE = 32,	// disable texture animation
 	CSTAT2_SPRITE_NOMODEL = 64,		// disable models and voxels for this tsprite
+	CSTAT2_SPRITE_COUNTKILL = 128	// internal tracking of SFLAG_KILLCOUNT, thanks to non-existent automation in Duke.
 };
 
 // tsprite flags use the otherwise unused clipdist field.
@@ -197,7 +199,7 @@ enum ETSprFlags
 	TSPR_MDLROTATE = 4,			// rotate if this is a model or voxel.
 	TSPR_SLOPESPRITE = 8,       // render as sloped sprite
 	TSPR_ROTATE8FRAMES = 16,	// do an 8 frame rotation
-	TSPR_ROTATE12FRAMES = 32,	// do an 12 frame rotation
+	TSPR_ROTATE12FRAMES = 32,	// do a 12 frame rotation
 	TSPR_NOFLOORPAL = 64,		// ignore the floorpal
 };
 
@@ -280,7 +282,7 @@ struct walltype
 	walltype* point2Wall() const;
 	DVector2 delta() const { return point2Wall()->pos - pos; }
 	DVector2 center() const { return(point2Wall()->pos + pos) / 2; }
-	DAngle normalAngle() const { return delta().Angle() + DAngle90; }
+	DAngle normalAngle() const { return (delta().Angle() + DAngle90).Normalized360(); }
 	bool twoSided() const { return nextsector >= 0; }
 	double Length();
 	void calcLength();	// this is deliberately not inlined and stored in a file where it can't be found at compile time.
@@ -383,7 +385,7 @@ struct sectortype
 	{
 		struct // DukeRR
 		{
-			uint8_t keyinfo; // This was originally the repurposed filler byte.
+			uint8_t lockinfo; // This was originally the repurposed filler byte.
 			uint8_t shadedsector;
 			TObjPtr<DCoreActor*> hitagactor;    // we need this because Duke stores an actor in the hitag field. Is really a DDukeActor, but cannot be declared here safely.
 		};

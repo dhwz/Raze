@@ -39,9 +39,6 @@ source as it is released.
 #include "v_video.h"
 #include "dukeactor.h"
 
-EXTERN_CVAR(Float, m_sensitivity_x)
-EXTERN_CVAR(Float, m_yaw)
-
 BEGIN_DUKE_NS
 
 //---------------------------------------------------------------------------
@@ -72,16 +69,12 @@ void hud_input(int plnum)
 
 	// Set-up crouch bools.
 	const int sectorLotag = p->insector() ? p->cursector->lotag : 0;
-	const bool crouchable = sectorLotag != ST_2_UNDERWATER && (sectorLotag != ST_1_ABOVE_WATER || p->spritebridge);
+	const bool crouchable = sectorLotag != ST_2_UNDERWATER && (sectorLotag != ST_1_ABOVE_WATER || p->spritebridge) && !p->jetpack_on;
 	const bool disableToggle = p->jetpack_on || (!crouchable && p->on_ground) || (isRRRA() && (p->OnMotorcycle || p->OnBoat));
 
-	if (isRR() && (p->sync.actions & SB_CROUCH)) p->sync.actions &= ~SB_JUMP;
+	processCrouchToggle(p->crouch_toggle, p->sync.actions, crouchable, disableToggle);
 
-	if (crouch_toggle && (!crouchable || disableToggle))
-	{
-		crouch_toggle = false;
-		p->sync.actions &= ~SB_CROUCH;
-	}
+	if (isRR() && (p->sync.actions & SB_CROUCH)) p->sync.actions &= ~SB_JUMP;
 
 	if ((isRR() && p->drink_amt > 88))
 		p->sync.actions |= SB_LOOK_LEFT;
@@ -298,7 +291,7 @@ void hud_input(int plnum)
 							p->inven_icon = 3;
 
 							auto pactor =
-								CreateActor(p->cursector, p->GetActor()->getPosWithOffsetZ().plusZ(30), TILE_APLAYER, -64, DVector2(0, 0), p->GetActor()->spr.Angles.Yaw, 0., 0., nullptr, 10);
+								CreateActor(p->cursector, p->GetActor()->getPosWithOffsetZ().plusZ(30), DukePlayerPawnClass, -64, DVector2(0, 0), p->GetActor()->spr.Angles.Yaw, 0., 0., nullptr, 10);
 							pactor->temp_data[3] = pactor->temp_data[4] = 0;
 							p->holoduke_on = pactor;
 							pactor->spr.yint = plnum;
@@ -504,129 +497,39 @@ void hud_input(int plnum)
 
 //---------------------------------------------------------------------------
 //
-// split out for readability
-//
-//---------------------------------------------------------------------------
-
-static void doVehicleTilting(player_struct* const p, const int turndir, const float factor)
-{
-	if (turndir)
-	{
-		p->oTiltStatus = p->TiltStatus;
-		p->TiltStatus += factor * turndir;
-		if (abs(p->TiltStatus) > 10)
-			p->TiltStatus = 10.f * turndir;
-	}
-}
-
-static float getVehicleTurnVel(player_struct* p, HIDInput* const hidInput, const float factor, const float baseVel, const float velScale)
-{
-	float turnvel = 0;
-
-	// Cancel out micro-movement
-	if (fabs(hidInput->mouseturnx) < (m_sensitivity_x * m_yaw * backendinputscale() * 2.f)) 
-		hidInput->mouseturnx = 0;
-
-	// Yes, we need all these bools...
-	const bool kbdLeft = buttonMap.ButtonDown(gamefunc_Turn_Left) || buttonMap.ButtonDown(gamefunc_Strafe_Left);
-	const bool kbdRight = buttonMap.ButtonDown(gamefunc_Turn_Right) || buttonMap.ButtonDown(gamefunc_Strafe_Right);
-	const bool hidLeft = hidInput->mouseturnx < 0 || hidInput->joyaxes[JOYAXIS_Yaw] > 0;
-	const bool hidRight = hidInput->mouseturnx > 0 || hidInput->joyaxes[JOYAXIS_Yaw] < 0;
-	const int turndir = (kbdRight || hidRight) - (kbdLeft || hidLeft);
-
-	if (p->OnMotorcycle && (p->MotoSpeed == 0 || !p->on_ground))
-	{
-		resetTurnHeldAmt();
-		doVehicleTilting(p, turndir, factor);
-	}
-	else if ((p->OnMotorcycle || p->MotoSpeed) && (turndir || p->moto_drink))
-	{
-		if (p->OnMotorcycle || !p->NotOnWater)
-			doVehicleTilting(p, turndir, factor);
-
-		const bool noattenuate = (isTurboTurnTime() || hidLeft || hidRight) && (!p->OnMotorcycle || p->MotoSpeed > 0);
-		const auto vel = (noattenuate) ? (baseVel) : (baseVel * velScale);
-
-		turnvel = vel * -hidInput->joyaxes[JOYAXIS_Yaw];
-
-		if (const auto kbdDir = kbdRight - kbdLeft)
-		{
-			turnvel += vel * kbdDir;
-			updateTurnHeldAmt(factor);
-		}
-
-		if (hidInput->mouseturnx)
-			turnvel += sqrtf(abs(vel * hidInput->mouseturnx / factor) * (7.f / 20.f)) * Sgn(vel) * Sgn(hidInput->mouseturnx);
-	}
-	else if (p->OnMotorcycle || !p->NotOnWater)
-	{
-		resetTurnHeldAmt();
-		p->TiltStatus -= factor * Sgn(p->TiltStatus);
-	}
-
-	if (fabs(p->TiltStatus) < factor)
-		p->TiltStatus = 0;
-
-	return turnvel * factor;
-}
-
-//---------------------------------------------------------------------------
-//
-// much of this was rewritten from scratch to make the logic easier to follow.
-//
-//---------------------------------------------------------------------------
-
-static void processVehicleInput(player_struct *p, HIDInput* const hidInput, InputPacket* const inputBuffer, InputPacket* const currInput, const double scaleAdjust)
-{
-	static constexpr float VEHICLETURN = (20.f * 360.f / 2048.f);
-	float baseVel, velScale;
-
-	// mask out all actions not compatible with vehicles.
-	inputBuffer->actions &= ~(SB_WEAPONMASK_BITS | SB_TURNAROUND | SB_CENTERVIEW | SB_HOLSTER | SB_JUMP | SB_CROUCH | SB_RUN | 
-		SB_AIM_UP | SB_AIM_DOWN | SB_AIMMODE | SB_LOOK_UP | SB_LOOK_DOWN | SB_LOOK_LEFT | SB_LOOK_RIGHT);
-
-	if (p->OnBoat || !p->moto_underwater)
-	{
-		const bool kbdForwards = buttonMap.ButtonDown(gamefunc_Move_Forward) || buttonMap.ButtonDown(gamefunc_Strafe);
-		const bool kbdBackward = buttonMap.ButtonDown(gamefunc_Move_Backward);
-		inputBuffer->fvel = clamp(kbdForwards - kbdBackward + hidInput->joyaxes[JOYAXIS_Forward], -1.f, 1.f);
-		
-		if (buttonMap.ButtonDown(gamefunc_Run))
-			inputBuffer->actions |= SB_CROUCH;
-	}
-
-	if (p->OnMotorcycle)
-	{
-		velScale = (3.f / 10.f);
-		baseVel = VEHICLETURN * Sgn(p->MotoSpeed);
-	}
-	else
-	{
-		velScale = !p->NotOnWater? 1.f : (6.f / 19.f);
-		baseVel = VEHICLETURN * velScale;
-	}
-
-	inputBuffer->avel += (currInput->avel = getVehicleTurnVel(p, hidInput, (float)scaleAdjust, baseVel, velScale));
-}
-
-
-//---------------------------------------------------------------------------
-//
 // External entry point
 //
 //---------------------------------------------------------------------------
 
-void GameInterface::GetInput(HIDInput* const hidInput, InputPacket* const inputBuffer, InputPacket* const currInput, const double scaleAdjust)
+void GameInterface::doPlayerMovement(const float scaleAdjust)
 {
 	auto const p = &ps[myconnectindex];
 
 	if (isRRRA() && (p->OnMotorcycle || p->OnBoat))
 	{
-		processVehicleInput(p, hidInput, inputBuffer, currInput, scaleAdjust);
+		static constexpr float VEHICLETURN = (20.f * 360.f / 2048.f);
+		float baseVel, velScale;
+
+		if (p->OnMotorcycle)
+		{
+			velScale = (3.f / 10.f);
+			baseVel = VEHICLETURN * Sgn(p->MotoSpeed);
+		}
+		else
+		{
+			velScale = !p->NotOnWater? 1.f : (6.f / 19.f);
+			baseVel = VEHICLETURN * velScale;
+		}
+
+		const auto canMove = p->OnBoat || !p->moto_underwater;
+		const auto canTurn = p->OnMotorcycle || p->MotoSpeed || p->moto_drink;
+		const auto attenuate = p->OnMotorcycle && p->MotoSpeed <= 0;
+
+		gameInput.processVehicle(&p->Angles, scaleAdjust, baseVel, velScale, canMove, canTurn, attenuate);
 	}
 	else
 	{
-		processMovement(hidInput, inputBuffer, currInput, scaleAdjust, p->drink_amt);
+		gameInput.processMovement(&p->Angles, scaleAdjust, p->drink_amt);
 	}
 }
 

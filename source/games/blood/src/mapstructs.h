@@ -9,7 +9,7 @@ struct spritetypedisk
 {
 	int32_t x, y, z;
 	uint16_t cstat;
-	int16_t picnum;
+	int16_t pic;
 	int8_t shade;
 	uint8_t pal, clipdist, detail;
 	uint8_t xrepeat, yrepeat;
@@ -44,7 +44,7 @@ struct walltypedisk
 	int32_t x, y;
 	int16_t point2, nextwall, nextsector;
 	uint16_t cstat;
-	int16_t picnum, overpic;
+	int16_t wallpic, overpic;
 	int8_t shade;
 	uint8_t pal, xrepeat, yrepeat, xpanning, ypanning;
 	int16_t type;

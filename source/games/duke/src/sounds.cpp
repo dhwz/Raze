@@ -43,7 +43,6 @@ source as it is released.
 #include "mapinfo.h"
 #include "raze_sound.h"
 #include "gamestate.h"
-#include "names_d.h"
 #include "i_music.h"
 #include "vm.h"
 #include "s_music.h"
@@ -448,6 +447,8 @@ int S_PlaySound3D(FSoundID soundid, DDukeActor* actor, const DVector3& pos, int 
 	if (!soundEngine->isValidSoundId(soundid) || !SoundEnabled() || actor == nullptr || !playrunning() ||
 		(pl->timebeforeexit > 0 && pl->timebeforeexit <= REALGAMETICSPERSEC * 3)) return -1;
 
+	if (flags & CHANF_LOCAL && actor != ps[screenpeek].actor && !ud.coop) return -1;	// makes no sense...
+
 	soundid = GetReplacementSound(soundid);
 	int userflags = S_GetUserFlags(soundid);
 
@@ -527,7 +528,7 @@ int S_PlaySound3D(FSoundID soundid, DDukeActor* actor, const DVector3& pos, int 
 	{
 		if (explosion && underwater) 
 		{
-			pitch = float(chan->Pitch? chan->Pitch * (0.55 / 128) : 0.55);	// todo: fix pitch storage in backend.
+			pitch = float(chan->Pitch? chan->Pitch * 0.55 : 0.55);	// todo: fix pitch storage in backend.
 			soundEngine->SetPitch(chan, pitch);
 		}
 		chan->UserData = (currentCommentarySound != NO_SOUND);
@@ -582,7 +583,7 @@ void S_StopSound(FSoundID soundid, DDukeActor* actor, int channel)
 
 		// StopSound kills the actor reference so this cannot be delayed until ChannelEnded gets called. At that point the actor may also not be valid anymore.
 		if (S_IsAmbientSFX(actor) && actor->sector()->lotag < 3)  // ST_2_UNDERWATER
-			actor->temp_data[0] = 0;
+			actor->counter = 0;
 	}
 }
 
@@ -770,6 +771,7 @@ void S_WorldTourMappingsForOldSounds()
 			{
 				auto newsfx = soundEngine->AllocateSound();
 				*newsfx = *sfx;
+				newsfx->ResourceId = -1;
 				newsfx->name = fname;
 				newsfx->lumpnum = lump;
 				sfx->UserData[kWorldTourMapping] = soundEngine->GetNumSounds() - 1;

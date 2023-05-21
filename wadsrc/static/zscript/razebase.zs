@@ -85,6 +85,40 @@ struct MapRecord native
 		USERMAP = 2,
 	}
 
+	enum EMapFlags
+	{
+		LEVEL_NOINTERMISSION = 1,
+		LEVEL_SECRETEXITOVERRIDE = 2,	// when given an explicit level number, override with secret exit in the map, mainly for compiling episodes out of single levels.
+		LEVEL_CLEARINVENTORY = 4,
+		LEVEL_CLEARWEAPONS = 8,
+		LEVEL_FORCENOEOG = 16,			// RR E1L7 needs this to override its boss's death ending the game.
+	};
+
+	enum EMapGameFlags
+	{
+		LEVEL_RR_HULKSPAWN = 1,
+		LEVEL_RR_CLEARMOONSHINE = 2,
+
+		LEVEL_EX_COUNTDOWN = 4,
+		LEVEL_EX_TRAINING = 8,
+		LEVEL_EX_ALTSOUND = 16,
+		LEVEL_EX_MULTI = 32,
+
+		LEVEL_SW_SPAWNMINES = 64,
+		LEVEL_SW_BOSSMETER_SERPENT = 128,
+		LEVEL_SW_BOSSMETER_SUMO = 256,
+		LEVEL_SW_BOSSMETER_ZILLA = 512,
+		LEVEL_SW_DEATHEXIT_SERPENT = 1024,
+		LEVEL_SW_DEATHEXIT_SUMO = 2048,
+		LEVEL_SW_DEATHEXIT_ZILLA = 4096,
+		LEVEL_SW_DEATHEXIT_SERPENT_NEXT = 8192,
+
+		LEVEL_WT_BOSSSPAWN = 16384,
+
+		LEVEL_BOSSONLYCUTSCENE = 32768,
+	};
+
+
 	native readonly int parTime;
 	native readonly int designerTime;
 	native readonly String fileName;
@@ -93,6 +127,7 @@ struct MapRecord native
 	native readonly String music;
 	native readonly int cdSongId;
 	native readonly int flags;
+	native readonly int gameflags;
 	native readonly int levelNumber;
 	native readonly int cluster;
 	native readonly String InterBackground;
@@ -171,7 +206,7 @@ struct Raze
 	static double bobval(double angle) { return sin(angle * (360. / 2048)); }
 	native static TextureID PickTexture(TextureID texid);
 	native static int GetBuildTime();
-	native static void forceSyncInput();
+	native static void forceSyncInput(int playeridx);
 	native static Font PickBigFont(String cmptext = "");
 	native static Font PickSmallFont(String cmptext = "");
 	native static int SoundEnabled();
@@ -179,69 +214,13 @@ struct Raze
 	native static void SetReverbDelay(int d);
 	native static Sound FindSoundByResID(int id);
 
-	//native static int tileflags(TextureID tex)
+	native static int tileflags(TextureID tex);
+	native static int tilesurface(TextureID tex);
 	
 	native static sectortype updatesector(Vector2 pos, sectortype lastsect, double maxdist = 96);
 	native static sectortype, Vector3 clipmove(Vector3 pos, sectortype sect, Vector2 move, double walldist, double ceildist, double flordist, uint cliptype, CollisionData coll, int clipmoveboxtracenum = 3);
 	native static bool cansee(Vector3 start, sectortype startsec, Vector3 end, sectortype endsec);
 	native static int hitscan(Vector3 start, sectortype startsect, Vector3 vect, HitInfo hitinfo, uint cliptype, double maxrange = -1);
-
-	// game check shortcuts
-
-	static bool isDuke()
-	{
-		return gameinfo.gametype & GAMEFLAG_DUKE;
-	}
-
-	static bool isNam()
-	{
-		return gameinfo.gametype & (GAMEFLAG_NAM | GAMEFLAG_NAPALM);
-	}
-
-	static bool isNamWW2GI()
-	{
-		return gameinfo.gametype & (GAMEFLAG_NAM | GAMEFLAG_NAPALM |GAMEFLAG_WW2GI);
-	}
-
-	static bool isWW2GI()
-	{
-		return gameinfo.gametype & (GAMEFLAG_WW2GI);
-	}
-
-	static bool isRR()
-	{
-		return gameinfo.gametype & (GAMEFLAG_RRALL);
-	}
-
-	static bool isRRRA()
-	{
-		return gameinfo.gametype & (GAMEFLAG_RRRA);
-	}
-
-	static bool isWorldTour()
-	{
-		return gameinfo.gametype & GAMEFLAG_WORLDTOUR;
-	}
-
-	static bool isPlutoPak()
-	{
-		return gameinfo.gametype & GAMEFLAG_PLUTOPAK;
-	}
-
-	static bool isShareware()
-	{
-		return gameinfo.gametype & GAMEFLAG_SHAREWARE;
-	}
-
-	static bool isBlood()
-	{
-		return gameinfo.gametype & GAMEFLAG_BLOOD;
-	}
-
-	static bool isSW()
-	{
-		return gameinfo.gametype & GAMEFLAG_SW;
-	}
 
 	// Dont know yet how to best export this, so for now these are just placeholders as MP is not operational anyway.
 	static int playerPalette(int i)

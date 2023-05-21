@@ -61,11 +61,21 @@ static SummaryInfo summaryinfo;
 //
 //=============================================================================
 
+CVARD(Bool, cl_nostartscreens, false, CVAR_ARCHIVE|CVAR_GLOBALCONFIG, "enable/disable skipping level entry screens")
+CVARD(Bool, cl_noexitscreens, false, CVAR_ARCHIVE|CVAR_GLOBALCONFIG, "enable/disable skipping level exit screens")
+
+//=============================================================================
+//
+//
+//
+//=============================================================================
+
 void Local_Job_Init()
 {
 	maprecordtype = NewPointer(NewStruct("MapRecord", nullptr, true));
 	summaryinfotype = NewPointer(NewStruct("SummaryInfo", nullptr, true));
 }
+
 //=============================================================================
 //
 //
@@ -213,7 +223,7 @@ void ShowIntermission(MapRecord* fromMap, MapRecord* toMap, SummaryInfo* info, C
 	auto runner = cutscene.runner;
 	try
 	{
-		if (fromMap && (!(fromMap->gameflags & LEVEL_BOSSONLYCUTSCENE) || bossexit))
+		if (!cl_noexitscreens && fromMap && (!(fromMap->gameflags & LEVEL_BOSSONLYCUTSCENE) || bossexit))
 		{
 			if (!CreateCutscene(&fromMap->outro, runner, fromMap, !!toMap))
 			{
@@ -222,12 +232,12 @@ void ShowIntermission(MapRecord* fromMap, MapRecord* toMap, SummaryInfo* info, C
 			}
 
 		}
-		if (fromMap || (g_gameType & GAMEFLAG_PSEXHUMED))
+		if ((!cl_noexitscreens && fromMap) || (!cl_nostartscreens && (g_gameType & GAMEFLAG_PSEXHUMED)))
 			CallCreateSummaryFunction(globalCutscenes.SummaryScreen, runner, fromMap, info, toMap);
 
 		if (toMap) 
 		{
-			if (!CreateCutscene(&toMap->intro, runner, toMap, !!fromMap))
+			if (!cl_nostartscreens && !CreateCutscene(&toMap->intro, runner, toMap, !!fromMap))
 			{
 				if  (tocluster == nullptr || !CreateCutscene(&tocluster->intro, runner, toMap, !!fromMap))
 					CreateCutscene(&globalCutscenes.DefaultMapIntro, runner, toMap, !!fromMap);

@@ -29,7 +29,6 @@ Prepared for public release: 03/21/2003 - Charlie Wiederhold, 3D Realms
 #include "ns.h"
 #include "global.h"
 #include "sounds.h"
-#include "names_r.h"
 #include "mapinfo.h"
 #include "dukeactor.h"
 #include "secrets.h"
@@ -159,117 +158,6 @@ void checkplayerhurt_r(player_struct* p, const Collision &coll)
 //
 //---------------------------------------------------------------------------
 
-void checkhitdefault_r(DDukeActor* targ, DDukeActor* proj)
-{
-	if ((targ->spr.cstat & CSTAT_SPRITE_ALIGNMENT_WALL) && targ->spr.hitag == 0 && targ->spr.lotag == 0 && targ->spr.statnum == 0)
-		return;
-
-	if ((proj->spr.picnum == RTILE_SAWBLADE || proj->spr.picnum == RTILE_FREEZEBLAST || proj->GetOwner() != targ) && targ->spr.statnum != 4)
-	{
-		if (badguy(targ) == 1)
-		{
-			if (proj->spr.picnum == RTILE_RPG) proj->spr.extra <<= 1;
-			else if (isRRRA() && proj->spr.picnum == RTILE_RPG2) proj->spr.extra <<= 1;
-
-			if ((targ->spr.picnum != RTILE_DRONE))
-				if (proj->spr.picnum != RTILE_FREEZEBLAST)
-					//if (actortype[targ->spr.picnum] == 0)  
-				{
-					auto spawned = spawn(proj, RTILE_JIBS6);
-					if (spawned)
-					{
-						if (proj->spr.pal == 6)
-							spawned->spr.pal = 6;
-						spawned->spr.pos.Z += 4;
-						spawned->vel.X = 1;
-						spawned->spr.scale = DVector2(0.375, 0.375);
-						spawned->spr.Angles.Yaw = DAngle22_5 / 4 - randomAngle(22.5 / 2);
-					}
-				}
-
-			auto Owner = proj->GetOwner();
-
-			if (Owner && Owner->isPlayer() && targ->spr.picnum != RTILE_DRONE)
-				if (ps[Owner->PlayerIndex()].curr_weapon == SHOTGUN_WEAPON)
-				{
-					fi.shoot(targ, -1, PClass::FindActor("DukeBloodSplat3"));
-					fi.shoot(targ, -1, PClass::FindActor("DukeBloodSplat1"));
-					fi.shoot(targ, -1, PClass::FindActor("DukeBloodSplat2"));
-					fi.shoot(targ, -1, PClass::FindActor("DukeBloodSplat4"));
-				}
-
-			if (targ->spr.statnum == STAT_ZOMBIEACTOR)
-			{
-				ChangeActorStat(targ, STAT_ACTOR);
-				targ->timetosleep = SLEEPTIME;
-			}
-		}
-
-		if (targ->spr.statnum != 2)
-		{
-			if (proj->spr.picnum == RTILE_FREEZEBLAST && ((targ->isPlayer() && targ->spr.pal == 1) || (gs.freezerhurtowner == 0 && proj->GetOwner() == targ)))
-				return;
-
-			targ->attackertype = proj->spr.picnum;
-			targ->hitextra += proj->spr.extra;
-			if (targ->spr.picnum != RTILE_COW)
-				targ->hitang = proj->spr.Angles.Yaw;
-			targ->SetHitOwner(proj->GetOwner());
-		}
-
-		if (targ->spr.statnum == 10)
-		{
-			auto p = targ->PlayerIndex();
-			if (ps[p].newOwner != nullptr)
-			{
-				ps[p].newOwner = nullptr;
-				ps[p].GetActor()->restorepos();
-
-				updatesector(ps[p].GetActor()->getPosWithOffsetZ(), &ps[p].cursector);
-
-				DukeStatIterator it(STAT_EFFECTOR);
-				while (auto act = it.Next())
-				{
-					if (actorflag(act, SFLAG2_CAMERA)) act->spr.yint = 0;
-				}
-			}
-			auto Owner = targ->GetHitOwner();
-			if (!Owner || !Owner->isPlayer())
-				if (ud.player_skill >= 3)
-					proj->spr.extra += (proj->spr.extra >> 1);
-		}
-
-	}
-}
-
-void checkhitsprite_r(DDukeActor* targ, DDukeActor* proj)
-{
-	if (targ->GetClass() != RUNTIME_CLASS(DDukeActor))
-	{
-		CallOnHit(targ, proj);
-		return;
-	}
-
-	if (isRRRA()) switch (targ->spr.picnum)
-	{
-	case RTILE_IRONWHEELSWITCH:
-		break;
-	}
-
-	if (targ->spr.picnum == RTILE_PLAYERONWATER)
-	{
-		targ = targ->GetOwner();
-		if (!targ) return;
-	}
-	checkhitdefault_r(targ, proj);
-}
-
-//---------------------------------------------------------------------------
-//
-// 
-//
-//---------------------------------------------------------------------------
-
 void checksectors_r(int snum)
 {
 	player_struct* p;
@@ -319,7 +207,7 @@ void checksectors_r(int snum)
 	if (chatmodeon || p->GetActor()->spr.extra <= 0) return;
 
 	if (ud.cashman && PlayerInput(snum, SB_OPEN))
-		fi.lotsofmoney(p->GetActor(), 2);
+		lotsofstuff(p->GetActor(), 2, DukeMailClass);
 
 
 	if (!(PlayerInput(snum, SB_OPEN)))
@@ -410,12 +298,11 @@ void checksectors_r(int snum)
 				neartag(p->GetActor()->getPosWithOffsetZ().plusZ(16), p->GetActor()->sector(), p->GetActor()->PrevAngles.Yaw, near, 80., NT_Lotag | NT_Hitag);
 				if (near.actor() != nullptr)
 				{
-					if (actorflag(near.actor(), SFLAG2_TRIGGERRESPAWN))
+					if (near.actor()->flags2 & SFLAG2_TRIGGERRESPAWN)
 						return;
 
-					switch (near.actor()->spr.picnum)
+					if (near.actor()->IsKindOf(RedneckCowClass)) // This is for a VERY poorly implemented CON hack. See 'iftipcow'.
 					{
-					case RTILE_COW:
 						near.actor()->spriteextra = 1;
 						return;
 					}
@@ -433,7 +320,7 @@ void checksectors_r(int snum)
 			return;
 
 		if (near.actor() == nullptr && near.hitWall == nullptr)
-			if (p->cursector->lotag == 2)
+			if (p->cursector->lotag == ST_2_UNDERWATER)
 			{
 				DDukeActor* hit;
 				double dist = hitasprite(p->GetActor(), &hit);
@@ -482,7 +369,7 @@ void checksectors_r(int snum)
 				if (isactivator(act) || ismasterswitch(act))
 					return;
 			}
-			if (haskey(near.hitSector, snum))
+			if (haslock(near.hitSector, snum))
 				operatesectors(near.hitSector, p->GetActor());
 			else
 			{
@@ -503,7 +390,7 @@ void checksectors_r(int snum)
 					if (isactivator(act) || ismasterswitch(act))
 						return;
 				}
-				if (haskey(near.hitSector, snum))
+				if (haslock(near.hitSector, snum))
 					operatesectors(p->GetActor()->sector(), p->GetActor());
 				else
 				{
@@ -644,9 +531,9 @@ void tearitup(sectortype* sect)
 	DukeSectIterator it(sect);
 	while (auto act = it.Next())
 	{
-		if (act->spr.picnum == RTILE_DESTRUCTO)
+		if (act->GetClass() == RedneckDestructoClass)
 		{
-			act->attackertype = RTILE_SHOTSPARK1;
+			act->attackertype = DukeShotSparkClass;
 			act->hitextra = 1;
 		}
 	}

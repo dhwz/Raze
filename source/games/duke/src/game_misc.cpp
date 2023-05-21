@@ -286,7 +286,7 @@ void drawoverlays(double interpfrac)
 	if (ps[myconnectindex].newOwner == nullptr && ud.cameraactor == nullptr)
 	{
 		auto offsets = pp->Angles.getCrosshairOffsets(interpfrac);
-		DrawCrosshair(TILE_CROSSHAIR, ps[screenpeek].last_extra, offsets.first.X, offsets.first.Y + (pp->over_shoulder_on ? 2.5 : 0), isRR() ? 0.5 : 1, offsets.second);
+		DrawCrosshair(ps[screenpeek].last_extra, offsets.first.X, offsets.first.Y + (pp->over_shoulder_on ? 2.5 : 0), isRR() ? 0.5 : 1, offsets.second);
 	}
 
 	if (paused == 2)
@@ -311,26 +311,34 @@ void drawoverlays(double interpfrac)
 
 void cameratext(DDukeActor *cam)
 {
+	static FTextureID texids[4];
+	static const char* texs[] = { "CAMCORNER", "CAMCORNER2", "CAMLIGHT", "STATIC" };
+
+	if (!texids[0].isValid())
+	{
+		for (int i = 0; i < 4; i++) texids[i] = TexMan.CheckForTexture(texs[i], ETextureType::Any);
+	}
+
 	auto drawitem = [=](int tile, double x, double y, bool flipx, bool flipy)
 	{
-		DrawTexture(twod, tileGetTexture(tile), x, y, DTA_ViewportX, viewport3d.Left(), DTA_ViewportY, viewport3d.Top(), DTA_ViewportWidth, viewport3d.Width(), 
+		DrawTexture(twod, texids[tile], false, x, y, DTA_ViewportX, viewport3d.Left(), DTA_ViewportY, viewport3d.Top(), DTA_ViewportWidth, viewport3d.Width(), 
 			DTA_ViewportHeight, viewport3d.Height(), DTA_FlipX, flipx, DTA_FlipY, flipy, DTA_CenterOffsetRel, 2, DTA_FullscreenScale, FSMode_Fit320x200, TAG_DONE);
 	};
-	if (!cam->temp_data[0])
+	if (!cam->counter)
 	{
-		drawitem(TILE_CAMCORNER, 24, 33, false, false);
-		drawitem(TILE_CAMCORNER + 1, 320 - 26, 33, false, false);
-		drawitem(TILE_CAMCORNER + 1, 24, 163, true, true);
-		drawitem(TILE_CAMCORNER + 1, 320 - 26, 163, false, true);
+		drawitem(0, 24, 33, false, false);
+		drawitem(1, 320 - 26, 33, false, false);
+		drawitem(1, 24, 163, true, true);
+		drawitem(1, 320 - 26, 163, false, true);
 
 		if (PlayClock & 16)
-			drawitem(TILE_CAMLIGHT, 46, 32, false, false);
+			drawitem(2, 46, 32, false, false);
 	}
 	else
 	{
 		for (int x = -64; x < 394; x += 64)
 			for (int y = 0; y < 200; y += 64)
-				drawitem(TILE_STATIC, x, y, !!(PlayClock & 8), !!(PlayClock & 16));
+				drawitem(3, x, y, !!(PlayClock & 8), !!(PlayClock & 16));
 	}
 }
 
@@ -396,7 +404,7 @@ bool GameInterface::DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos,
 						break;
 
 					case CSTAT_SPRITE_ALIGNMENT_WALL:
-						if (actorflag(act, SFLAG2_SHOWWALLSPRITEONMAP)) DrawAutomapAlignmentWall(act->spr, sprpos, cangvect, czoom, xydim, col);
+						if ((act->flags2 & SFLAG2_SHOWWALLSPRITEONMAP)) DrawAutomapAlignmentWall(act->spr, sprpos, cangvect, czoom, xydim, col);
 						break;
 
 					case CSTAT_SPRITE_ALIGNMENT_FLOOR:
@@ -409,19 +417,22 @@ bool GameInterface::DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos,
 		}
 	}
 
+	auto basetex = TexMan.CheckForTexture("APLAYERTOP", ETextureType::Any);
+	if (!basetex.isValid()) return true;
 	for (int p = connecthead; p >= 0; p = connectpoint2[p])
 	{
 		if (p == screenpeek || ud.coop == 1)
 		{
 			auto& pp = ps[p];
 			auto act = pp.GetActor();
-			int i = TILE_APLAYERTOP + (act->vel.X > 1 && pp.on_ground ? (PlayClock >> 4) & 3 : 0);
+
+			basetex = basetex + (act->vel.X > 1 && pp.on_ground ? (PlayClock >> 4) & 3 : 0);
 			double j = clamp(czoom * act->spr.scale.Y + abs(pp.truefz - act->getOffsetZ()) * REPEAT_SCALE, (1. / 3.), 2.);
 
 			auto const vec = OutAutomapVector(mxy - cpos, cangvect, czoom, xydim);
 			auto const daang = -(pp.Angles.getCameraAngles().Yaw - cang).Normalized360().Degrees();
 
-			DrawTexture(twod, tileGetTexture(i), vec.X, vec.Y, DTA_TranslationIndex, TRANSLATION(Translation_Remap + setpal(&pp), act->spr.pal), DTA_CenterOffset, true,
+			DrawTexture(twod, basetex, false, vec.X, vec.Y, DTA_TranslationIndex, TRANSLATION(Translation_Remap + setpal(&pp), act->spr.pal), DTA_CenterOffset, true,
 				DTA_Rotate, daang, DTA_Color, shadeToLight(act->spr.shade), DTA_ScaleX, j, DTA_ScaleY, j, TAG_DONE);
 		}
 	}

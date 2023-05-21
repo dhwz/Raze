@@ -25,13 +25,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "aistuff.h"
 #include "player.h"
 #include "mapinfo.h"
-#include "input.h"
 
 
 BEGIN_PS_NS
 
 int16_t cPupData[300];
-uint8_t *Worktile;
 int lHeadStartClock;
 int16_t* pPupData;
 int lNextStateChange;
@@ -77,8 +75,8 @@ void InitSpiritHead()
         }
     }
 
-	auto pTile = GetRawPixels(tileGetTextureID(kTileRamsesNormal)); // Ramses Normal Head
-	auto pGold = GetRawPixels(tileGetTextureID(kTileRamsesGold));
+	auto pTile = GetRawPixels(aTexIds[kTexTileRamsesNormal1]); // Ramses Normal Head
+	auto pGold = GetRawPixels(aTexIds[kTexTileRamsesGold]);
     for (int x = 0; x < 97; x++)
     {
         for (int y = 0; y < 106; y++)
@@ -114,12 +112,12 @@ void InitSpiritHead()
 
 
 	pSpiritSpr->spr.scale = DVector2(2.1875, 2.1875);
-    pSpiritSpr->spr.picnum = kTileRamsesWorkTile;
+    pSpiritSpr->spr.setspritetexture(aTexIds[kTexTileRamsesWorkTile]);
 
     nHeadStage = 0;
 
     // work tile is twice as big as the normal head size
-	Worktile = GetWritablePixels(tileGetTextureID(kTileRamsesWorkTile));
+	auto Worktile = GetWritablePixels(aTexIds[kTexTileRamsesWorkTile]);
 
     pSpiritSpr->spr.cstat &= ~CSTAT_SPRITE_INVISIBLE;
 
@@ -171,9 +169,9 @@ void DimSector(sectortype* pSector)
     }
 }
 
-void CopyHeadToWorkTile(int nTile)
+void CopyHeadToWorkTile(int nTile, uint8_t* Worktile)
 {
-	const uint8_t* pSrc = GetRawPixels(tileGetTextureID(nTile));
+	const uint8_t* pSrc = GetRawPixels(aTexIds[nTile]);
     uint8_t *pDest = &Worktile[212 * 49 + 53];
 
     for (unsigned i = 0; i < kSpiritY; i++)
@@ -195,8 +193,14 @@ void DoSpiritHead()
 {
     static int dimSectCount = 0;
     auto pSpiritSpr = pSpiritSprite;
+    auto Worktile = GetWritablePixels(aTexIds[kTexTileRamsesWorkTile]);
 
-    PlayerList[0].input.actions |= SB_CENTERVIEW;
+    const auto pPlayer = &PlayerList[0];
+    const auto pPlayerActor = pPlayer->pActor;
+    const auto nSpiritAngle = (pSpiritSprite->spr.pos.XY() - pPlayerActor->spr.pos.XY()).Angle();
+    pPlayerActor->spr.Angles.Yaw += deltaangle(pPlayerActor->spr.Angles.Yaw, nSpiritAngle) * 0.25;
+    pPlayerActor->spr.Angles.Pitch += deltaangle(pPlayerActor->spr.Angles.Pitch, currentLevel->ex_ramses_horiz) * 0.25;
+    doPlayerVertPanning(pPlayer, 0);
 
     switch (nHeadStage) 
     {
@@ -238,15 +242,15 @@ void DoSpiritHead()
             word_964E8 = RandomSize(5) + 4;
         }
 
-        int tilenum = kTileRamsesNormal;
+        int tilenum = kTexTileRamsesNormal1;
         if (--word_964EC < 3) 
         {
-            tilenum = 593;
+            tilenum = kTexTileRamsesNormal2;
             if (word_964EC <= 0)
                 word_964EC = RandomSize(6) + 4;
         }
 
-        CopyHeadToWorkTile(word_964EA + tilenum);
+        CopyHeadToWorkTile(word_964EA + tilenum, Worktile);
 
         if (nTalkTime) 
         {
@@ -258,7 +262,7 @@ void DoSpiritHead()
 
         if (nMouthTile != 0) 
         {
-            FTextureID srctile = tileGetTextureID(nMouthTile + 598);
+            FTextureID srctile = aTexIds[nMouthTile + kTexTileRamsesMouth1];
             auto src = GetRawPixels(srctile);
             auto tex = TexMan.GetGameTexture(srctile);
             int sizx = tex->GetTexelWidth();
@@ -420,7 +424,7 @@ void DoSpiritHead()
             }
 
             if (PlayClock - lHeadStartClock > 600)
-                CopyHeadToWorkTile(590);
+                CopyHeadToWorkTile(kTexTileRamsesGold, Worktile);
 
             if (nCount < (15 * nPixels) / 16) {
                 SoundBigEntrance();
@@ -428,7 +432,7 @@ void DoSpiritHead()
                 AddFlash(pSpiritSpr->sector(), pSpiritSpr->spr.pos, 128);
                 nHeadStage = 3;
                 TintPalette(255, 255, 255);
-                CopyHeadToWorkTile(kTileRamsesNormal);
+                CopyHeadToWorkTile(kTexTileRamsesNormal1, Worktile);
             }
         }
         break;

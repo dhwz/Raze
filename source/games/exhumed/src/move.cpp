@@ -21,7 +21,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "aistuff.h"
 #include "player.h"
 #include "view.h"
-#include "status.h"
 #include "sound.h"
 #include "mapinfo.h"
 #include <string.h>
@@ -31,9 +30,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 BEGIN_PS_NS
 
 int nPushBlocks;
-
-// TODO - moveme?
-sectortype* overridesect;
 
 enum
 {
@@ -48,7 +44,7 @@ BlockInfo sBlockInfo[kMaxPushBlocks];
 TObjPtr<DExhumedActor*> nBodyGunSprite[50];
 int nCurBodyGunNum;
 
-Collision loHit, hiHit;
+Collision hiHit;
 
 // think this belongs in init.c?
 
@@ -88,7 +84,6 @@ void SerializeMove(FSerializer& arc)
             .Array("blocks", sBlockInfo, nPushBlocks)
             ("chunkcount", nCurChunkNum)
             .Array("chunks", nChunkSprite, kMaxMoveChunks)
-            ("overridesect", overridesect)
             .Array("bodysprite", nBodySprite, countof(nBodySprite))
             ("curbodygun", nCurBodyGunNum)
             .Array("bodygunsprite", nBodyGunSprite, countof(nBodyGunSprite))
@@ -112,7 +107,9 @@ void MoveThings()
 
     if (nFreeze)
     {
-        if (nFreeze == 1 || nFreeze == 2) {
+        if (nFreeze == 1 || nFreeze == 2)
+        {
+            setForcedSyncInput(nLocalPlayer);
             DoSpiritHead();
         }
     }
@@ -140,6 +137,7 @@ void MoveThings()
         }
     }
 
+    UpdateCreepySounds();
     thinktime.Unclock();
 }
 
@@ -149,7 +147,7 @@ void MoveThings()
 //
 //---------------------------------------------------------------------------
 
-int BelowNear(DExhumedActor* pActor, double walldist)
+static int BelowNear(DExhumedActor* pActor, const Collision& loHit, double walldist, sectortype** overridesect)
 {
     auto pSector = pActor->sector();
     double z = pActor->spr.pos.Z;
@@ -206,10 +204,11 @@ int BelowNear(DExhumedActor* pActor, double walldist)
     if (z2 < pActor->spr.pos.Z)
     {
         pActor->spr.pos.Z = z2;
-        overridesect = pSector;
+        *overridesect = pSector;
         pActor->vel.Z = 0;
 
-        bTouchFloor = true;
+        if (pActor->spr.statnum == 100)
+            PlayerList[GetPlayerFromActor(pActor)].bTouchFloor = true;
 
         return kHitAux2;
     }
@@ -225,35 +224,38 @@ int BelowNear(DExhumedActor* pActor, double walldist)
 //
 //---------------------------------------------------------------------------
 
-Collision movespritez(DExhumedActor* pActor, double z, double height, double clipdist)
+Collision movespritez(DExhumedActor* pActor, double z, double height, double clipdist, sectortype** overridesect)
 {
-    auto pSector = pActor->sector();
+    const auto pSector = pActor->sector();
     assert(pSector);
 
-    overridesect = pSector;
-    auto pSect2 = pSector;
+    *overridesect = pSector;
+    const auto pSect2 = pSector;
+
+    if (pActor->spr.statnum == 100)
+        PlayerList[GetPlayerFromActor(pActor)].bTouchFloor = false;
 
     // backup cstat
-    auto cstat = pActor->spr.cstat;
+    const auto cstat = pActor->spr.cstat;
 
     pActor->spr.cstat &= ~CSTAT_SPRITE_BLOCK;
 
     Collision nRet;
     nRet.setNone();
 
-    int nSectFlags = pSector->Flag;
+    const bool bUnderwater = pSector->Flag & kSectUnderwater;
 
-    if (nSectFlags & kSectUnderwater) {
+    if (bUnderwater) {
         z *= 0.5;
     }
 
-    double spriteZ = pActor->spr.pos.Z;
-    double floorZ = pSector->floorz;
+    const double spriteZ = pActor->spr.pos.Z;
+    const double floorZ = pSector->floorz;
 
     double destZ = spriteZ + z;
-    double highestZ = pSector->ceilingz + (height * 0.5);
+    const double highestZ = pSector->ceilingz + (height * 0.5);
 
-    if ((nSectFlags & kSectUnderwater) && destZ < highestZ) {
+    if (bUnderwater && destZ < highestZ) {
         destZ = highestZ;
     }
 
@@ -290,8 +292,8 @@ Collision movespritez(DExhumedActor* pActor, double z, double height, double cli
     // This function finds the highest and lowest z coordinates that your clipping BOX can get to.
     double sprceiling, sprfloor;
 
-    auto pos = pActor->spr.pos.plusZ(-1);
-    getzrange(pos, pActor->sector(), &sprceiling, hiHit, &sprfloor, loHit, 8., CLIPMASK0);
+    Collision loHit;
+    getzrange(pActor->spr.pos.plusZ(-1), pActor->sector(), &sprceiling, hiHit, &sprfloor, loHit, 8., CLIPMASK0);
 
     double mySprfloor = sprfloor;
 
@@ -303,7 +305,8 @@ Collision movespritez(DExhumedActor* pActor, double z, double height, double cli
     {
         if (z > 0)
         {
-            bTouchFloor = true;
+            if (pActor->spr.statnum == 100)
+                PlayerList[GetPlayerFromActor(pActor)].bTouchFloor = true;
 
             if (loHit.type == kHitSprite)
             {
@@ -312,8 +315,7 @@ Collision movespritez(DExhumedActor* pActor, double z, double height, double cli
 
                 if (pActor->spr.statnum == 100 && pFloorActor->spr.statnum != 0 && pFloorActor->spr.statnum < 100)
                 {
-                    int nDamage = int(z * 0.5);
-                    if (nDamage)
+                    if (int nDamage = int(z * 0.5))
                     {
                         runlist_DamageEnemy(loHit.actor(), pActor, nDamage << 1);
                     }
@@ -334,61 +336,56 @@ Collision movespritez(DExhumedActor* pActor, double z, double height, double cli
                     pActor->vel.Z = 0;
                 }
             }
-            else
+            else if (pActor->sector()->pBelow == nullptr)
             {
                 // Path B
-                if (pActor->sector()->pBelow == nullptr)
+                nRet.exbits |= kHitAux2;
+
+                if (int nSectDamage = pActor->sector()->Damage)
                 {
-                    nRet.exbits |= kHitAux2;
-
-                    int nSectDamage = pActor->sector()->Damage;
-
-                    if (nSectDamage != 0)
+                    if (pActor->spr.hitag < 15)
                     {
-                        if (pActor->spr.hitag < 15)
-                        {
-                            IgniteSprite(pActor);
-                            pActor->spr.hitag = 20;
-                        }
-                        nSectDamage >>= 2;
-                        nSectDamage = nSectDamage - (nSectDamage>>2);
-                        if (nSectDamage) {
-                            runlist_DamageEnemy(pActor, nullptr, nSectDamage);
-                        }
+                        IgniteSprite(pActor);
+                        pActor->spr.hitag = 20;
                     }
 
-                    pActor->vel.Z = 0;
+                    nSectDamage >>= 2;
+
+                    if ((nSectDamage = nSectDamage - (nSectDamage>>2)))
+                    {
+                        runlist_DamageEnemy(pActor, nullptr, nSectDamage);
+                    }
                 }
+
+                pActor->vel.Z = 0;
             }
         }
 
-        // loc_1543B:
         destZ = mySprfloor;
         pActor->spr.pos.Z = mySprfloor;
     }
+    else if ((destZ - height) < sprceiling && (hiHit.type == kHitSprite || pActor->sector()->pAbove == nullptr))
+    {
+        destZ = sprceiling + height;
+        pActor->opos.Z = destZ;
+        pActor->spr.pos.Z = max(destZ + z, destZ);
+        nRet.exbits |= kHitAux1;
+    }
     else
     {
-        if ((destZ - height) < sprceiling && (hiHit.type == kHitSprite || pActor->sector()->pAbove == nullptr))
-        {
-            destZ = sprceiling + height;
-            nRet.exbits |= kHitAux1;
-        }
+        pActor->spr.pos.Z = destZ;
     }
 
-    if (spriteZ <= floorZ && destZ > floorZ)
+    if (spriteZ <= floorZ && destZ > floorZ && ((pSector->Depth != 0) || (pSect2 != pSector && (pSect2->Flag & kSectUnderwater))))
     {
-        if ((pSector->Depth != 0) || (pSect2 != pSector && (pSect2->Flag & kSectUnderwater)))
-        {
-            BuildSplash(pActor, pSector);
-        }
+        BuildSplash(pActor, pSector);
     }
 
     pActor->spr.cstat = cstat; // restore cstat
-    pActor->spr.pos.Z = destZ;
 
     if (pActor->spr.statnum == 100)
     {
-        nRet.exbits |= BelowNear(pActor, clipdist * 1.5);
+        nRet.exbits |= BelowNear(pActor, loHit, clipdist * 1.5, overridesect);
     }
 
     return nRet;
@@ -420,8 +417,6 @@ DExhumedActor* insertActor(sectortype* s, int st)
 
 Collision movesprite(DExhumedActor* pActor, DVector2 vect, double dz, double flordist, unsigned int clipmask)
 {
-    bTouchFloor = false;
-
 	auto spos = pActor->spr.pos;
     double nSpriteHeight = GetActorHeight(pActor);
     auto pSector = pActor->sector();
@@ -434,7 +429,8 @@ Collision movesprite(DExhumedActor* pActor, DVector2 vect, double dz, double flo
         vect *= 0.5;
     }
 
-    Collision nRet = movespritez(pActor, dz, nSpriteHeight, pActor->clipdist);
+    sectortype* overridesect;
+    Collision nRet = movespritez(pActor, dz, nSpriteHeight, pActor->clipdist, &overridesect);
 
     pSector = pActor->sector(); // modified in movespritez so re-grab this variable
 
@@ -577,20 +573,6 @@ Collision MoveCreatureWithCaution(DExhumedActor* pActor)
     }
 
     return result;
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-DAngle GetAngleToSprite(DExhumedActor* a1, DExhumedActor* a2)
-{
-    if (!a1 || !a2)
-        return -minAngle;
-
-    return (a2->spr.pos - a1->spr.pos).Angle();
 }
 
 //---------------------------------------------------------------------------
@@ -955,9 +937,9 @@ void SetQuake(DExhumedActor* pActor, int nVal)
             nVal = clamp(int(nVal / nSqrt), 0, 15);
         }
 
-        if (nVal > nQuake[i])
+        if (nVal > PlayerList[i].nQuake)
         {
-            nQuake[i] = nVal;
+            PlayerList[i].nQuake = nVal;
         }
     }
 }
@@ -1023,11 +1005,6 @@ Collision AngleChase(DExhumedActor* pActor, DExhumedActor* pActor2, int threshol
     double zz = pActor->pitch.Sin() * veclen;
 
     return movesprite(pActor, vec, zz * 16 + BobVal(zbob) * 2, 0, nClipType);
-}
-
-DAngle GetWallNormal(walltype* pWall)
-{
-    return (pWall->delta().Angle() + DAngle90).Normalized360();
 }
 
 //---------------------------------------------------------------------------
@@ -1180,7 +1157,7 @@ DExhumedActor* GrabChunkSprite()
 //
 //---------------------------------------------------------------------------
 
-DExhumedActor* BuildCreatureChunk(DExhumedActor* pSrc, int nPic, bool bSpecial)
+DExhumedActor* BuildCreatureChunk(DExhumedActor* pSrc, FTextureID nPic, bool bSpecial)
 {
     auto pActor = GrabChunkSprite();
 
@@ -1209,7 +1186,7 @@ DExhumedActor* BuildCreatureChunk(DExhumedActor* pSrc, int nPic, bool bSpecial)
     pActor->spr.scale = DVector2(1, 1);
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->spr.picnum = nPic;
+    pActor->spr.setspritetexture(nPic);
     pActor->spr.lotag = runlist_HeadRun() + 1;
     pActor->clipdist = 10;
 
@@ -1276,7 +1253,7 @@ void AICreatureChunk::Tick(RunListEvent* ev)
             }
             else if (nVal.type == kHitWall)
             {
-                nAngle = GetWallNormal(nVal.hitWall);
+                nAngle = nVal.hitWall->normalAngle();
             }
             else
             {

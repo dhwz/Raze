@@ -19,29 +19,20 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 //-------------------------------------------------------------------------
 
-struct ChunkFrame // this wraps the internal (mis-)representation of the chunk data.
-{
-    TextureID tex;
-    int x, y;
-    int flags;
-
-    native void GetChunkFrame(int nFrameBase);
-}
-
 class ExhumedStatusBar : RazeStatusBar
 {
 	HUDFont textfont, numberFont;
 
-	int keyanims[4];
+	uint keyanims[4];
 	int airframe, lungframe;
 
 	int nSelectedItem;
 	int nHealthLevel;
 	int nMagicLevel;
 	int nMeterRange;
-	int nHurt;
-	int nHealthFrame;
-	int nMagicFrame;
+	uint nHurt;
+	uint nHealthFrame;
+	uint nMagicFrame;
 	int nItemAltSeq;
 	int nItemSeq;
 	int nItemFrames;
@@ -99,17 +90,15 @@ class ExhumedStatusBar : RazeStatusBar
 
     void DrawStatusSequence(int nSequence, int frameindex, double yoffset, double xoffset = 0, bool trueadjust = false)
     {
-		int nFrameBase, nFrameSize;
-		[nFrameBase, nFrameSize] = Exhumed.GetStatusSequence(nSequence, frameindex);
+		let seqFrame = Exhumed.GetStatusSequence(nSequence).getFrame(frameindex);
 
-        for(; nFrameSize > 0; nFrameSize--, nFrameBase++)
+        for (uint i = 0; i < seqFrame.Size(); i++)
         {
+            let frameChunk = seqFrame.getChunk(i);
             int flags = 0;
-            ChunkFrame chunk;
-            chunk.GetChunkFrame(nFrameBase);
 
-            double x = chunk.x + xoffset;
-            double y = chunk.y + yoffset;
+            double x = frameChunk.xpos + xoffset;
+            double y = frameChunk.ypos + yoffset;
 
             if (hud_size <= Hud_StbarOverlay)
             {
@@ -131,14 +120,14 @@ class ExhumedStatusBar : RazeStatusBar
                 y -= 100;
             }
 
-            if (chunk.flags & 3)
+            if (frameChunk.flags & 3)
             {
                 // This is hard to align with bad offsets, so skip that treatment for mirrored elements.
                 flags |= DI_ITEM_RELCENTER;
             }
             else
             {
-				let tsiz = TexMan.GetScaledSize(chunk.tex);
+				let tsiz = TexMan.GetScaledSize(frameChunk.tex);
 				if (trueadjust)
 				{
 					x -= tsiz.x * 0.5;
@@ -152,12 +141,12 @@ class ExhumedStatusBar : RazeStatusBar
                 flags |= DI_ITEM_OFFSETS;
             }
 
-            if (chunk.flags & 1)
+            if (frameChunk.flags & 1)
                 flags |= DI_MIRROR;
-            if (chunk.flags & 2)
+            if (frameChunk.flags & 2)
                 flags |= DI_MIRRORY;
 
-            DrawTexture(chunk.tex, (x, y), flags);
+            DrawTexture(frameChunk.tex, (x, y), flags);
         }
     }
 
@@ -169,10 +158,7 @@ class ExhumedStatusBar : RazeStatusBar
 
     TextureID GetStatusSequencePic(int nSequence, int frameindex)
     {
-		int nFrameBase = Exhumed.GetStatusSequence(nSequence, frameindex);
-		ChunkFrame chunk;
-		chunk.GetChunkFrame(nFrameBase);
-        return chunk.tex;
+        return Exhumed.GetStatusSequence(nSequence).getFrame(frameindex).getChunk(0).tex;
     }
 
     String GetStatusSequenceName(int nSequence, int frameindex)
@@ -320,12 +306,12 @@ class ExhumedStatusBar : RazeStatusBar
 		{
 			if (weapon == kWeaponPistol && cl_showmagamt)
 			{
-				int clip = CalcMagazineAmount(ammo, 6, Exhumed.GetPistolClip() == 0);
+				int clip = Exhumed.GetPistolClip();
 				format = String.Format("%d/%d", clip, ammo - clip);
 			}
 			else if (weapon == kWeaponM60 && cl_showmagamt)
 			{
-				int clip = CalcMagazineAmount(ammo, 100, Exhumed.GetPlayerClip() == 0);
+				int clip = Exhumed.GetPlayerClip();
 				format = String.Format("%d/%d", clip, ammo - clip);
 			}
 			else
@@ -508,7 +494,7 @@ class ExhumedStatusBar : RazeStatusBar
 
 		nItemFrame = 0;
 		nItemSeq = nItemSeqOffset[nItem] + nItemAltSeq;
-		nItemFrames = Exhumed.SizeofStatusSequence(nItemSeq);
+		nItemFrames = Exhumed.GetStatusSequence(nItemSeq).Size();
 	}
 
 	//---------------------------------------------------------------------------
@@ -538,7 +524,7 @@ class ExhumedStatusBar : RazeStatusBar
 		if (nHurt)
 		{
 			nHurt++;
-			if (nHurt > Exhumed.SizeofStatusSequence(4)) nHurt = 0;
+			if (nHurt > Exhumed.GetStatusSequence(4).Size()) nHurt = 0;
 		}
 
 		int healthperline = 800 / nMeterRange;
@@ -649,16 +635,16 @@ class ExhumedStatusBar : RazeStatusBar
 
 					nItemFrame = 0;
 					nItemSeq += nItemAltSeq;
-					nItemFrames = Exhumed.SizeofStatusSequence(nItemSeq);
+					nItemFrames = Exhumed.GetStatusSequence(nItemSeq).Size();
 				}
 			}
 		}
 
 		nHealthFrame++;
-		if (nHealthFrame >= Exhumed.SizeofStatusSequence(1)) nHealthFrame = 0;
+		if (nHealthFrame >= Exhumed.GetStatusSequence(1).Size()) nHealthFrame = 0;
 
 		nMagicFrame++;
-		if (nMagicFrame >= Exhumed.SizeofStatusSequence(129)) nMagicFrame = 0;
+		if (nMagicFrame >= Exhumed.GetStatusSequence(129).Size()) nMagicFrame = 0;
 
 		if (nCounter == nCounterDest)
 		{
@@ -765,12 +751,13 @@ class ExhumedStatusBar : RazeStatusBar
 		MoveStatus(pp);
 		for (int i = 0; i < 4; i++)
 		{
-			int seq = KeySeq + 2 * i;
 			if (pp.keys & (4096 << i))
 			{
-				if (keyanims[i] < Exhumed.SizeofStatusSequence(seq) - 1)
+				let keySeq = Exhumed.GetStatusSequence(KeySeq + 2 * i);
+
+				if (keyanims[i] < keySeq.Size() - 1)
 				{
-					Exhumed.MoveStatusSequence(seq, 0);   // this plays the pickup sound.
+					keySeq.getFrame(0).playSound();   // this plays the pickup sound.
 					keyanims[i]++;
 				}
 			}
@@ -782,8 +769,7 @@ class ExhumedStatusBar : RazeStatusBar
 
 		if (pp.isUnderwater())
 		{
-
-			int nAirFrames = Exhumed.SizeofStatusSequence(133);
+			int nAirFrames = Exhumed.GetStatusSequence(133).Size();
 			int airperline = 100 / nAirFrames;
 
 			airframe = pp.nAir / airperline;
@@ -800,7 +786,7 @@ class ExhumedStatusBar : RazeStatusBar
 		}
 		else
 		{
-			int size = Exhumed.SizeofStatusSequence(132);
+			int size = Exhumed.GetStatusSequence(132).Size();
 			if (++lungframe == size) lungframe = 0;
 		}
 	}
@@ -839,7 +825,7 @@ class ExhumedStatusBar : RazeStatusBar
 		
 		SetMagicFrame(pp);
 		
-		stats.armoricons.Push(GetStatusSequenceName(nItemSeq, nItemFrame));
+		if (nItemSeq >= 0) stats.armoricons.Push(GetStatusSequenceName(nItemSeq, nItemFrame));
 		stats.armorvalues.Push(pp.nMagic / 10);
 
 		if (pp.isUnderwater())

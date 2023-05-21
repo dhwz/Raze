@@ -4,6 +4,7 @@
 #include "global.h"
 #include "models/modeldata.h"
 #include "texinfo.h"
+#include "funct.h"
 
 // all inline functions.
 BEGIN_DUKE_NS
@@ -17,107 +18,43 @@ inline int rnd(int X)
 inline int ismasterswitch(DDukeActor* actor)
 {
 	// The STAT_REMOVED check here is important!
-	return actor->GetClass()->TypeName == NAME_DukeMasterSwitch && actor->spr.statnum != STAT_REMOVED;
+	return actor->GetClass() == DukeMasterSwitchClass && actor->spr.statnum != STAT_REMOVED;
 }
 
 inline int issoundcontroller(DDukeActor* actor)
 {
-	return actor->GetClass()->TypeName == NAME_DukeSoundController;
+	return actor->GetClass() == DukeSoundControllerClass;
 }
 
 inline int isrespawncontroller(DDukeActor* actor)
 {
-	return actor->GetClass()->TypeName == NAME_DukeRespawnController;
+	return actor->GetClass() == DukeRespawnControllerClass;
 }
 
 inline int isactivator(DDukeActor* actor)
 {
-	return actor->GetClass()->TypeName == NAME_DukeActivator;
+	return actor->GetClass() == DukeActivatorClass;
 }
 
 inline int islockedactivator(DDukeActor* actor)
 {
-	return actor->GetClass()->TypeName == NAME_DukeActivatorLocked;
+	return actor->GetClass() == DukeActivatorLockedClass;
 }
 
 inline int islocator(DDukeActor* actor)
 {
-	return actor->GetClass()->TypeName == NAME_DukeLocator;
+	return actor->GetClass() == DukeLocatorClass;
 }
 
 inline int iseffector(DDukeActor* actor)
 {
-	return actor->GetClass()->TypeName == NAME_DukeSectorEffector;
+	return actor->GetClass() == DukeSectorEffectorClass;
 }
 
-
-inline int badguypic(int const tileNum)
-{
-	return ((gs.actorinfo[tileNum].flags & (SFLAG_INTERNAL_BADGUY | SFLAG_BADGUY)) != 0);
-}
-
-inline int bossguypic(int const tileNum)
-{
-	return ((gs.actorinfo[tileNum].flags & (SFLAG_BOSS)) != 0);
-}
-
-inline int actorflag(DDukeActor * actor, EDukeFlags1 mask)
-{
-	return (((gs.actorinfo[actor->spr.picnum].flags) & mask) != 0);
-}
-
-inline int actorflag(DDukeActor* actor, EDukeFlags2 mask)
-{
-	return (((gs.actorinfo[actor->spr.picnum].flags2) & mask) != 0);
-}
-
-inline int actorflag(DDukeActor* actor, EDukeFlags3 mask)
-{
-	return (((gs.actorinfo[actor->spr.picnum].flags3) & mask) != 0);
-}
-
-inline int attackerflag(DDukeActor* actor, EDukeFlags1 mask)
-{
-	return (((gs.actorinfo[actor->attackertype].flags) & mask) != 0);
-}
-
-inline int attackerflag(DDukeActor* actor, EDukeFlags2 mask)
-{
-	return (((gs.actorinfo[actor->attackertype].flags2) & mask) != 0);
-}
-
-inline int actorfella(DDukeActor* actor)
-{
-	return actorflag(actor, SFLAG_KILLCOUNT);
-}
-
-inline void setflag(EDukeFlags1 flag, const std::initializer_list<short>& types)
-{
-	for (auto val : types)
-	{
-		gs.actorinfo[val].flags |= flag;
-	}
-}
-
-inline void setflag(EDukeFlags2 flag, const std::initializer_list<short>& types)
-{
-	for (auto val : types)
-	{
-		gs.actorinfo[val].flags2 |= flag;
-	}
-}
-
-inline void setflag(EDukeFlags3 flag, const std::initializer_list<short>& types)
-{
-	for (auto val : types)
-	{
-		gs.actorinfo[val].flags3 |= flag;
-	}
-}
 
 inline bool inventory(DDukeActor* S)
 {
-	return actorflag(S, SFLAG_INVENTORY);
+	return S->flags1 & SFLAG_INVENTORY;
 }
 
 inline bool wallswitchcheck(DDukeActor* s)
@@ -243,20 +180,6 @@ inline void doslopetilting(player_struct* p)
 //
 //---------------------------------------------------------------------------
 
-inline void hud_draw(double x, double y, int tilenum, int shade, int orientation)
-{
-	int p = ps[screenpeek].cursector->floorpal;
-	hud_drawsprite(x, y, 65536, 0, tilenum, shade, p, 2 | orientation);
-}
-
-inline void animateshrunken(player_struct* p, double xoffset, double yoffset, int tilenum, int8_t shade, int o, double interpfrac)
-{
-	const double fistsign = BobVal(interpolatedvalue<double>(p->ofistsign, p->fistsign, interpfrac)) * 16;
-	if (p->jetpack_on == 0)	yoffset += 32 - (p->GetActor()->vel.X * 8);
-	hud_draw(250 + fistsign + xoffset, 258 - fabs(fistsign * 4) + yoffset, tilenum, shade, o);
-	hud_draw(40 - fistsign + xoffset, 200 + fabs(fistsign * 4) + yoffset, tilenum, shade, o | 4);
-}
-
 inline ESpriteFlags randomFlip()
 {
 	int r = krand() & 12;
@@ -294,7 +217,7 @@ inline int angletorotation2(DAngle sprang, DAngle viewang)
 }
 
 // 4 (8) frame rotation.
-inline void applyRotation1(DDukeActor* h, tspritetype* t, DAngle viewang)
+inline void applyRotation1(DDukeActor* h, tspritetype* t, DAngle viewang, FTextureID base = FNullTextureID())
 {
 	if (tilehasmodelorvoxel(h->spr.spritetexture(), h->spr.pal))
 	{
@@ -309,11 +232,12 @@ inline void applyRotation1(DDukeActor* h, tspritetype* t, DAngle viewang)
 		t->cstat |= CSTAT_SPRITE_XFLIP;
 	}
 	else t->cstat &= ~CSTAT_SPRITE_XFLIP;
-	t->picnum = h->spr.picnum + k;
+	if (base.isNull()) base = h->spr.spritetexture();
+	t->setspritetexture(base + k);
 }
 
 // 6 (12) frame rotation.
-inline void applyRotation2(DDukeActor* h, tspritetype* t, DAngle viewang)
+inline void applyRotation2(DDukeActor* h, tspritetype* t, DAngle viewang, FTextureID base = FNullTextureID())
 {
 	if (tilehasmodelorvoxel(h->spr.spritetexture(), h->spr.pal))
 	{
@@ -328,7 +252,8 @@ inline void applyRotation2(DDukeActor* h, tspritetype* t, DAngle viewang)
 		t->cstat |= CSTAT_SPRITE_XFLIP;
 	}
 	else t->cstat &= ~CSTAT_SPRITE_XFLIP;
-	t->picnum = h->spr.picnum + k;
+	if (base.isNull()) base = h->spr.spritetexture();
+	t->setspritetexture(base + k);
 }
 
 inline int monsterCheatCheck(DDukeActor* self)
@@ -353,6 +278,26 @@ inline void processinputvel(int snum)
 	p->sync.svel = (float)velvect.Y;
 }
 
+
+inline const ActorInfo* DDukeActor::conInfo() const
+{
+	auto tn = static_cast<PClassActor*>(GetClass())->ActorInfo()->TypeNum;
+	return tn < 0 || gs.actorinfo[tn].scriptaddress == 0 ? nullptr : &gs.actorinfo[tn];
+}
+
+inline bool DDukeActor::isPlayer() const
+{
+	return IsKindOf(DukePlayerBaseClass);
+}
+
+inline bool shrinkersizecheck(PClass* type, DDukeActor* act2)
+{
+	// this should be a damage type check, not a projectile type check.
+	// It's also quite broken because it doesn't check for being shrunk but tries to guess it from the size.
+	// Unfortunately, with CON there is no way to retrieve proper shrunk state in any way.
+	return type != DukeShrinkSparkClass || (act2->spr.scale.X >= 0.375);
+}
+
 inline void setPlayerActorViewZOffset(DDukeActor* const pact)
 {
 	if (!PlayClock)
@@ -362,5 +307,45 @@ inline void setPlayerActorViewZOffset(DDukeActor* const pact)
 		pact->oviewzoffset = pact->viewzoffset = -gs.playerheight;
 	}
 }
+
+// flag mess to avoid double counting of kills.
+// this is still not foolproof because CON requires manually recording the kills.
+inline void addtokills(DDukeActor* actor)
+{
+	if (actor->flags1 & SFLAG_KILLCOUNT)
+	{
+		ps[myconnectindex].max_actors_killed++;
+		actor->spr.cstat2 |= CSTAT2_SPRITE_COUNTKILL;
+	}
+}
+
+inline void addkill(DDukeActor* actor)
+{
+	if ((actor->flags1 & SFLAG_KILLCOUNT) && (actor->spr.cstat2 & CSTAT2_SPRITE_COUNTKILL))
+	{
+		ps[myconnectindex].actors_killed++;
+		actor->spr.cstat2 &= ~CSTAT2_SPRITE_COUNTKILL;
+	}
+}
+
+inline void subkill(DDukeActor* actor)
+{
+	if ((actor->flags1 & SFLAG_KILLCOUNT) && !(actor->spr.cstat2 & CSTAT2_SPRITE_COUNTKILL))
+	{
+		ps[myconnectindex].actors_killed--;
+		actor->spr.cstat2 |= CSTAT2_SPRITE_COUNTKILL;
+	}
+}
+
+inline void dokill(player_struct* p, DDukeActor* g_ac, int amount)
+{
+	if (g_ac->spriteextra < 1 || g_ac->spriteextra == 128 || !isRR())
+	{
+		if (amount > 0) addkill(g_ac);
+		else if (amount < 0) subkill(g_ac);
+	}
+	g_ac->actorstayput = nullptr;
+}
+
 
 END_DUKE_NS

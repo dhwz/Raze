@@ -90,6 +90,7 @@ void resetplayerstats(int snum)
 	p = &ps[snum];
 
 	gFullMap = 0; 
+	p->crouch_toggle    = 0;
 	p->dead_flag        = 0;
 	p->wackedbyactor    = nullptr;
 	p->falling_counter  = 0;
@@ -215,7 +216,7 @@ void resetplayerstats(int snum)
 	p->MotoOnGround = 1;
 	p->moto_underwater = 0;
 	p->MotoSpeed = 0;
-	p->TiltStatus = 0;
+	p->TiltStatus = nullAngle;
 	p->moto_drink = 0;
 	p->VBumpTarget = 0;
 	p->VBumpNow  =0;
@@ -259,14 +260,9 @@ void resetplayerstats(int snum)
 //
 //---------------------------------------------------------------------------
 
-void resetweapons(int snum)
+void resetweapons(player_struct* p)
 {
-	int weapon;
-	player_struct* p;
-
-	p = &ps[snum];
-
-	for (weapon = PISTOL_WEAPON; weapon < MAX_WEAPONS; weapon++)
+	for (int weapon = PISTOL_WEAPON; weapon < MAX_WEAPONS; weapon++)
 	{
 		p->ammo_amount[weapon] = 0;
 	}
@@ -298,7 +294,7 @@ void resetweapons(int snum)
 		p->gotweapon[SLINGBLADE_WEAPON] = true;
 		p->ammo_amount[SLINGBLADE_WEAPON] = 1;
 	}
-	OnEvent(EVENT_RESETWEAPONS, snum, nullptr, -1);
+	OnEvent(EVENT_RESETWEAPONS, int(p - ps), nullptr, -1);
 }
 
 //---------------------------------------------------------------------------
@@ -307,12 +303,8 @@ void resetweapons(int snum)
 //
 //---------------------------------------------------------------------------
 
-void resetinventory(int snum)
+void resetinventory(player_struct* p)
 {
-	player_struct* p;
-
-	p = &ps[snum];
-
 	p->inven_icon = 0;
 	p->boot_amount = 0;
 	p->scuba_on = 0;
@@ -371,7 +363,7 @@ void resetinventory(int snum)
 		ufocnt = 0;
 		hulkspawn = 2;
 	}
-	OnEvent(EVENT_RESETINVENTORY, snum, p->GetActor());
+	OnEvent(EVENT_RESETINVENTORY, int(p - ps), p->GetActor());
 }
 
 
@@ -503,7 +495,7 @@ void resetpspritevars(int g, const DVector3& startpos, const DAngle startang)
 	STATUSBARTYPE tsbar[MAXPLAYERS];
 
 	auto newActor = CreateActor(ps[0].cursector, startpos,
-		TILE_APLAYER, 0, DVector2(0, 0), startang, 0., 0., nullptr, 10);
+		DukePlayerPawnClass /*fixme for RR later!*/, 0, DVector2(0, 0), startang, 0., 0., nullptr, 10);
 
 	newActor->spr.Angles.Pitch = DAngle::fromDeg(-17.354);
 	newActor->backuploc();
@@ -637,10 +629,12 @@ void lava_cleararrays();
 
 void prelevel_common(int g)
 {
+	if (isRRRA()) ud.mapflags = MFLAG_ALLSECTORTYPES;
+	else if (isRR()) ud.mapflags = MFLAG_SECTORTYPE800;
 	auto p = &ps[screenpeek];
 	p->sea_sick_stat = 0;
 	ud.ufospawnsminion = 0;
-	pistonsound = 0;
+	ud.pistonsound = 0;
 	p->SlotWin = 0;
 	enemysizecheat = 0;
 	p->MamaEnd = 0;
@@ -659,7 +653,7 @@ void prelevel_common(int g)
 	mamaspawn_count = currentLevel->rr_mamaspawn;
 
 	// RRRA E2L1 fog handling.
-	fogactive = 0;
+	ud.fogactive = 0;
 
 	resetprestat(0, g);
 	numclouds = 0;
@@ -778,7 +772,7 @@ void resettimevars(void)
 	cloudclock = 0;
 	PlayClock = 0;
 	if (camsprite != nullptr)
-		camsprite->temp_data[0] = 0;
+		camsprite->counter = 0;
 }
 
 //---------------------------------------------------------------------------
@@ -992,10 +986,16 @@ static TArray<DDukeActor*> spawnactors(SpawnSpriteDef& sprites)
 		auto sprt = &sprites.sprites[i];
 
 		auto info = spawnMap.CheckKey(sprt->picnum);
-		auto cls = info ? info->Class(sprt->picnum) : nullptr;;
+		auto cls = info ? info->cls : nullptr;;
 		auto actor = static_cast<DDukeActor*>(InsertActor(cls? cls : RUNTIME_CLASS(DDukeActor), sprt->sectp, sprt->statnum));
 		if (actor)
 		{
+			// for consistency with the original setup we should not eliminate filtered objects here but merely flag them for handling in spawninit.
+			if (cls && cls != RUNTIME_CLASS(DDukeActor))
+			{
+				if (!(info->flags & 0x8000)) actor->flags1 |= SFLAG_SKILLFILTER;
+			}
+
 			spawns[j++] = actor;
 			actor->initFromSprite(&sprites.sprites[i]);
 			setFromSpawnRec(actor, info);
@@ -1008,6 +1008,54 @@ static TArray<DDukeActor*> spawnactors(SpawnSpriteDef& sprites)
 	leveltimer = sprites.sprites.Size();
 	return spawns;
 }
+
+//---------------------------------------------------------------------------
+//
+//
+//
+//---------------------------------------------------------------------------
+
+static TMap<uint64_t, bool> checked;
+static void markClassForPrecache(PClass* cls, unsigned pal)
+{
+	uint64_t key = cls->TypeName.GetIndex() + pal * (1ull << 32);
+	if (checked.CheckKey(key)) return;
+	checked.Insert(key, true);
+	auto ainf = static_cast<PClassActor*>(cls)->ActorInfo();
+	for (auto clss : ainf->precacheClasses)
+	{
+		markClassForPrecache(clss, pal);
+	}
+	for (auto tex : ainf->SpriteSet)
+	{
+		markTextureForPrecache(tex, pal);
+	}
+
+}
+void cacheit(void)
+{
+	checked.Clear();
+	for (auto tex : gameinfo.precacheTextures)
+	{
+		markTextureForPrecache(tex.GetChars());
+	}
+	for (auto tex : gameinfo.precacheClasses)
+	{
+		auto cls = PClass::FindActor(tex);
+		if (cls) markClassForPrecache(cls, 0);
+	}
+	DukeSpriteIterator it;
+	while (auto act = it.Next())
+	{
+		if (act->spr.scale.X != 0 && act->spr.scale.Y != 0 && (act->spr.cstat & CSTAT_SPRITE_INVISIBLE) == 0)
+		{
+			markClassForPrecache(act->GetClass(), act->spr.pal);
+		}
+
+		// todo: scan the actions and precache all textures referenced in there as well.
+	}
+}
+
 
 //---------------------------------------------------------------------------
 //
@@ -1036,14 +1084,14 @@ static int LoadTheMap(MapRecord *mi, player_struct*p, int gamemode)
 
 	auto actorlist = spawnactors(sprites);
 
+	if (isRR()) prelevel_r(gamemode, actorlist);
+	else prelevel_d(gamemode, actorlist);
+
 	for (auto& sect : sector)
 	{
 		if (tilesurface(sect.ceilingtexture) == TSURF_THUNDERSKY)
 			thunderon = 1;
 	}
-
-	if (isRR()) prelevel_r(gamemode, actorlist);
-	else prelevel_d(gamemode, actorlist);
 
 	SpawnPortals();
 
@@ -1052,7 +1100,7 @@ static int LoadTheMap(MapRecord *mi, player_struct*p, int gamemode)
 
 	if (r_precache)
 	{
-		if (isRR()) cacheit_r(); else cacheit_d();
+		cacheit();
 
 		precacheMap();
 		precacheMarkedTiles();
@@ -1119,19 +1167,19 @@ void enterlevel(MapRecord *mi, int gamemode)
 		auto pn = ps[i].GetActor()->sector()->floortexture;
 		if (tileflags(pn) & TFLAG_CLEARINVENTORY)
 		{
-			resetinventory(i);
+			resetinventory(&ps[i]);
 			clearweapon = true;
 		}
 		if (clearweapon)
 		{
-			resetweapons(i);
+			resetweapons(&ps[i]);
 			ps[i].gotweapon[PISTOL_WEAPON] = false;
 			ps[i].ammo_amount[PISTOL_WEAPON] = 0;
 			ps[i].curr_weapon = KNEE_WEAPON;
 			ps[i].kickback_pic = 0;
 			ps[i].okickback_pic = ps[i].kickback_pic = 0;
 		}
-		if (currentLevel->flags & LEVEL_CLEARINVENTORY) resetinventory(i);
+		if (currentLevel->flags & LEVEL_CLEARINVENTORY) resetinventory(&ps[i]);
 	}
 	resetmys();
 
@@ -1159,8 +1207,8 @@ void GameInterface::NewGame(MapRecord* map, int skill, bool)
 {
 	for (int i = 0; i != -1; i = connectpoint2[i])
 	{
-		resetweapons(i);
-		resetinventory(i);
+		resetweapons(&ps[i]);
+		resetinventory(&ps[i]);
 	}
 
 	ps[0].last_extra = gs.max_player_health;
@@ -1180,8 +1228,6 @@ void GameInterface::NewGame(MapRecord* map, int skill, bool)
 	if (isShareware() && ud.recstat != 2) FTA(QUOTE_F1HELP, &ps[myconnectindex]);
 
 	PlayerColorChanged();
-	inputState.ClearAllInput();
-	gameaction = ga_level;
 }
 
 //---------------------------------------------------------------------------
@@ -1190,7 +1236,7 @@ void GameInterface::NewGame(MapRecord* map, int skill, bool)
 //
 //---------------------------------------------------------------------------
 
-bool setnextmap(bool checksecretexit)
+int setnextmap(bool checksecretexit)
 {
 	MapRecord* map = nullptr;
 	MapRecord* from_bonus = nullptr;

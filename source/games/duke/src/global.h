@@ -38,13 +38,18 @@ struct DukeGameInfo
 	int lasermode;
 	int freezerhurtowner;
 	int impact_damage;
-	int firstdebris;
-
-	TileInfo tileinfo[MAXTILES]; // This is not from EDuke32.
+	
 	ActorInfo actorinfo[MAXTILES];
 	int16_t max_ammo_amount[MAX_WEAPONS];
-	int16_t weaponsandammosprites[15];
+	PClassActor* weaponsandammosprites[15];
 	int displayflags;
+
+	// global gamevars from WW2GI. Put here so we can modify these values without having to depend on CON.
+	int tripbombcontrol;
+	int stickybomb_lifetime;
+	int stickybomb_lifetime_var;
+	int grenade_lifetime;
+	int grenade_lifetime_var;
 };
 
 extern DukeGameInfo gs;
@@ -128,9 +133,18 @@ extern TArray<DVector2> mspos;
 extern int WindTime;
 extern DAngle WindDir;
 extern short fakebubba_spawn, mamaspawn_count, banjosound;
-extern uint8_t enemysizecheat /*raat607*/, pistonsound, chickenphase /* raat605*/, RRRA_ExitedLevel, fogactive;
+extern uint8_t enemysizecheat /*raat607*/, chickenphase /* raat605*/, RRRA_ExitedLevel;
 extern player_orig po[MAXPLAYERS];
 extern int32_t g_cdTrack;
+
+
+
+#define xx(n) inline PClassActor* n##Class;
+#include "classnames.h"
+#undef xx
+
+void RegisterClasses();
+
 
 END_DUKE_NS
 

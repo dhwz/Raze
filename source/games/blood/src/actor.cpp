@@ -30,6 +30,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "savegamehelp.h"
 
 #include "blood.h"
+#include "texids.h"
 
 BEGIN_BLD_NS
 
@@ -2544,9 +2545,8 @@ void actInit(TArray<DBloodActor*>& actors)
 static void ConcussSprite(DBloodActor* source, DBloodActor* actor, const DVector3& pos, double damage)
 {
 	auto vect = actor->spr.pos - pos;
-
-	double dist2 = vect.LengthSquared() + 0x4000;
-	damage *= 0x4000 / dist2;
+	double dist2 = vect.LengthSquared() + 0x400;
+	damage *= 0x400 / dist2;
 
 	if (actor->spr.flags & kPhysMove)
 	{
@@ -2574,7 +2574,7 @@ static void ConcussSprite(DBloodActor* source, DBloodActor* actor, const DVector
 		if (mass > 0)
 		{
 			auto tex = TexMan.GetGameTexture(actor->spr.spritetexture());
-			double size = tex->GetDisplayWidth() * actor->spr.scale.X * tex->GetDisplayHeight() * actor->spr.scale.Y * (1. / 0x100000);
+			double size = tex->GetDisplayWidth() * actor->spr.scale.X * tex->GetDisplayHeight() * actor->spr.scale.Y * (1. / 0x20000);
 			actor->vel += vect * Scale(damage, size, mass);
 		}
 	}
@@ -2745,7 +2745,7 @@ static DBloodActor* actDropAmmo(DBloodActor* actor, int nType)
 		auto act2 = actSpawnFloor(actor);
 		const AMMOITEMDATA* pAmmo = &gAmmoItemData[nType - kItemAmmoBase];
 		act2->spr.type = nType;
-		act2->spr.picnum = pAmmo->picnum;
+		act2->spr.setspritetexture(pAmmo->textureID());
 		act2->spr.shade = pAmmo->shade;
 		act2->spr.scale = DVector2(pAmmo->xrepeat * REPEAT_SCALE, pAmmo->yrepeat * REPEAT_SCALE);
 		return act2;
@@ -2761,7 +2761,7 @@ static DBloodActor* actDropWeapon(DBloodActor* actor, int nType)
 		auto act2 = actSpawnFloor(actor);
 		const WEAPONITEMDATA* pWeapon = &gWeaponItemData[nType - kItemWeaponBase];
 		act2->spr.type = nType;
-		act2->spr.picnum = pWeapon->picnum;
+		act2->spr.setspritetexture(pWeapon->textureID());
 		act2->spr.shade = pWeapon->shade;
 		act2->spr.scale = DVector2(pWeapon->xrepeat * REPEAT_SCALE, pWeapon->yrepeat * REPEAT_SCALE);
 		return act2;
@@ -2777,7 +2777,7 @@ static DBloodActor* actDropItem(DBloodActor* actor, int nType)
 		auto act2 = actSpawnFloor(actor);
 		const ITEMDATA* pItem = &gItemData[nType - kItemBase];
 		act2->spr.type = nType;
-		act2->spr.picnum = pItem->picnum;
+		act2->spr.setspritetexture(pItem->textureID());
 		act2->spr.shade = pItem->shade;
 		act2->spr.scale = DVector2(pItem->xrepeat * REPEAT_SCALE, pItem->yrepeat * REPEAT_SCALE);
 		return act2;
@@ -3945,7 +3945,7 @@ static void actImpactMissile(DBloodActor* missileActor, int hitCode)
 
 			if (GetExtInfo(actorHit->spr.spritetexture()).surftype == kSurfFlesh)
 			{
-				missileActor->spr.picnum = 2123;
+				missileActor->spr.setspritetexture(aTexIds[kTexFLESHHIT]);
 				missileActor->SetTarget(actorHit);
 				missileActor->xspr.TargetPos.Z = (missileActor->spr.pos.Z - actorHit->spr.pos.Z);
 				missileActor->xspr.goalAng = (missileActor->spr.pos.XY() - actorHit->spr.pos.XY()).Angle() - actorHit->spr.Angles.Yaw;
@@ -5154,8 +5154,16 @@ void MoveDude(DBloodActor* actor)
 		actor->vel.X += FixedToFloat(-mulscale16r(FloatToFixed(actor->vel.X), nDrag));
 		actor->vel.Y += FixedToFloat(-mulscale16r(FloatToFixed(actor->vel.Y), nDrag));
 
+		if (pPlayer)
+		{
+			pPlayer->Angles.StrafeVel += FixedToFloat(-mulscale16r(FloatToFixed(pPlayer->Angles.StrafeVel), nDrag));
+		}
+
 		if (actor->vel.XY().Length() < 0.0625)
+		{
 			actor->vel.XY().Zero();
+			if (pPlayer) pPlayer->Angles.StrafeVel = 0;
+		}
 	}
 }
 
@@ -6239,7 +6247,7 @@ DBloodActor* actSpawnThing(sectortype* pSector, const DVector3& pos, int nThingT
 	actor->spr.flags = pThingInfo->flags;
 	if (actor->spr.flags & 2) actor->spr.flags |= 4;
 	actor->spr.cstat |= pThingInfo->cstat;
-	actor->spr.picnum = pThingInfo->picnum;
+	actor->spr.setspritetexture(pThingInfo->textureID());
 	actor->spr.shade = pThingInfo->shade;
 	actor->spr.pal = pThingInfo->pal;
 	if (pThingInfo->xrepeat) actor->spr.scale.X = (pThingInfo->xrepeat * REPEAT_SCALE);
@@ -6456,7 +6464,7 @@ DBloodActor* actFireMissile(DBloodActor* actor, double xyoff, double zoff, DVect
 	spawned->spr.flags = 1;
 
 	spawned->spr.scale = DVector2(pMissileInfo->xrepeat * REPEAT_SCALE, pMissileInfo->yrepeat * REPEAT_SCALE);
-	spawned->spr.picnum = pMissileInfo->picnum;
+	spawned->spr.setspritetexture(pMissileInfo->textureID());
 	spawned->spr.Angles.Yaw = actor->spr.Angles.Yaw + mapangle(pMissileInfo->angleOfs);
 	spawned->vel = dv.Unit() * pMissileInfo->fVelocity();
 	spawned->SetOwner(actor);

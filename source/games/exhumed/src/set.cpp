@@ -70,7 +70,7 @@ void BuildSet(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, D
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
     pActor->spr.Angles.Yaw = nAngle;
-    pActor->spr.picnum = 1;
+    setvalidpic(pActor);
     pActor->spr.hitag = 0;
     pActor->spr.lotag = runlist_HeadRun() + 1;
     pActor->spr.extra = -1;
@@ -89,6 +89,8 @@ void BuildSet(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, D
     pActor->nChannel = nChannel;
 
     pActor->spr.intowner = runlist_AddRunRec(pActor->spr.lotag - 1, pActor, 0x190000);
+
+    pActor->nSeqFile = "set";
 
     // this isn't stored anywhere.
     runlist_AddRunRec(NewRun, pActor, 0x190000);
@@ -113,7 +115,8 @@ void BuildSoul(DExhumedActor* pSet)
 	pActor->clipdist = 1.25;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->spr.picnum = seq_GetSeqPicnum(kSeqSet, 75, 0);
+    pActor->nSeqFile = "set";
+    pActor->spr.setspritetexture(getSequence(pActor->nSeqFile, 75)->getFirstFrameTexture());
     pActor->spr.Angles.Yaw = RandomAngle();
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
@@ -142,7 +145,7 @@ void AISoul::Tick(RunListEvent* ev)
 	auto pActor = ev->pObjActor;
 	if (!pActor) return;
 
-    seq_MoveSequence(pActor, SeqOffsets[kSeqSet] + 75, 0);
+    getSequence("set", 75)->frames[0].playSound(pActor);
 
     if (pActor->spr.scale.X < 0.5)
     {
@@ -244,12 +247,11 @@ void AISet::Damage(RunListEvent* ev)
 
 void AISet::Draw(RunListEvent* ev)
 {
-	auto pActor = ev->pObjActor;
-	if (!pActor) return;
-    int nAction = pActor->nAction;
-
-    seq_PlotSequence(ev->nParam, SeqOffsets[kSeqSet] + SetSeq[nAction].a, pActor->nFrame, SetSeq[nAction].b);
-    return;
+	if (const auto pActor = ev->pObjActor)
+    {
+        const auto setSeq = &SetSeq[pActor->nAction];
+        seq_PlotSequence(ev->nParam, pActor->nSeqFile, setSeq->nSeqId, pActor->nFrame, setSeq->nFlags);
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -269,9 +271,11 @@ void AISet::Tick(RunListEvent* ev)
 
     Gravity(pActor);
 
-    int nSeq = SeqOffsets[kSeqSet] + SetSeq[pActor->nAction].a;
-    pActor->spr.picnum = seq_GetSeqPicnum2(nSeq, pActor->nFrame);
-    seq_MoveSequence(pActor, nSeq, pActor->nFrame);
+    const auto setSeq = getSequence(pActor->nSeqFile, SetSeq[nAction].nSeqId);
+    const auto& seqFrame = setSeq->frames[pActor->nFrame];
+
+    pActor->spr.setspritetexture(seqFrame.getFirstChunkTexture());
+    seqFrame.playSound(pActor);
 
     if (nAction == 3)
     {
@@ -281,13 +285,12 @@ void AISet::Tick(RunListEvent* ev)
     }
 
     pActor->nFrame++;
-    if (pActor->nFrame >= SeqSize[nSeq])
+    if (pActor->nFrame >= setSeq->frames.Size())
     {
         pActor->nFrame = 0;
         bVal = true;
     }
 
-    int nFlag = FrameFlag[SeqBase[nSeq] + pActor->nFrame];
     DExhumedActor* pTarget = pActor->pTarget;
 
     if (pTarget && nAction < 10)
@@ -377,7 +380,7 @@ void AISet::Tick(RunListEvent* ev)
     {
         if (pTarget != nullptr)
         {
-            if ((nFlag & 0x10) && (nMov.exbits & kHitAux2))
+            if ((seqFrame.flags & 0x10) && (nMov.exbits & kHitAux2))
             {
                 SetQuake(pActor, 100);
             }
@@ -497,6 +500,7 @@ void AISet::Tick(RunListEvent* ev)
         if (pTarget == nullptr)
         {
             pActor->nAction = 0;
+            pActor->nFrame = 0;
             pActor->nCount = 50;
         }
         else
@@ -504,8 +508,9 @@ void AISet::Tick(RunListEvent* ev)
             if (PlotCourseToSprite(pActor, pTarget) >= 48)
             {
                 pActor->nAction = 3;
+                pActor->nFrame = 0;
             }
-            else if (nFlag & 0x80)
+            else if (seqFrame.flags & 0x80)
             {
                 runlist_DamageEnemy(pTarget, pActor, 5);
             }
@@ -519,6 +524,7 @@ void AISet::Tick(RunListEvent* ev)
         if (bVal)
         {
             pActor->nAction = 0;
+            pActor->nFrame = 0;
             pActor->nCount = 15;
         }
         return;
@@ -526,7 +532,7 @@ void AISet::Tick(RunListEvent* ev)
 
     case 6:
     {
-        if (nFlag & 0x80)
+        if (seqFrame.flags & 0x80)
         {
             auto pBullet = BuildBullet(pActor, 11, INT_MAX, pActor->spr.Angles.Yaw, pTarget, 1);
             if (pBullet)
@@ -567,7 +573,7 @@ void AISet::Tick(RunListEvent* ev)
     {
         if (bVal)
         {
-            pActor->nFrame = SeqSize[nSeq] - 1;
+            pActor->nFrame = setSeq->frames.Size() - 1;
         }
 
         if (nMov.exbits & kHitAux2)
@@ -603,10 +609,10 @@ void AISet::Tick(RunListEvent* ev)
 
     case 10:
     {
-        if (nFlag & 0x80)
+        if (seqFrame.flags & 0x80)
         {
             pActor->spr.pos.Z -= GetActorHeight(pActor);
-            BuildCreatureChunk(pActor, seq_GetSeqPicnum(kSeqSet, 76, 0));
+            BuildCreatureChunk(pActor, getSequence("set", 76)->getFirstFrameTexture());
 			pActor->spr.pos.Z += GetActorHeight(pActor);
         }
 

@@ -25,7 +25,6 @@ class CoreActor native
 	native sectortype sector;	// cannot be read-only, some code calls clipmove directly on this.
 	
 	native int16 cstat;
-	//native int16 picnum; // access is disabled to allow later refactoring.
 	native Vector3 pos;
 	native Vector3 opos;
 	native readonly int16 statnum;
@@ -69,6 +68,7 @@ class CoreActor native
 	native void setPosition(Vector3 pos);
 	native void setPositionZ(Vector3 pos);
 	native bool isAwayFromWall(double dist);
+	native TextureID spritetexture();
 
 	native void ChangeSector(sectortype s, bool forcetail = false);
 	native void ChangeStat(int s, bool forcetail = false);

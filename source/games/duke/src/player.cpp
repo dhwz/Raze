@@ -103,7 +103,7 @@ void quickkill(player_struct* p)
 	auto pa = p->GetActor();
 	pa->spr.extra = 0;
 	pa->spr.cstat |= CSTAT_SPRITE_INVISIBLE;
-	if (ud.god == 0) spawnguts(pa, PClass::FindActor("DukeJibs6"), 8);
+	if (ud.god == 0) spawnguts(pa, DukeJibs6Class, 8);
 	return;
 }
 
@@ -113,49 +113,14 @@ void quickkill(player_struct* p)
 //
 //---------------------------------------------------------------------------
 
-void forceplayerangle(int snum)
+void forceplayerangle(player_struct* p)
 {
-	player_struct* p = &ps[snum];
 	const auto ang = (DAngle22_5 - randomAngle(45)) / 2.;
 
 	p->GetActor()->spr.Angles.Pitch -= DAngle::fromDeg(26.566);
 	p->sync.actions |= SB_CENTERVIEW;
 	p->Angles.ViewAngles.Yaw = ang;
 	p->Angles.ViewAngles.Roll = -ang;
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-void tracers(const DVector3& start, const DVector3& dest, int n)
-{
-	sectortype* sect = nullptr;
-
-	auto direction = dest - start;
-
-	if (direction.XY().Sum() < 192.75)
-		return;
-
-	auto pos = start;
-	auto add = direction / (n + 1);
-	for (int i = n; i > 0; i--)
-	{
-		pos += add;
-		updatesector(pos, &sect);
-		if (sect)
-		{
-			if (sect->lotag == 2)
-			{
-				DVector2 scale(0.0625 + (krand() & 3) * REPEAT_SCALE, 0.0625 + (krand() & 3) * REPEAT_SCALE);
-				CreateActor(sect, pos, TILE_WATERBUBBLE, -32, scale, randomAngle(), 0., 0., ps[0].GetActor(), 5);
-			}
-			else
-				CreateActor(sect, pos, TILE_SMALLSMOKE, -32, DVector2(0.21875, 0.21875), nullAngle, 0., 0., ps[0].GetActor(), 5);
-		}
-	}
 }
 
 //---------------------------------------------------------------------------
@@ -226,9 +191,9 @@ double hitawall(player_struct* p, walltype** hitw)
 //
 //---------------------------------------------------------------------------
 
-DDukeActor* aim(DDukeActor* actor, int abase)
+DDukeActor* aim(DDukeActor* actor, int abase, bool force, bool* b)
 {
-	DAngle aang = DAngle90 * (+AUTO_AIM_ANGLE / 512.);
+	DAngle aang = mapangle(abase);
 
 	bool gotshrinker, gotfreezer;
 	static const int aimstats[] = { STAT_PLAYER, STAT_DUMMYPLAYER, STAT_ACTOR, STAT_ZOMBIEACTOR };
@@ -239,25 +204,33 @@ DDukeActor* aim(DDukeActor* actor, int abase)
 	if (actor->isPlayer())
 	{
 		auto* plr = &ps[actor->PlayerIndex()];
-		int autoaim = Autoaim(actor->PlayerIndex());
-		if (!autoaim)
+		int autoaim = force? 1 : Autoaim(actor->PlayerIndex());
+
+		bool ww2gipistol = (plr->curr_weapon == PISTOL_WEAPON && isWW2GI());
+		bool otherpistol = (plr->curr_weapon == PISTOL_WEAPON && !isWW2GI());
+
+		// Some fudging to avoid aim randomization when autoaim is off.
+		// This is a reimplementation of how it was solved in RedNukem.
+		if (!ww2gipistol && (autoaim || otherpistol))
 		{
-			// Some fudging to avoid aim randomization when autoaim is off.
-			// This is a reimplementation of how it was solved in RedNukem.
-			if (plr->curr_weapon == PISTOL_WEAPON && !isWW2GI())
+			double vel = 1024, zvel = 0;
+			setFreeAimVelocity(vel, zvel, plr->Angles.getPitchWithView(), 16.);
+
+			HitInfo hit{};
+			hitscan(plr->GetActor()->getPosWithOffsetZ().plusZ(4), actor->sector(), DVector3(actor->spr.Angles.Yaw.ToVector() * vel, zvel * 64), hit, CLIPMASK1);
+
+			if (hit.actor() != nullptr)
 			{
-				double vel = 1024, zvel = 0;
-				setFreeAimVelocity(vel, zvel, plr->Angles.getPitchWithView(), 16.);
-
-				HitInfo hit{};
-				hitscan(plr->GetActor()->getPosWithOffsetZ().plusZ(4), actor->sector(), DVector3(actor->spr.Angles.Yaw.ToVector() * vel, zvel * 64), hit, CLIPMASK1);
-
-				if (hit.actor() != nullptr)
+				if (isIn(hit.actor()->spr.statnum, { STAT_PLAYER, STAT_DUMMYPLAYER, STAT_ACTOR, STAT_ZOMBIEACTOR }))
 				{
-					if (isIn(hit.actor()->spr.statnum, { STAT_PLAYER, STAT_DUMMYPLAYER, STAT_ACTOR, STAT_ZOMBIEACTOR }))
-						return hit.actor();
+					if (b) *b = true;
+					return hit.actor();
 				}
 			}
+		}
+
+		if (!autoaim)
+		{
 			// The chickens in RRRA are homing and must always autoaim.
 			if (!isRRRA() || plr->curr_weapon != CHICKEN_WEAPON)
 				return nullptr;
@@ -329,7 +302,7 @@ DDukeActor* aim(DDukeActor* actor, int abase)
 							actor != act)
 							continue;
 
-						if (gotshrinker && act->spr.scale.X < 0.46875 && !actorflag(act, SFLAG_SHRINKAUTOAIM)) continue;
+						if (gotshrinker && act->spr.scale.X < 0.46875 && !(act->flags1 & SFLAG_SHRINKAUTOAIM)) continue;
 						if (gotfreezer && act->spr.pal == 1) continue;
 					}
 
@@ -350,7 +323,7 @@ DDukeActor* aim(DDukeActor* actor, int abase)
 								}
 								else check = 1;
 
-								int cans = cansee(act->spr.pos.plusZ(-32 + gs.actorinfo[act->spr.picnum].aimoffset), act->sector(), actor->spr.pos.plusZ(-32), actor->sector());
+								int cans = cansee(act->spr.pos.plusZ(-32 + act->IntVar(NAME_aimoffset)), act->sector(), actor->spr.pos.plusZ(-32), actor->sector());
 
 								if (check && cans)
 								{
@@ -364,6 +337,13 @@ DDukeActor* aim(DDukeActor* actor, int abase)
 	}
 
 	return aimed;
+}
+
+// This is what aim should be. 
+DDukeActor* aim_(DDukeActor* actor, DDukeActor* weapon, double aimangle, bool* b)
+{
+	if (!weapon || (weapon->flags1 & SFLAG_NOAUTOAIM)) return nullptr;
+	return aim(actor, int((aimangle > 0 ? aimangle : weapon->FloatVar(NAME_autoaimangle)) * (512 / 90.)), (weapon->flags1 & SFLAG_FORCEAUTOAIM), b);
 }
 
 //---------------------------------------------------------------------------
@@ -391,10 +371,10 @@ void dokneeattack(int snum)
 				p->weapon_pos = -p->weapon_pos;
 			if (p->actorsqu != nullptr && (pact->spr.pos - p->actorsqu->spr.pos).Length() < 1400/16.)
 			{
-				spawnguts(p->actorsqu, PClass::FindActor("DukeJibs6"), 7);
-				spawn(p->actorsqu, TILE_BLOODPOOL);
+				spawnguts(p->actorsqu, DukeJibs6Class, 7);
+				spawn(p->actorsqu, DukeBloodPoolClass);
 				S_PlayActorSound(SQUISHED, p->actorsqu);
-				if (actorflag(p->actorsqu, SFLAG2_TRIGGERRESPAWN))
+				if (p->actorsqu->flags2 & SFLAG2_TRIGGERRESPAWN)
 				{
 					if (p->actorsqu->spr.yint)
 						operaterespawns(p->actorsqu->spr.yint);
@@ -405,12 +385,11 @@ void dokneeattack(int snum)
 					quickkill(&ps[p->actorsqu->PlayerIndex()]);
 					ps[p->actorsqu->PlayerIndex()].frag_ps = snum;
 				}
-				else if (badguy(p->actorsqu))
+				else
 				{
+					addkill(p->actorsqu);
 					p->actorsqu->Destroy();
-					p->actors_killed++;
 				}
-				else p->actorsqu->Destroy();
 			}
 			p->actorsqu = nullptr;
 		}
@@ -509,7 +488,7 @@ void footprints(int snum)
 			DukeSectIterator it(actor->sector());
 			while (auto act = it.Next())
 			{
-				if (act->IsKindOf(NAME_DukeFootprints))
+				if (act->IsKindOf(DukeFootprintsClass))
 					if (abs(act->spr.pos.X - p->GetActor()->spr.pos.X) < 24)
 						if (abs(act->spr.pos.Y - p->GetActor()->spr.pos.Y) < 24)
 						{
@@ -520,9 +499,9 @@ void footprints(int snum)
 			if (j < 0)
 			{
 				p->footprintcount--;
-				if (p->cursector->lotag == 0 && p->cursector->hitag == 0)
+				if (p->cursector->lotag == ST_0_NO_EFFECT && p->cursector->hitag == 0)
 				{
-					DDukeActor* fprint = spawn(actor, PClass::FindActor(NAME_DukeFootprints));
+					DDukeActor* fprint = spawn(actor, DukeFootprintsClass);
 					if (fprint)
 					{
 						fprint->spr.Angles.Yaw = p->actor->spr.Angles.Yaw;
@@ -546,7 +525,7 @@ void playerisdead(int snum, int psectlotag, double floorz, double ceilingz)
 	auto actor = p->GetActor();
 
 	// lock input when dead.
-	setForcedSyncInput();
+	setForcedSyncInput(snum);
 
 	if (p->dead_flag == 0)
 	{
@@ -692,13 +671,15 @@ int timedexit(int snum)
 
 void playerCrouch(int snum)
 {
-	auto p = &ps[snum];
-	// crouching
-	SetGameVarID(g_iReturnVarID, 0, p->GetActor(), snum);
-	OnEvent(EVENT_CROUCH, snum, p->GetActor(), -1);
-	if (GetGameVarID(g_iReturnVarID, p->GetActor(), snum).value() == 0)
+	const auto p = &ps[snum];
+	const auto pact = p->GetActor();
+	const auto nVelMoveDown = abs(p->sync.uvel * (p->sync.uvel < 0));
+	constexpr double vel = 8 + 3;
+	SetGameVarID(g_iReturnVarID, 0, pact, snum);
+	OnEvent(EVENT_CROUCH, snum, pact, -1);
+	if (GetGameVarID(g_iReturnVarID, pact, snum).value() == 0)
 	{
-		p->GetActor()->spr.pos.Z += 8 + 3;
+		pact->spr.pos.Z += clamp(vel * !!(p->sync.actions & SB_CROUCH) + vel * nVelMoveDown, -vel, vel);
 		p->crack_time = CRACK_TIME;
 	}
 }
@@ -802,7 +783,7 @@ void player_struct::checkhardlanding()
 {
 	if (hard_landing > 0)
 	{
-		GetActor()->spr.Angles.Pitch += maphoriz(hard_landing << 4);
+		GetActor()->spr.Angles.Pitch += maphoriz(hard_landing << 4) * !!(cl_dukepitchmode & kDukePitchHardLanding);
 		hard_landing--;
 	}
 }
@@ -876,6 +857,8 @@ void playerCenterView(int snum)
 	if (GetGameVarID(g_iReturnVarID, p->GetActor(), snum).value() == 0)
 	{
 		p->sync.actions |= SB_CENTERVIEW;
+		p->sync.horz = 0;
+		setForcedSyncInput(snum);
 	}
 	else
 	{
@@ -937,6 +920,48 @@ void playerAimDown(int snum, ESyncBits actions)
 
 //---------------------------------------------------------------------------
 //
+//
+//
+//---------------------------------------------------------------------------
+
+void shoot(DDukeActor* actor, PClass* cls)
+{
+	int p;
+	DVector3 spos;
+	DAngle sang;
+
+	auto const sect = actor->sector();
+
+	sang = actor->spr.Angles.Yaw;
+	if (actor->isPlayer())
+	{
+		p = actor->PlayerIndex();
+		spos = actor->getPosWithOffsetZ().plusZ(ps[p].pyoff + 4);
+
+		ps[p].crack_time = CRACK_TIME;
+	}
+	else
+	{
+		p = -1;
+		auto tex = TexMan.GetGameTexture(actor->spr.spritetexture());
+		spos = actor->spr.pos.plusZ(-(actor->spr.scale.Y * tex->GetDisplayHeight() * 0.5) + 4);
+
+		spos.Z += actor->FloatVar(NAME_shootzoffset);
+		if (badguy(actor) && !(actor->flags3 & SFLAG3_SHOOTCENTERED))
+		{
+			spos.X -= (sang + DAngle22_5 * 0.75).Sin() * 8;
+			spos.Y += (sang + DAngle22_5 * 0.75).Cos() * 8;
+		}
+	}
+
+	if (cls == nullptr)
+		return;
+
+	CallShootThis(static_cast<DDukeActor*>(GetDefaultByType(cls)), actor, p, spos, sang);
+}
+
+//---------------------------------------------------------------------------
+//
 // split out so that the weapon check can be done right.
 //
 //---------------------------------------------------------------------------
@@ -973,22 +998,22 @@ bool movementBlocked(player_struct *p)
 //
 //---------------------------------------------------------------------------
 
-int haskey(sectortype* sectp, int snum)
+int haslock(sectortype* sectp, int snum)
 {
 	auto p = &ps[snum];
 	if (!sectp)
 		return 0;
-	if (!sectp->keyinfo)
+	if (!sectp->lockinfo)
 		return 1;
-	if (sectp->keyinfo > 6)
+	if (sectp->lockinfo > 6)
 		return 1;
-	int wk = sectp->keyinfo;
+	int wk = sectp->lockinfo;
 	if (wk > 3)
 		wk -= 3;
 
 	if (p->keys[wk] == 1)
 	{
-		sectp->keyinfo = 0;
+		sectp->lockinfo = 0;
 		return 1;
 	}
 
@@ -1024,6 +1049,607 @@ void purplelavacheck(player_struct* p)
 				SetPlayerPal(p, PalEntry(32, 0, 8, 0));
 				pact->spr.extra--;
 			}
+		}
+	}
+}
+
+
+//---------------------------------------------------------------------------
+//
+// moved out of the CON interpreter.
+//
+//---------------------------------------------------------------------------
+
+void addphealth(player_struct* p, int amount, bool bigitem)
+{
+	if (p->newOwner != nullptr)
+	{
+		p->newOwner = nullptr;
+		p->GetActor()->restoreloc();
+		updatesector(p->GetActor()->getPosWithOffsetZ(), &p->cursector);
+
+		DukeStatIterator it(STAT_ACTOR);
+		while (auto actj = it.Next())
+		{
+			if (actj->flags2 & SFLAG2_CAMERA)
+				actj->spr.yint = 0;
+		}
+	}
+
+	int curhealth = p->GetActor()->spr.extra;
+
+	if (!bigitem)
+	{
+		if (curhealth > gs.max_player_health && amount > 0)
+		{
+			return;// false;
+		}
+		else
+		{
+			if (curhealth > 0)
+				curhealth += amount;
+			if (curhealth > gs.max_player_health && amount > 0)
+				curhealth = gs.max_player_health;
+		}
+	}
+	else
+	{
+		if (curhealth > 0)
+			curhealth += amount;
+		if (curhealth > (gs.max_player_health << 1))
+			curhealth = (gs.max_player_health << 1);
+	}
+
+	if (curhealth < 0) curhealth = 0;
+
+	if (ud.god == 0)
+	{
+		if (amount > 0)
+		{
+			if ((curhealth - amount) < (gs.max_player_health >> 2) &&
+				curhealth >= (gs.max_player_health >> 2))
+				S_PlayActorSound(PLAYER_GOTHEALTHATLOW, p->GetActor());
+
+			p->last_extra = curhealth;
+		}
+
+
+		p->GetActor()->spr.extra = curhealth;
+	}
+}
+
+//---------------------------------------------------------------------------
+//
+// moved out of the CON interpreter.
+//
+//---------------------------------------------------------------------------
+
+int playereat(player_struct* p, int amount, bool bigitem)
+{
+	p->eat += amount;
+	if (p->eat > 100)
+	{
+		p->eat = 100;
+	}
+	p->drink_amt -= amount;
+	if (p->drink_amt < 0)
+		p->drink_amt = 0;
+	int curhealth = p->GetActor()->spr.extra;
+	if (!bigitem)
+	{
+		if (curhealth > gs.max_player_health && amount > 0)
+		{
+			return false;
+		}
+		else
+		{
+			if (curhealth > 0)
+				curhealth += (amount) * 3;
+			if (curhealth > gs.max_player_health && amount > 0)
+				curhealth = gs.max_player_health;
+		}
+	}
+	else
+	{
+		if (curhealth > 0)
+			curhealth += amount;
+		if (curhealth > (gs.max_player_health << 1))
+			curhealth = (gs.max_player_health << 1);
+	}
+
+	if (curhealth < 0) curhealth = 0;
+
+	if (ud.god == 0)
+	{
+		if (amount > 0)
+		{
+			if ((curhealth - amount) < (gs.max_player_health >> 2) &&
+				curhealth >= (gs.max_player_health >> 2))
+				S_PlayActorSound(PLAYER_GOTHEALTHATLOW, p->GetActor());
+
+			p->last_extra = curhealth;
+		}
+
+		p->GetActor()->spr.extra = curhealth;
+	}
+	return true;
+}
+
+//---------------------------------------------------------------------------
+//
+// moved out of the CON interpreter.
+//
+//---------------------------------------------------------------------------
+
+void playerdrink(player_struct* p, int amount)
+{
+	p->drink_amt += amount;
+	int curhealth = p->GetActor()->spr.extra;
+	if (curhealth > 0)
+		curhealth += amount;
+	if (curhealth > gs.max_player_health * 2)
+		curhealth = gs.max_player_health * 2;
+	if (curhealth < 0)
+		curhealth = 0;
+
+	if (ud.god == 0)
+	{
+		if (amount > 0)
+		{
+			if ((curhealth - amount) < (gs.max_player_health >> 2) &&
+				curhealth >= (gs.max_player_health >> 2))
+				S_PlayActorSound(PLAYER_GOTHEALTHATLOW, p->GetActor());
+
+			p->last_extra = curhealth;
+		}
+
+		p->GetActor()->spr.extra = curhealth;
+	}
+	if (p->drink_amt > 100)
+		p->drink_amt = 100;
+
+	if (p->GetActor()->spr.extra >= gs.max_player_health)
+	{
+		p->GetActor()->spr.extra = gs.max_player_health;
+		p->last_extra = gs.max_player_health;
+	}
+}
+
+//---------------------------------------------------------------------------
+//
+// moved out of the CON interpreter.
+//
+//---------------------------------------------------------------------------
+
+int playeraddammo(player_struct* p, int weaponindex, int amount)
+{
+	if (p->ammo_amount[weaponindex] >= gs.max_ammo_amount[weaponindex])
+	{
+		return false;
+	}
+	addammo(weaponindex, p, amount);
+	if (p->curr_weapon == KNEE_WEAPON)
+		if (p->gotweapon[weaponindex] && (WeaponSwitch(p - ps) & 1))
+			fi.addweapon(p, weaponindex, true);
+	return true;
+}
+
+int playeraddweapon(player_struct* p, int weaponindex, int amount)
+{
+	if (p->gotweapon[weaponindex] == 0) fi.addweapon(p, weaponindex, !!(WeaponSwitch(p- ps) & 1));
+	else if (p->ammo_amount[weaponindex] >= gs.max_ammo_amount[weaponindex])
+	{
+		return false;
+	}
+	addammo(weaponindex, p, amount);
+	if (p->curr_weapon == KNEE_WEAPON)
+		if (p->gotweapon[weaponindex] && (WeaponSwitch(p - ps) & 1))
+			fi.addweapon(p, weaponindex, true);
+
+	return true;
+}
+
+//---------------------------------------------------------------------------
+//
+// moved out of the CON interpreter.
+//
+//---------------------------------------------------------------------------
+
+void playeraddinventory(player_struct* p, DDukeActor* item, int type, int amount)
+{
+	switch (type)
+	{
+	case 0:
+		p->steroids_amount = amount;
+		p->inven_icon = 2;
+		break;
+	case 1:
+		p->shield_amount += amount;// 100;
+		if (p->shield_amount > gs.max_player_health)
+			p->shield_amount = gs.max_player_health;
+		break;
+	case 2:
+		p->scuba_amount = amount;// 1600;
+		p->inven_icon = 6;
+		break;
+	case 3:
+		p->holoduke_amount = amount;// 1600;
+		p->inven_icon = 3;
+		break;
+	case 4:
+		p->jetpack_amount = amount;// 1600;
+		p->inven_icon = 4;
+		break;
+	case 6:
+		if (isRR())
+		{
+			switch (item->spr.lotag)
+			{
+			case 100: p->keys[1] = 1; break;
+			case 101: p->keys[2] = 1; break;
+			case 102: p->keys[3] = 1; break;
+			case 103: p->keys[4] = 1; break;
+			}
+		}
+		else
+		{
+			switch (item->spr.pal)
+			{
+			case  0: p->got_access |= 1; break;
+			case 21: p->got_access |= 2; break;
+			case 23: p->got_access |= 4; break;
+			}
+		}
+		break;
+	case 7:
+		p->heat_amount = amount;
+		p->inven_icon = 5;
+		break;
+	case 9:
+		p->inven_icon = 1;
+		p->firstaid_amount = amount;
+		break;
+	case 10:
+		p->inven_icon = 7;
+		p->boot_amount = amount;
+		break;
+	}
+}
+
+//---------------------------------------------------------------------------
+//
+// moved out of the CON interpreter.
+//
+//---------------------------------------------------------------------------
+
+int checkp(DDukeActor* self, player_struct* p, int flags)
+{
+	bool j = 0;
+
+	double vel = self->vel.X;
+	unsigned plindex = unsigned(p - ps);
+
+	// sigh.. this was yet another place where number literals were used as bit masks for every single value, making the code totally unreadable.
+	if ((flags & pducking) && p->on_ground && PlayerInput(plindex, SB_CROUCH))
+		j = 1;
+	else if ((flags & pfalling) && p->jumping_counter == 0 && !p->on_ground && p->vel.Z > 8)
+		j = 1;
+	else if ((flags & pjumping) && p->jumping_counter > 348)
+		j = 1;
+	else if ((flags & pstanding) && vel >= 0 && vel < 0.5)
+		j = 1;
+	else if ((flags & pwalking) && vel >= 0.5 && !(PlayerInput(plindex, SB_RUN)))
+		j = 1;
+	else if ((flags & prunning) && vel >= 0.5 && PlayerInput(plindex, SB_RUN))
+		j = 1;
+	else if ((flags & phigher) && p->GetActor()->getOffsetZ() < self->spr.pos.Z - 48)
+		j = 1;
+	else if ((flags & pwalkingback) && vel <= -0.5 && !(PlayerInput(plindex, SB_RUN)))
+		j = 1;
+	else if ((flags & prunningback) && vel <= -0.5 && (PlayerInput(plindex, SB_RUN)))
+		j = 1;
+	else if ((flags & pkicking) && (p->quick_kick > 0 || (p->curr_weapon == KNEE_WEAPON && p->kickback_pic > 0)))
+		j = 1;
+	else if ((flags & pshrunk) && p->GetActor()->spr.scale.X < (isRR() ? 0.125 : 0.5))
+		j = 1;
+	else if ((flags & pjetpack) && p->jetpack_on)
+		j = 1;
+	else if ((flags & ponsteroids) && p->steroids_amount > 0 && p->steroids_amount < 400)
+		j = 1;
+	else if ((flags & ponground) && p->on_ground)
+		j = 1;
+	else if ((flags & palive) && p->GetActor()->spr.scale.X > (isRR() ? 0.125 : 0.5) && p->GetActor()->spr.extra > 0 && p->timebeforeexit == 0)
+		j = 1;
+	else if ((flags & pdead) && p->GetActor()->spr.extra <= 0)
+		j = 1;
+	else if ((flags & pfacing))
+	{
+		DAngle ang;
+		if (self->isPlayer() && ud.multimode > 1)
+			ang = absangle(ps[otherp].GetActor()->spr.Angles.Yaw, (p->GetActor()->spr.pos.XY() - ps[otherp].GetActor()->spr.pos.XY()).Angle());
+		else
+			ang = absangle(p->GetActor()->spr.Angles.Yaw, (self->spr.pos.XY() - p->GetActor()->spr.pos.XY()).Angle());
+
+		j = ang < DAngle22_5;
+	}
+	return j;
+}
+
+//---------------------------------------------------------------------------
+//
+// moved out of the CON interpreter.
+//
+//---------------------------------------------------------------------------
+
+int playercheckinventory(player_struct* p, DDukeActor* item, int type, int amount)
+{
+	bool j = 0;
+	switch (type)
+	{
+	case 0:
+		if (p->steroids_amount != amount)
+			j = 1;
+		break;
+	case 1:
+		if (p->shield_amount != gs.max_player_health)
+			j = 1;
+		break;
+	case 2:
+		if (p->scuba_amount != amount) j = 1;
+		break;
+	case 3:
+		if (p->holoduke_amount != amount) j = 1;
+		break;
+	case 4:
+		if (p->jetpack_amount != amount) j = 1;
+		break;
+	case 6:
+		if (isRR())
+		{
+			switch (item->spr.lotag)
+			{
+			case 100:
+				if (p->keys[1]) j = 1;
+				break;
+			case 101:
+				if (p->keys[2]) j = 1;
+				break;
+			case 102:
+				if (p->keys[3]) j = 1;
+				break;
+			case 103:
+				if (p->keys[4]) j = 1;
+				break;
+			}
+		}
+		else
+		{
+			switch (item->spr.pal)
+			{
+			case  0:
+				if (p->got_access & 1) j = 1;
+				break;
+			case 21:
+				if (p->got_access & 2) j = 1;
+				break;
+			case 23:
+				if (p->got_access & 4) j = 1;
+				break;
+			}
+		}
+		break;
+	case 7:
+		if (p->heat_amount != amount) j = 1;
+		break;
+	case 9:
+		if (p->firstaid_amount != amount) j = 1;
+		break;
+	case 10:
+		if (p->boot_amount != amount) j = 1;
+		break;
+	}
+	return j;
+}
+
+//---------------------------------------------------------------------------
+//
+// moved out of the CON interpreter.
+//
+//---------------------------------------------------------------------------
+
+void playerstomp(player_struct* p, DDukeActor* stomped)
+{
+	if (p->knee_incs == 0 && p->GetActor()->spr.scale.X >= (isRR() ? 0.140625 : 0.625))
+		if (cansee(stomped->spr.pos.plusZ(-4), stomped->sector(), p->GetActor()->getPosWithOffsetZ().plusZ(16), p->GetActor()->sector()))
+		{
+			p->knee_incs = 1;
+			if (p->weapon_pos == 0)
+				p->weapon_pos = -1;
+			p->actorsqu = stomped;
+		}
+}
+
+//---------------------------------------------------------------------------
+//
+// moved out of the CON interpreter.
+//
+//---------------------------------------------------------------------------
+
+void playerreset(player_struct* p, DDukeActor* g_ac)
+{
+	if (ud.multimode < 2)
+	{
+		gameaction = ga_autoloadgame;
+	}
+	else
+	{
+		// I am not convinced this is even remotely smart to be executed from here..
+		pickrandomspot(int(p - ps));
+		g_ac->spr.pos = p->GetActor()->getPosWithOffsetZ();
+		p->GetActor()->backuppos();
+		p->setbobpos();
+		g_ac->backuppos();
+		updatesector(p->GetActor()->getPosWithOffsetZ(), &p->cursector);
+		SetActor(p->GetActor(), p->GetActor()->spr.pos);
+		g_ac->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
+
+		g_ac->spr.shade = -12;
+		g_ac->clipdist = 16;
+		g_ac->spr.scale = DVector2(0.65625, 0.5625);
+		g_ac->SetOwner(g_ac);
+		g_ac->spr.xoffset = 0;
+		g_ac->spr.pal = p->palookup;
+
+		p->last_extra = g_ac->spr.extra = gs.max_player_health;
+		p->wantweaponfire = -1;
+		p->GetActor()->PrevAngles.Pitch = p->GetActor()->spr.Angles.Pitch = nullAngle;
+		p->on_crane = nullptr;
+		p->frag_ps = int(p - ps);
+		p->Angles.PrevViewAngles.Pitch = p->Angles.ViewAngles.Pitch = nullAngle;
+		p->opyoff = 0;
+		p->wackedbyactor = nullptr;
+		p->shield_amount = gs.max_armour_amount;
+		p->dead_flag = 0;
+		p->pals.a = 0;
+		p->footprintcount = 0;
+		p->weapreccnt = 0;
+		p->ftq = 0;
+		p->vel.X = p->vel.Y = 0;
+		if (!isRR()) p->Angles.PrevViewAngles.Roll = p->Angles.ViewAngles.Roll = nullAngle;
+
+		p->falling_counter = 0;
+
+		g_ac->hitextra = -1;
+
+		g_ac->cgg = 0;
+		g_ac->movflag = 0;
+		g_ac->tempval = 0;
+		g_ac->actorstayput = nullptr;
+		g_ac->dispictex = FNullTextureID();
+		g_ac->SetHitOwner(p->GetActor());
+		g_ac->temp_data[4] = 0;
+
+		resetinventory(p);
+		resetweapons(p);
+	}
+}
+
+//---------------------------------------------------------------------------
+//
+// moved out of the CON interpreter.
+//
+//---------------------------------------------------------------------------
+
+void wackplayer(player_struct* p)
+{
+	if (!isRR())
+		forceplayerangle(p);
+	else
+	{
+		p->vel.XY() -= p->GetActor()->spr.Angles.Yaw.ToVector() * 64;
+		p->jumping_counter = 767;
+		p->jumping_toggle = 1;
+	}
+
+}
+
+//---------------------------------------------------------------------------
+//
+// moved out of the CON interpreter.
+//
+//---------------------------------------------------------------------------
+
+void playerkick(player_struct* p, DDukeActor* g_ac)
+{
+	if (ud.multimode > 1 && g_ac->isPlayer())
+	{
+		if (ps[otherp].quick_kick == 0)
+			ps[otherp].quick_kick = 14;
+	}
+	else if (!g_ac->isPlayer() && p->quick_kick == 0)
+		p->quick_kick = 14;
+}
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
+void underwater(int snum, ESyncBits actions, double floorz, double ceilingz)
+{
+	const auto p = &ps[snum];
+	const auto pact = p->GetActor();
+	constexpr double dist = (348. / 256.);
+	const auto kbdDir = ((actions & SB_JUMP) && !p->OnMotorcycle) - ((actions & SB_CROUCH) || p->OnMotorcycle);
+	const auto velZ = clamp(dist * kbdDir + dist * p->sync.uvel, -dist, dist);
+
+	p->jumping_counter = 0;
+	p->pycount += 32;
+	p->pycount &= 2047;
+	p->pyoff = BobVal(p->pycount);
+
+	if (!S_CheckActorSoundPlaying(pact, DUKE_UNDERWATER))
+		S_PlayActorSound(DUKE_UNDERWATER, pact);
+
+	if (velZ > 0)
+	{
+		if (p->vel.Z > 0) p->vel.Z = 0;
+		p->vel.Z -= velZ;
+		if (p->vel.Z < -6) p->vel.Z = -6;
+	}
+	else if (velZ < 0)
+	{
+		if (p->vel.Z < 0) p->vel.Z = 0;
+		p->vel.Z -= velZ;
+		if (p->vel.Z > 6) p->vel.Z = 6;
+	}
+	else
+	{
+		if (p->vel.Z < 0)
+		{
+			p->vel.Z += 1;
+			if (p->vel.Z > 0)
+				p->vel.Z = 0;
+		}
+		if (p->vel.Z > 0)
+		{
+			p->vel.Z -= 1;
+			if (p->vel.Z < 0)
+				p->vel.Z = 0;
+		}
+	}
+
+	if (p->vel.Z > 8)
+		p->vel.Z *= 0.5;
+
+	pact->spr.pos.Z += p->vel.Z;
+
+	if (pact->getOffsetZ() > floorz - 15)
+		pact->spr.pos.Z += ((floorz - 15) - pact->getOffsetZ()) * 0.5;
+
+	if (pact->getOffsetZ() < ceilingz + 4)
+	{
+		pact->spr.pos.Z = ceilingz + 4 + gs.playerheight;
+		p->vel.Z = 0;
+	}
+
+	if (p->scuba_on && (krand() & 255) < 8)
+	{
+		if (const auto j = spawn(pact, DukeWaterBubbleClass))
+		{
+			if (isRR())
+			{
+				j->spr.pos += (pact->spr.Angles.Yaw.ToVector() + DVector2(12 - (global_random & 8), 12 - (global_random & 8))) * 16;
+				j->spr.cstat = CSTAT_SPRITE_TRANS_FLIP | CSTAT_SPRITE_TRANSLUCENT;
+			}
+			else
+			{
+				j->spr.pos += (pact->spr.Angles.Yaw.ToVector() + DVector2(4 - (global_random & 8), 4 - (global_random & 8))) * 16;
+			}
+
+			j->spr.scale = DVector2(0.046875, 0.03125);
+			j->spr.pos.Z = pact->getOffsetZ() + 8;
 		}
 	}
 }

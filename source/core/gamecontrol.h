@@ -27,7 +27,6 @@ extern bool GUICapture;
 extern bool AppActive;
 extern cycle_t drawtime, actortime, thinktime, gameupdatetime;
 extern bool r_NoInterpolate;
-extern bool crouch_toggle;
 
 struct MapRecord;
 extern MapRecord* g_nextmap;
@@ -40,13 +39,16 @@ void CONFIG_ReadCombatMacros();
 int GameMain();
 int GetAutomapZoom(int gZoom);
 
-void DrawCrosshair(int deftile, int health, double xdelta, double ydelta, double scale, DAngle angle, PalEntry color = 0xffffffff);
+void DrawCrosshair(int health, double xdelta, double ydelta, double scale, DAngle angle, PalEntry color = 0xffffffff);
 void updatePauseStatus();
 void DeferredStartGame(MapRecord* map, int skill, bool nostopsound = false);
 void ChangeLevel(MapRecord* map, int skill, bool bossexit = false);
 void CompleteLevel(MapRecord* map);
 bool CheckCheatmode(bool printmsg = true, bool sponly = false);
 void setVideoMode();
+bool SyncInput();
+void setForcedSyncInput(const int playeridx);
+void resetForcedSyncInput();
 
 void TITLE_InformName(const char* newname);
 
@@ -178,6 +180,11 @@ inline bool isRRRA()
 	return g_gameType & (GAMEFLAG_RRRA);
 }
 
+inline bool isRoute66()
+{
+	return g_gameType & (GAMEFLAG_ROUTE66);
+}
+
 inline bool isWorldTour()
 {
 	return g_gameType & GAMEFLAG_WORLDTOUR;
@@ -186,6 +193,11 @@ inline bool isWorldTour()
 inline bool isPlutoPak()
 {
 	return g_gameType & GAMEFLAG_PLUTOPAK;
+}
+
+inline bool isVacation()
+{
+	return g_gameType & GAMEFLAG_DUKEVACA;
 }
 
 inline bool isShareware()
@@ -234,9 +246,6 @@ enum
 
 extern int paused;
 extern int chatmodeon;
-
-extern int lastTic;
-
 extern int PlayClock;
 
 enum gameaction_t : int

@@ -50,7 +50,7 @@ public:
 
 	int time;
 	int16_t spritesetindex;
-	int16_t dispicnum;
+	FTextureID dispictex;
 
 
 	DCoreActor() = default;
@@ -511,3 +511,7 @@ inline DCoreActor* GetDefaultByType(const PClass* type)
 	return (DCoreActor*)(type->Defaults);
 }
 
+inline PClassActor* ValidateActor(PClass* cls)
+{
+	return cls && cls->IsDescendantOf(RUNTIME_CLASS(DCoreActor)) ? static_cast<PClassActor*>(cls) : nullptr;
+}

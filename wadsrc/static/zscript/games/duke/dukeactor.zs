@@ -83,8 +83,53 @@ enum ESectorTriggers
 	// left: ST 32767, 65534, 65535
 };
 
+enum dukeinv_t
+{
+	GET_STEROIDS,  // 0
+	GET_SHIELD,
+	GET_SCUBA,
+	GET_HOLODUKE,
+	GET_JETPACK,
+	GET_DUMMY1,  // 5
+	GET_ACCESS,
+	GET_HEATS,
+	GET_DUMMY2,
+	GET_FIRSTAID,
+	GET_BOOTS,  // 10
+	GET_MAX,
+
+	GET_MOONSHINE   = 0,
+	GET_KELVAR      = 1,
+	GET_BEER        = 3,
+	GET_COWPIE      = 4,
+	GET_KEYS        = 6,
+	GET_WHISKEY     = 9,
+
+
+};
+
 class DukeActor : CoreActor native
 {
+	default
+	{
+		setgamedefaults;
+		falladjustz 24;
+		autoaimangle 8.4375;
+		projectilespread 5.625;
+		jumptoplayer_factor 2.0;
+		justjump1_factor 2.133;
+		justjump2_factor 2.667;
+		windang_factor 2.667;
+		floating_floordist 0;
+		floating_ceilingdist 66;
+		landmovefactor 1;
+		watermovefactor 1;
+		gravityfactor 1;
+		sparkoffset 5;
+		move "SHRUNKVELS", 32;
+		move "RESPAWN_ACTOR_FLAG";
+		action "ANULLACTION", 0;
+	}
 	enum EStatnums
 	{
 		STAT_DEFAULT        = 0,
@@ -119,12 +164,16 @@ class DukeActor : CoreActor native
 	enum amoveflags_t
 	{
 		face_player       = 1,
+		faceplayer        = 1,
 		geth              = 2,
 		getv              = 4,
 		random_angle      = 8,
+		randomangle      = 8,
 		face_player_slow  = 16,
+		faceplayerslow	  = 16,
 		spin              = 32,
 		face_player_smart = 64,
+		faceplayersmart = 64,
 		fleeenemy         = 128,
 		jumptoplayer_only = 256,
 		justjump1 = 256,
@@ -137,21 +186,125 @@ class DukeActor : CoreActor native
 		antifaceplayerslow = 32768
 	};
 
+	enum pstateflags
+	{
+		pstanding = 1,
+		pwalking = 2,
+		prunning = 4,
+		pducking = 8,
+		pfalling = 16,
+		pjumping = 32,
+		phigher = 64,
+		pwalkingback = 128,
+		prunningback = 256,
+		pkicking = 512,
+		pshrunk = 1024,
+		pjetpack = 2048,
+		ponsteroids = 4096,
+		ponground = 8192,
+		palive = 16384,
+		pdead = 32768,
+		pfacing = 65536
+	}
+
+	const ONFIRETIME = 164;
+	const FIREPAINFREQ = 16;
+	const SHRUNKDONECOUNT = 304;
+	const SPAWNAMMOODDS = 96;
+	const SWEARFREQUENCY = 100;
+	const MAXSLEEPDISTF = 1024;
+	const SHRUNKCOUNT = 270;
+	const SLEEPTIME = 1536;
+	const THAWTIME = 138;
+	const FROZENQUICKKICKDIST = 980;
+	const FROZENDRIPTIME = 90;
+	const PLAYDEADTIME = 120;
+	const RESPAWNACTORTIME = 768;
+	const MAXXSTRETCH = 70;
+	const MAXYSTRETCH = 70;
+	const MINXSTRETCH = 9;
+	const MINYSTRETCH = 8;
+	const SQUISHABLEDISTANCE = 1024;
+	const RETRIEVEDISTANCE = 844;
+	const RESPAWNITEMTIME = 768;
+
+	const WEAKEST = 1;
+	const WEAK = 5;
+	const MEDIUMSTRENGTH = 10;
+	const TOUGH = 20;
+	const REALLYTOUGH = 30;
+	const MAXPLAYERHEALTH = 100;
+	const MEGASTRENGTH = 10000;
+
+
+	const STEROID_AMOUNT = 400;
+	const SHIELD_AMOUNT = 100;
+	const SCUBA_AMOUNT = 6400;
+	const HOLODUKE_AMOUNT = 2400;
+	const JETPACK_AMOUNT = 1600;
+	const HEAT_AMOUNT = 1200;
+	const FIRSTAID_AMOUNT = MAXPLAYERHEALTH;
+	const BOOT_AMOUNT = 200;
+
+	meta int gutsoffset;
+	meta int falladjustz;
+	meta int aimoffset;
+	meta int strength;
+	meta double autoaimangle;
+	meta double sparkoffset;
+	meta double projectilespread;
+	meta double shootzoffset;
+	meta double moveclipdist;
+	meta double jumptoplayer_factor;
+	meta double justjump1_factor;
+	meta double justjump2_factor;
+	meta double windang_factor;
+	meta double floating_floordist;
+	meta double floating_ceilingdist;
+	meta double landmovefactor;
+	meta double watermovefactor;
+	meta double gravityfactor;
+	meta double minhitscale;
+
+	property prefix: none;
+	property gutsoffset: gutsoffset;
+	property falladjustz: falladjustz;
+	property aimoffset: aimoffset;
+	property strength: strength;
+	property autoaimangle: autoaimangle;
+	property sparkoffset: sparkoffset;
+	property projectilespread: projectilespread;
+	property shootzoffset: shootzoffset;
+	property moveclipdist: moveclipdist;
+	property jumptoplayer_factor: jumptoplayer_factor;
+	property justjump1_factor: justjump1_factor;
+	property justjump2_factor: justjump2_factor;
+	property windang_factor: windang_factor;
+	property floating_floordist: floating_floordist;
+	property floating_ceilingdist: floating_ceilingdist;
+	property landmovefactor: landmovefactor;
+	property watermovefactor: watermovefactor;
+	property gravityfactor: gravityfactor;
+	property minhitscale: minhitscale;
+
 	
 	native void SetSpritesetImage(int index);
 	native int GetSpritesetSize();
 
+	native class<DukeActor> attackertype;
 	native DukeActor ownerActor, hitOwnerActor;
 	native uint8 cgg;
 	native uint8 spriteextra;	// moved here for easier maintenance. This was originally a hacked in field in the sprite structure called 'filler'.
-	native int16 /*attackertype, hitang,*/ hitextra, movflag;
+	native int16 hitextra;
+	native uint16 movflag;
 	native int16 tempval; /*, dispicnum;*/
 	native int16 timetosleep;
 	native bool mapSpawned;
-	native double floorz, ceilingz;
+	native double floorz, ceilingz, hitang;
 	native int saved_ammo;
 	native int palvals;
-	native int temp_data[6];
+	native int counter;
+	native int temp_data[5];
 	native private int flags1, flags2, flags3;
 	native walltype temp_walls[2];
 	native sectortype temp_sect, actorstayput;
@@ -160,28 +313,13 @@ class DukeActor : CoreActor native
 	native Vector3 temp_pos, temp_pos2;
 	native double temp_angle;
 
-	// this is not really usable unless all actors are properly scriptified.
-	flagdef Inventory: flags1, 0;
-	flagdef ShrinkAutoaim: flags1, 1;
-	flagdef Badguy: flags1, 2;
-	flagdef ForceAutoaim: flags1, 3;
-	flagdef Boss: flags1, 4;
-	flagdef Badguystayput: flags1, 5;
-	flagdef GreenSlimeFood: flags1, 6;
-	flagdef NoDamagePush: flags1, 7;
-	flagdef NoWaterDrip: flags1, 8;
-	flagdef InternalBadguy: flags1, 9;
-	flagdef Killcount: flags1, 10;
-	flagdef NoCanSeeCheck: flags1, 11;
-	flagdef HitRadiusCheck: flags1, 12;
-	flagdef MoveFTA_CheckSee: flags1, 13;
-	flagdef MoveFTA_MakeStandable: flags1, 14;
-	flagdef TriggerIfHitSector: flags1, 15;
-	//flagdef MoveFTA_WakeupCheck: flags1, 16; // this one needs to be auto-set for RR, not for Duke, should not be exposed unless the feature becomes generally available.
-	flagdef CheckSeeWithPal8: flags1, 17;
-	flagdef NoShadow: flags1, 18;
-	flagdef SE24_NoFloorCheck: flags1, 19;
-	flagdef NoInterpolate: flags1, 20;
+	native ActorAction curAction;
+	native ActorMove curMove;
+	native Name curAI;
+	native int16 actioncounter;
+	//native uint8 killit_flag;
+
+	// flags are implemented natively to avoid the prefixes.
 	
 	native void getglobalz();
 	native DukePlayer, double findplayer();
@@ -190,19 +328,37 @@ class DukeActor : CoreActor native
 	native int domove(int clipmask);
 	native int PlayActorSound(Sound snd, int chan = CHAN_AUTO, int flags = 0);
 	native int CheckSoundPlaying(Sound snd, int chan = CHAN_AUTO);
+	native bool CheckAnyActorSoundPlaying();
 	native void StopSound(Sound snd, int flags = 0);
-	native DukeActor spawn(Name type);
-	native DukeActor spawnsprite(int type);	// for cases where the map has a picnum stored. Avoid when possible.
-	native DukeActor spawnweaponorammo(int type);
+	native DukeActor spawn(class<DukeActor> type);
+	native DukeActor spawnsprite(int type);	// for cases where the map has a tilenum stored. Avoid when possible.
 	native void lotsofglass(int count, walltype wal = null);
 	native void lotsofcolourglass(int count, walltype wal = null);
 	native void makeitfall();
-	native void detonate(name type);
+	native void detonate(class<DukeActor> type);
 	native void checkhitdefault(DukeActor proj);
 	native void operatesectors(sectortype sec);
 	native int SpriteWidth();
+	native int SpriteHeight();
+	native DukeActor, bool aim(readonly<DukeActor> weapon, double aimangle = -1);
 
-	native void checkhitsprite(DukeActor hitter);
+	// CON simulation
+	native void SetAction(Name act);
+	native void SetAI(Name ai);
+	native void SetMove(Name mov, int flags = 0);
+	native bool checkp(DukePlayer p, int flags);
+	native bool cansee(DukePlayer p);
+	native void actoroperate();
+	native bool ifsquished(DukePlayer p);
+	native void ChangeType(class<DukeActor> newtype);
+	native void fall(DukePlayer p);
+	native void actorsizeto(double x, double y);
+	native bool dodge();
+	native bool ifcanshoottarget(DukePlayer p, double pdist);
+	native void spriteglass(int n);
+	native void spawndebris(int dnum, int count);
+	native void respawnhitag();
+
 
 	virtual native void Tick();
 
@@ -216,13 +372,17 @@ class DukeActor : CoreActor native
 	virtual void onMotoSmash(DukePlayer toucher) {}
 	virtual void onRespawn(int tag) { }
 	virtual bool animate(tspritetype tspr) { return false; }
-	virtual void RunState() {}	// this is the CON function.
-	virtual void PlayFTASound() {}
+	virtual void RunState(DukePlayer p, double pdist) {}	// this is the CON function.
+	virtual void PlayFTASound(int mode) {}
 	virtual void StandingOn(DukePlayer p) {}
 	virtual bool TriggerSwitch(DukePlayer activator) { return false; }
 	virtual bool shootthis(DukeActor actor, DukePlayer p, Vector3 pos, double ang) const // this gets called on the defaults.
 	{
 		return false;
+	}
+	virtual class<DukeActor> GetRadiusDamageType(int targhealth)
+	{
+		return 'DukeRadiusExplosion';
 	}
 	
 	native void RandomScrap();
@@ -231,48 +391,92 @@ class DukeActor : CoreActor native
 	native int badguy();
 	native int scripted();
 	native int isplayer();
-	native void lotsofstuff(Name type, int count);
-	native double gutsoffset();
+	native void lotsofstuff(class<DukeActor> type, int count);
 	native int movesprite(Vector3 move, int clipmask);
 	native int movesprite_ex(Vector3 move, int clipmask, CollisionData coll);
-	native void shoot(Name spawnclass);
+	native void shoot(class<DukeActor> spawnclass);
 	native void setClipDistFromTile();
 	native void insertspriteq();
 	native void operateforcefields(int tag);
 	native void restoreloc();
+	native void fakebubbaspawn(DukePlayer p);
+	native void destroyit();
+	native void mamaspawn();
+	native void garybanjo();
+	native Sound GetAmbientSound();
+	native double GetAmbientDist();
+	native void addkill();
+	native void subkill();
+	native void killit();
 	
 
-	// temporary flag accessors - need to be eliminated once we can have true actor flags
-	native int actorflag1(int mask);
-	native int actorflag2(int mask);
-	native int actorflag3(int mask);
-	native int attackerflag1(int mask);
-	native int attackerflag2(int mask);
-	deprecated("4.9") native bool checktype(String name);	// this must not stay in the code, so mark it deprecated to keep the annoying warning at startup.
 	
 	
-	
-	virtual void Initialize()
+	virtual void Initialize(DukeActor spawner)
 	{
-		if (!self.badguy() && self.scripted())
+		if (!self.bSIMPLEINIT && !self.badguy() && self.scripted())
 		{
 			if (!self.mapSpawned) self.lotag = 0;
 
-			if (self.lotag > ud.player_skill)
+			if (self.scale.X == 0 || self.scale.Y == 0)
 			{
-				self.scale = (0, 0);
-				self.ChangeStat(STAT_MISC);
+				self.scale = (REPEAT_SCALE, REPEAT_SCALE);
+			}
+
+			self.clipdist = 10;
+			if (spawner != null) self.angle = spawner.angle;
+			self.ownerActor = self;
+			self.ChangeStat(STAT_ACTOR);
+		}
+	}
+	
+	
+	void commonItemSetup(DukeActor spawner, Vector2 scale = (0.5, 0.5), int usefloorshade = -1, bool noinitialmove = false)
+	{
+		if (spawner && spawner != self)
+		{
+			self.lotag = 0;
+			if (!noinitialmove)
+			{
+				self.pos.Z -= 32;
+				self.vel.Z = -4;
 			}
 			else
-			{
-				self.clipdist = 10;
-				self.ownerActor = self;
-				self.ChangeStat(STAT_ACTOR);
-			}
+				self.vel.Z = 0;
+			self.DoMove(CLIPMASK0);
+			self.cstat |= randomxflip();
+		}
+		else
+		{
+			self.cstat = 0;
+		}
+
+		if (ud.multimode < 2 && self.pal != 0)
+		{
+			self.scale = (0, 0);
+			self.ChangeStat(STAT_MISC);
+			return;
+		}
+
+		self.pal = 0;
+		self.shade = -17;
+		self.scale = scale;
+
+		if (spawner && spawner != self) self.ChangeStat(STAT_ACTOR);
+		else
+		{
+			self.ChangeStat(STAT_ZOMBIEACTOR);
+			self.makeitfall();
+		}
+
+		// RR defaults to using the floor shade here, let's make this configurable.
+		if (usefloorshade == 1 || (usefloorshade == -1 && isRR()))
+		{
+			self.shade = self.sector.floorshade;
 		}
 		
 	}
-	
+
 	
 	int checkLocationForFloorSprite(double radius)
 	{
@@ -293,7 +497,6 @@ class DukeActor : CoreActor native
 		}
 		return true;
 	}
-	
 }
 
 extend struct _
@@ -321,10 +524,7 @@ struct DukeLevel
 	native static void operatemasterswitches(int lotag);
 	native static void operateactivators(int lotag, DukePlayer p);
 	native static int floorsurface(sectortype s);
-	native static int floorflags(sectortype s);
 	native static int ceilingsurface(sectortype s);
-	native static int ceilingflags(sectortype s);
-	native static int wallflags(walltype s, int which);
 	native static void AddCycler(sectortype sector, int lotag, int shade, int shade2, int hitag, int state);
 	native static void addtorch(sectortype sector, int shade, int lotag);
 	native static void addlightning(sectortype sector, int shade);
@@ -336,6 +536,7 @@ struct DukeLevel
 	native static DukeActor LocateTheLocator(int n, sectortype sect);
 	native static int getanimationindex(int type, sectortype sec);
 	native static int setanimation(sectortype animsect, int type, sectortype sec, double target, double vel);
+	native static void tearitup(sectortype sect);
 }
 
 struct DukeStatIterator
@@ -361,82 +562,3 @@ struct DukeSpriteIterator
 }
 
 
-// this is only temporary. We cannot check the actor flags as long as we still need to deal with internal actors whose picnum defines their type.
-enum sflags_t
-{
-	SFLAG_INVENTORY				= 0x00000001,
-	SFLAG_SHRINKAUTOAIM			= 0x00000002,
-	SFLAG_BADGUY				= 0x00000004,
-	SFLAG_FORCEAUTOAIM			= 0x00000008,
-	SFLAG_BOSS					= 0x00000010,
-	SFLAG_BADGUYSTAYPUT			= 0x00000020,
-	SFLAG_GREENSLIMEFOOD		= 0x00800040,
-	SFLAG_NODAMAGEPUSH			= 0x00000080,
-	SFLAG_NOWATERDIP			= 0x00000100,
-	SFLAG_INTERNAL_BADGUY		= 0x00000200, // a separate flag is needed for the internal ones because SFLAG_BADGUY has additional semantics.
-	SFLAG_KILLCOUNT				= 0x00000400,
-	SFLAG_NOCANSEECHECK			= 0x00000800,
-	SFLAG_HITRADIUSCHECK		= 0x00001000,
-	SFLAG_MOVEFTA_CHECKSEE		= 0x00002000,
-	SFLAG_MOVEFTA_MAKESTANDABLE = 0x00004000,
-	SFLAG_TRIGGER_IFHITSECTOR	= 0x00008000,
-	SFLAG_MOVEFTA_WAKEUPCHECK	= 0x00010000,
-	SFLAG_MOVEFTA_CHECKSEEWITHPAL8 = 0x00020000,	// let's hope this can be done better later. For now this was what blocked merging the Duke and RR variants of movefta
-	SFLAG_NOSHADOW				= 0x00040000,
-	SFLAG_SE24_NOCARRY			= 0x00080000,
-	SFLAG_NOINTERPOLATE			= 0x00100000,
-	SFLAG_FALLINGFLAMMABLE		= 0x00200000,
-	SFLAG_FLAMMABLEPOOLEFFECT	= 0x00400000,
-	SFLAG_INFLAME				= 0x00800000,
-	SFLAG_NOFLOORFIRE			= 0x01000000,
-	SFLAG_HITRADIUS_FLAG1		= 0x02000000,
-	SFLAG_HITRADIUS_FLAG2		= 0x04000000,
-	SFLAG_CHECKSLEEP			= 0x08000000,
-	SFLAG_NOTELEPORT			= 0x10000000,
-	SFLAG_SE24_REMOVE			= 0x20000000,
-	SFLAG_BLOCK_TRIPBOMB		= 0x40000000,
-	SFLAG_NOFALLER				= 0x80000000,
-};
-
-enum sflags2_t
-{
-	SFLAG2_USEACTIVATOR = 0x00000001,
-	SFLAG2_NOROTATEWITHSECTOR	= 0x00000002,
-	SFLAG2_SHOWWALLSPRITEONMAP	= 0x00000004,
-	SFLAG2_NOFLOORPAL			= 0x00000008,
-	SFLAG2_EXPLOSIVE			= 0x00000010,
-	SFLAG2_BRIGHTEXPLODE		= 0x00000020,
-	SFLAG2_DOUBLEDMGTHRUST		= 0x00000040,
-	SFLAG2_BREAKMIRRORS			= 0x00000080,
-	SFLAG2_CAMERA				= 0x00000100,
-	SFLAG2_DONTANIMATE			= 0x00000200,
-	//SFLAG2_INTERPOLATEANGLE		= 0x00000400,
-	SFLAG2_GREENBLOOD			= 0x00000800,
-	SFLAG2_ALWAYSROTATE1		= 0x00001000,
-	SFLAG2_DIENOW				= 0x00002000,
-	SFLAG2_TRANFERPALTOJIBS		= 0x00004000,
-	SFLAG2_NORADIUSPUSH			= 0x00008000,
-	SFLAG2_FREEZEDAMAGE			= 0x00010000,
-	SFLAG2_REFLECTIVE			= 0x00020000,
-	SFLAG2_ALWAYSROTATE2		= 0x00040000,
-	SFLAG2_SPECIALAUTOAIM		= 0x00080000,
-	SFLAG2_NODAMAGEPUSH			= 0x00100000,
-	SFLAG2_IGNOREHITOWNER		= 0x00200000,
-	SFLAG2_DONTDIVE				= 0x00400000,
-	SFLAG2_FLOATING				= 0x00800000,
-	SFLAG2_PAL8OOZ				= 0x01000000,	// dirty hack - only needed because this needs to work from CON.
-	SFLAG2_SPAWNRABBITGUTS		= 0x02000000, // this depends on the shooter, not the projectile so it has to be done with a flag.
-	SFLAG2_NONSMOKYROCKET		= 0x04000000, // same with this one. Flags should later be copied to the projectile once posible.
-	SFLAG2_MIRRORREFLECT		= 0x08000000,
-	SFLAG2_ALTPROJECTILESPRITE	= 0x10000000, // yet another shooter flag. RRRA has some projectiles with alternative visuals, again this is on the caller thanks to CON.
-	SFLAG2_UNDERWATERSLOWDOWN	= 0x20000000,
-
-};
-
-enum sflags3_t
-{
-	SFLAG3_DONTDIVEALIVE = 0x00000001,
-	SFLAG3_BLOODY = 0x00000002,
-	SFLAG3_BROWNBLOOD = 0x00000004,
-	SFLAG3_LIGHTDAMAGE = 0x00000008,
-};

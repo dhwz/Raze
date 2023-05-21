@@ -1416,7 +1416,7 @@ int getSpriteMassBySize(DBloodActor* actor)
 	}
 
 	SPRITEMASS* cached = &actor->spriteMass;
-	if (((seqId >= 0 && seqId == cached->seqId) || actor->spr.picnum == cached->picnum) && actor->spr.scale.X == cached->scale.X &&
+	if (((seqId >= 0 && seqId == cached->seqId) || actor->spr.spritetexture() == cached->texid) && actor->spr.scale.X == cached->scale.X &&
 		actor->spr.scale.Y == cached->scale.Y && clipDist == cached->clipDist)
 	{
 		return cached->mass;
@@ -1499,7 +1499,7 @@ int getSpriteMassBySize(DBloodActor* actor)
 
 	cached->scale.X = actor->spr.scale.X;
 	cached->scale.Y = actor->spr.scale.Y;
-	cached->picnum = actor->spr.picnum;
+	cached->texid = actor->spr.spritetexture();
 	cached->seqId = seqId;
 	cached->clipDist = actor->clipdist;
 
@@ -2188,7 +2188,7 @@ void trPlayerCtrlSetLookAngle(int value, PLAYER* pPlayer)
 
 	if (const double adjustment = clamp(value * 0.125 * (value > 0 ? lookStepUp : lookStepDown), downAngle, upAngle))
 	{
-		setForcedSyncInput();
+		setForcedSyncInput(pPlayer->nPlayer);
 		pPlayer->actor->spr.Angles.Pitch = maphoriz(-100. * tan(adjustment * pi::pi() * (1. / 1024.)));
 	}
 }
@@ -3974,7 +3974,7 @@ bool condCheckMixed(DBloodActor* aCond, const EVENT& event, int cmpOp, bool PUSH
 			switch (cond)
 			{
 			case 24: return condCmp(GetExtInfo(actor->spr.spritetexture()).surftype, arg1, arg2, cmpOp);
-			case 25: return condCmp(actor->spr.picnum, arg1, arg2, cmpOp);
+			case 25: return condCmp(legacyTileNum(actor->spr.spritetexture()), arg1, arg2, cmpOp);
 			case 26: return condCmp(actor->spr.pal, arg1, arg2, cmpOp);
 			case 27: return condCmp(actor->spr.shade, arg1, arg2, cmpOp);
 			case 28: return (arg3) ? condCmp((actor->spr.cstat & ESpriteFlags::FromInt(arg3)), arg1, arg2, cmpOp) : (actor->spr.cstat & ESpriteFlags::FromInt(arg1));
@@ -6060,12 +6060,12 @@ bool modernTypeOperateSprite(DBloodActor* actor, EVENT& event)
 			if (actor->xspr.data4 != 0) break;
 			else if (actor->spr.flags & kModernTypeFlag1)
 			{
-				setForcedSyncInput();
+				setForcedSyncInput(pPlayer->nPlayer);
 				pPlayer->actor->spr.Angles.Yaw = actor->spr.Angles.Yaw;
 			}
 			else if (valueIsBetween(actor->xspr.data2, -kAng360, kAng360))
 			{
-				setForcedSyncInput();
+				setForcedSyncInput(pPlayer->nPlayer);
 				pPlayer->actor->spr.Angles.Yaw = mapangle(actor->xspr.data2);
 			}
 			break;
@@ -7212,7 +7212,7 @@ void usePictureChanger(DBloodActor* sourceactor, int objType, sectortype* targSe
 		break;
 	case OBJ_SPRITE:
 		if (valueIsBetween(sourceactor->xspr.data1, -1, 32767))
-			objActor->spr.picnum = sourceactor->xspr.data1;
+			objActor->spr.setspritetexture(tileGetTextureID(sourceactor->xspr.data1));
 
 		if (sourceactor->xspr.data2 >= 0) objActor->spr.shade = (sourceactor->xspr.data2 > 127) ? 127 : sourceactor->xspr.data2;
 		else if (sourceactor->xspr.data2 < -1) objActor->spr.shade = (sourceactor->xspr.data2 < -127) ? -127 : sourceactor->xspr.data2;
@@ -9178,7 +9178,7 @@ void callbackUniMissileBurst(DBloodActor* actor, sectortype*) // 22
 
 		burstactor->spr.type = actor->spr.type;
 		burstactor->spr.shade = actor->spr.shade;
-		burstactor->spr.picnum = actor->spr.picnum;
+		burstactor->spr.setspritetexture(actor->spr.spritetexture());
 
 
 		burstactor->spr.cstat = actor->spr.cstat;
@@ -9413,7 +9413,7 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, SPRITEMASS& w, SPR
 	if (arc.BeginObject(keyname))
 	{
 		arc("seq", w.seqId, &nul.seqId)
-			("picnum", w.picnum, &nul.picnum)
+			("texid", w.texid, &nul.texid)
 			("scale", w.scale, &nul.scale)
 			("clipdist", w.clipDist)
 			("mass", w.mass)

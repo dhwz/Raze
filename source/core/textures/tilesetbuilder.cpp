@@ -80,7 +80,7 @@ CCMD(tilecrc)
 		FGameTexture* tex;
 		if (tile >= 0 && tile < MAXTILES && !*p)
 		{
-			// tex = tileGetTexture(tile);
+			tex = TexMan.GetGameTexture(tileGetTextureID(tile));
 		}
 		else
 		{
@@ -214,6 +214,24 @@ void TilesetBuildInfo::MakeCanvas(int tilenum, int width, int height)
 	tile[tilenum].tileimage = nullptr;
 }
 
+void LoadAliases(int firsttileid, int maxarttile)
+{
+	int lump, lastlump = 0;
+	while ((lump = fileSystem.FindLump("TEXNAMES", &lastlump, false)) != -1)
+	{
+		FScanner sc;
+		sc.OpenLumpNum(lump);
+		while (sc.GetNumber())
+		{
+			int tile = sc.Number;
+			if (tile < 0 || tile > maxarttile) tile = maxarttile;
+			sc.MustGetStringName("=");
+			sc.MustGetString();
+			TexMan.AddAlias(sc.String, FSetTextureID(firsttileid + tile));
+		}
+	}
+
+}
 //==========================================================================
 //
 // 
@@ -275,7 +293,7 @@ void ConstructTileset()
 		FStringf tname("#%05d", i);
 		if (info.tile[i].tileimage == nullptr)
 		{
-			if (info.tile[i].imported == nullptr)
+			if (info.tile[i].imported == nullptr || i == 0)
 			{
 				ftex = nulltex->GetTexture();
 				gtex = MakeGameTexture(ftex, tname, ETextureType::Null);
@@ -290,7 +308,7 @@ void ConstructTileset()
 		{
 			if (info.tile[i].imported) ftex = info.tile[i].imported->GetTexture();
 			else ftex = new FImageTexture(info.tile[i].tileimage);
-			gtex = MakeGameTexture(ftex, tname, ETextureType::Any);
+			gtex = MakeGameTexture(ftex, tname, i == 0? ETextureType::FirstDefined : ETextureType::Any);
 			gtex->SetOffsets(info.tile[i].leftOffset, info.tile[i].topOffset);
 		}
 		if (info.tile[i].extinfo.picanm.sf & PICANM_NOFULLBRIGHT_BIT)
@@ -316,6 +334,8 @@ void ConstructTileset()
 	{
 		texExtInfo[i + firstarttile] = info.tile[i].extinfo;
 	}
+
+	LoadAliases(firstarttile, maxarttile);
 
 	for (auto& a : info.aliases)
 	{

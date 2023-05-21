@@ -31,19 +31,20 @@ enum ESyncBits_ : uint32_t
     SB_AIM_DOWN = 1 << 22,
     SB_LOOK_LEFT = 1 << 23,
     SB_LOOK_RIGHT = 1 << 24,
-    SB_LOOK_UP = 1 << 25,
-    SB_LOOK_DOWN = 1 << 26,
+    SB_LOOK_UP = SB_AIM_UP|SB_CENTERVIEW,
+    SB_LOOK_DOWN = SB_AIM_DOWN|SB_CENTERVIEW,
+    SB_CROUCH = 1 << 25,
+    SB_CROUCH_LOCK = 1 << 26,
     SB_RUN = 1 << 27,
     SB_JUMP = 1 << 28,
-    SB_CROUCH = 1 << 29,
-    SB_FIRE = 1 << 30,
-    SB_ALTFIRE = 1u << 31,
+    SB_FIRE = 1 << 29,
+    SB_ALTFIRE = 1 << 30,
 
     SB_WEAPONMASK_BITS = (15u * SB_FIRST_WEAPON_BIT), // Weapons take up 4 bits
     SB_ITEMUSE_BITS = (127u * SB_ITEM_BIT_1),
 
-    SB_BUTTON_MASK = SB_ALTFIRE|SB_FIRE|SB_CROUCH|SB_JUMP|SB_LOOK_UP|SB_LOOK_DOWN|SB_AIM_UP|SB_AIM_DOWN|SB_LOOK_LEFT|SB_LOOK_RIGHT,     // all input from buttons (i.e. active while held)
-    SB_INTERFACE_MASK = (SB_INVPREV|SB_INVNEXT|SB_INVUSE|SB_CENTERVIEW|SB_TURNAROUND|SB_HOLSTER|SB_OPEN|SB_ESCAPE|SB_QUICK_KICK),  // all input from CCMDs
+    SB_BUTTON_MASK = SB_ALTFIRE|SB_FIRE|SB_CROUCH|SB_JUMP|SB_LOOK_UP|SB_LOOK_DOWN|SB_AIM_UP|SB_AIM_DOWN|SB_LOOK_LEFT|SB_LOOK_RIGHT|SB_QUICK_KICK,     // all input from buttons (i.e. active while held)
+    SB_INTERFACE_MASK = (SB_INVPREV|SB_INVNEXT|SB_INVUSE|SB_CENTERVIEW|SB_TURNAROUND|SB_HOLSTER|SB_OPEN|SB_ESCAPE),  // all input from CCMDs
     SB_INTERFACE_BITS = (SB_WEAPONMASK_BITS | SB_ITEMUSE_BITS | SB_INTERFACE_MASK),
     SB_ALL = ~0u
 };
@@ -71,8 +72,10 @@ struct InputPacket
 {
     float svel;
     float fvel;
+    float uvel;
     float avel;
     float horz;
+    float roll;
     ESyncBits actions;
 
 

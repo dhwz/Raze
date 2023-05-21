@@ -67,7 +67,7 @@ void BuildMummy(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector,
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
     pActor->spr.Angles.Yaw = nAngle;
-    pActor->spr.picnum = 1;
+    setvalidpic(pActor);
     pActor->spr.hitag = 0;
     pActor->spr.lotag = runlist_HeadRun() + 1;
     pActor->spr.extra = -1;
@@ -84,6 +84,8 @@ void BuildMummy(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector,
     pActor->spr.intowner = runlist_AddRunRec(pActor->spr.lotag - 1, pActor, 0xE0000);
 
     pActor->nRun = runlist_AddRunRec(NewRun, pActor, 0xE0000);
+
+    pActor->nSeqFile = "mummy";
 
     nCreaturesTotal++;
 }
@@ -139,19 +141,17 @@ void AIMummy::Tick(RunListEvent* ev)
 
     Gravity(pActor);
 
-    int nSeq = SeqOffsets[kSeqMummy] + MummySeq[nAction].a;
+    const auto mummySeq = getSequence(pActor->nSeqFile, MummySeq[nAction].nSeqId);
+    const auto& seqFrame = mummySeq->frames[pActor->nFrame];
 
-    pActor->spr.picnum = seq_GetSeqPicnum2(nSeq, pActor->nFrame);
+    pActor->spr.setspritetexture(seqFrame.getFirstChunkTexture());
 
-    int nFrame = SeqBase[nSeq] + pActor->nFrame;
-    int nFrameFlag = FrameFlag[nFrame];
-
-    seq_MoveSequence(pActor, nSeq, pActor->nFrame);
+    seqFrame.playSound(pActor);
 
     bool bVal = false;
 
     pActor->nFrame++;
-    if (pActor->nFrame >= SeqSize[nSeq])
+    if (pActor->nFrame >= mummySeq->frames.Size())
     {
         pActor->nFrame = 0;
 
@@ -314,7 +314,7 @@ void AIMummy::Tick(RunListEvent* ev)
                 pActor->nAction = 1;
                 pActor->nFrame = 0;
             }
-            else if (nFrameFlag & 0x80)
+            else if (seqFrame.flags & 0x80)
             {
                 runlist_DamageEnemy(pTarget, pActor, 5);
             }
@@ -332,7 +332,7 @@ void AIMummy::Tick(RunListEvent* ev)
             pActor->pTarget = nullptr;
             return;
         }
-        else if (nFrameFlag & 0x80)
+        else if (seqFrame.flags & 0x80)
         {
             SetQuake(pActor, 100);
 
@@ -375,6 +375,7 @@ void AIMummy::Tick(RunListEvent* ev)
             pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
 
             pActor->nAction = 0;
+            pActor->nFrame = 0;
             pActor->nHealth = 300;
             pActor->pTarget = nullptr;
 
@@ -415,12 +416,11 @@ void AIMummy::Tick(RunListEvent* ev)
 
 void AIMummy::Draw(RunListEvent* ev)
 {
-    auto pActor = ev->pObjActor;
-    if (!pActor) return;
-    int nAction = pActor->nAction;
-
-    seq_PlotSequence(ev->nParam, SeqOffsets[kSeqMummy] + MummySeq[nAction].a, pActor->nFrame, MummySeq[nAction].b);
-    return;
+    if (const auto pActor = ev->pObjActor)
+    {
+        const auto mummySeq = &MummySeq[pActor->nAction];
+        seq_PlotSequence(ev->nParam, pActor->nSeqFile, mummySeq->nSeqId, pActor->nFrame, mummySeq->nFlags);
+    }
 }
 
 //---------------------------------------------------------------------------

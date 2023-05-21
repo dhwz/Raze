@@ -34,7 +34,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "exhumedactor.h"
 #include "serialize_obj.h"
 #include "texturemanager.h"
+#include "texinfo.h"
 #include "player.h"
+#include "texids.h"
 
 BEGIN_PS_NS
 
@@ -86,6 +88,12 @@ void menu_DoPlasma();
 void DoEnergyTile();
 void InitEnergyTile();
 
+void setvalidpic(DExhumedActor* actor)
+{
+    // all we want here is setting it to something that passes renderer validation. This is never used to draw the sprite.
+    actor->spr.setspritetexture(aTexIds[kTexTorch1]);
+}
+
 extern int EndLevel;
 extern int32_t g_commandSetup;
 extern int32_t g_noSetup;
@@ -98,10 +106,6 @@ extern int nNetPlayerCount;
 extern int nNetTime;
 
 extern int nTotalPlayers;
-
-extern int nFontFirstChar;
-extern int nBackgroundPic;
-extern int nShadowPic;
 
 extern int nCreaturesTotal, nCreaturesKilled;
 
@@ -146,7 +150,7 @@ extern int bVanilla;
 
 inline FTextureID GameLogo()
 {
-    return TexMan.CheckForTexture((g_gameType & GAMEFLAG_EXHUMED) ? "ExhumedLogo" : "PowerslaveLogo", ETextureType::Any);
+    return aTexIds[(g_gameType & GAMEFLAG_EXHUMED) ? kTexExhumedLogo : kTexPowerslaveLogo];
 }
 
 extern double g_frameDelay;
@@ -194,7 +198,7 @@ extern char g_modDir[BMAX_PATH];
 
 void G_LoadGroupsInDir(const char* dirname);
 void G_DoAutoload(const char* dirname);
-void DrawRel(int tile, double x, double y, int shade = 0);
+void DrawRel(FGameTexture* tile, double x, double y, int shade = 0);
 void LevelFinished();
 
 // savegame.
@@ -234,12 +238,12 @@ struct GameInterface : public ::GameInterface
     DAngle playerPitchMin() override { return DAngle::fromDeg(49.5); }
     DAngle playerPitchMax() override { return DAngle::fromDeg(-49.5); }
     DCoreActor* getConsoleActor() override { return PlayerList[nLocalPlayer].pActor; }
-    PlayerAngles* getConsoleAngles() override { return &PlayerList[nLocalPlayer].Angles; }
     void ToggleThirdPerson() override;
     void processSprites(tspriteArray& tsprites, const DVector3& view, DAngle viewang, double interpfrac) override;
     int GetCurrentSkill() override;
     void StartSoundEngine() override;
-    ESyncBits GetNeededInputBits() override { return PlayerList[nLocalPlayer].input.actions & SB_CENTERVIEW; }
+    void reapplyInputBits(InputPacket* const input) override { input->actions |= PlayerList[nLocalPlayer].input.actions & SB_CENTERVIEW; }
+    void doPlayerMovement(const float scaleAdjust) override { gameInput.processMovement(&PlayerList[nLocalPlayer].Angles, scaleAdjust); }
 
 	::GameStats getStats() override;
 };

@@ -36,7 +36,6 @@ source as it is released.
 #include "ns.h"
 #include "global.h"
 #include "gamevar.h"
-#include "names_d.h"
 #include "dukeactor.h"
 
 BEGIN_DUKE_NS 
@@ -80,976 +79,6 @@ void incur_damage_d(player_struct* p)
 	}
 }
 
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-static void shootfireball(DDukeActor *actor, int p, DVector3 pos, DAngle ang)
-{
-	// World Tour's values for angles and velocities are quite arbitrary...
-	double vel, zvel;
-
-	if (actor->spr.extra >= 0)
-		actor->spr.shade = -96;
-
-	pos.Z -= 2;
-	if (actor->spr.picnum != DTILE_BOSS5)
-		vel = 840/16.;
-	else {
-		vel = 968/16.;
-		pos.Z += 24;
-	}
-
-	if (p < 0)
-	{
-		ang += DAngle22_5 / 8 - randomAngle(22.5 / 4);
-		double scratch;
-		int j = findplayer(actor, &scratch);
-		double dist = (ps[j].GetActor()->spr.pos.XY() - actor->spr.pos.XY()).Length();
-		zvel = ((ps[j].GetActor()->getPrevOffsetZ() - pos.Z + 3) * vel) / dist;
-	}
-	else
-	{
-		setFreeAimVelocity(vel, zvel, ps[p].Angles.getPitchWithView(), 49.);
-		pos += (ang + DAngle1 * 61.171875).ToVector() * (1024. / 448.);
-		pos.Z += 3;
-	}
-
-	double scale = p >= 0? 0.109375 : 0.28125;
-
-	auto spawned = CreateActor(actor->sector(), pos, DTILE_FIREBALL, -127, DVector2(scale, scale), ang, vel, zvel, actor, (short)4);
-	if (spawned)
-	{
-		spawned->spr.extra += (krand() & 7);
-		if (actor->spr.picnum == DTILE_BOSS5 || p >= 0)
-		{
-			spawned->spr.scale = DVector2(0.625, 0.625);
-		}
-		spawned->spr.yint = p;
-		spawned->spr.cstat = CSTAT_SPRITE_YCENTER;
-		spawned->clipdist = 1;
-	}
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-static void shootknee(DDukeActor* actor, int p, DVector3 pos, DAngle ang)
-{
-	auto sectp = actor->sector();
-	double vel = 1024., zvel;
-	HitInfo hit{};
-
-	if (p >= 0)
-	{
-		setFreeAimVelocity(vel, zvel, ps[p].Angles.getPitchWithView(), 16.);
-		pos.Z += 6;
-		ang += DAngle1 * 2.64;
-	}
-	else
-	{
-		double x;
-		auto pactor = ps[findplayer(actor, &x)].GetActor();
-		zvel = ((pactor->spr.pos.Z - pos.Z) * 16) / (x + 1/16.);
-		ang = (pactor->spr.pos.XY() - pos.XY()).Angle();
-	}
-
-	hitscan(pos, sectp, DVector3(ang.ToVector() * vel, zvel * 64), hit, CLIPMASK1);
-
-
-	if (hit.hitSector == nullptr) return;
-
-	if ((pos.XY() - hit.hitpos.XY()).Sum() < 64)
-	{
-		if (hit.hitWall || hit.actor())
-		{
-			auto knee = CreateActor(hit.hitSector, hit.hitpos, DTILE_KNEE, -15, DVector2(0, 0), ang, 2., 0., actor, 4);
-			if (knee)
-			{
-				knee->spr.extra += (krand() & 7);
-				if (p >= 0)
-				{
-					auto k = spawn(knee, DTILE_SMALLSMOKE);
-					if (k) k->spr.pos.Z -= 8;
-					S_PlayActorSound(KICK_HIT, knee);
-				}
-
-				if (p >= 0 && ps[p].steroids_amount > 0 && ps[p].steroids_amount < 400)
-					knee->spr.extra += (gs.max_player_health >> 2);
-			}
-			if (hit.actor() && ! isaccessswitch(hit.actor()->spr.spritetexture()))
-			{
-				fi.checkhitsprite(hit.actor(), knee);
-				if (p >= 0) checkhitswitch(p, nullptr, hit.actor());
-			}
-
-			else if (hit.hitWall)
-			{
-				if (hit.hitWall->cstat & CSTAT_WALL_BOTTOM_SWAP)
-					if (hit.hitWall->twoSided())
-						if (hit.hitpos.Z >= hit.hitWall->nextSector()->floorz)
-							hit.hitWall =hit.hitWall->nextWall();
-
-				if (!isaccessswitch(hit.hitWall->walltexture))
-				{
-					checkhitwall(knee, hit.hitWall, hit.hitpos);
-					if (p >= 0) checkhitswitch(p, hit.hitWall, nullptr);
-				}
-			}
-		}
-		else if (p >= 0 && zvel > 0 && hit.hitSector->lotag == 1)
-		{
-			auto splash = spawn(ps[p].GetActor(), DTILE_WATERSPLASH2);
-			if (splash)
-			{
-				splash->spr.pos.XY() = hit.hitpos.XY();
-				splash->spr.Angles.Yaw = ps[p].GetActor()->spr.Angles.Yaw;
-				splash->vel.X = 2;
-				ssp(actor, CLIPMASK0);
-				splash->vel.X = 0;
-			}
-
-		}
-	}
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-static void shootweapon(DDukeActor *actor, int p, DVector3 pos, DAngle ang, int atwith)
-{
-	auto sectp = actor->sector();
-	double vel = 1024, zvel = 0;
-	HitInfo hit{};
-
-	if (actor->spr.extra >= 0) actor->spr.shade = -96;
-
-	if (p >= 0)
-	{
-		SetGameVarID(g_iAimAngleVarID, AUTO_AIM_ANGLE, actor, p);
-		OnEvent(EVENT_GETAUTOAIMANGLE, p, ps[p].GetActor(), -1);
-		int varval = GetGameVarID(g_iAimAngleVarID, actor, p).value();
-		DDukeActor* aimed = nullptr;
-		if (varval > 0)
-		{
-			aimed = aim(actor, varval);
-		}
-
-		if (aimed)
-		{
-			auto tex = TexMan.GetGameTexture(aimed->spr.spritetexture());
-			double dal = ((aimed->spr.scale.X * tex->GetDisplayHeight()) * 0.5) + 5;
-			switch (aimed->spr.picnum)
-			{
-			case DTILE_GREENSLIME:
-			case DTILE_ROTATEGUN:
-				dal -= 8;
-				break;
-			}
-			double dist = (ps[p].GetActor()->spr.pos.XY() - aimed->spr.pos.XY()).Length();
-			zvel = ((aimed->spr.pos.Z - pos.Z - dal) * 16) / dist;
-			ang = (aimed->spr.pos - pos).Angle();
-		}
-
-		if (isWW2GI())
-		{
-			int angRange = 32;
-			double zRange = 1;
-			SetGameVarID(g_iAngRangeVarID, 32, actor, p);
-			SetGameVarID(g_iZRangeVarID, 256, actor, p);
-			OnEvent(EVENT_GETSHOTRANGE, p, ps[p].GetActor(), -1);
-			angRange = GetGameVarID(g_iAngRangeVarID, actor, p).value();
-			zRange = GetGameVarID(g_iZRangeVarID, actor, p).value() / 256.;
-
-			ang += DAngle::fromBuild((angRange / 2) - (krand() & (angRange - 1)));
-			if (aimed == nullptr)
-			{
-				// no target
-				setFreeAimVelocity(vel, zvel, ps[p].Angles.getPitchWithView(), 16.);
-			}
-			zvel += (zRange / 2) - krandf(zRange);
-		}
-		else if (aimed == nullptr)
-		{
-			ang += DAngle22_5 / 8 - randomAngle(22.5 / 4);
-			setFreeAimVelocity(vel, zvel, ps[p].Angles.getPitchWithView(), 16.);
-			zvel += 0.5 - krandf(1);
-		}
-
-		pos.Z -= 2;
-	}
-	else
-	{
-		double x;
-		int j = findplayer(actor, &x);
-		pos.Z -= 4;
-		double dist = (ps[j].GetActor()->spr.pos.XY() - actor->spr.pos.XY()).Length();
-		zvel = ((ps[j].GetActor()->getOffsetZ() - pos.Z) * 16) / dist;
-		zvel += 0.5 - krandf(1);
-		if (actor->spr.picnum != DTILE_BOSS1)
-		{
-			ang += DAngle22_5 / 8 - randomAngle(22.5 / 4);
-		}
-		else
-		{
-			ang = (ps[j].GetActor()->spr.pos.XY() - pos.XY()).Angle() + DAngle22_5 / 2 - randomAngle(22.5);
-		}
-	}
-
-	actor->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-	hitscan(pos, sectp, DVector3(ang.ToVector() * vel, zvel * 64), hit, CLIPMASK1);
-	actor->spr.cstat |= CSTAT_SPRITE_BLOCK_ALL;
-
-
-	if (hit.hitSector == nullptr) return;
-
-	if ((krand() & 15) == 0 && hit.hitSector->lotag == 2)
-		tracers(hit.hitpos, pos, 8 - (ud.multimode >> 1));
-
-	DDukeActor* spark;
-	if (p >= 0)
-	{
-		spark = CreateActor(hit.hitSector, hit.hitpos, DTILE_SHOTSPARK1, -15, DVector2(0.15625, 0.15625), ang, 0., 0., actor, 4);
-		if (!spark) return;
-
-		spark->spr.extra = ScriptCode[gs.actorinfo[atwith].scriptaddress];
-		spark->spr.extra += (krand() % 6);
-
-		if (hit.hitWall == nullptr && hit.actor() == nullptr)
-		{
-			if (zvel < 0)
-			{
-				if (hit.hitSector->ceilingstat & CSTAT_SECTOR_SKY)
-				{
-					spark->spr.scale = DVector2(0, 0);
-					return;
-				}
-				else
-					checkhitceiling(hit.hitSector);
-			}
-			spawn(spark, DTILE_SMALLSMOKE);
-		}
-
-		if (hit.actor())
-		{
-			fi.checkhitsprite(hit.actor(), spark);
-			if (hit.actor()->isPlayer() && (ud.coop != 1 || ud.ffire == 1))
-			{
-				spark->spr.scale = DVector2(0, 0);
-				auto jib = spawn(spark, DTILE_JIBS6);
-				if (jib)
-				{
-					jib->spr.pos.Z += 4;
-					jib->vel.X = 1;
-					jib->spr.scale = DVector2(0.375, 0.375);
-					jib->spr.Angles.Yaw += DAngle22_5 / 2 - randomAngle(22.5);
-				}
-			}
-			else spawn(spark, DTILE_SMALLSMOKE);
-
-			if (p >= 0 && isshootableswitch(hit.actor()->spr.spritetexture()))
-			{
-				checkhitswitch(p, nullptr, hit.actor());
-				return;
-			}
-		}
-		else if (hit.hitWall)
-		{
-			spawn(spark, DTILE_SMALLSMOKE);
-
-			if (isadoorwall(hit.hitWall->walltexture) == 1)
-				goto SKIPBULLETHOLE;
-			if (isablockdoor(hit.hitWall->walltexture) == 1)
-				goto SKIPBULLETHOLE;
-			if (p >= 0 && isshootableswitch(hit.hitWall->walltexture))
-			{
-				checkhitswitch(p, hit.hitWall, nullptr);
-				return;
-			}
-
-			if (hit.hitWall->hitag != 0 || (hit.hitWall->twoSided() && hit.hitWall->nextWall()->hitag != 0))
-				goto SKIPBULLETHOLE;
-
-			if (hit.hitSector && hit.hitSector->lotag == 0)
-				if (!(tileflags(hit.hitWall->overtexture) & TFLAG_FORCEFIELD))
-					if ((hit.hitWall->twoSided() && hit.hitWall->nextSector()->lotag == 0) ||
-						(!hit.hitWall->twoSided() && hit.hitSector->lotag == 0))
-						if ((hit.hitWall->cstat & CSTAT_WALL_MASKED) == 0)
-						{
-							if (hit.hitWall->twoSided())
-							{
-								DukeSectIterator it(hit.hitWall->nextSector());
-								while (auto l = it.Next())
-								{
-									if (l->spr.statnum == STAT_EFFECTOR && l->spr.lotag == SE_13_EXPLOSIVE)
-										goto SKIPBULLETHOLE;
-								}
-							}
-
-							DukeStatIterator it(STAT_MISC);
-							while (auto l = it.Next())
-							{
-								if (l->spr.picnum == DTILE_BULLETHOLE)
-									if ((l->spr.pos - spark->spr.pos).Length() < 0.75 + krandf(0.5))
-										goto SKIPBULLETHOLE;
-							}
-							auto hole = spawn(spark, DTILE_BULLETHOLE);
-							if (hole)
-							{
-								hole->vel.X = -1 / 16.;
-								hole->spr.Angles.Yaw = hit.hitWall->delta().Angle() - DAngle90;
-								ssp(hole, CLIPMASK0);
-								hole->spr.cstat2 |= CSTAT2_SPRITE_DECAL;
-							}
-						}
-
-		SKIPBULLETHOLE:
-
-			if (hit.hitWall->cstat & CSTAT_WALL_BOTTOM_SWAP)
-				if (hit.hitWall->twoSided())
-					if (hit.hitpos.Z >= hit.hitWall->nextSector()->floorz)
-						hit.hitWall = hit.hitWall->nextWall();
-
-			checkhitwall(spark, hit.hitWall, hit.hitpos);
-		}
-	}
-	else
-	{
-		spark = CreateActor(hit.hitSector, hit.hitpos, DTILE_SHOTSPARK1, -15, DVector2(0.375, 0.375), ang, 0., 0., actor, 4);
-		if (spark)
-		{
-			spark->spr.extra = ScriptCode[gs.actorinfo[atwith].scriptaddress];
-
-			if (hit.actor())
-			{
-				fi.checkhitsprite(hit.actor(), spark);
-				if (!hit.actor()->isPlayer())
-					spawn(spark, DTILE_SMALLSMOKE);
-				else spark->spr.scale = DVector2(0, 0);
-			}
-			else if (hit.hitWall)
-				checkhitwall(spark, hit.hitWall, hit.hitpos);
-		}
-	}
-
-	if ((krand() & 255) < 4)
-	{
-		S_PlaySound3D(PISTOL_RICOCHET, spark, hit.hitpos);
-	}
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-static void shootstuff(DDukeActor* actor, int p, DVector3 pos, DAngle ang, int atwith)
-{
-	sectortype* sect = actor->sector();
-	double vel, zvel;
-	int scount;
-
-	if (actor->spr.extra >= 0) actor->spr.shade = -96;
-
-	scount = 1;
-	if (atwith == DTILE_SPIT) vel = 292 / 16.;
-	else
-	{
-		if (atwith == DTILE_COOLEXPLOSION1)
-		{
-			if (actor->spr.picnum == DTILE_BOSS2) vel = 644 / 16.;
-			else vel = 348 / 16.;
-			pos.Z -= 2;
-		}
-		else
-		{
-			vel = 840 / 16.;
-			pos.Z -= 2;
-		}
-	}
-
-	if (p >= 0)
-	{
-		auto aimed = aim(actor, AUTO_AIM_ANGLE);
-
-		if (aimed)
-		{
-			auto tex = TexMan.GetGameTexture(aimed->spr.spritetexture());
-			double dal = ((aimed->spr.scale.X * tex->GetDisplayHeight()) * 0.5) - 12;
-			double dist = (ps[p].GetActor()->spr.pos.XY() - aimed->spr.pos.XY()).Length();
-
-			zvel = ((aimed->spr.pos.Z - pos.Z - dal) * vel) / dist;
-			ang = (aimed->spr.pos.XY() - pos.XY()).Angle();
-		}
-		else
-			setFreeAimVelocity(vel, zvel, ps[p].Angles.getPitchWithView(), 49.);
-	}
-	else
-	{
-		double x;
-		int j = findplayer(actor, &x);
-		ang += DAngle22_5 / 8 - randomAngle(22.5 / 4);
-#if 1
-		double dist = (ps[j].GetActor()->spr.pos.XY() - actor->spr.pos.XY()).Length();
-		zvel = ((ps[j].GetActor()->getPrevOffsetZ() - pos.Z + 3) * vel) / dist;
-#else
-		// this is for pitch corrected velocity
-		auto dist = (ps[j].GetActor()->spr.pos - actor->spr.pos).Resized(vel);
-		vel = dist.XY().Length();
-		zvel = dist.Z;
-#endif
-	}
-
-	double oldzvel = zvel;
-	double scale = p >= 0? 0.109375 : 0.28125;
-	if (atwith == DTILE_SPIT)
-	{
-		pos.Z -= 10;
-	}
-	// Whatever else was here always got overridden by the final 'p>=0' check.
-
-
-	while (scount > 0)
-	{
-		auto spawned = CreateActor(sect, pos, atwith, -127, DVector2(scale, scale), ang, vel, zvel, actor, 4);
-		if (!spawned) return;
-		spawned->spr.extra += (krand() & 7);
-
-		if (atwith == DTILE_COOLEXPLOSION1)
-		{
-			spawned->spr.shade = 0;
-			if (actor->spr.picnum == DTILE_BOSS2)
-			{
-				auto ovel = spawned->vel.X;
-				spawned->vel.X = 64;
-				ssp(spawned, CLIPMASK0);
-				spawned->vel.X = ovel;
-				spawned->spr.Angles.Yaw += DAngle22_5 - randomAngle(45);
-			}
-		}
-
-		spawned->spr.cstat = CSTAT_SPRITE_YCENTER;
-		spawned->clipdist = 1;
-
-		ang = actor->spr.Angles.Yaw + DAngle22_5 / 4 - randomAngle(22.5 / 2);
-		zvel = oldzvel + 2 - krandf(4);
-
-		scount--;
-	}
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-static void shootrpg(DDukeActor *actor, int p, DVector3 pos, DAngle ang, int atwith)
-{
-	auto sect = actor->sector();
-	double vel, zvel;
-	int scount;
-
-	if (actor->spr.extra >= 0) actor->spr.shade = -96;
-
-	scount = 1;
-	vel = 644 / 16.;
-
-	DDukeActor* aimed = nullptr;
-
-	if (p >= 0)
-	{
-		aimed = aim(actor, AUTO_AIM_ANGLE);
-		if (aimed)
-		{
-			auto tex = TexMan.GetGameTexture(aimed->spr.spritetexture());
-			double dal = ((aimed->spr.scale.X * tex->GetDisplayHeight()) * 0.5) + 8;
-			double dist = (ps[p].GetActor()->spr.pos.XY() - aimed->spr.pos.XY()).Length();
-			zvel = ((aimed->spr.pos.Z - pos.Z - dal) * vel) / dist;
-			if (!actorflag(aimed, SFLAG2_SPECIALAUTOAIM))
-				ang = (aimed->spr.pos.XY() - pos.XY()).Angle();
-		}
-		else 
-			setFreeAimVelocity(vel, zvel, ps[p].Angles.getPitchWithView(), 40.5);
-	}
-	else
-	{
-		double x;
-		int j = findplayer(actor, &x);
-		ang = (ps[j].GetActor()->opos.XY() - pos.XY()).Angle();
-		if (actor->spr.picnum == DTILE_BOSS3)
-		{
-			double zoffs = 32;
-			if (isWorldTour()) // Twentieth Anniversary World Tour
-				zoffs *= (actor->spr.scale.Y * 0.8);
-			pos.Z -= zoffs;
-		}
-		else if (actor->spr.picnum == DTILE_BOSS2)
-		{
-			vel += 8;
-			double zoffs = 24;
-			if (isWorldTour()) // Twentieth Anniversary World Tour
-				zoffs *= (actor->spr.scale.Y * 0.8);
-			pos.Z += zoffs;
-		}
-
-		double dist = (ps[j].GetActor()->spr.pos.XY() - actor->spr.pos.XY()).Length();
-
-		zvel = ((ps[j].GetActor()->getPrevOffsetZ() - pos.Z) * vel) / dist;
-
-		if (badguy(actor) && (actor->spr.hitag & face_player_smart))
-			ang = actor->spr.Angles.Yaw + randomAngle(DAngle22_5 / 4) - DAngle22_5 / 8;
-	}
-	if (p < 0) aimed = nullptr;
-
-	auto offset = (ang + DAngle1 * 61.171875).ToVector() * (1024. / 448.);
-	auto spawned = CreateActor(sect, pos.plusZ(-1) + offset, atwith, 0, DVector2(0.21875, 0.21875), ang, vel, zvel, actor, 4);
-
-	if (!spawned) return;
-	CallInitialize(spawned);
-
-	if (p >= 0)
-	{
-		int snd = spawned->IntVar(NAME_spawnsound);
-		if (snd > 0) S_PlayActorSound(FSoundID::fromInt(snd), actor);
-	}
-
-	spawned->spr.extra += (krand() & 7);
-	if (!(actorflag(spawned, SFLAG2_REFLECTIVE)))
-		spawned->temp_actor = aimed;
-	else
-	{
-		spawned->spr.yint = gs.numfreezebounces;
-		spawned->spr.scale *= 0.5;
-		spawned->vel.Z -= 0.25;
-	}
-
-	if (p == -1)
-	{
-		if (actor->spr.picnum == DTILE_BOSS3)
-		{
-			DVector2 spawnofs(ang.Sin() * 4, ang.Cos() * -4);
-			DAngle aoffs = DAngle22_5 / 32.;
-
-			if ((krand() & 1) != 0)
-			{
-				spawnofs = -spawnofs;
-				aoffs = -aoffs;
-			}
-
-			if (isWorldTour()) // Twentieth Anniversary World Tour
-			{
-				double siz = actor->spr.scale.Y * 0.8;
-				spawnofs *= siz;
-				aoffs *= siz;
-			}
-
-			spawned->spr.pos += spawnofs;
-			spawned->spr.Angles.Yaw += aoffs;
-
-			spawned->spr.scale = DVector2(0.65625, 0.65625);
-		}
-		else if (actor->spr.picnum == DTILE_BOSS2)
-		{
-			DVector2 spawnofs(ang.Sin() * (1024. / 56.), ang.Cos() * -(1024. / 56.));
-			DAngle aoffs = DAngle22_5 / 16. - DAngle45 + randomAngle(90);
-
-			if (isWorldTour()) { // Twentieth Anniversary World Tour
-				double siz = actor->spr.scale.Y * 0.9143;
-				spawnofs *= siz;
-				aoffs *= siz;
-			}
-
-			spawned->spr.pos += spawnofs;
-			spawned->spr.Angles.Yaw += aoffs;
-
-			spawned->spr.scale = DVector2(0.375, 0.375);
-		}
-		else if (atwith != DTILE_FREEZEBLAST)
-		{
-			spawned->spr.scale = DVector2(0.46875, 0.46875);
-			spawned->spr.extra >>= 2;
-		}
-	}
-	else if ((isWW2GI() && aplWeaponWorksLike(ps[p].curr_weapon, p) == DEVISTATOR_WEAPON) || (!isWW2GI() && ps[p].curr_weapon == DEVISTATOR_WEAPON))
-	{
-		spawned->spr.extra >>= 2;
-		spawned->spr.Angles.Yaw += DAngle22_5 / 8 - randomAngle(22.5 / 4);
-		spawned->vel.Z += 1 - krandf(2);
-
-		if (ps[p].hbomb_hold_delay)
-		{
-			DVector2 spawnofs(-ang.Sin()* (1024. / 644.), ang.Cos() * (1024. / 644.));
-			spawned->spr.pos += spawnofs;
-		}
-		else
-		{
-			DVector2 spawnofs(ang.Sin()* 4, ang.Cos() * -4);
-			spawned->spr.pos += spawnofs;
-		}
-		spawned->spr.scale *= 0.5;
-	}
-
-	spawned->spr.cstat = CSTAT_SPRITE_YCENTER;
-	if (atwith == DTILE_RPG)
-		spawned->clipdist = 1;
-	else
-		spawned->clipdist = 10;
-
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-static void shootlaser(DDukeActor* actor, int p, DVector3 pos, DAngle ang)
-{
-	auto sectp = actor->sector();
-	double vel = 1024., zvel;
-	int j;
-	HitInfo hit{};
-
-	if (p >= 0)
-		setFreeAimVelocity(vel, zvel, ps[p].Angles.getPitchWithView(), 16.);
-	else zvel = 0;
-
-	hitscan(pos, sectp, DVector3(ang.ToVector() * vel, zvel * 64), hit, CLIPMASK1);
-
-	j = 0;
-	if (hit.actor()) return;
-
-	if (hit.hitWall && hit.hitSector)
-	{
-		if ((hit.hitpos.XY() - pos.XY()).LengthSquared() < 18.125 * 18.125)
-		{
-			if (hit.hitWall->twoSided())
-			{
-				if (hit.hitWall->nextSector()->lotag <= 2 && hit.hitSector->lotag <= 2)
-					j = 1;
-			}
-			else if (hit.hitSector->lotag <= 2)
-				j = 1;
-		}
-
-		if (j == 1)
-		{
-			auto bomb = CreateActor(hit.hitSector, hit.hitpos, DTILE_TRIPBOMB, -16, DVector2(0.0625, 0.078125), ang, 0., 0., actor, STAT_STANDABLE);
-			if (!bomb) return;
-			if (isWW2GI())
-			{
-				int lTripBombControl = GetGameVar("TRIPBOMB_CONTROL", TRIPBOMB_TRIPWIRE, nullptr, -1).value();
-				if (lTripBombControl & TRIPBOMB_TIMER)
-				{
-					int lLifetime = GetGameVar("STICKYBOMB_LIFETIME", NAM_GRENADE_LIFETIME, nullptr, p).value();
-					int lLifetimeVar = GetGameVar("STICKYBOMB_LIFETIME_VAR", NAM_GRENADE_LIFETIME_VAR, nullptr, p).value();
-					// set timer.  blows up when at zero....
-					bomb->spr.extra = lLifetime
-					+ MulScale(krand(), lLifetimeVar, 14)
-					- lLifetimeVar;
-				}
-				bomb->spr.detail = lTripBombControl;
-			}
-			else bomb->spr.detail = TRIPBOMB_TRIPWIRE;
-
-			// this originally used the sprite index as tag to link the laser segments.
-			// This value is never used again to reference an actor by index. Decouple this for robustness.
-			ud.bomb_tag = (ud.bomb_tag + 1) & 32767;
-			bomb->spr.hitag = ud.bomb_tag;
-			S_PlayActorSound(LASERTRIP_ONWALL, bomb);
-			bomb->vel.X = -1.25;
-			ssp(bomb, CLIPMASK0);
-			bomb->spr.cstat = CSTAT_SPRITE_ALIGNMENT_WALL;
-			auto delta = -hit.hitWall->delta();
-			bomb->spr.Angles.Yaw = delta.Angle() - DAngle90;
-			bomb->temp_angle = bomb->spr.Angles.Yaw;
-
-			if (p >= 0)
-				ps[p].ammo_amount[TRIPBOMB_WEAPON]--;
-		}
-	}
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-static void shootgrowspark(DDukeActor* actor, int p, DVector3 pos, DAngle ang)
-{
-	auto sect = actor->sector();
-	double vel = 1024., zvel;
-	int k;
-	HitInfo hit{};
-
-	if (p >= 0)
-	{
-		auto aimed = aim(actor, AUTO_AIM_ANGLE);
-		if (aimed)
-		{
-			auto tex = TexMan.GetGameTexture(aimed->spr.spritetexture());
-			double dal = ((aimed->spr.scale.X * tex->GetDisplayHeight()) * 0.5) + 5;
-			switch (aimed->spr.picnum)
-			{
-			case DTILE_GREENSLIME:
-			case DTILE_ROTATEGUN:
-				dal -= 8;
-				break;
-			}
-			double dist = (ps[p].GetActor()->spr.pos.XY() - aimed->spr.pos.XY()).Length();
-			zvel = ((aimed->spr.pos.Z - pos.Z - dal) * 16) / dist;
-			ang = (aimed->spr.pos.XY() - pos.XY()).Angle();
-		}
-		else
-		{
-			ang += DAngle22_5 / 8 - randomAngle(22.5 / 4);
-			setFreeAimVelocity(vel, zvel, ps[p].Angles.getPitchWithView(), 16.);
-			zvel += 0.5 - krandf(1);
-		}
-
-		pos.Z -= 2;
-	}
-	else
-	{
-		double x;
-		int j = findplayer(actor, &x);
-		pos.Z -= 4;
-		double dist = (ps[j].GetActor()->spr.pos.XY() - actor->spr.pos.XY()).Length();
-		zvel = ((ps[j].GetActor()->getOffsetZ() - pos.Z) * 16) / dist;
-		zvel += 0.5 - krandf(1);
-		ang += DAngle22_5 / 4 - randomAngle(22.5 / 2);
-	}
-
-	k = 0;
-
-	//RESHOOTGROW:
-
-	actor->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-	hitscan(pos, sect, DVector3(ang.ToVector() * vel, zvel * 64), hit, CLIPMASK1);
-
-	actor->spr.cstat |= CSTAT_SPRITE_BLOCK_ALL;
-
-	auto spark = CreateActor(sect, hit.hitpos, DTILE_GROWSPARK, -16, DVector2(0.4375, 0.4375), ang, 0., 0., actor, 1);
-	if (!spark) return;
-
-	spark->spr.pal = 2;
-	spark->spr.cstat |= CSTAT_SPRITE_YCENTER | CSTAT_SPRITE_TRANSLUCENT;
-	spark->spr.scale = DVector2(REPEAT_SCALE, REPEAT_SCALE);
-
-	if (hit.hitWall == nullptr && hit.actor() == nullptr && hit.hitSector != nullptr)
-	{
-		if (zvel < 0 && (hit.hitSector->ceilingstat & CSTAT_SECTOR_SKY) == 0)
-			checkhitceiling(hit.hitSector);
-	}
-	else if (hit.actor() != nullptr) fi.checkhitsprite(hit.actor(), spark);
-	else if (hit.hitWall != nullptr)
-	{
-		if (!isaccessswitch(hit.hitWall->walltexture))
-		{
-			checkhitwall(spark, hit.hitWall, hit.hitpos);
-		}
-	}
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-static void shootmortar(DDukeActor* actor, int p, const DVector3& pos, DAngle ang, int atwith)
-{
-	auto sect = actor->sector();
-	if (actor->spr.extra >= 0) actor->spr.shade = -96;
-
-	double x;
-	auto plActor = ps[findplayer(actor, &x)].GetActor();
-	x = (plActor->spr.pos.XY() - actor->spr.pos.XY()).Length();
-
-	double zvel = -x * 0.5;
-
-	if (zvel < -8)
-		zvel = -4;
-	double vel = x / 16.;
-
-	CreateActor(sect, pos.plusZ(-6) + ang.ToVector() * 4, atwith, -64, DVector2(0.5, 0.5), ang, vel, zvel, actor, 1);
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-static void shootshrinker(DDukeActor* actor, int p, const DVector3& pos, DAngle ang, int atwith)
-{
-	double vel = 48.;
-	double zvel;
-	if (actor->spr.extra >= 0) actor->spr.shade = -96;
-	if (p >= 0)
-	{
-		auto aimed = isNamWW2GI() ? nullptr : aim(actor, AUTO_AIM_ANGLE);
-		if (aimed)
-		{
-			auto tex = TexMan.GetGameTexture(aimed->spr.spritetexture());
-			double dal = ((aimed->spr.scale.X * tex->GetDisplayHeight()) * 0.5);
-			double dist = (ps[p].GetActor()->spr.pos.XY() - aimed->spr.pos.XY()).Length();
-			zvel = ((aimed->spr.pos.Z - pos.Z - dal - 4) * 48) / dist;
-			ang = (aimed->spr.pos.XY() - pos.XY()).Angle();
-		}
-		else
-			setFreeAimVelocity(vel, zvel, ps[p].Angles.getPitchWithView(), 49.);
-	}
-	else if (actor->spr.statnum != 3)
-	{
-		double x;
-		int j = findplayer(actor, &x);
-		double dist = (ps[j].GetActor()->spr.pos.XY() - actor->spr.pos.XY()).Length();
-		zvel = ((ps[j].GetActor()->getOffsetZ() - pos.Z) * 32) / dist;
-	}
-	else zvel = 0;
-
-	auto spawned = CreateActor(actor->sector(),
-		pos.plusZ(2) + ang.ToVector() * 0.25, PClass::FindActor("DukeShrinkSpark"), -16, DVector2(0.4375, 0.4375), ang, vel, zvel, actor, 4);
-
-	if (spawned)
-	{
-		spawned->spr.cstat = CSTAT_SPRITE_YCENTER;
-		spawned->clipdist = 8;
-	}
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-void shoot_d(DDukeActor* actor, int atwith, PClass *cls)
-{
-	int p;
-	DVector3 spos;
-	DAngle sang;
-
-	auto const sect = actor->sector();
-
-	sang = actor->spr.Angles.Yaw;
-	if (actor->isPlayer())
-	{
-		p = actor->PlayerIndex();
-		spos = actor->getPosWithOffsetZ().plusZ(ps[p].pyoff + 4);
-
-		ps[p].crack_time = CRACK_TIME;
-	}
-	else
-	{
-		p = -1;
-		auto tex = TexMan.GetGameTexture(actor->spr.spritetexture());
-		spos = actor->spr.pos.plusZ(-(actor->spr.scale.Y * tex->GetDisplayHeight() * 0.5) + 4);
-
-		if (actor->spr.picnum != DTILE_ROTATEGUN)
-		{
-			spos.Z -= 7;
-			if (badguy(actor) && actor->spr.picnum != DTILE_COMMANDER)
-			{
-				spos.X -= (sang + DAngle22_5 * 0.75).Sin() * 8;
-				spos.Y += (sang + DAngle22_5 * 0.75).Cos() * 8;
-			}
-		}
-	}
-
-	if (cls == nullptr)
-	{
-		auto info = spawnMap.CheckKey(atwith);
-		if (info)
-		{
-			cls = static_cast<PClassActor*>(info->Class(atwith));
-		}
-	}
-	if (cls && cls->IsDescendantOf(RUNTIME_CLASS(DDukeActor)) && CallShootThis(static_cast<DDukeActor*>(GetDefaultByType(cls)), actor, p, spos, sang)) return;
-	if (cls && atwith == -1) atwith = GetDefaultByType(cls)->spr.picnum;
-
-	if (isWorldTour()) 
-	{ // Twentieth Anniversary World Tour
-		switch (atwith) 
-		{
-		case DTILE_FIREBALL:
-			shootfireball(actor, p, spos, sang);
-			return;
-
-		case DTILE_FIREFLY: // DTILE_BOSS5 shot
-		{
-			auto k = spawn(actor, atwith);
-			if (k)
-			{
-				k->setsector(sect);
-				k->spr.pos = spos;
-				k->spr.Angles.Yaw = sang;
-				k->vel.X = 500 / 16.;
-				k->vel.Z = 0;
-			}
-			return;
-		}
-		}
-	}
-
-	switch (atwith)
-	{
-	case DTILE_KNEE:
-		shootknee(actor, p, spos, sang);
-		break;
-
-	case DTILE_SHOTSPARK1:
-	case DTILE_SHOTGUN:
-	case DTILE_CHAINGUN:
-		shootweapon(actor, p, spos, sang, atwith);
-		return;
-
-	case DTILE_FIRELASER:
-	case DTILE_SPIT:
-	case DTILE_COOLEXPLOSION1:
-		shootstuff(actor, p, spos, sang, atwith);
-		return;
-
-	case DTILE_FREEZEBLAST:
-		spos.Z += 3;
-		[[fallthrough]];
-
-	case DTILE_RPG:
-		shootrpg(actor, p, spos, sang, atwith);
-		break;
-
-	case DTILE_HANDHOLDINGLASER:
-		shootlaser(actor, p, spos, sang);
-		return;
-
-	case DTILE_BOUNCEMINE:
-	case DTILE_MORTER:
-		shootmortar(actor, p, spos, sang, atwith);
-		return;
-
-	case DTILE_GROWSPARK:
-		shootgrowspark(actor, p, spos, sang);
-		break;
-
-	case DTILE_SHRINKER:
-		shootshrinker(actor, p, spos, sang, atwith);
-		break;
-	}
-	return;
-}
 
 //---------------------------------------------------------------------------
 //
@@ -1191,7 +220,7 @@ void selectweapon_d(int snum, int weap) // playernum, weaponnum
 				DukeStatIterator it(STAT_ACTOR);
 				while (auto act = it.Next())
 				{
-					if (act->spr.picnum == DTILE_HEAVYHBOMB && act->GetOwner() == p->GetActor())
+					if (act->GetClass() == DukePipeBombClass && act->GetOwner() == p->GetActor())
 					{
 						p->gotweapon[HANDBOMB_WEAPON] = true;
 						j = HANDREMOTE_WEAPON;
@@ -1404,7 +433,7 @@ int doincrements_d(player_struct* p)
 		p->last_quick_kick = p->quick_kick + 1;
 		p->quick_kick--;
 		if (p->quick_kick == 8)
-			fi.shoot(p->GetActor(), DTILE_KNEE, nullptr);
+			shoot(p->GetActor(), DukeMeleeAttackClass);
 	}
 	else if (p->last_quick_kick > 0)
 		p->last_quick_kick--;
@@ -1501,7 +530,7 @@ int doincrements_d(player_struct* p)
 }
 
 
-//---------------------------------------------------------------------------
+//---------------------------------------------------------------------------NAM
 //
 //
 //
@@ -1509,9 +538,9 @@ int doincrements_d(player_struct* p)
 
 void checkweapons_d(player_struct* p)
 {
-	static const uint16_t weapon_sprites[MAX_WEAPONS] = { DTILE_KNEE, DTILE_FIRSTGUNSPRITE, DTILE_SHOTGUNSPRITE,
-			DTILE_CHAINGUNSPRITE, DTILE_RPGSPRITE, DTILE_HEAVYHBOMB, DTILE_SHRINKERSPRITE, DTILE_DEVISTATORSPRITE,
-			DTILE_TRIPBOMBSPRITE, DTILE_FREEZESPRITE, DTILE_HEAVYHBOMB, DTILE_SHRINKERSPRITE };
+	static PClassActor* const * const weapon_sprites[MAX_WEAPONS] = { &DukeMeleeAttackClass, &DukeFirstgunSpriteClass, &DukeShotgunSpriteClass,
+			&DukeChaingunSpriteClass, &DukeRPGSpriteClass, &DukePipeBombClass, &DukeShrinkerSpriteClass, &DukeDevastatorSpriteClass,
+			&DukeTripBombSpriteClass, &DukeFreezeSpriteClass, &DukePipeBombClass, &DukeShrinkerSpriteClass };
 
 	int cw;
 
@@ -1529,12 +558,12 @@ void checkweapons_d(player_struct* p)
 	if (cw)
 	{
 		if (krand() & 1)
-			spawn(p->GetActor(), weapon_sprites[cw]);
+			spawn(p->GetActor(), *weapon_sprites[cw]);
 		else switch (cw)
 		{
 		case RPG_WEAPON:
 		case HANDBOMB_WEAPON:
-			spawn(p->GetActor(), DTILE_EXPLOSION2);
+			spawn(p->GetActor(), DukeExplosion2Class);
 			break;
 		}
 	}
@@ -1548,13 +577,16 @@ void checkweapons_d(player_struct* p)
 
 static void operateJetpack(int snum, ESyncBits actions, int psectlotag, double floorz, double ceilingz, int shrunk)
 {
-	auto p = &ps[snum];
-	auto pact = p->GetActor();
+	const auto p = &ps[snum];
+	const auto pact = p->GetActor();
+	const auto kbdDir = !!(actions & SB_JUMP) - !!(actions & SB_CROUCH);
+	const double dist = shrunk ? 2 : 8;
+	const double velZ = clamp(dist * kbdDir + dist * p->sync.uvel, -dist, dist);
+
 	p->on_ground = 0;
 	p->jumping_counter = 0;
 	p->hard_landing = 0;
 	p->falling_counter = 0;
-
 	p->pycount += 32;
 	p->pycount &= 2047;
 	p->pyoff = BobVal(p->pycount);
@@ -1562,50 +594,46 @@ static void operateJetpack(int snum, ESyncBits actions, int psectlotag, double f
 	if (p->jetpack_on < 11)
 	{
 		p->jetpack_on++;
-		p->GetActor()->spr.pos.Z -= p->jetpack_on * 0.5; //Goin up
+		pact->spr.pos.Z -= p->jetpack_on * 0.5; //Goin up
 	}
 	else if (p->jetpack_on == 11 && !S_CheckActorSoundPlaying(pact, DUKE_JETPACK_IDLE))
+	{
 		S_PlayActorSound(DUKE_JETPACK_IDLE, pact);
+	}
 
-	double dist;
-	if (shrunk) dist = 2;
-	else dist = 8;
-
-	if (actions & SB_JUMP)                            //A (soar high)
+	if (velZ > 0) //A (soar high)
 	{
 		// jump
-		SetGameVarID(g_iReturnVarID, 0, p->GetActor(), snum);
-		OnEvent(EVENT_SOARUP, snum, p->GetActor(), -1);
-		if (GetGameVarID(g_iReturnVarID, p->GetActor(), snum).value() == 0)
+		SetGameVarID(g_iReturnVarID, 0, pact, snum);
+		OnEvent(EVENT_SOARUP, snum, pact, -1);
+		if (GetGameVarID(g_iReturnVarID, pact, snum).value() == 0)
 		{
-			p->GetActor()->spr.pos.Z -= dist;
+			pact->spr.pos.Z -= velZ;
 			p->crack_time = CRACK_TIME;
 		}
 	}
 
-	if (actions & SB_CROUCH)                            //Z (soar low)
+	if (velZ < 0) //Z (soar low)
 	{
 		// crouch
-		SetGameVarID(g_iReturnVarID, 0, p->GetActor(), snum);
-		OnEvent(EVENT_SOARDOWN, snum, p->GetActor(), -1);
-		if (GetGameVarID(g_iReturnVarID, p->GetActor(), snum).value() == 0)
+		SetGameVarID(g_iReturnVarID, 0, pact, snum);
+		OnEvent(EVENT_SOARDOWN, snum, pact, -1);
+		if (GetGameVarID(g_iReturnVarID, pact, snum).value() == 0)
 		{
-			p->GetActor()->spr.pos.Z += dist;
+			pact->spr.pos.Z -= velZ;
 			p->crack_time = CRACK_TIME;
 		}
 	}
 
-	int k;
-	if (shrunk == 0 && (psectlotag == 0 || psectlotag == 2)) k = 32;
-	else k = 16;
+	const int k = shrunk == 0 && (psectlotag == ST_0_NO_EFFECT || psectlotag == ST_2_UNDERWATER) ? 32 : 16;
 
 	if (psectlotag != 2 && p->scuba_on == 1)
 		p->scuba_on = 0;
 
-	if (p->GetActor()->getOffsetZ() > floorz - k)
-		p->GetActor()->spr.pos.Z += ((floorz - k) - p->GetActor()->getOffsetZ()) * 0.5;
-	if (p->GetActor()->getOffsetZ() < pact->ceilingz + 18)
-		p->GetActor()->spr.pos.Z = pact->ceilingz + 18 + gs.playerheight;
+	if (pact->getOffsetZ() > floorz - k)
+		pact->spr.pos.Z += ((floorz - k) - pact->getOffsetZ()) * 0.5;
+	if (pact->getOffsetZ() < pact->ceilingz + 18)
+		pact->spr.pos.Z = pact->ceilingz + 18 + gs.playerheight;
 
 }
 
@@ -1644,7 +672,7 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, double floo
 			if (p->on_ground == 1)
 			{
 				if (p->dummyplayersprite == nullptr)
-					p->dummyplayersprite = spawn(pact, DTILE_PLAYERONWATER);
+					p->dummyplayersprite = spawn(pact, DukePlayerOnWaterClass);
 
 				p->footprintcount = 6;
 				if (tilesurface(p->cursector->floortexture) == TSURF_SLIME)
@@ -1659,12 +687,12 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, double floo
 		footprints(snum);
 	}
 
-	if (p->GetActor()->getOffsetZ() < floorz - i) //falling
+	if (pact->getOffsetZ() < floorz - i) //falling
 	{
 
 		// not jumping or crouching
-		if ((actions & (SB_JUMP|SB_CROUCH)) == 0 && p->on_ground && (psect->floorstat & CSTAT_SECTOR_SLOPE) && p->GetActor()->getOffsetZ() >= (floorz - i - 16))
-			p->GetActor()->spr.pos.Z = floorz - i + gs.playerheight;
+		if ((actions & (SB_JUMP|SB_CROUCH)) == 0 && p->on_ground && (psect->floorstat & CSTAT_SECTOR_SLOPE) && pact->getOffsetZ() >= (floorz - i - 16))
+			pact->spr.pos.Z = floorz - i + gs.playerheight;
 		else
 		{
 			p->on_ground = 0;
@@ -1677,7 +705,7 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, double floo
 					S_PlayActorSound(DUKE_SCREAM, pact);
 			}
 
-			if (p->GetActor()->getOffsetZ() + p->vel.Z  >= floorz - i) // hit the ground
+			if (pact->getOffsetZ() + p->vel.Z  >= floorz - i) // hit the ground
 			{
 				S_StopSound(DUKE_SCREAM, pact);
 				if (!p->insector() || p->cursector->lotag != 1)
@@ -1721,24 +749,24 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, double floo
 		{
 			//Smooth on the ground
 
-			double k = (floorz - i - p->GetActor()->getOffsetZ()) * 0.5;
-			p->GetActor()->spr.pos.Z += k;
+			double k = (floorz - i - pact->getOffsetZ()) * 0.5;
+			pact->spr.pos.Z += k;
 			p->vel.Z -= 3;
 			if (p->vel.Z < 0) p->vel.Z = 0;
 		}
 		else if (p->jumping_counter == 0)
 		{
-			p->GetActor()->spr.pos.Z += ((floorz - i * 0.5) - p->GetActor()->getOffsetZ()) * 0.5; //Smooth on the water
-			if (p->on_warping_sector == 0 && p->GetActor()->getOffsetZ() > floorz - 16)
+			pact->spr.pos.Z += ((floorz - i * 0.5) - pact->getOffsetZ()) * 0.5; //Smooth on the water
+			if (p->on_warping_sector == 0 && pact->getOffsetZ() > floorz - 16)
 			{
-				p->GetActor()->spr.pos.Z = floorz - 16 + gs.playerheight;
+				pact->spr.pos.Z = floorz - 16 + gs.playerheight;
 				p->vel.Z *= 0.5;
 			}
 		}
 
 		p->on_warping_sector = 0;
 
-		if (actions & SB_CROUCH)
+		if ((actions & SB_CROUCH) || p->sync.uvel < 0)
 		{
 			playerCrouch(snum);
 		}
@@ -1782,93 +810,15 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, double floo
 		}
 	}
 
-	p->GetActor()->spr.pos.Z += p->vel.Z;
+	pact->spr.pos.Z += p->vel.Z;
 
-	if (p->GetActor()->getOffsetZ() < ceilingz + 4)
+	if (pact->getOffsetZ() < ceilingz + 4)
 	{
 		p->jumping_counter = 0;
 		if (p->vel.Z < 0)
 			p->vel.X = p->vel.Y = 0;
 		p->vel.Z = 0.5;
-		p->GetActor()->spr.pos.Z = ceilingz + 4 + gs.playerheight;
-	}
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-static void underwater(int snum, ESyncBits actions, double floorz, double ceilingz)
-{
-	auto p = &ps[snum];
-	auto pact = p->GetActor();
-
-	// under water
-	p->jumping_counter = 0;
-
-	p->pycount += 32;
-	p->pycount &= 2047;
-	p->pyoff = BobVal(p->pycount);
-
-	if (!S_CheckActorSoundPlaying(pact, DUKE_UNDERWATER))
-		S_PlayActorSound(DUKE_UNDERWATER, pact);
-
-	if (actions & SB_JUMP)
-	{
-		// jump
-		if (p->vel.Z > 0) p->vel.Z = 0;
-		p->vel.Z -= (348 / 256.);
-		if (p->vel.Z < -6) p->vel.Z = -6;
-	}
-	else if (actions & SB_CROUCH)
-	{
-		// crouch
-		if (p->vel.Z < 0) p->vel.Z = 0;
-		p->vel.Z += (348 / 256.);
-		if (p->vel.Z > 6) p->vel.Z = 6;
-	}
-	else
-	{
-		// normal view
-		if (p->vel.Z < 0)
-		{
-			p->vel.Z += 1;
-			if (p->vel.Z > 0)
-				p->vel.Z = 0;
-		}
-		if (p->vel.Z > 0)
-		{
-			p->vel.Z -= 1;
-			if (p->vel.Z < 0)
-				p->vel.Z = 0;
-		}
-	}
-
-	if (p->vel.Z > 8)
-		p->vel.Z *= 0.5;
-
-	p->GetActor()->spr.pos.Z += p->vel.Z;
-
-	if (p->GetActor()->getOffsetZ() > floorz - 15)
-		p->GetActor()->spr.pos.Z += ((floorz - 15) - p->GetActor()->getOffsetZ()) * 0.5;
-
-	if (p->GetActor()->getOffsetZ() < ceilingz + 4)
-	{
-		p->GetActor()->spr.pos.Z = ceilingz + 4 + gs.playerheight;
-		p->vel.Z = 0;
-	}
-
-	if (p->scuba_on && (krand() & 255) < 8)
-	{
-		auto j = spawn(pact, DTILE_WATERBUBBLE);
-		if (j)
-		{
-			j->spr.pos += (p->GetActor()->spr.Angles.Yaw.ToVector() + DVector2(4 - (global_random & 8), 4 - (global_random & 8))) * 16;
-			j->spr.scale = DVector2(0.046875, 0.3125);
-			j->spr.pos.Z = p->GetActor()->getOffsetZ() + 8;
-		}
+		pact->spr.pos.Z = ceilingz + 4 + gs.playerheight;
 	}
 }
 
@@ -1901,7 +851,7 @@ int operateTripbomb(int snum)
 	DukeSectIterator it(hit.hitSector);
 	while ((act = it.Next()))
 	{
-		if (!actorflag(act, SFLAG_BLOCK_TRIPBOMB))
+		if (!(act->flags1 & SFLAG_BLOCK_TRIPBOMB))
 		{
 			auto delta = act->spr.pos - hit.hitpos;
 			if (abs(delta.Z) < 12 && delta.XY().LengthSquared() < (18.125 * 18.125))
@@ -2082,7 +1032,7 @@ static void operateweapon(int snum, ESyncBits actions)
 				zvel -= 4;
 			}
 
-			auto spawned = CreateActor(p->cursector, p->GetActor()->getPosWithOffsetZ() + p->GetActor()->spr.Angles.Yaw.ToVector() * 16, DTILE_HEAVYHBOMB, -16, DVector2(0.140625, 0.140625),
+			auto spawned = CreateActor(p->cursector, p->GetActor()->getPosWithOffsetZ() + p->GetActor()->spr.Angles.Yaw.ToVector() * 16, DukePipeBombClass, -16, DVector2(0.140625, 0.140625),
 				p->GetActor()->spr.Angles.Yaw, vel + p->hbomb_hold_delay * 2, zvel, pact, STAT_ACTOR);
 
 			if (isNam())
@@ -2148,14 +1098,14 @@ static void operateweapon(int snum, ESyncBits actions)
 	case PISTOL_WEAPON:	// m-16 in NAM
 		if (p->kickback_pic == 1)
 		{
-			fi.shoot(pact, DTILE_SHOTSPARK1, nullptr);
+			shoot(pact, DukeShotSparkClass);
 			S_PlayActorSound(PISTOL_FIRE, pact);
 			lastvisinc = PlayClock + 32;
 			p->visibility = 0;
 		}
 
 		else if (p->kickback_pic == 2)
-			spawn(pact, DTILE_SHELL);
+			spawn(pact, DukeShellClass);
 
 		p->kickback_pic++;
 
@@ -2199,7 +1149,7 @@ static void operateweapon(int snum, ESyncBits actions)
 		if (p->kickback_pic == 4)
 		{
 			for(int ii = 0; ii < 7; ii++)
-				fi.shoot(pact, DTILE_SHOTGUN, nullptr);
+				shoot(pact, DukeShotgunShotClass);
 			p->ammo_amount[SHOTGUN_WEAPON]--;
 
 			S_PlayActorSound(SHOTGUN_FIRE, pact);
@@ -2223,7 +1173,7 @@ static void operateweapon(int snum, ESyncBits actions)
 			break;
 		case 24:
 		{
-			auto j = spawn(pact, DTILE_SHOTGUNSHELL);
+			auto j = spawn(pact, DukeShotgunShellClass);
 			if (j)
 			{
 				j->spr.Angles.Yaw += DAngle180;
@@ -2257,7 +1207,7 @@ static void operateweapon(int snum, ESyncBits actions)
 
 				if ((p->kickback_pic % 3) == 0)
 				{
-					auto j = spawn(pact, DTILE_SHELL);
+					auto j = spawn(pact, DukeShellClass);
 					if (j)
 					{
 						j->spr.Angles.Yaw += DAngle180;
@@ -2268,7 +1218,7 @@ static void operateweapon(int snum, ESyncBits actions)
 				}
 
 				S_PlayActorSound(CHAINGUN_FIRE, pact);
-				fi.shoot(pact, DTILE_CHAINGUN, nullptr);
+				shoot(pact, DukeChaingunShotClass);
 				lastvisinc = PlayClock + 32;
 				p->visibility = 0;
 				checkavailweapon(p);
@@ -2312,30 +1262,24 @@ static void operateweapon(int snum, ESyncBits actions)
 			else
 				p->okickback_pic = p->kickback_pic = 0;
 			p->ammo_amount[p->curr_weapon]--;
-			fi.shoot(pact, DTILE_GROWSPARK, nullptr);
+			shoot(pact, DukeGrowSparkClass);
 
-			//#ifdef NAM
-			//#else
-			if (!(aplWeaponFlags(p->curr_weapon, snum) & WEAPON_FLAG_NOVISIBLE))
+			if (!isNam())
 			{
 				// make them visible if not set...
 				p->visibility = 0;
 				lastvisinc = PlayClock + 32;
+				checkavailweapon(p);
 			}
-			checkavailweapon(p);
-			//#endif
 		}
 		else if (!isNam()) p->kickback_pic++;
 		if (isNam() && p->kickback_pic > 30)
 		{
 			// reload now...
 			p->okickback_pic = p->kickback_pic = 0;
-			if (!(aplWeaponFlags(p->curr_weapon, snum) & WEAPON_FLAG_NOVISIBLE))
-			{
-				// make them visible if not set...
-				p->visibility = 0;
-				lastvisinc = PlayClock + 32;
-			}
+			// make them visible if not set...
+			p->visibility = 0;
+			lastvisinc = PlayClock + 32;
 			checkavailweapon(p);
 		}
 		break;
@@ -2347,7 +1291,7 @@ static void operateweapon(int snum, ESyncBits actions)
 			else p->okickback_pic = p->kickback_pic = 0;
 
 			p->ammo_amount[SHRINKER_WEAPON]--;
-			fi.shoot(pact, DTILE_SHRINKER, nullptr);
+			shoot(pact, DukeShrinkerClass);
 
 			if (!isNam())
 			{
@@ -2380,7 +1324,7 @@ static void operateweapon(int snum, ESyncBits actions)
 				{
 					p->visibility = 0;
 					lastvisinc = PlayClock + 32;
-					fi.shoot(pact, DTILE_RPG, nullptr);
+					shoot(pact, DukeRPGClass);
 					p->ammo_amount[DEVISTATOR_WEAPON]--;
 					checkavailweapon(p);
 				}
@@ -2390,7 +1334,7 @@ static void operateweapon(int snum, ESyncBits actions)
 			{
 				p->visibility = 0;
 				lastvisinc = PlayClock + 32;
-				fi.shoot(pact, DTILE_RPG, nullptr);
+				shoot(pact, DukeRPGClass);
 				p->ammo_amount[DEVISTATOR_WEAPON]--;
 				checkavailweapon(p);
 				if (p->ammo_amount[DEVISTATOR_WEAPON] <= 0) p->okickback_pic = p->kickback_pic = 0;
@@ -2410,7 +1354,7 @@ static void operateweapon(int snum, ESyncBits actions)
 
 				p->visibility = 0;
 				lastvisinc = PlayClock + 32;
-				fi.shoot(pact, DTILE_FREEZEBLAST, nullptr);
+				shoot(pact, DukeFreezeBlastClass);
 				checkavailweapon(p);
 			}
 			if (pact->spr.scale.X < 0.5)
@@ -2438,7 +1382,7 @@ static void operateweapon(int snum, ESyncBits actions)
 			if (p->cursector->lotag != 2) 
 			{
 				p->ammo_amount[FLAMETHROWER_WEAPON]--;
-				fi.shoot(pact, DTILE_FIREBALL, nullptr);
+				shoot(pact, DukeFireballClass);
 			}
 			checkavailweapon(p);
 		}
@@ -2460,7 +1404,7 @@ static void operateweapon(int snum, ESyncBits actions)
 			p->GetActor()->restorez();
 			p->vel.Z = 0;
 			if (p->kickback_pic == 3)
-				fi.shoot(pact, DTILE_HANDHOLDINGLASER, nullptr);
+				shoot(pact, DukeHandHoldingLaserClass);
 		}
 		if (p->kickback_pic == 16)
 		{
@@ -2473,7 +1417,7 @@ static void operateweapon(int snum, ESyncBits actions)
 	case KNEE_WEAPON:
 		p->kickback_pic++;
 
-		if (p->kickback_pic == 7) fi.shoot(pact, DTILE_KNEE, nullptr);
+		if (p->kickback_pic == 7) shoot(pact, DukeMeleeAttackClass);
 		else if (p->kickback_pic == 14)
 		{
 			if (actions & SB_FIRE)
@@ -2492,7 +1436,7 @@ static void operateweapon(int snum, ESyncBits actions)
 			p->ammo_amount[RPG_WEAPON]--;
 			lastvisinc = PlayClock + 32;
 			p->visibility = 0;
-			fi.shoot(pact, DTILE_RPG, nullptr);
+			shoot(pact, DukeRPGClass);
 			checkavailweapon(p);
 		}
 		else if (p->kickback_pic == 20)
@@ -2532,7 +1476,6 @@ static void processweapon(int snum, ESyncBits actions)
 						// throw away the remaining clip
 						p->ammo_amount[p->curr_weapon] -=
 							p->ammo_amount[p->curr_weapon] % aplWeaponClip(p->curr_weapon, snum);
-						//				p->kickback_pic = aplWeaponFireDelay(p->curr_weapon, snum)+1;	// animate, but don't shoot...
 						p->kickback_pic = aplWeaponTotalTime(p->curr_weapon, snum) + 1;	// animate, but don't shoot...
 						actions &= ~SB_FIRE; // not firing...
 					}
@@ -2599,6 +1542,10 @@ void processinput_d(int snum)
 	auto pact = p->GetActor();
 
 	ESyncBits& actions = p->sync.actions;
+
+	// Get strafe value before it's rotated by the angle.
+	const auto strafeVel = PlayerInputSideVel(snum);
+	constexpr auto maxVel = (117351124. / 10884538.);
 
 	processinputvel(snum);
 	auto sb_fvel = PlayerInputForwardVel(snum);
@@ -2714,7 +1661,7 @@ void processinput_d(int snum)
 
 	if (p->newOwner != nullptr)
 	{
-		setForcedSyncInput();
+		setForcedSyncInput(snum);
 		p->vel.X = p->vel.Y = 0;
 		pact->vel.X = 0;
 
@@ -2730,9 +1677,11 @@ void processinput_d(int snum)
 	checklook(snum,actions);
 	p->Angles.doViewYaw(&p->sync);
 
+	p->updatecentering(snum);
+
 	if (p->on_crane != nullptr)
 	{
-		setForcedSyncInput();
+		setForcedSyncInput(snum);
 		goto HORIZONLY;
 	}
 
@@ -2743,15 +1692,12 @@ void processinput_d(int snum)
 
 	p->backuppos(ud.clipping == 0 && ((p->insector() && p->cursector->floortexture == mirrortex) || !p->insector()));
 
-	p->Angles.doYawKeys(&p->sync);
-
 	// Shrinking code
 
 	if (psectlotag == ST_2_UNDERWATER)
 	{
 		underwater(snum, actions, floorz, ceilingz);
 	}
-
 	else if (p->jetpack_on)
 	{
 		operateJetpack(snum, actions, psectlotag, floorz, ceilingz, shrunk);
@@ -2763,27 +1709,20 @@ void processinput_d(int snum)
 
 	p->psectlotag = psectlotag;
 
-	if (p->centeringView())
-	{
-		p->sync.horz = 0;
-		setForcedSyncInput();
-	}
-
 	if (movementBlocked(p))
 	{
 		doubvel = 0;
 		p->vel.X = 0;
 		p->vel.Y = 0;
-		setForcedSyncInput();
+		p->sync.avel = 0;
+		setForcedSyncInput(snum);
 	}
-	else if (SyncInput())
+	else
 	{
-		//p->ang += syncangvel * constant
-		//ENGINE calculates angvel for you
-		// may still be needed later for demo recording
-
-		p->GetActor()->spr.Angles.Yaw += p->adjustavel(PlayerInputAngVel(snum));
+		p->sync.avel = p->adjustavel(PlayerInputAngVel(snum));
 	}
+
+	p->Angles.doYawInput(&p->sync);
 
 	purplelavacheck(p);
 
@@ -2850,6 +1789,7 @@ void processinput_d(int snum)
 
 		p->vel.X += sb_fvel * doubvel * (5. / 16.);
 		p->vel.Y += sb_svel * doubvel * (5. / 16.);
+		p->Angles.StrafeVel += strafeVel * doubvel * (5. / 16.);
 
 		bool check;
 
@@ -2858,27 +1798,36 @@ void processinput_d(int snum)
 		if (check)
 		{
 			p->vel.XY() *= gs.playerfriction - 0.125;
+			p->Angles.StrafeVel *= gs.playerfriction - 0.125;
 		}
 		else
 		{
-			if (psectlotag == 2)
+			if (psectlotag == ST_2_UNDERWATER)
 			{
 				p->vel.XY() *= gs.playerfriction - FixedToFloat(0x1400);
+				p->Angles.StrafeVel *= gs.playerfriction - FixedToFloat(0x1400);
 			}
 			else
 			{
 				p->vel.XY() *= gs.playerfriction;
+				p->Angles.StrafeVel *= gs.playerfriction;
 			}
 		}
 
 		if (abs(p->vel.X) < 1/128. && abs(p->vel.Y) < 1 / 128.)
+		{
 			p->vel.X = p->vel.Y = 0;
+			p->Angles.StrafeVel = 0;
+		}
 
 		if (shrunk)
 		{
 			p->vel.XY() *= gs.playerfriction * 0.75;
+			p->Angles.StrafeVel *= gs.playerfriction * 0.75;
 		}
 	}
+
+	p->Angles.doRollInput(&p->sync, p->vel.XY(), maxVel, (psectlotag == 1) || (psectlotag == 2));
 
 HORIZONLY:
 
@@ -2928,7 +1877,7 @@ HORIZONLY:
 		if (ud.clipping == 0 && psectp->lotag == 31)
 		{
 			auto secact = barrier_cast<DDukeActor*>(psectp->hitagactor);
-			if (secact && secact->vel.X != 0 && secact->temp_data[0] == 0)
+			if (secact && secact->vel.X != 0 && secact->counter == 0)
 			{
 				quickkill(p);
 				return;
@@ -2973,35 +1922,30 @@ HORIZONLY:
 	}
 
 	// center_view
-	if (actions & SB_CENTERVIEW || p->hard_landing)
+	if (actions & SB_CENTERVIEW || (p->hard_landing && (cl_dukepitchmode & kDukePitchLandingRecenter)))
 	{
 		playerCenterView(snum);
 	}
-	else if (actions & SB_LOOK_UP)
+	else if ((actions & SB_LOOK_UP) == SB_LOOK_UP)
 	{
 		playerLookUp(snum, actions);
 	}
-	else if (actions & SB_LOOK_DOWN)
+	else if ((actions & SB_LOOK_DOWN) == SB_LOOK_DOWN)
 	{
 		playerLookDown(snum, actions);
 	}
-	else if (actions & SB_AIM_UP)
+	else if ((actions & SB_LOOK_UP) == SB_AIM_UP)
 	{
 		playerAimUp(snum, actions);
 	}
-	else if (actions & SB_AIM_DOWN)
+	else if ((actions & SB_LOOK_DOWN) == SB_AIM_DOWN)
 	{	// aim_down
 		playerAimDown(snum, actions);
 	}
 
-	p->Angles.doPitchKeys(&p->sync);
+	p->Angles.doPitchInput(&p->sync);
 
 	p->checkhardlanding();
-
-	if (SyncInput())
-	{
-		p->GetActor()->spr.Angles.Pitch += GetPlayerHorizon(snum);
-	}
 
 	//Shooting code/changes
 

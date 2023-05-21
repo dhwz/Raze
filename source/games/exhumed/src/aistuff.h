@@ -33,9 +33,8 @@ enum
     kAnimLoop  = (1 << 4)
 };
 
-void InitAnims();
 void DestroyAnim(DExhumedActor* nAnim);
-DExhumedActor* BuildAnim(DExhumedActor* actor, int val, int val2, const DVector3& pos, sectortype* pSector, double nScale, int nFlag);
+DExhumedActor* BuildAnim(DExhumedActor* actor, const FName seqFile, int seqIndex, const DVector3& pos, sectortype* pSector, double nScale, int nFlag);
 void UnlinkIgnitedAnim(DExhumedActor* pActor);
 void FuncAnim(int, int, int, int);
 void BuildExplosion(DExhumedActor* actor);
@@ -62,9 +61,9 @@ struct bulletInfo
     int16_t nDamage; // 0
     int16_t field_2; // 2
     int field_4;   // 4
-    int16_t field_8; // 8
-    int16_t nSeq; // 10
-    int16_t field_C; // 12
+    FName initSeq; // 8
+    FName seqFile; // 10
+    FName animFile; // 12
     int16_t nFlags;
     int16_t nRadius; // damage radius
     int16_t xyRepeat;
@@ -119,7 +118,7 @@ enum
 
 struct Weapon
 {
-    int16_t nSeq;
+    FName nSeqFile;
     int16_t b[12]; // seq offsets?
     int16_t nAmmoType;
     int16_t c;
@@ -128,7 +127,6 @@ struct Weapon
 };
 
 extern Weapon WeaponInfo[];
-extern int16_t nTemperature[];
 
 void RestoreMinAmmo(int nPlayer);
 void FillWeapons(int nPlayer);
@@ -138,11 +136,9 @@ void SetNewWeapon(int nPlayer, int nWeapon);
 void SetNewWeaponImmediate(int nPlayer, int nWeapon);
 void SetNewWeaponIfBetter(int nPlayer, int nWeapon);
 void SelectNewWeapon(int nPlayer);
-void StopFiringWeapon(int nPlayer);
-void FireWeapon(int nPlayer);
 void CheckClip(int nPlayer);
 void MoveWeapons(int nPlayer);
-void DrawWeapons(double interpfrac);
+void DrawWeapons(Player* const pPlayer, double interpfrac);
 
 // items
 
@@ -226,11 +222,9 @@ DExhumedActor* GrabBodyGunSprite();
 void FuncCreatureChunk(int a, int, int nRun);
 DExhumedActor* FindPlayer(DExhumedActor* nSprite, int nDistance, bool dontengage = false);
 
-DExhumedActor* BuildCreatureChunk(DExhumedActor* pSrc, int nPic, bool bSpecial = false);
+DExhumedActor* BuildCreatureChunk(DExhumedActor* pSrc, FTextureID nPic, bool bSpecial = false);
 double PlotCourseToSprite(DExhumedActor* nSprite1, DExhumedActor* nSprite2);
 void CheckSectorFloor(sectortype* pSector, double z, DVector2& xy);
-DAngle GetAngleToSprite(DExhumedActor* nSprite1, DExhumedActor* nSprite2);
-DAngle GetWallNormal(walltype* nWall);
 void MoveSector(sectortype* pSector, DAngle nAngle, DVector2& vel);
 Collision AngleChase(DExhumedActor* nSprite, DExhumedActor* nSprite2, int ebx, int ecx, DAngle push1);
 void SetQuake(DExhumedActor* nSprite, int nVal);
@@ -308,7 +302,7 @@ struct RA
     TObjPtr<DExhumedActor*> pTarget;
 
     int16_t nAction;
-    int16_t nFrame;
+    uint16_t nFrame;
     int16_t nRun;
     int16_t nState;
     int nPlayer;

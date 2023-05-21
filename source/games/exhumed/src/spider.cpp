@@ -68,7 +68,7 @@ DExhumedActor* BuildSpider(DExhumedActor* spp, const DVector3& pos, sectortype* 
     spp->spr.xoffset = 0;
     spp->spr.yoffset = 0;
     spp->spr.Angles.Yaw = nAngle;
-    spp->spr.picnum = 1;
+    setvalidpic(spp);
     spp->spr.hitag = 0;
     spp->spr.lotag = runlist_HeadRun() + 1;
     spp->spr.extra = -1;
@@ -84,6 +84,8 @@ DExhumedActor* BuildSpider(DExhumedActor* spp, const DVector3& pos, sectortype* 
     spp->spr.intowner = runlist_AddRunRec(spp->spr.lotag - 1, spp, 0xC0000);
 
     spp->nRun = runlist_AddRunRec(NewRun, spp, 0xC0000);
+
+    spp->nSeqFile = "spider";
 
     nCreaturesTotal++;
 
@@ -117,16 +119,15 @@ void AISpider::Tick(RunListEvent* ev)
         }
     }
 
-    int nSeq = SeqOffsets[kSeqSpider] + SpiderSeq[nAction].a;
+    const auto spiderSeq = getSequence(spp->nSeqFile, SpiderSeq[nAction].nSeqId);
+    const auto& seqFrame = spiderSeq->frames[spp->nFrame];
 
-    spp->spr.picnum = seq_GetSeqPicnum2(nSeq, spp->nFrame);
+    spp->spr.setspritetexture(seqFrame.getFirstChunkTexture());
 
-    seq_MoveSequence(spp, nSeq, spp->nFrame);
-
-    int nFrameFlag = FrameFlag[SeqBase[nSeq] + spp->nFrame];
+    seqFrame.playSound(spp);
 
     spp->nFrame++;
-    if (spp->nFrame >= SeqSize[nSeq]) {
+    if (spp->nFrame >= spiderSeq->frames.Size()) {
         spp->nFrame = 0;
     }
 
@@ -251,7 +252,7 @@ void AISpider::Tick(RunListEvent* ev)
         {
             if (pTarget)
             {
-                if (nFrameFlag & 0x80)
+                if (seqFrame.flags & 0x80)
                 {
                     runlist_DamageEnemy(pTarget, spp, 3);
                     D3PlayFX(StaticSound[kSound38], spp);
@@ -262,15 +263,15 @@ void AISpider::Tick(RunListEvent* ev)
                 }
 
                 spp->nAction = 1;
+                spp->nFrame = 0;
             }
             else
             {
                 spp->nAction = 0;
+                spp->nFrame = 0;
                 spp->vel.X = 0;
                 spp->vel.Y = 0;
             }
-
-            spp->nFrame = 0;
             break;
         }
         }
@@ -349,12 +350,11 @@ void AISpider::Tick(RunListEvent* ev)
 
 void AISpider::Draw(RunListEvent* ev)
 {
-    auto spp = ev->pObjActor;
-    if (!spp) return;
-
-    int nAction = spp->nAction;
-
-    seq_PlotSequence(ev->nParam, SeqOffsets[kSeqSpider] + SpiderSeq[nAction].a, spp->nFrame, SpiderSeq[nAction].b);
+    if (const auto spp = ev->pObjActor)
+    {
+        const auto spiderSeq = &SpiderSeq[spp->nAction];
+        seq_PlotSequence(ev->nParam, spp->nSeqFile, spiderSeq->nSeqId, spp->nFrame, spiderSeq->nFlags);
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -419,9 +419,11 @@ void AISpider::Damage(RunListEvent* ev)
 
         nCreaturesKilled++;
 
+        const auto spiderSeqs = getFileSeqs("spider");
+
         for (int i = 0; i < 7; i++)
         {
-            BuildCreatureChunk(spp, seq_GetSeqPicnum(kSeqSpider, i + 41, 0));
+            BuildCreatureChunk(spp, spiderSeqs->Data(i + 41)->getFirstFrameTexture());
         }
     }
 }

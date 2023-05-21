@@ -61,7 +61,7 @@ void BuildRex(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, D
     pActor->clipdist = 20;
     pActor->spr.shade = -12;
     pActor->spr.scale = DVector2(1, 1);
-    pActor->spr.picnum = 1;
+    setvalidpic(pActor);
     pActor->spr.pal = pActor->sector()->ceilingpal;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
@@ -85,6 +85,8 @@ void BuildRex(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, D
     pActor->nRun = nChannel;
 
     pActor->spr.intowner = runlist_AddRunRec(pActor->spr.lotag - 1, pActor, 0x180000);
+
+    pActor->nSeqFile = "rex";
 
     // this isn't stored anywhere.
     runlist_AddRunRec(NewRun, pActor, 0x180000);
@@ -166,13 +168,11 @@ void AIRex::Damage(RunListEvent* ev)
 
 void AIRex::Draw(RunListEvent* ev)
 {
-    auto pActor = ev->pObjActor;
-    if (!pActor) return;
-
-    int nAction = pActor->nAction;
-
-    seq_PlotSequence(ev->nParam, SeqOffsets[kSeqRex] + RexSeq[nAction].a, pActor->nFrame, RexSeq[nAction].b);
-    return;
+    if (const auto pActor = ev->pObjActor)
+    {
+        const auto rexSeq = &RexSeq[pActor->nAction];
+        seq_PlotSequence(ev->nParam, pActor->nSeqFile, rexSeq->nSeqId, pActor->nFrame, rexSeq->nFlags);
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -192,9 +192,10 @@ void AIRex::Tick(RunListEvent* ev)
 
     Gravity(pActor);
 
-    int nSeq = SeqOffsets[kSeqRex] + RexSeq[nAction].a;
+    const auto rexSeq = getSequence(pActor->nSeqFile, RexSeq[nAction].nSeqId);
+    const auto& seqFrame = rexSeq->frames[pActor->nFrame];
 
-    pActor->spr.picnum = seq_GetSeqPicnum2(nSeq, pActor->nFrame);
+    pActor->spr.setspritetexture(seqFrame.getFirstChunkTexture());
 
     int ecx = 2;
 
@@ -205,17 +206,15 @@ void AIRex::Tick(RunListEvent* ev)
     // moves the mouth open and closed as it's idle?
     while (--ecx != -1)
     {
-        seq_MoveSequence(pActor, nSeq, pActor->nFrame);
+        seqFrame.playSound(pActor);
 
         pActor->nFrame++;
-        if (pActor->nFrame >= SeqSize[nSeq])
+        if (pActor->nFrame >= rexSeq->frames.Size())
         {
             pActor->nFrame = 0;
             bVal = true;
         }
     }
-
-    int nFlag = FrameFlag[SeqBase[nSeq] + pActor->nFrame];
 
     DExhumedActor* pTarget = pActor->pTarget;
 
@@ -395,6 +394,7 @@ void AIRex::Tick(RunListEvent* ev)
         if (bVal)
         {
             pActor->nAction = 2;
+            pActor->nFrame = 0;
         }
         return;
     }
@@ -405,7 +405,7 @@ void AIRex::Tick(RunListEvent* ev)
         {
             if (PlotCourseToSprite(pActor, pTarget) < 48)
             {
-                if (nFlag & 0x80)
+                if (seqFrame.flags & 0x80)
                 {
                     runlist_DamageEnemy(pTarget, pActor, 15);
                 }
@@ -415,6 +415,7 @@ void AIRex::Tick(RunListEvent* ev)
         }
 
         pActor->nAction = 1;
+        pActor->nFrame = 0;
         break;
     }
 
@@ -423,6 +424,7 @@ void AIRex::Tick(RunListEvent* ev)
         if (bVal)
         {
             pActor->nAction = 1;
+            pActor->nFrame = 0;
             pActor->nCount = 15;
         }
         return;

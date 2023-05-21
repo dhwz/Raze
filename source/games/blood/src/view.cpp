@@ -704,7 +704,7 @@ void viewDrawScreen(bool sceneonly)
 
 		if (sceneonly) return;
 		auto offsets = pPlayer->Angles.getCrosshairOffsets(interpfrac);
-		DrawCrosshair(kCrosshairTile, pPlayer->actor->xspr.health >> 4, offsets.first.X, offsets.first.Y, 2, offsets.second);
+		DrawCrosshair(pPlayer->actor->xspr.health >> 4, offsets.first.X, offsets.first.Y, 2, offsets.second);
 #if 0 // This currently does not work. May have to be redone as a hardware effect.
 		if (v4 && gNetPlayers > 1)
 		{
@@ -792,7 +792,7 @@ bool GameInterface::DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos,
 			auto actor = gPlayer[i].actor;
 			auto vect = OutAutomapVector(mxy - cpos, cangvect, czoom, xydim);
 
-			DrawTexture(twod, tileGetTexture(actor->spr.picnum, true), vect.X, vect.Y, DTA_ClipLeft, viewport3d.Left(), DTA_ClipTop, viewport3d.Top(), DTA_ScaleX, czoom * (2. / 3.), DTA_ScaleY, czoom * (2. / 3.), DTA_CenterOffset, true,
+			DrawTexture(twod, TexMan.GetGameTexture(actor->spr.spritetexture(), true), vect.X, vect.Y, DTA_ClipLeft, viewport3d.Left(), DTA_ClipTop, viewport3d.Top(), DTA_ScaleX, czoom * (2. / 3.), DTA_ScaleY, czoom * (2. / 3.), DTA_CenterOffset, true,
 				DTA_ClipRight, viewport3d.Right(), DTA_ClipBottom, viewport3d.Bottom(), DTA_Alpha, (actor->spr.cstat & CSTAT_SPRITE_TRANSLUCENT ? 0.5 : 1.), DTA_TranslationIndex, TRANSLATION(Translation_Remap, actor->spr.pal), TAG_DONE);
 		}
 	}

@@ -115,7 +115,6 @@ const char *SoundFiles[kMaxSoundFiles] =
 int nStopSound;
 int nStoneSound;
 int nSwitchSound;
-sectortype* pLocalEyeSect;
 int nElevSound;
 int nCreepyTimer;
 
@@ -506,7 +505,7 @@ void GameInterface::UpdateSounds()
     DAngle ang;
     if (nSnakeCam > -1)
     {
-        Snake *pSnake = &SnakeList[nSnakeCam];
+        Snake* pSnake = &SnakeList[nSnakeCam];
         pos = pSnake->pSprites[0]->spr.pos;
         ang = pSnake->pSprites[0]->spr.Angles.Yaw;
     }
@@ -515,6 +514,7 @@ void GameInterface::UpdateSounds()
         pos = pActor->spr.pos;
         ang = pActor->spr.Angles.Yaw;
     }
+    else pos.Zero();
     SoundListener listener;
     listener.angle = float(-ang.Radians()); // Build uses a period of 2048.
     listener.velocity.Zero();
@@ -718,8 +718,9 @@ void UpdateCreepySounds()
     {
         if (nCreaturesKilled < nCreaturesTotal && !(PlayerList[nLocalPlayer].pPlayerViewSect->Flag & 0x2000))
         {
-            int vsi = seq_GetFrameSound(SeqOffsets[kSeqCreepy], totalmoves % SeqSize[SeqOffsets[kSeqCreepy]]);
-            if (vsi >= 0 && (vsi & 0x1ff) < kMaxSounds)
+            const auto creepySeq = getSequence("creepy");
+            const auto seqFrameSound = creepySeq->frames[totalmoves % creepySeq->frames.Size()].sound;
+            if (seqFrameSound >= 0 && (seqFrameSound & 0x1ff) < kMaxSounds)
             {
 				DVector2 adder;
                 adder.X = ((totalmoves + 32) & 31) / 16.;
@@ -732,7 +733,7 @@ void UpdateCreepySounds()
                 auto sp = PlayerList[nLocalPlayer].pActor->spr.pos + adder;
                 creepy = GetSoundPos(sp);
 
-                auto soundid = FSoundID::fromInt((vsi & 0x1ff) + 1);
+                auto soundid = FSoundID::fromInt((seqFrameSound & 0x1ff) + 1);
 
                 if (!soundEngine->isValidSoundId(soundid))
                 {
@@ -740,8 +741,7 @@ void UpdateCreepySounds()
                 }
 
                 int nVolume = 255;
-                int v10 = (vsi & 0xe00) >> 9;
-                vsi &= 0x1ff;
+                int v10 = (seqFrameSound & 0xe00) >> 9;
 
                 int nPitch = 0;
                 if (v10) nPitch = -(totalmoves & ((1 << v10) - 1)) * 16;

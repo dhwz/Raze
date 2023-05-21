@@ -21,7 +21,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "exhumed.h"
 #include "player.h"
 #include "sequence.h"
-#include "input.h"
 #include <string.h>
 
 BEGIN_PS_NS
@@ -124,6 +123,7 @@ void BuildRa(int nPlayer)
     pActor->spr.pal = 1;
     pActor->spr.scale = DVector2(1, 1);
     pActor->spr.pos = pPlayerActor->spr.pos;
+    pActor->nSeqFile = "eyehit";
 
 //	GrabTimeSlot(3);
 
@@ -210,21 +210,23 @@ void AIRa::Tick(RunListEvent* ev)
     int nPlayer = RunData[ev->nRun].nObjIndex;
     int nCurrentWeapon = PlayerList[nPlayer].nCurrentWeapon;
 
-    int nSeq = SeqOffsets[kSeqEyeHit] + RaSeq[Ra[nPlayer].nAction].a;
     DExhumedActor* pActor = Ra[nPlayer].pActor;
     if (!pActor) return;
+
+    const auto raSeq = getSequence(Ra[nPlayer].pActor->nSeqFile, RaSeq[Ra[nPlayer].nAction].nSeqId);
+    const auto& seqFrame = raSeq->frames[Ra[nPlayer].nFrame];
 
     bool bVal = false;
 
     Ra[nPlayer].pTarget = PlayerList[nPlayer].pTarget;
-    pActor->spr.picnum = seq_GetSeqPicnum2(nSeq, Ra[nPlayer].nFrame);
+    pActor->spr.setspritetexture(seqFrame.getFirstChunkTexture());
 
     if (Ra[nPlayer].nAction)
     {
-        seq_MoveSequence(pActor, nSeq, Ra[nPlayer].nFrame);
+        seqFrame.playSound(pActor);
 
         Ra[nPlayer].nFrame++;
-        if (Ra[nPlayer].nFrame >= SeqSize[nSeq])
+        if (Ra[nPlayer].nFrame >= raSeq->frames.Size())
         {
             Ra[nPlayer].nFrame = 0;
             bVal = true;
@@ -262,6 +264,7 @@ void AIRa::Tick(RunListEvent* ev)
         {
             if (bVal) {
                 Ra[nPlayer].nAction = 2;
+                Ra[nPlayer].nFrame = 0;
             }
 
             MoveRaToEnemy(nPlayer);
@@ -336,10 +339,9 @@ void AIRa::Tick(RunListEvent* ev)
 
 void AIRa::Draw(RunListEvent* ev)
 {
-    int nPlayer = RunData[ev->nRun].nObjIndex;
-    int nSeq = SeqOffsets[kSeqEyeHit] + RaSeq[Ra[nPlayer].nAction].a;
-
-    seq_PlotSequence(ev->nParam, nSeq, Ra[nPlayer].nFrame, 1);
+    const auto nPlayer = RunData[ev->nRun].nObjIndex;
+    const auto pRa = &Ra[nPlayer];
+    seq_PlotSequence(ev->nParam, "eyehit", RaSeq[pRa->nAction].nSeqId, pRa->nFrame, 1);
     ev->pTSprite->ownerActor = nullptr;
 }
 

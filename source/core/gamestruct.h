@@ -19,8 +19,6 @@ class DCoreActor;
 struct MapRecord;
 struct PlayerAngles;
 
-void processMovement(HIDInput* const hidInput, InputPacket* const inputBuffer, InputPacket* const currInput, const double scaleAdjust, const int drink_amt = 0, const bool allowstrafe = true, const double turnscale = 1.);
-
 struct GameStats
 {
 	int kill, tkill;
@@ -69,6 +67,7 @@ struct GameInterface
 	virtual ~GameInterface() {}
 	virtual bool GenerateSavePic() { return false; }
 	virtual void app_init() = 0;
+	virtual void FinalizeSetup() {}
 	virtual void LoadTextureInfo(TilesetBuildInfo& info) {}
 	virtual void SetupSpecialTextures(TilesetBuildInfo&) = 0;
 	virtual void loadPalette() = 0;
@@ -103,7 +102,6 @@ struct GameInterface
 	virtual DAngle playerPitchMin() { return DAngle::fromDeg(57.375); }
 	virtual DAngle playerPitchMax() { return DAngle::fromDeg(-57.375); }
 	virtual DCoreActor* getConsoleActor() = 0;
-	virtual PlayerAngles* getConsoleAngles() = 0;
 	virtual void ToggleThirdPerson() = 0;
 	virtual void SwitchCoopView() { Printf("Unsupported command\n"); }
 	virtual void ToggleShowWeapon() { Printf("Unsupported command\n"); }
@@ -120,11 +118,8 @@ struct GameInterface
 	virtual void RemoveQAVInterpProps(const int res_id) { }
 	virtual bool WantEscape() { return false; }
 	virtual void StartSoundEngine() = 0;
-	virtual ESyncBits GetNeededInputBits() = 0;
-	virtual void GetInput(HIDInput* const hidInput, InputPacket* const inputBuffer, InputPacket* const currInput, const double scaleAdjust)
-	{
-		processMovement(hidInput, inputBuffer, currInput, scaleAdjust);
-	}
+	virtual void reapplyInputBits(InputPacket* const input) = 0;
+	virtual void doPlayerMovement(const float scaleAdjust) = 0;
 
 	virtual FString statFPS()
 	{

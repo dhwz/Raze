@@ -332,9 +332,34 @@ DEFINE_PROPERTY(statnum, I, CoreActor)
 //==========================================================================
 //
 //==========================================================================
+DEFINE_PROPERTY(scale, Ff, CoreActor)
+{
+	PROP_FLOAT_PARM(x, 0);
+	bag.Info->ActorInfo()->DefaultScale = { x,x };
+	if (PROP_PARM_COUNT > 1)
+	{
+		PROP_FLOAT_PARM(y, 0);
+		bag.Info->ActorInfo()->DefaultScale.Y = y;
+	}
+	bag.Info->ActorInfo()->DefaultFlags |= DEFF_SCALE;
+}
+
+//==========================================================================
+//
+//==========================================================================
+DEFINE_PROPERTY(clearcstat, 0, CoreActor)
+{
+	PROP_INT_PARM(i, 0);
+	defaults->spr.cstat = 0;
+	bag.Info->ActorInfo()->DefaultCstat |= 0xffff;
+}
+
+//==========================================================================
+//
+//==========================================================================
 DEFINE_PROPERTY(spriteset, Sssssssssssssssssssssssssssssss, CoreActor)
 {
-	bag.Info->ActorInfo()->DefaultFlags |= DEFF_PICNUM;	// this also overrides the map's picnum
+	bag.Info->ActorInfo()->DefaultFlags |= DEFF_PICNUM;	// this also overrides the map's pic
 	info->ActorInfo()->SpriteSetNames.Clear();
 	for (int i = 0; i < PROP_PARM_COUNT; ++i)
 	{
@@ -355,9 +380,14 @@ DEFINE_PROPERTY(spritesetindex, I, CoreActor)
 //==========================================================================
 //
 //==========================================================================
-DEFINE_PROPERTY(health, I, CoreActor)
+DEFINE_PROPERTY(precacheclass, Sssssssssssssssssssssssssssssss, CoreActor)
 {
-	PROP_INT_PARM(i, 0);
-	bag.Info->ActorInfo()->Health = i;
+	for (int i = 0; i < PROP_PARM_COUNT; ++i)
+	{
+		PROP_STRING_PARM(n, i);
+		auto cls = PClass::FindActor(n);
+		if (n)
+			info->ActorInfo()-> precacheClasses.Push(cls);
+	}
 }
 

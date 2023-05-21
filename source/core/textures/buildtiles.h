@@ -25,31 +25,6 @@ inline void spritetypebase::setspritetexture(FTextureID tex)
 }
 
 //[[deprecated]]
-inline int tileForName(const char* name)
-{
-	auto texid = TexMan.CheckForTexture(name, ETextureType::Any, FTextureManager::TEXMAN_TryAny | FTextureManager::TEXMAN_ReturnAll);
-	if (!texid.isValid()) return -1;
-	return legacyTileNum(texid);
-}
-
-//[[deprecated]]
-inline int tileWidth(int num)
-{
-	auto texid = tileGetTextureID(num);
-	if (!texid.isValid()) return 1;
-	else return (int)TexMan.GetGameTexture(texid)->GetDisplayWidth();
-}
-
-//[[deprecated]]
-inline int tileHeight(int num)
-{
-	auto texid = tileGetTextureID(num);
-	if (!texid.isValid()) return 1;
-	else return (int)TexMan.GetGameTexture(texid)->GetDisplayHeight();
-}
-
-
-//[[deprecated]]
 inline FGameTexture* tileGetTexture(int tile, bool animate = false)
 {
 	auto texid = tileGetTextureID(tile);

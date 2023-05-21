@@ -1,26 +1,29 @@
-
-// dummy items representing certain weapons
-class DukeChaingun : DukeActor
-{
-	default
-	{
-		pic "CHAINGUN";
-	}
-}
-
 class DukeSectorEffector : DukeActor
 {
 	//This never gets ticked, the handler goes directly to the native implementations.
 }
 
+class DukePlayerBase : DukeActor
+{
+	const YELLHURTSOUNDSTRENGTH = 40;
+	const YELLHURTSOUNDSTRENGTHMP = 50;
+	default
+	{
+		pic "APLAYER";
+		+DESTRUCTOIMMUNE;
+	}
 
+	override void Initialize(DukeActor spawner)
+	{
+		// do not call the base class here.
+	}
+}
 
-// placeholders for CON scripted actors where we need the class.
-
-class DukeForceRipple : DukeActor
+class RedneckMotoHit : DukeActor
 {
 	default
 	{
-		pic "FORCERIPPLE";
+		pic "MOTOHIT0";
 	}
 }
+

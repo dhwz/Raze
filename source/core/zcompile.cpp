@@ -46,6 +46,7 @@
 
 void InitThingdef();
 void SynthesizeFlagFields();
+void SetRazeCompileEnvironment();
 
 void ParseScripts()
 {
@@ -75,17 +76,21 @@ void ParseScripts()
 	}
 }
 
+void InitServices();
+
 void LoadScripts()
 {
 	cycle_t timer;
 
 	PType::StaticInit();
+	SetRazeCompileEnvironment();
 	InitThingdef();
 	timer.Reset(); timer.Clock();
 	FScriptPosition::ResetErrorCounter();
 
 	FScriptPosition::StrictErrors = true;
 	ParseScripts();
+	SynthesizeFlagFields();
 
 	FunctionBuildList.Build();
 
@@ -97,7 +102,6 @@ void LoadScripts()
 
 	timer.Unclock();
 	if (!batchrun) Printf("script parsing took %.2f ms\n", timer.TimeMS());
-	SynthesizeFlagFields();
 
 	for (int i = PClass::AllClasses.Size() - 1; i >= 0; i--)
 	{
@@ -131,4 +135,5 @@ void LoadScripts()
 
 	// Now we may call the scripted OnDestroy method.
 	PClass::bVMOperational = true;
+	InitServices();
 }

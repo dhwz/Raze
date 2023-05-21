@@ -1,6 +1,6 @@
 class DukeRespawnController : DukeActor
 {
-	override void Initialize()
+	override void Initialize(DukeActor spawner)
 	{
 		if (ud.multimode < 2 && self.pal == 1)
 		{
@@ -20,7 +20,7 @@ class DukeRespawnController : DukeActor
 		if (self.extra == 66)
 		{
 			let newact = self.spawnsprite(self.hitag);
-			if (Raze.isRRRA() && newact)
+			if (isRRRA() && newact)
 			{
 				newact.pal = self.pal;
 

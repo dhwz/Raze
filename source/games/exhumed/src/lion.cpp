@@ -59,7 +59,7 @@ void BuildLion(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, 
 	pActor->clipdist = 15;
     pActor->spr.shade = -12;
     pActor->spr.scale = DVector2(0.625, 0.625);
-    pActor->spr.picnum = 1;
+    setvalidpic(pActor);
     pActor->spr.pal = pActor->sector()->ceilingpal;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
@@ -84,16 +84,18 @@ void BuildLion(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, 
 
     pActor->nRun = runlist_AddRunRec(NewRun, pActor, 0x130000);
 
+    pActor->nSeqFile = "lion";
+
     nCreaturesTotal++;
 }
 
 void AILion::Draw(RunListEvent* ev)
 {
-    auto pActor = ev->pObjActor;
-    if (!pActor) return;
-    int nAction = pActor->nAction;
-
-    seq_PlotSequence(ev->nParam, SeqOffsets[kSeqLion] + LionSeq[nAction].a, pActor->nFrame, LionSeq[nAction].b);
+    if (const auto pActor = ev->pObjActor)
+    {
+        const auto lionSeq = &LionSeq[pActor->nAction];
+        seq_PlotSequence(ev->nParam, pActor->nSeqFile, lionSeq->nSeqId, pActor->nFrame, lionSeq->nFlags);
+    }
 }
 
 void AILion::RadialDamage(RunListEvent* ev)
@@ -198,20 +200,20 @@ void AILion::Tick(RunListEvent* ev)
         Gravity(pActor);
     }
 
-    int nSeq = SeqOffsets[kSeqLion] + LionSeq[nAction].a;
+    const auto lionSeq = getSequence(pActor->nSeqFile, LionSeq[nAction].nSeqId);
+    const auto& seqFrame = lionSeq->frames[pActor->nFrame];
 
-    pActor->spr.picnum = seq_GetSeqPicnum2(nSeq, pActor->nFrame);
+    pActor->spr.setspritetexture(seqFrame.getFirstChunkTexture());
 
-    seq_MoveSequence(pActor, nSeq, pActor->nFrame);
+    seqFrame.playSound(pActor);
 
     pActor->nFrame++;
-    if (pActor->nFrame >= SeqSize[nSeq])
+    if (pActor->nFrame >= lionSeq->frames.Size())
     {
         pActor->nFrame = 0;
         bVal = true;
     }
 
-    int nFlag = FrameFlag[SeqBase[nSeq] + pActor->nFrame];
     DExhumedActor* pTarget = pActor->pTarget;
 
     auto nMov = MoveCreatureWithCaution(pActor);
@@ -295,6 +297,7 @@ void AILion::Tick(RunListEvent* ev)
                 if (pActor->spr.cstat & CSTAT_SPRITE_INVISIBLE)
                 {
                     pActor->nAction = 9;
+                    pActor->nFrame = 0;
                     pActor->spr.cstat &= ~CSTAT_SPRITE_INVISIBLE;
                     pActor->vel.X = 0;
                     pActor->vel.Y = 0;
@@ -305,10 +308,9 @@ void AILion::Tick(RunListEvent* ev)
                     if (nAngDiff < DAngle22_5 / 2)
                     {
                         pActor->nAction = 3;
+                        pActor->nFrame = 0;
                     }
                 }
-
-                pActor->nFrame = 0;
                 break;
             }
             else
@@ -328,6 +330,7 @@ void AILion::Tick(RunListEvent* ev)
         if (pTarget == nullptr)
         {
             pActor->nAction = 1;
+            pActor->nFrame = 0;
             pActor->nCount = 50;
         }
         else
@@ -335,8 +338,9 @@ void AILion::Tick(RunListEvent* ev)
             if (PlotCourseToSprite(pActor, pTarget) >= 48)
             {
                 pActor->nAction = 2;
+                pActor->nFrame = 0;
             }
-            else if (nFlag & 0x80)
+            else if (seqFrame.flags & 0x80)
             {
                 runlist_DamageEnemy(pTarget, pActor, 10);
             }
@@ -397,7 +401,7 @@ void AILion::Tick(RunListEvent* ev)
             }
 
             pActor->spr.Angles.Yaw = nAngle;
-
+            pActor->nFrame = 0;
             pActor->nAction = 6;
 			pActor->vel.XY() = pActor->spr.Angles.Yaw.ToVector() * (1024 - 128);
 			D3PlayFX(StaticSound[kSound24], pActor);
@@ -418,7 +422,8 @@ void AILion::Tick(RunListEvent* ev)
         if (nMov.type == kHitWall)
         {
             pActor->nAction = 7;
-            pActor->spr.Angles.Yaw = (GetWallNormal(nMov.hitWall) + DAngle180).Normalized360();
+            pActor->nFrame = 0;
+            pActor->spr.Angles.Yaw = (nMov.hitWall->normalAngle() + DAngle180).Normalized360();
             pActor->nCount = RandomSize(4);
             return;
         }
@@ -462,7 +467,7 @@ void AILion::Tick(RunListEvent* ev)
             }
 
             pActor->vel.Z = -1000 / 256.;
-
+            pActor->nFrame = 0;
             pActor->nAction = 6;
 			pActor->vel.XY() = pActor->spr.Angles.Yaw.ToVector() * (1024 - 128);
             D3PlayFX(StaticSound[kSound24], pActor);

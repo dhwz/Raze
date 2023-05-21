@@ -103,12 +103,6 @@ const GENDUDESND gCustomDudeSnd[] = {
 	{ 9008, 0, 17, false, false },      // transforming in other dude
 };
 
-// for kModernThingThrowableRock
-const int16_t gCustomDudeDebrisPics[6] = {
-
-	2406, 2280, 2185, 2155, 2620, 3135
-
-};
 
 //---------------------------------------------------------------------------
 //
@@ -331,7 +325,7 @@ static void ThrowThing(DBloodActor* actor, bool impact)
 	DBloodActor* spawned = nullptr;
 	if ((spawned = actFireThing(actor, 0., 0., (dv.Z / 32768.) - zThrow, curWeapon, dist * (2048. / 64800))) == nullptr) return;
 
-	if (pThinkInfo->picnum < 0 && spawned->spr.type != kModernThingThrowableRock) spawned->spr.picnum = 0;
+	if (pThinkInfo->picno < 0 && spawned->spr.type != kModernThingThrowableRock) spawned->spr.setspritetexture(FNullTextureID());
 
 	spawned->SetOwner(actor);
 
@@ -344,7 +338,7 @@ static void ThrowThing(DBloodActor* actor, bool impact)
 	case kModernThingThrowableRock:
 	{
 		double s = 0.375 + Random(42) * REPEAT_SCALE;
-		spawned->spr.picnum = gCustomDudeDebrisPics[Random(5)];
+		spawned->spr.setspritetexture(aTexIds[kTexROCKDEBRIS1 + Random(5)]);
 		spawned->spr.scale = DVector2(s, s);
 		spawned->spr.cstat |= CSTAT_SPRITE_BLOCK;
 		spawned->spr.pal = 5;
@@ -2287,7 +2281,8 @@ bool genDudePrepare(DBloodActor* actor, int propId)
 	case kGenDudePropertyMass: {
 		// to ensure mass gets updated, let's clear all cache
 		SPRITEMASS* pMass = &actor->spriteMass;
-		pMass->seqId = pMass->picnum = 0;
+		pMass->seqId = 0;
+		pMass->texid = FNullTextureID();
 		pMass->scale.Zero();
 		pMass->clipDist = 0;
 		pMass->mass = pMass->airVel = pMass->fraction = 0;

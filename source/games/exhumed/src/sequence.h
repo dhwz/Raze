@@ -21,127 +21,75 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_PS_NS
 
-enum {
-    kSeqRothands = 0,
-    kSeqSword,
-    kSeqPistol,
-    kSeqM60,
-    kSeqFlamer,
-    kSeqGrenade,
-    kSeqCobra,
-    kSeqBoneSaw,
-    kSeqScramble,
-    kSeqGlove,
-    kSeqMummy,
-    kSeqSkull,
-    kSeqPoof,
-    kSeqKapow,
-    kSeqFireball,
-    kSeqBubble,
-    kSeqSpider,
-    kSeqAnubis,
-    kSeqAnuBall,
-    kSeqFish,
-    kSeqSnakehed,
-    kSeqSnakBody,
-    kSeqWasp,
-    kSeqCobraPow,
-    kSeqScorp,
-    kSeqJoe, // player pic
-    kSeqStatus,
-    kSeqDead,
-    kSeqDeadEx,
-    kSeqAnuPoof,
-    kSeqSkulPoof,
-    kSeqBullet,
-    kSeqShadow,
-    kSeqGrenRoll,
-    kSeqGrenBoom,
-    kSeqSplash,
-    kSeqGrenPow,
-    kSeqSkulSrt,
-    kSeqFirePoof,
-    kSeqBloodHit,
-    kSeqLion,
-    kSeqItems,
-    kSeqLavag,
-    kSeqLsplash,
-    kSeqLavaShot,
-    kSeqSmokeBal,
-    kSeqFirePot,
-    kSeqRex,
-    kSeqSet,
-    kSeqQueen,
-    kSeqRoach,
-    kSeqHawk,
-    kSeqSetGhost,
-    kSeqSetGBlow,
-    kSeqBizzTail,
-    kSeqBizzPoof,
-    kSeqQueenEgg,
-    kSeqRoacShot,
-    kSeqBackgrnd,
-    kSeqScreens,
-    kSeqArrow,
-    kSeqFonts,
-    kSeqDrips,
-    kSeqFireTrap,
-    kSeqMagic2,
-    kSeqCreepy,
-    kSeqSlider,
-    kSeqRavolt, // 67
-    kSeqEyeHit,
-    kSeqFont2,
-    kSeqSeeBubbl,
-    kSeqBlood,
-    kSeqDrum,
-    kSeqPoof2,
-    kSeqDeadBrn, // 74
-    kSeqGrenBubb,
-    kSeqRochfire,
-    kSeqRat
-};
-
 struct actionSeq
 {
-    int16_t a;
-    int16_t b;
+    int16_t nSeqId;
+    int16_t nFlags;
 };
 
-extern int16_t frames;
+struct SeqFrameChunk
+{
+    int16_t xpos;
+    int16_t ypos;
+    FTextureID tex;
+    int16_t flags;
+};
 
-extern int16_t SeqBase[];
-extern int16_t SeqSize[];
-extern int16_t SeqOffsets[];
-extern int16_t FrameFlag[];
+struct SeqFrame
+{
+    int16_t sound;
+    int16_t flags;
+    TArray<SeqFrameChunk> chunks;
 
-extern int16_t nShadowWidth;
+    const FTextureID getFirstChunkTexture() const
+    {
+        return chunks.Size() ? chunks[0].tex : FNullTextureID();
+    }
+
+    const void playSound(DExhumedActor* const pActor) const
+    {
+        if (sound == -1)
+            return;
+
+        if (pActor)
+        {
+            D3PlayFX(sound, pActor);
+        }
+        else
+        {
+            PlayLocalSound(sound, 0);
+        }
+    }
+};
+
+struct Seq
+{
+    int16_t flags;
+    TArray<SeqFrame> frames;
+
+    const FTextureID getFirstFrameTexture() const
+    {
+        return frames[0].getFirstChunkTexture();
+    }
+};
+
 extern int16_t nFlameHeight;
 
 extern int16_t nPilotLightFrame;
 extern int16_t nPilotLightCount;
 
-extern int16_t ChunkYpos[];
-extern int16_t ChunkXpos[];
-extern int16_t ChunkPict[];
-extern int16_t ChunkFlag[];
-extern int16_t FrameSize[];
-extern int16_t FrameBase[];
-
-
 void seq_LoadSequences();
-int seq_GetFrameSound(int val, int edx);
-void seq_MoveSequence(DExhumedActor* actor, int16_t nSeq, int16_t bx);
+void seq_DrawGunSequence(const SeqFrame& seqFrame, double xPos, double yPos, int nShade, int nPal, DAngle nAngle, double nAlpha, int nStat = 0);
+void seq_PlotSequence(const int nSprite, const FName seqFile, const int16_t seqIndex, const int16_t frameIndex, const int16_t nFlags);
+void seq_PlotArrowSequence(const int nSprite, const FName seqFile, const int16_t seqIndex, const int frameIndex);
+void seq_DrawPilotLightSeq(double xPos, double yPos, double nAngle);
 
-int seq_GetSeqPicnum2(int16_t nSeq, int16_t nFrame);
-int seq_GetSeqPicnum(int16_t nSeq, int16_t edx, int16_t ebx);
-void seq_DrawStatusSequence(int16_t nSequence, uint16_t edx, int16_t ebx);
+const TArray<Seq>* const getFileSeqs(const FName nSeqFile);
 
-int seq_DrawGunSequence(int nSeqOffset, int16_t dx, double xOffs, double yOffs, int nShade, int nPal, DAngle angle, bool align = false);
-int16_t seq_GetFrameFlag(int16_t val, int16_t nFrame);
-int seq_PlotSequence(int nSprite, int16_t edx, int16_t nFrame, int16_t ecx);
-int seq_PlotArrowSequence(int nSprite, int16_t nSeq, int nVal);
-void seq_DrawPilotLightSeq(double xOffset, double yOffset);
+inline const Seq* const getSequence(const FName nSeqFile, const unsigned nSeqIndex = 0)
+{
+    return getFileSeqs(nSeqFile)->Data(nSeqIndex);
+}
 
 END_PS_NS
 

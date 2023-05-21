@@ -2025,13 +2025,7 @@ void DoPlayerMove(PLAYER* pp)
     SlipSlope(pp);
 
     pp->Angles.doViewYaw(&pp->input);
-
-    if (SyncInput())
-    {
-        pp->actor->spr.Angles.Yaw += DAngle::fromDeg(pp->input.avel);
-    }
-
-    pp->Angles.doYawKeys(&pp->input);
+    pp->Angles.doYawInput(&pp->input);
     UpdatePlayerSpriteAngle(pp);
 
     pp->lastcursector = pp->cursector;
@@ -2044,9 +2038,11 @@ void DoPlayerMove(PLAYER* pp)
     DoPlayerSlide(pp);
 
     pp->ovect = pp->vect;
+    pp->Angles.PrevStrafeVel = pp->Angles.StrafeVel;
 
     pp->vect.X += pp->input.fvel * INPUT_SCALE;
     pp->vect.Y += pp->input.svel * INPUT_SCALE;
+    pp->Angles.StrafeVel += pp->svel * INPUT_SCALE;
 
     friction = pp->friction;
     if (!(pp->Flags & PF_SWIMMING) && pp->WadeDepth)
@@ -2055,22 +2051,31 @@ void DoPlayerMove(PLAYER* pp)
     }
 
 	pp->vect *= FixedToFloat(friction);
+    pp->Angles.StrafeVel *= FixedToFloat(friction);
 
     if (pp->Flags & (PF_FLYING))
     {
         // do a bit of weighted averaging
         pp->vect = (pp->vect + (pp->ovect*1))/2;
+        pp->Angles.StrafeVel = (pp->Angles.StrafeVel + (pp->Angles.PrevStrafeVel*1))/2;
     }
     else if (pp->Flags & (PF_DIVING))
     {
         // do a bit of weighted averaging
         pp->vect = (pp->vect + (pp->ovect*2))/3;
+        pp->Angles.StrafeVel = (pp->Angles.StrafeVel + (pp->Angles.PrevStrafeVel*2))/3;
     }
 
     if (abs(pp->vect.X) < 0.05 && abs(pp->vect.Y) < 0.05)
+    {
         pp->vect.Zero();
+        pp->Angles.StrafeVel = 0;
+    }
 
 	actor->vel.X = pp->vect.Length();
+
+    constexpr auto maxVel = (380401538. / 36022361.);
+    pp->Angles.doRollInput(&pp->input, pp->vect, maxVel, pp->Flags & (PF_SWIMMING|PF_DIVING));
 
     if (pp->Flags & (PF_CLIP_CHEAT))
     {
@@ -2150,14 +2155,8 @@ void DoPlayerMove(PLAYER* pp)
 
     DoPlayerSetWadeDepth(pp);
 
-    if (SyncInput())
-    {
-        pp->actor->spr.Angles.Pitch += DAngle::fromDeg(pp->input.horz);
-    }
-
-    pp->Angles.doPitchKeys(&pp->input);
-
     DoPlayerSlopeTilting(pp);
+    pp->Angles.doPitchInput(&pp->input);
 
     if (pp->insector() && (pp->cursector->extra & SECTFX_DYNAMIC_AREA))
     {
@@ -2630,7 +2629,7 @@ void DoPlayerMoveVehicle(PLAYER* pp)
     pp->setcursector(pp->sop->op_main_sector); // for speed
 
     double floordist = abs(zz - pp->sop->floor_loz);
-
+    setForcedSyncInput(pp->pnum);
 
     if (RectClip)
     {
@@ -2684,7 +2683,6 @@ void DoPlayerMoveVehicle(PLAYER* pp)
     }
     else
     {
-        setForcedSyncInput();
         DoPlayerTurnVehicle(pp, zz, floordist);
 
         auto save_cstat = plActor->spr.cstat;
@@ -2724,14 +2722,8 @@ void DoPlayerMoveVehicle(PLAYER* pp)
     OperateSectorObject(pp->sop, pp->actor->spr.Angles.Yaw, pp->actor->spr.pos.XY());
     pp->cursector = save_sect; // for speed
 
-    if (SyncInput())
-    {
-        pp->actor->spr.Angles.Pitch += DAngle::fromDeg(pp->input.horz);
-    }
-
-    pp->Angles.doPitchKeys(&pp->input);
-
     DoPlayerSlopeTilting(pp);
+    pp->Angles.doPitchInput(&pp->input);
 
     DoTankTreads(pp);
 }
@@ -2752,7 +2744,7 @@ void DoPlayerMoveTurret(PLAYER* pp)
             PlaySOsound(pp->sop->mid_sector, SO_IDLE_SOUND);
     }
 
-    setForcedSyncInput();
+    setForcedSyncInput(pp->pnum);
     DoPlayerTurnTurret(pp);
 
     if (PLAYER_MOVING(pp) == 0)
@@ -2760,14 +2752,8 @@ void DoPlayerMoveTurret(PLAYER* pp)
     else
         pp->Flags |= (PF_PLAYER_MOVED);
 
-    if (SyncInput())
-    {
-        pp->actor->spr.Angles.Pitch += DAngle::fromDeg(pp->input.horz);
-    }
-
-    pp->Angles.doPitchKeys(&pp->input);
-
     DoPlayerSlopeTilting(pp);
+    pp->Angles.doPitchInput(&pp->input);
 }
 
 //---------------------------------------------------------------------------
@@ -3156,7 +3142,7 @@ void DoPlayerFall(PLAYER* pp)
                     return;
             }
 
-            if (pp->input.actions & SB_CROUCH)
+            if ((pp->input.actions & SB_CROUCH) || pp->input.uvel < 0)
             {
                 StackedWaterSplash(pp);
                 DoPlayerBeginCrawl(pp);
@@ -3358,14 +3344,8 @@ void DoPlayerClimb(PLAYER* pp)
     // setsprite to players location
     ChangeActorSect(pp->actor, pp->cursector);
 
-    if (SyncInput())
-    {
-        pp->actor->spr.Angles.Pitch += DAngle::fromDeg(pp->input.horz);
-    }
-
-    pp->Angles.doPitchKeys(&pp->input);
-
     DoPlayerSlopeTilting(pp);
+    pp->Angles.doPitchInput(&pp->input);
 
     if (FAF_ConnectArea(pp->cursector))
     {
@@ -3540,18 +3520,38 @@ void DoPlayerCrawl(PLAYER* pp)
         return;
     }
 
-    // Current Z position, adjust down to the floor, adjust to player height,
-    // adjust for "bump head"
-
-    // Let off of crawl to get up
-    if (!(pp->input.actions & SB_CROUCH))
+    if (pp->Flags & PF_LOCK_CRAWL)
     {
-        if (abs(pp->loz - pp->hiz) >= PLAYER_STANDING_ROOM)
+        if (pp->input.actions & SB_CROUCH_LOCK)
         {
-            pp->Flags &= ~(PF_CRAWLING);
+            if ((pp->KeyPressBits & SB_CROUCH_LOCK) && abs(pp->loz - pp->hiz) >= PLAYER_STANDING_ROOM)
+            {
+                pp->KeyPressBits &= ~SB_CROUCH_LOCK;
+                pp->Flags &= ~PF_CRAWLING;
+                DoPlayerBeginRun(pp);
+                return;
+            }
+        }
+        else
+        {
+           pp->KeyPressBits |= SB_CROUCH_LOCK;
+        }
+
+        // Jump to get up
+        if ((pp->input.actions & (SB_JUMP|SB_CROUCH)) && abs(pp->loz - pp->hiz) >= PLAYER_STANDING_ROOM)
+        {
+            pp->Flags &= ~PF_CRAWLING;
             DoPlayerBeginRun(pp);
             return;
         }
+
+    }
+    else if (!(pp->input.actions & SB_CROUCH) && pp->input.uvel >= 0 && abs(pp->loz - pp->hiz) >= PLAYER_STANDING_ROOM)
+    {
+        // Let off of crawl to get up
+        pp->Flags &= ~PF_CRAWLING;
+        DoPlayerBeginRun(pp);
+        return;
     }
 
     if (pp->lo_sectp && (pp->lo_sectp->extra & SECTFX_CURRENT))
@@ -3648,24 +3648,9 @@ void DoPlayerFly(PLAYER* pp)
         return;
     }
 
-    if (pp->input.actions & SB_CROUCH)
-    {
-        pp->z_speed += PLAYER_FLY_INC;
-
-        if (pp->z_speed > PLAYER_FLY_MAX_SPEED)
-            pp->z_speed = PLAYER_FLY_MAX_SPEED;
-    }
-
-    if (pp->input.actions & SB_JUMP)
-    {
-        pp->z_speed -= PLAYER_FLY_INC;
-
-        if (pp->z_speed < -PLAYER_FLY_MAX_SPEED)
-            pp->z_speed = -PLAYER_FLY_MAX_SPEED;
-    }
-
-    pp->z_speed *= FixedToFloat(58000);
-
+    const auto kbdDir = !!(pp->input.actions & SB_CROUCH) - !!(pp->input.actions & SB_JUMP);
+    const double velZ = clamp(PLAYER_FLY_INC * kbdDir - PLAYER_FLY_INC * pp->input.uvel, -PLAYER_FLY_INC, PLAYER_FLY_INC);
+    pp->z_speed = clamp(pp->z_speed + velZ, -PLAYER_FLY_MAX_SPEED, PLAYER_FLY_MAX_SPEED) * FixedToFloat(58000);
     pp->actor->spr.pos.Z += pp->z_speed;
 
     // Make the min distance from the ceiling/floor match bobbing amount
@@ -3863,13 +3848,15 @@ int PlayerCanDive(PLAYER* pp)
     if (Prediction)
         return false;
 
+    const double velZ = clamp(20. * !!(pp->input.actions & SB_CROUCH) - 20. * pp->input.uvel, -20., 20.);
+
     // Crawl - check for diving
-    if ((pp->input.actions & SB_CROUCH) || pp->jump_speed > 0)
+    if (velZ > 0 || pp->jump_speed > 0)
     {
         if (PlayerInDiveArea(pp))
         {
-            pp->actor->spr.pos.Z += 20;
-            pp->z_speed = 20;
+            pp->actor->spr.pos.Z += velZ;
+            pp->z_speed = velZ;
             pp->jump_speed = 0;
 
             if (pp->actor->getOffsetZ() > pp->loz - pp->WadeDepth - 2)
@@ -4540,23 +4527,9 @@ void DoPlayerDive(PLAYER* pp)
         }
     }
 
-    if (pp->input.actions & SB_CROUCH)
-    {
-        pp->z_speed += PLAYER_DIVE_INC;
-
-        if (pp->z_speed > PLAYER_DIVE_MAX_SPEED)
-            pp->z_speed = PLAYER_DIVE_MAX_SPEED;
-    }
-
-    if (pp->input.actions & SB_JUMP)
-    {
-        pp->z_speed -= PLAYER_DIVE_INC;
-
-        if (pp->z_speed < -PLAYER_DIVE_MAX_SPEED)
-            pp->z_speed = -PLAYER_DIVE_MAX_SPEED;
-    }
-
-    pp->z_speed *= FixedToFloat(58000);
+    const auto kbdDir = !!(pp->input.actions & SB_CROUCH) - !!(pp->input.actions & SB_JUMP);
+    const double velZ = clamp(PLAYER_DIVE_INC * kbdDir - PLAYER_DIVE_INC * pp->input.uvel, -PLAYER_DIVE_INC, PLAYER_DIVE_INC);
+    pp->z_speed = clamp(pp->z_speed + velZ, -PLAYER_DIVE_MAX_SPEED, PLAYER_DIVE_MAX_SPEED) * FixedToFloat(58000);
 
     if (abs(pp->z_speed) < 1./16)
         pp->z_speed = 0;
@@ -4869,7 +4842,7 @@ void DoPlayerWade(PLAYER* pp)
     }
 
     // Crawl Commanded
-    if ((pp->input.actions & SB_CROUCH) && pp->WadeDepth <= PLAYER_CRAWL_WADE_DEPTH)
+    if (((pp->input.actions & SB_CROUCH) || pp->input.uvel < 0) && pp->WadeDepth <= PLAYER_CRAWL_WADE_DEPTH)
     {
         DoPlayerBeginCrawl(pp);
         return;
@@ -5869,7 +5842,7 @@ void DoPlayerBeginDie(PLAYER* pp)
     pp->Flags |= (PF_DEAD);
     plActor->user.Flags &= ~(SPR_BOUNCE);
     pp->Flags &= ~(PF_HEAD_CONTROL);
-    setForcedSyncInput();
+    setForcedSyncInput(pp->pnum);
 }
 
 //---------------------------------------------------------------------------
@@ -6476,7 +6449,7 @@ void DoPlayerRun(PLAYER* pp)
     }
 
     // Crawl Commanded
-    if (pp->input.actions & SB_CROUCH)
+    if ((pp->input.actions & SB_CROUCH) || pp->input.uvel < 0)
     {
         DoPlayerBeginCrawl(pp);
         return;
@@ -6497,6 +6470,22 @@ void DoPlayerRun(PLAYER* pp)
     else
     {
         pp->KeyPressBits |= SB_JUMP;
+    }
+
+    // Crawl lock
+    if (pp->input.actions & SB_CROUCH_LOCK)
+    {
+        if (pp->KeyPressBits & SB_CROUCH_LOCK)
+        {
+            pp->KeyPressBits &= ~SB_CROUCH_LOCK;
+            pp->Flags |= PF_LOCK_CRAWL;
+            DoPlayerBeginCrawl(pp);
+            return;
+        }
+    }
+    else
+    {
+        pp->KeyPressBits |= SB_CROUCH_LOCK;
     }
 
     if (PlayerFlyKey())
@@ -6903,8 +6892,6 @@ void domovethings(void)
             return;
     }
 
-    if (PlayClock == synctics) gameaction = ga_autosave;	// let the game run for 1 frame before saving.
-
     thinktime.Reset();
     thinktime.Clock();
 
@@ -6968,8 +6955,13 @@ void domovethings(void)
         DoPlayerSectorUpdatePreMove(pp);
         ChopsCheck(pp);
 
+        // Get strafe value before it's rotated by the angle.
+        pp->svel = pp->input.svel;
+
         // convert fvel/svel into a vector before performing actions.
-        const auto velvect = DVector2(pp->input.fvel, pp->input.svel).Rotated(pp->actor->spr.Angles.Yaw);
+        const auto fvel = pp->input.fvel + pp->input.uvel * (pp->DoPlayerAction == DoPlayerClimb);
+        const auto svel = pp->input.svel;
+        const auto velvect = DVector2(fvel, svel).Rotated(pp->actor->spr.Angles.Yaw);
         pp->input.fvel = (float)velvect.X;
         pp->input.svel = (float)velvect.Y;
 

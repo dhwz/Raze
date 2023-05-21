@@ -98,6 +98,7 @@ static const char * bloodfs[] = { "", R"(/addons/Cryptic Passage)", nullptr};
 static const char * sw[] = { "/Shadow Warrior", nullptr};
 static const char * redneck[] = { "/Redneck", "/AGAIN", "/HUNTIN", nullptr };
 static const char * dukezoom[] = { "/", "/AddOns", nullptr };
+static const char * powerslave[] = { "/PWRSLAVE", nullptr};
 
 #ifndef _WIN64
 #define WOW64 "\\"
@@ -111,9 +112,16 @@ static const RegistryPathInfo paths[] = {
 	{ L"SOFTWARE" WOW64 "GOG.com\\GOGCREDNECKRIDESAGAIN", L"PATH", nullptr },
 	{ L"SOFTWARE" WOW64 "GOG.com\\GOGONEUNITONEBLOOD", L"PATH", nullptr},
 	{ L"SOFTWARE" WOW64 "GOG.com\\GOGSHADOWARRIOR", L"PATH", nullptr},
-	{ L"SOFTWARE" WOW64 "GOG.com\\Games\\1374469660", L"path", bloodfs},
+	{ L"SOFTWARE" WOW64 "GOG.com\\Games\\1207658730", L"path", nullptr}, // Duke Nukem 3D Atomic Edition
+	{ L"SOFTWARE" WOW64 "GOG.com\\Games\\1207658856", L"path", nullptr}, // Blood: One Unit Whole Blood
+	{ L"SOFTWARE" WOW64 "GOG.com\\Games\\1207659142", L"path", nullptr}, // Shadow Warrior Classic Complete
+	{ L"SOFTWARE" WOW64 "GOG.com\\Games\\1374469660", L"path", bloodfs}, // Blood: Fresh Supply
 	{ L"SOFTWARE" WOW64 "GOG.com\\Games\\1740836875", L"path", nullptr},
 	{ L"SOFTWARE" WOW64 "GOG.com\\Games\\2132611980", L"path", nullptr}, // Powerslave
+	//{ L"SOFTWARE" WOW64 "GOG.com\\Games\\1207658674", L"path", nullptr}, // Redneck Rampage Collection
+	//{ L"SOFTWARE" WOW64 "GOG.com\\Games\\1575726518", L"path", nullptr}, // NAM
+	//{ L"SOFTWARE" WOW64 "GOG.com\\Games\\1618073558", L"path", nullptr}, // Shadow Warrior Classic Redux
+	
 
 	{ L"SOFTWARE" WOW64 "ZOOM PLATFORM\\Duke Nukem 3D - Atomic Edition", L"InstallPath", dukezoom },
 
@@ -127,6 +135,7 @@ static const RegistryPathInfo paths[] = {
 	{ L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 225160", L"InstallLocation", swaddons }, // Shadow Warrior Classic Redux - Steam
 	{ L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 238070", L"InstallLocation", gameroot}, // Shadow Warrior Classic (1997) - Steam
 	{ L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 358400", L"InstallLocation", sw},
+	{ L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 1260020",L"InstallLocation", powerslave},
 
 	{ L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 565550", L"InstallLocation", redneck},
 	{ L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 580940", L"InstallLocation", redneck},

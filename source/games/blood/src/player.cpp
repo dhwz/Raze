@@ -901,6 +901,7 @@ void playerStart(int nPlayer, int bNewLevel)
 #endif
 	pPlayer->hand = 0;
 	pPlayer->nWaterPal = 0;
+	pPlayer->crouch_toggle = false;
 	playerResetPowerUps(pPlayer);
 
 	if (nPlayer == myconnectindex)
@@ -1525,7 +1526,7 @@ void ProcessInput(PLAYER* pPlayer)
 	if (actor->xspr.health == 0)
 	{
 		// force synchronised input upon death.
-		setForcedSyncInput();
+		setForcedSyncInput(pPlayer->nPlayer);
 
 		bool bSeqStat = playerSeqPlaying(pPlayer, 16);
 		DBloodActor* fragger = pPlayer->fragger;
@@ -1570,30 +1571,31 @@ void ProcessInput(PLAYER* pPlayer)
 		const double& fvAccel = pInput->fvel > 0 ? pPosture->frontAccel : pPosture->backAccel;
 		const double& svAccel = pPosture->sideAccel;
 		actor->vel.XY() += DVector2(pInput->fvel * fvAccel, pInput->svel * svAccel).Rotated(actor->spr.Angles.Yaw) * speed;
+		pPlayer->Angles.StrafeVel += pInput->svel * svAccel * speed;
 	}
 
 	pPlayer->Angles.doViewYaw(pInput);
+	pPlayer->Angles.doYawInput(pInput);
 
-	if (SyncInput())
-	{
-		pPlayer->actor->spr.Angles.Yaw += DAngle::fromDeg(pInput->avel);
-	}
-
-	pPlayer->Angles.doYawKeys(pInput);
+	constexpr auto maxVel = (36211. / 3000.);
+	pPlayer->Angles.doRollInput(pInput, actor->vel.XY(), maxVel, pPlayer->posture == kPostureSwim);
 
 	if (!(pInput->actions & SB_JUMP))
 		pPlayer->cantJump = 0;
 
+	processCrouchToggle(pPlayer->crouch_toggle, pInput->actions, pPlayer->posture != kPostureSwim, pPlayer->posture == kPostureSwim);
+
 	switch (pPlayer->posture) {
-	case 1:
-		if (pInput->actions & SB_JUMP)
-			actor->vel.Z -= pPosture->normalJumpZ;//0x5b05;
-		if (pInput->actions & SB_CROUCH)
-			actor->vel.Z += pPosture->normalJumpZ;//0x5b05;
+	case kPostureSwim:
+	{
+		const auto kbdDir = !!(pInput->actions & SB_JUMP) - !!(pInput->actions & SB_CROUCH);
+		const double dist = pPosture->normalJumpZ;
+		actor->vel.Z -= clamp(dist * kbdDir + dist * pInput->uvel, -dist, dist);
 		break;
-	case 2:
+	}
+	case kPostureCrouch:
 		if (!(pInput->actions & SB_CROUCH))
-			pPlayer->posture = 0;
+			pPlayer->posture = kPostureStand;
 		break;
 	default:
 		if (!pPlayer->cantJump && (pInput->actions & SB_JUMP) && actor->xspr.height == 0) {
@@ -1608,7 +1610,7 @@ void ProcessInput(PLAYER* pPlayer)
 		}
 
 		if (pInput->actions & SB_CROUCH)
-			pPlayer->posture = 2;
+			pPlayer->posture = kPostureCrouch;
 		break;
 	}
 	if (pInput->actions & SB_OPEN)
@@ -1701,14 +1703,9 @@ void ProcessInput(PLAYER* pPlayer)
 		pInput->actions &= ~SB_OPEN;
 	}
 
-	if (SyncInput())
-	{
-		pPlayer->actor->spr.Angles.Pitch += DAngle::fromDeg(pInput->horz);
-	}
-
 	const int florhit = pPlayer->actor->hit.florhit.type;
 	pPlayer->Angles.doViewPitch(actor->xspr.height < 16 && (florhit == kHitSector || florhit == 0));
-	pPlayer->Angles.doPitchKeys(pInput);
+	pPlayer->Angles.doPitchInput(pInput);
 
 	pPlayer->slope = pPlayer->actor->spr.Angles.Pitch.Tan();
 	if (pInput->actions & SB_INVPREV)
@@ -2401,8 +2398,7 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, PLAYER& w, PLAYER*
 	if (arc.BeginObject(keyname))
 	{
 		arc("spritenum", w.actor)
-			("horizon", w.Angles)
-			("angle", w.Angles)
+			("angles", w.Angles)
 			("newweapon", w.newWeapon)
 			("used1", w.used1)
 			("weaponqav", w.weaponQav)
@@ -2486,6 +2482,7 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, PLAYER& w, PLAYER*
 			("quakeeffect", w.quakeEffect)
 			("player_par", w.player_par)
 			("waterpal", w.nWaterPal)
+			("crouch_toggle", w.crouch_toggle)
 			.Array("posturedata", &w.pPosture[0][0], &gPostureDefaults[0][0], kModeMax * kPostureMax) // only save actual changes in this.
 			.EndObject();
 	}

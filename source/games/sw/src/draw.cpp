@@ -64,7 +64,6 @@ extern DCoreActor* wall_to_sprite_actors[8];
 
 BEGIN_SW_NS
 
-int display_mirror;
 static int OverlapDraw = false;
 extern bool QuitFlag, SpriteInfo;
 extern bool Voxel;
@@ -1014,7 +1013,7 @@ void PrintSpriteInfo(PLAYER* pp)
 static void DrawCrosshair(PLAYER* pp, const double interpfrac)
 {
     auto offsets = pp->Angles.getCrosshairOffsets(interpfrac);
-    ::DrawCrosshair(2326, pp->actor->user.Health, offsets.first.X, offsets.first.Y + ((pp->Flags & PF_VIEW_FROM_OUTSIDE) ? 5 : 0), 2, offsets.second, shadeToLight(10));
+    ::DrawCrosshair(pp->actor->user.Health, offsets.first.X, offsets.first.Y + ((pp->Flags & PF_VIEW_FROM_OUTSIDE) ? 5 : 0), 2, offsets.second, shadeToLight(10));
 }
 
 //---------------------------------------------------------------------------

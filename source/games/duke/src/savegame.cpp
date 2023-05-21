@@ -47,6 +47,35 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, GameVarValue& w, G
 void lava_serialize(FSerializer& arc);
 void SerializeGameVars(FSerializer &arc);
 
+template<class T>
+FSerializer& NamedSerialize(FSerializer& arc, const char* keyname, T*& w, TArray<T>& store)
+{
+	if (arc.isWriting())
+	{
+		auto ww = w ? w : &store[0];
+		if (keyname == nullptr || ww->qualifiedName != NAME_None) Serialize(arc, keyname, ww->qualifiedName, nullptr);
+	}
+	else
+	{
+		FName n = NAME_None;
+		Serialize(arc, keyname, n, nullptr);
+		auto index = store.FindEx([=](const auto& el) { return el.qualifiedName == n; });
+		if (index >= store.Size()) index = 0;
+		w = &store[index];
+	}
+	return arc;
+}
+
+FSerializer& Serialize(FSerializer& arc, const char* keyname, ActorMove*& w, ActorMove** def)
+{
+	return NamedSerialize(arc, keyname, w, moves);
+}
+
+FSerializer& Serialize(FSerializer& arc, const char* keyname, ActorAction*& w, ActorAction** def)
+{
+	return NamedSerialize(arc, keyname, w, actions);
+}
+
 FSerializer& Serialize(FSerializer& arc, const char* keyname, animwalltype& w, animwalltype* def)
 {
 	if (arc.BeginObject(keyname))
@@ -78,8 +107,7 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, player_struct& w, 
 {
 	if (arc.BeginObject(keyname))
 	{
-		arc("angle", w.Angles)
-			("horizon", w.Angles)
+		arc("angles", w.Angles)
 			.Array("gotweapon", w.gotweapon, MAX_WEAPONS)
 			("pals", w.pals)
 			("fricx", w.fric.X)
@@ -241,10 +269,11 @@ FSerializer& Serialize(FSerializer& arc, const char* keyname, player_struct& w, 
 			.Array("frags", w.frags, MAXPLAYERS)
 			("uservars", w.uservars)
 			("fistsign", w.fistsign)
+			("crouch_toggle", w.crouch_toggle)
 			.EndObject();
 
 		w.invdisptime = 0;
-		w.GetActor()->backuppos();
+		w.GetActor()->backuploc();
 		w.opyoff = w.pyoff;
 		w.backupweapon();
 		w.sync.actions &= SB_CENTERVIEW|SB_CROUCH; // these are the only bits we need to preserve.
@@ -261,7 +290,7 @@ void DDukeActor::Serialize(FSerializer& arc)
 
 	arc("cgg", cgg)
 		("spriteextra", spriteextra)
-		("picnum", attackertype)
+		("attackertype", attackertype)
 		("ang", hitang)
 		("extra", hitextra)
 		("owneractor", ownerActor)
@@ -279,7 +308,7 @@ void DDukeActor::Serialize(FSerializer& arc)
 		("saved_ammo", saved_ammo)
 		("temp_actor", temp_actor)
 		("seek_actor", seek_actor)
-		.Array("temp_data", temp_data, 6)
+		.Array("temp_data", temp_data, 5)
 		.Array("temp_wall", temp_walls, 2)
 		("temp_angle", temp_angle)
 		("temp_pos", temp_pos)
@@ -288,7 +317,14 @@ void DDukeActor::Serialize(FSerializer& arc)
 		("uservars", uservars)
 		("flags1", flags1)
 		("flags2", flags2)
-		("flags3", flags3);
+		("flags3", flags3)
+		("flags4", flags4)
+		("curmove", curMove)
+		("curaction", curAction)
+		("curai", curAI)
+		("curframe", curframe)
+		("counter", counter)
+		("actioncounter", actioncounter);
 }
 
 
@@ -430,10 +466,10 @@ void GameInterface::SerializeGameState(FSerializer& arc)
 			("mamaspawn_count", mamaspawn_count)
 			("banjosound", banjosound)
 			("enemysizecheat", enemysizecheat)
-			("pistonsound", pistonsound)
+			("pistonsound", ud.pistonsound)
 			("chickenphase", chickenphase)
 			("RRRA_ExitedLevel", RRRA_ExitedLevel)
-			("fogactive", fogactive)
+			("fogactive", ud.fogactive)
 			("thunder_brightness", thunder_brightness)
 			.Array("po", po, ud.multimode)
 			("rrcdtrack", g_cdTrack)
@@ -460,7 +496,7 @@ void GameInterface::SerializeGameState(FSerializer& arc)
 				ps[myconnectindex].over_shoulder_on = 1;
 			}
 
-			if (isRR()) cacheit_r(); else cacheit_d();
+			cacheit();
 
 			Mus_ResumeSaved();
 			Mus_SetPaused(false);

@@ -24,10 +24,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "names.h"
 #include "engine.h"
 #include "c_bind.h"
-#include "status.h"
 #include "sound.h"
 #include "names.h"
-#include "input.h"
 #include "view.h"
 #include "raze_sound.h"
 #include "v_2ddrawer.h"
@@ -93,8 +91,8 @@ void DoEnergyTile()
 {
     nButtonColor += nButtonColor < 0 ? 8 : 0;
 
-    auto energy1 = GetWritablePixels(tileGetTextureID(kEnergy1));
-    auto energy2 = GetWritablePixels(tileGetTextureID(kEnergy2));
+    auto energy1 = GetWritablePixels(aTexIds[kTexEnergy1]);
+    auto energy2 = GetWritablePixels(aTexIds[kTexEnergy2]);
     uint8_t* ptr1 = energy1 + 1984;
     uint8_t* ptr2 = energy1 + 2048;
 

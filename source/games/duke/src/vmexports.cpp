@@ -7,50 +7,6 @@ BEGIN_DUKE_NS
 
 void resetswitch(int tag);
 
-static TMap<FName, int> classnameToTile;
-// Workaround so that the script code can be written in its final form. This must go away later.
-int PicForName(int intname)
-{
-	if (classnameToTile.CountUsed() == 0)
-	{
-		static std::pair<const char*, const char*> classes[] = {
-			{ "DukeToiletWater", "TOILETWATER" },
-			{ "DukeBurning", "BURNING"},
-			{"DukeExplosion2","EXPLOSION2"},
-			{"DukeExplosion2Bot","EXPLOSION2BOT"},
-			{"DukeTransporterStar",	"TRANSPORTERSTAR"},
-			{"RedneckRabbit","RABBIT"},
-			{"DukeBatteryAmmo",	"BATTERYAMMO"},
-			{"DukeSixpak", "SIXPAK"},
-			{"DukeAtomicHealth", "ATOMICHEALTH"},
-			{"DukeShrinkerExplosion", "SHRINKEREXPLOSION" },
-			{"DukeWaterBubble", "WATERBUBBLE"},
-			{"DukeLavaPool", "LAVAPOOL"},
-			{"RedneckCircleStuck", "CIRCLESTUCK"},
-			{"DukePigCop", "PIGCOP"},
-			{"DukeSmallSmoke", "SMALLSMOKE"},
-			{"DukeBurning", "BURNING"},
-			{"RedneckBowlingBallSprite", "BOWLINGBALLSPRITE"},
-			{"DukeToiletWater", "TOILETWATER"},
-			{"DukeSteam", "STEAM"},
-			{"RedneckHen", "HEN"},
-			{"RedneckCow", "COW"},
-			{"RedneckPig", "PIG"},
-			{"RedneckBillyRay", "BILLYRAY"},
-			{"RedneckMinion", "MINION"},
-
-		};
-
-		for (auto& p : classes)
-		{
-			classnameToTile.Insert(FName(p.first), tileForName(p.second));
-		}
-	}
-	auto p = classnameToTile.CheckKey(FName(ENamedName(intname)));
-	if (p) return *p;
-	return -1;
-}
-
 //---------------------------------------------------------------------------
 //
 // global exports
@@ -178,11 +134,19 @@ DEFINE_ACTION_FUNCTION_NATIVE(_Duke, GetSoundFlags, duke_GetSoundFlags)
 	ACTION_RETURN_INT(duke_GetSoundFlags(snd));
 }
 
-DEFINE_ACTION_FUNCTION_NATIVE(_Duke, badguyID, badguypic)
+static int Duke_badguypic(int spawnno)
+{
+	auto clstype = GetSpawnType(spawnno);
+	if (clstype && clstype->IsDescendantOf(RUNTIME_CLASS(DDukeActor)))
+		return badguy(static_cast<DDukeActor*>(GetDefaultByType(clstype)));
+	return false;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_Duke, badguyID, Duke_badguypic)
 {
 	PARAM_PROLOGUE;
 	PARAM_INT(p);
-	ACTION_RETURN_INT(badguypic(p));
+	ACTION_RETURN_INT(Duke_badguypic(p));
 }
 
 void updatepindisplay(int tag, int pins);
@@ -223,6 +187,75 @@ DEFINE_ACTION_FUNCTION_NATIVE(_Duke, getPlayerIndex, getPlayerIndex)
 	PARAM_PROLOGUE;
 	PARAM_POINTER(p, player_struct);
 	ACTION_RETURN_INT(getPlayerIndex(p));
+}
+
+void setlastvisinc(int v)
+{
+	lastvisinc = PlayClock + v;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_Duke, setlastvisinc, setlastvisinc)
+{
+	PARAM_PROLOGUE;
+	PARAM_INT(v);
+	setlastvisinc(v);
+	return 0;
+}
+
+int Duke_isaccessswitch(int texint)
+{
+	return isaccessswitch(FSetTextureID(texint));
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_Duke, isaccessswitch, Duke_isaccessswitch)
+{
+	PARAM_PROLOGUE;
+	PARAM_INT(v);
+	ACTION_RETURN_BOOL(Duke_isaccessswitch(v));
+	return 0;
+}
+
+int Duke_isshootableswitch(int texint)
+{
+	return isshootableswitch(FSetTextureID(texint));
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_Duke, isshootableswitch, Duke_isshootableswitch)
+{
+	PARAM_PROLOGUE;
+	PARAM_INT(v);
+	ACTION_RETURN_BOOL(Duke_isshootableswitch(v));
+	return 0;
+}
+
+int Duke_checksprite(PClassActor* self)
+{
+	auto texid = GetDefaultByType(self)->spr.spritetexture();
+	auto tex = TexMan.GetGameTexture(texid);
+	return tex && tex->isValid();
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_Duke, checksprite, Duke_checksprite)
+{
+	PARAM_PROLOGUE;
+	PARAM_POINTER(v, PClassActor);
+	ACTION_RETURN_BOOL(Duke_checksprite(v));
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_Duke, setnextmap, setnextmap)
+{
+	PARAM_PROLOGUE;
+	PARAM_INT(v);
+	ACTION_RETURN_BOOL(setnextmap(v));
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_Duke, rnd, rnd)
+{
+	PARAM_PROLOGUE;
+	PARAM_INT(v);
+	ACTION_RETURN_BOOL(rnd(v));
 	return 0;
 }
 
@@ -236,6 +269,7 @@ DEFINE_GLOBAL(camsprite)
 //---------------------------------------------------------------------------
 
 DEFINE_FIELD(DDukeActor, ownerActor)
+DEFINE_FIELD(DDukeActor, attackertype)
 DEFINE_FIELD(DDukeActor, hitOwnerActor)
 DEFINE_FIELD(DDukeActor, cgg)
 DEFINE_FIELD(DDukeActor, spriteextra)
@@ -249,6 +283,7 @@ DEFINE_FIELD(DDukeActor, floorz)
 DEFINE_FIELD(DDukeActor, ceilingz)
 DEFINE_FIELD(DDukeActor, saved_ammo)
 DEFINE_FIELD(DDukeActor, palvals)
+DEFINE_FIELD(DDukeActor, counter)
 DEFINE_FIELD(DDukeActor, temp_data)
 DEFINE_FIELD(DDukeActor, temp_actor)
 DEFINE_FIELD(DDukeActor, seek_actor)
@@ -262,6 +297,11 @@ DEFINE_FIELD(DDukeActor, actorstayput)
 DEFINE_FIELD(DDukeActor, temp_pos)
 DEFINE_FIELD(DDukeActor, temp_pos2)
 DEFINE_FIELD(DDukeActor, temp_angle)
+DEFINE_FIELD(DDukeActor, curAction)
+DEFINE_FIELD(DDukeActor, curMove)
+DEFINE_FIELD(DDukeActor, curAI)
+DEFINE_FIELD(DDukeActor, actioncounter)
+//DEFINE_FIELD(DDukeActor, killit_flag)
 
 void TickActor(DDukeActor*);
 DEFINE_ACTION_FUNCTION(DDukeActor, Tick)
@@ -279,7 +319,7 @@ void setSpritesetImage(DDukeActor* self, unsigned int index)
 		ThrowAbortException(X_ARRAY_OUT_OF_BOUNDS, "Bad sprite set index %d (max. allowed is %d", index, spriteset.Size() - 1);
 	}
 	self->spritesetindex = index;
-	self->spr.picnum = spriteset[index];
+	self->spr.setspritetexture(spriteset[index]);
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, SetSpritesetImage, setSpritesetImage)
@@ -381,6 +421,12 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, CheckSoundPlaying, DukeActor_IsSoundPl
 	ACTION_RETURN_INT(DukeActor_IsSoundPlaying(self, snd, chan));
 }
 
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, CheckAnyActorSoundPlaying, S_CheckAnyActorSoundPlaying)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	ACTION_RETURN_INT(S_CheckAnyActorSoundPlaying(self));
+}
+
 void DukeActor_StopSound(DDukeActor* self, int snd, int flags)
 {
 	S_StopSound(FSoundID::fromInt(snd), self, flags);
@@ -395,54 +441,29 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, StopSound, DukeActor_StopSound)
 	return 0;
 }
 
-DDukeActor* DukeActor_Spawn(DDukeActor* origin, int intname)
+DDukeActor* DukeActor_Spawn(DDukeActor* origin, PClassActor* cls)
 {
-	int picnum = PicForName(intname);
-
-	if (picnum == -1)
-	{
-		auto cls = PClass::FindActor(FName(ENamedName(intname)));
-		if (cls) return spawn(origin, cls);
-	}
-	else
-	{
-		return spawn(origin, picnum);
-	}
-	return nullptr;
+	return spawn(origin, cls);
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, spawn, DukeActor_Spawn)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_INT(type);
+	PARAM_POINTER(type, PClassActor);
 	ACTION_RETURN_POINTER(DukeActor_Spawn(self, type));
 }
 
-void DukeActor_Lotsofstuff(DDukeActor* actor, int count, int intname)
+void DukeActor_Lotsofstuff(DDukeActor* actor, PClassActor* intname, int count)
 {
-	int picnum = PicForName(intname);
-	// Todo: make this class aware.
-	lotsofstuff(actor, count, picnum);
+	lotsofstuff(actor, count, intname);
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, lotsofstuff, DukeActor_Lotsofstuff)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_INT(type);
+	PARAM_POINTER(type, PClassActor);
 	PARAM_INT(count);
-	DukeActor_Lotsofstuff(self, count, type);
-	return 0;
-}
-
-double DukeActor_gutsoffset(DDukeActor* self)
-{
-	return gs.actorinfo[self->spr.picnum].gutsoffset;
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, gutsoffset, DukeActor_gutsoffset)
-{
-	PARAM_SELF_PROLOGUE(DDukeActor);
-	ACTION_RETURN_FLOAT(DukeActor_gutsoffset(self));
+	lotsofstuff(self, count, type);
 	return 0;
 }
 
@@ -478,33 +499,11 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, movesprite_ex, DukeActor_movesprite_ex
 	ACTION_RETURN_INT(DukeActor_movesprite_ex(self, velx, vely, velz, clipmask, coll));
 }
 
-DDukeActor* DukeActor_Spawnsprite(DDukeActor* origin, int picnum)
-{
-	if (picnum >= 0 && picnum < MAXTILES)
-	{
-		return spawn(origin, picnum);
-	}
-	return nullptr;
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, spawnsprite, DukeActor_Spawnsprite)
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, spawnsprite, spawnsprite)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
 	PARAM_INT(type);
-	ACTION_RETURN_POINTER(DukeActor_Spawnsprite(self, type));
-}
-
-DDukeActor* DukeActor_spawnweaponorammo(DDukeActor* origin, unsigned intname)
-{
-	if (intname > 14) return nullptr;
-	return spawn(origin, gs.weaponsandammosprites[intname]);
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, spawnweaponorammo, DukeActor_spawnweaponorammo)
-{
-	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_INT(type);
-	ACTION_RETURN_POINTER(DukeActor_spawnweaponorammo(self, type));
+	ACTION_RETURN_POINTER(spawnsprite(self, type));
 }
 
 void DukeActor_Lotsofglass(DDukeActor* origin, int count, walltype* wal)
@@ -549,12 +548,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, RandomScrap, RANDOMSCRAP)
 	return 0;
 }
 
-void DukeActor_hitradius(DDukeActor* actor, int  r, int  hp1, int  hp2, int  hp3, int  hp4)
-{
-	fi.hitradius(actor, r, hp1, hp2, hp3, hp4);
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, hitradius, DukeActor_hitradius)
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, hitradius, hitradius)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
 	PARAM_INT(r);
@@ -562,7 +556,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, hitradius, DukeActor_hitradius)
 	PARAM_INT(h2);
 	PARAM_INT(h3);
 	PARAM_INT(h4);
-	DukeActor_hitradius(self, r, h1, h2, h3, h4);
+	hitradius(self, r, h1, h2, h3, h4);
 	return 0;
 }
 
@@ -576,31 +570,24 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, hitasprite, hitasprite)
 	return min(numret, 2);
 }
 
-void DukeActor_detonate(DDukeActor* origin, int intname)
+void DukeActor_detonate(DDukeActor* origin, PClassActor* type)
 {
-	// all callers use "EXPLOSION2", so ignore the parameter for now. This should be fixed once EXPLOSION2 gets scriptified.
-	int picnum = tileForName("EXPLOSION2");
-	detonate(origin, picnum);
+	detonate(origin, type);
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, detonate, DukeActor_detonate)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_INT(type);
+	PARAM_POINTER(type, PClassActor);
 	DukeActor_detonate(self, type);
 	return 0;
 }
 
-void DukeActor_checkhitdefault(DDukeActor* origin, DDukeActor* proj)
-{
-	fi.checkhitdefault(origin, proj);
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, checkhitdefault, DukeActor_checkhitdefault)
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, checkhitdefault, checkhitdefault)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
 	PARAM_OBJECT(proj, DDukeActor);
-	DukeActor_checkhitdefault(self, proj);
+	checkhitdefault(self, proj);
 	return 0;
 }
 
@@ -623,9 +610,9 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, badguy, badguy)
 	ACTION_RETURN_INT(badguy(self));
 }
 
-int duke_scripted(DDukeActor* act)
+int duke_scripted(const DDukeActor* act)
 {
-	return gs.actorinfo[act->spr.picnum].scriptaddress > 0;
+	return act->conInfo() != nullptr || (act->flags4 & SFLAG4_CONOVERRIDE);
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, scripted, duke_scripted)
@@ -645,19 +632,6 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, isplayer, duke_isplayer)
 	ACTION_RETURN_INT(duke_isplayer(self));
 }
 
-void DukeActor_checkhitsprite(DDukeActor* act, DDukeActor* hitter)
-{
-	fi.checkhitsprite(act, hitter);
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, checkhitsprite, DukeActor_checkhitsprite)
-{
-	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_POINTER(h, DDukeActor);
-	DukeActor_checkhitsprite(self, h);
-	return 0;
-}
-
 int duke_spw(DDukeActor* act)
 {
 	auto tex = TexMan.GetGameTexture(act->spr.spritetexture());
@@ -670,28 +644,23 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, spritewidth, duke_spw)
 	ACTION_RETURN_INT(duke_spw(self));
 }
 
-void DukeActor_shoot(DDukeActor* act, int intname)
+int duke_sph(DDukeActor* act)
 {
-	int picnum = PicForName(intname);
-
-	if (picnum == -1)
-	{
-		auto n = FName(ENamedName(intname));
-		auto cls = PClass::FindActor(n);
-		assert(cls);
-		fi.shoot(act, -1, cls);
-	}
-	else
-	{
-		fi.shoot(act, picnum, nullptr);
-	}
+	auto tex = TexMan.GetGameTexture(act->spr.spritetexture());
+	return (int)tex->GetDisplayHeight();
 }
 
-DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, shoot, DukeActor_shoot)
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, spriteheight, duke_sph)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_INT(type);
-	DukeActor_shoot(self, type);
+	ACTION_RETURN_INT(duke_sph(self));
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, shoot, shoot)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	PARAM_POINTER(type, PClassActor);
+	shoot(self, type);
 	return 0;
 }
 
@@ -714,12 +683,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, insertspriteq, insertspriteq)
 	return 0;
 }
 
-void DukeActor_operateforcefields(DDukeActor* self, int tag)
-{
-	operateforcefields(self, tag);
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, operateforcefields, DukeActor_operateforcefields)
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, operateforcefields, operateforcefields)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
 	PARAM_INT(tag);
@@ -740,49 +704,261 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, restoreloc, DukeActor_restoreloc)
 	return 0;
 }
 
-// temporary helpers to hide the fact that these flags are not part of the actor yet.
-DEFINE_ACTION_FUNCTION(DDukeActor, actorflag1)
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, fakebubbaspawn, fakebubbaspawn)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_INT(mask);
-	ACTION_RETURN_BOOL(!!actorflag(self, EDukeFlags1::FromInt(mask)));
+	PARAM_POINTER(p, player_struct);
+	fakebubbaspawn(self, p);
+	return 0;
 }
 
-DEFINE_ACTION_FUNCTION(DDukeActor, actorflag2)
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, aim, aim_)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_INT(mask);
-	ACTION_RETURN_BOOL(!!actorflag(self, EDukeFlags2::FromInt(mask)));
+	PARAM_POINTER(weapon, DDukeActor);
+	PARAM_FLOAT(aimangle);
+	bool b = false;
+	auto result = aim_(self, weapon, aimangle, &b);
+	if (numret > 0) ret[0].SetPointer(result);
+	if (numret > 1) ret[1].SetInt(b);
+	return min(numret, 2);
 }
 
-DEFINE_ACTION_FUNCTION(DDukeActor, actorflag3)
+void Duke_SetAction(DDukeActor* self, int intname)
+{
+	int ndx = LookupAction(self->GetClass(), FName(ENamedName(intname)));
+	self->curAction = &actions[ndx];
+	self->actioncounter = self->curframe = 0;
+
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, SetAction, Duke_SetAction)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_INT(mask);
-	ACTION_RETURN_BOOL(!!actorflag(self, EDukeFlags3::FromInt(mask)));
+	PARAM_INT(n);
+	Duke_SetAction(self, n);
+	return 0;
 }
 
-DEFINE_ACTION_FUNCTION(DDukeActor, attackerflag1)
+void Duke_SetMove(DDukeActor* self, int intname, int flags)
+{
+	int ndx = LookupMove(self->GetClass(), FName(ENamedName(intname)));
+	self->curMove = &moves[ndx];
+	self->spr.hitag = flags;
+	self->counter = 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, SetMove, Duke_SetMove)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_INT(mask);
-	ACTION_RETURN_BOOL(!!attackerflag(self, EDukeFlags1::FromInt(mask)));
+	PARAM_INT(n);
+	PARAM_INT(f);
+	Duke_SetMove(self, n, f);
+	return 0;
 }
 
-DEFINE_ACTION_FUNCTION(DDukeActor, attackerflag2)
+void Duke_SetAI(DDukeActor* self, int intname)
+{
+	int ndx = LookupAI(self->GetClass(), FName(ENamedName(intname)));
+	auto ai = &ais[ndx];
+	assert(!(ai->move & 0x80000000));
+	assert(!(ai->action & 0x80000000));
+	self->curMove = &moves[ai->move];
+	self->curAction = &actions[ai->action];
+	self->spr.hitag = ai->moveflags;
+	self->curAI = ai->name;
+	self->actioncounter = self->curframe = 0;
+	self->counter = 0;
+	if (self->spr.hitag & random_angle)
+		self->spr.Angles.Yaw = randomAngle();
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, SetAI, Duke_SetAI)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_INT(mask);
-	ACTION_RETURN_BOOL(!!attackerflag(self, EDukeFlags2::FromInt(mask)));
+	PARAM_INT(n);
+	Duke_SetAI(self, n);
+	return 0;
 }
 
-DEFINE_ACTION_FUNCTION(DDukeActor, checktype) // for temporary checking of types that haven't been ported yet.
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, checkp, checkp)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_STRING(name);
-	ACTION_RETURN_BOOL(self->spr.picnum == tileForName(name));
+	PARAM_POINTER(p, player_struct);
+	PARAM_INT(n);
+	ACTION_RETURN_INT(checkp(self, p, n));
 }
 
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, cansee, ifcansee)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	PARAM_POINTER(p, player_struct);
+	PARAM_INT(n);
+	ACTION_RETURN_INT(ifcansee(self, p));
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, actoroperate, actoroperate)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	actoroperate(self);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, ifsquished, ifsquished)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	PARAM_POINTER(p, player_struct);
+	ACTION_RETURN_INT(ifcansee(self, p));
+}
+
+void Duke_ChangeType(DDukeActor* self, PClassActor* type)
+{
+	self->ChangeType(type);
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, ChangeType, Duke_ChangeType)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	PARAM_POINTER(type, PClassActor);
+	self->ChangeType(type);
+	return 0;
+}
+
+void Duke_fall(DDukeActor* self, player_struct* p)
+{
+	fall(self, p->GetPlayerNum());
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, fall, Duke_fall)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	PARAM_POINTER(p, player_struct);
+	Duke_fall(self, p);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, actorsizeto, actorsizeto)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	PARAM_FLOAT(x);
+	PARAM_FLOAT(y);
+	actorsizeto(self, x, y);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, dodge, dodge)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	ACTION_RETURN_INT(dodge(self));
+}
+
+int Duke_ifcanshoottarget(DDukeActor* self, player_struct* p, double dist)
+{
+	return ifcanshoottarget(self, p->GetPlayerNum(), int(dist * worldtoint));
+}
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, ifcanshoottarget, Duke_ifcanshoottarget)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	PARAM_POINTER(p, player_struct);
+	PARAM_FLOAT(x);
+	ACTION_RETURN_INT(Duke_ifcanshoottarget(self, p, x));
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, spriteglass, spriteglass)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	PARAM_INT(x);
+	spriteglass(self, x);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, spawndebris, spawndebris)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	PARAM_INT(x);
+	PARAM_INT(y);
+	spawndebris(self, x, y);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, respawnhitag, respawnhitag)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	respawnhitag(self);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, destroyit, destroyit)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	destroyit(self);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, mamaspawn, mamaspawn)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	mamaspawn(self);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, garybanjo, garybanjo)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	garybanjo(self);
+	return 0;
+}
+
+int duke_GetambientSound(DDukeActor* actor)
+{
+	return ambienttags.SafeGet(actor->spr.detail, {}).lo;
+}
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, GetAmbientSound, duke_GetambientSound)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	ACTION_RETURN_INT(duke_GetambientSound(self));
+}
+
+double duke_GetambientDist(DDukeActor* actor)
+{
+	return ambienttags.SafeGet(actor->spr.detail, {}).hi * maptoworld;
+}
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, GetAmbientDist, duke_GetambientDist)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	ACTION_RETURN_FLOAT(duke_GetambientDist(self));
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, addkill, addkill)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	addkill(self);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, subkill, subkill)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	subkill(self);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION(DDukeActor, killit)
+{
+	PARAM_SELF_PROLOGUE(DDukeActor);
+	if (self->flags4 & SFLAG4_INRUNSTATE)
+	{
+		// this has to be done the hard way. The original CON interpreter stops running commands once an actor is set to be killed.
+		// The only safe way to handle this in native code while exiting all nested functions is throwing an exception.
+		throw CDukeKillEvent(1);
+	}
+	else
+	{
+		// if it is something else than the currently ticked actor we can outright destroy it.
+		self->Destroy();
+	}
+	return 0;
+}
 
 //---------------------------------------------------------------------------
 //
@@ -813,9 +989,7 @@ DEFINE_FIELD_X(DukePlayer, player_struct, invdisptime)
 //DEFINE_FIELD_X(DukePlayer, player_struct, bobposy)
 DEFINE_FIELD_X(DukePlayer, player_struct, pyoff)
 DEFINE_FIELD_X(DukePlayer, player_struct, opyoff)
-//DEFINE_FIELD_X(DukePlayer, player_struct, posxv)
-//DEFINE_FIELD_X(DukePlayer, player_struct, posyv)
-//DEFINE_FIELD_X(DukePlayer, player_struct, poszv)
+DEFINE_FIELD_X(DukePlayer, player_struct, vel)
 DEFINE_FIELD_X(DukePlayer, player_struct, last_pissed_time)
 DEFINE_FIELD_X(DukePlayer, player_struct, truefz)
 DEFINE_FIELD_X(DukePlayer, player_struct, truecz)
@@ -896,8 +1070,6 @@ DEFINE_FIELD_X(DukePlayer, player_struct, palookup)
 DEFINE_FIELD_X(DukePlayer, player_struct, quick_kick_msg)
 DEFINE_FIELD_X(DukePlayer, player_struct, max_secret_rooms)
 DEFINE_FIELD_X(DukePlayer, player_struct, secret_rooms)
-DEFINE_FIELD_X(DukePlayer, player_struct, max_actors_killed)
-DEFINE_FIELD_X(DukePlayer, player_struct, actors_killed)
 DEFINE_FIELD_X(DukePlayer, player_struct, stairs)
 DEFINE_FIELD_X(DukePlayer, player_struct, detonate_count)
 //DEFINE_FIELD_X(DukePlayer, player_struct, noise.X)
@@ -1181,6 +1353,141 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, StartBoat, OnBoat)
 	return 0;
 }
 
+void pl_checkhitswitch(player_struct* p, walltype* wal, DDukeActor* act)
+{
+	checkhitswitch(p->GetPlayerNum(), wal, act);
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, checkhitswitch, pl_checkhitswitch)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_POINTER(wal, walltype);
+	PARAM_POINTER(act, DDukeActor);
+	pl_checkhitswitch(self, wal, act);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playerkick, playerkick)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_POINTER(act, DDukeActor);
+	playerkick(self, act);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playerstomp, playerstomp)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_POINTER(act, DDukeActor);
+	playerstomp(self, act);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playerreset, playerreset)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_POINTER(act, DDukeActor);
+	playerreset(self, act);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, addphealth, addphealth)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_INT(amt);
+	PARAM_INT(big);
+	addphealth(self, amt, big);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, wackplayer, wackplayer)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	wackplayer(self);
+	return 0;
+}
+
+static void duke_checkweapons(player_struct* p)
+{
+	fi.checkweapons(p);
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, checkweapons, duke_checkweapons)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	duke_checkweapons(self);
+	return 0;
+}
+
+static void msg(player_struct* p, int num)
+{
+	FTA(num, p);
+}
+DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, FTA, msg)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_INT(num);
+	FTA(num, self);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playercheckinventory, playercheckinventory)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_POINTER(act, DDukeActor);
+	PARAM_INT(num);
+	PARAM_INT(amt);
+	ACTION_RETURN_BOOL(playercheckinventory(self, act, num, amt));
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playeraddinventory, playeraddinventory)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_POINTER(act, DDukeActor);
+	PARAM_INT(num);
+	PARAM_INT(amt);
+	playeraddinventory(self, act, num, amt);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playeraddweapon, playeraddweapon)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_INT(num);
+	PARAM_INT(amt);
+	ACTION_RETURN_BOOL(playeraddweapon(self, num, amt));
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playeraddammo, playeraddammo)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_INT(num);
+	PARAM_INT(amt);
+	ACTION_RETURN_BOOL(playeraddammo(self, num, amt));
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, forceplayerangle, forceplayerangle)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	forceplayerangle(self);
+	return 0;
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playereat, playereat)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_INT(amt);
+	PARAM_BOOL(big);
+	ACTION_RETURN_BOOL(playereat(self, amt, big));
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playerdrink, playerdrink)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_INT(amt);
+	playerdrink(self, amt);
+	return 0;
+}
 
 static DDukeActor* duke_firstStat(DukeStatIterator* it, int statnum)
 {
@@ -1315,30 +1622,6 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukeLevel, floorsurface, duke_floorsurface)
 	ACTION_RETURN_INT(duke_floorsurface(sect));
 }
 
-int duke_floorflags(sectortype* sector)
-{
-	return tileflags(sector->floortexture);
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(_DukeLevel, floorflags, duke_floorflags)
-{
-	PARAM_PROLOGUE;
-	PARAM_POINTER(sect, sectortype);
-	ACTION_RETURN_INT(duke_floorflags(sect));
-}
-
-int duke_ceilingflags(sectortype* sector)
-{
-	return tileflags(sector->ceilingtexture);
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(_DukeLevel, ceilingflags, duke_ceilingflags)
-{
-	PARAM_PROLOGUE;
-	PARAM_POINTER(sect, sectortype);
-	ACTION_RETURN_INT(duke_ceilingflags(sect));
-}
-
 int duke_ceilingsurface(sectortype* sector)
 {
 	return tilesurface(sector->ceilingtexture);
@@ -1349,19 +1632,6 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukeLevel, ceilingsurface, duke_ceilingsurface)
 	PARAM_PROLOGUE;
 	PARAM_POINTER(sect, sectortype);
 	ACTION_RETURN_INT(duke_ceilingsurface(sect));
-}
-
-int duke_wallflags(walltype* wal, int which)
-{
-	return tileflags(which? wal->overtexture : wal->walltexture);
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(_DukeLevel, wallflags, duke_wallflags)
-{
-	PARAM_PROLOGUE;
-	PARAM_POINTER(sect, walltype);
-	PARAM_INT(which);
-	ACTION_RETURN_INT(duke_wallflags(sect, which));
 }
 
 int duke_ismirror(walltype* wal)
@@ -1482,6 +1752,15 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukeLevel, setanimation, static_cast<int(*)(secto
 	ACTION_RETURN_INT(setanimation(asect, tag, sect, dest, vel));
 }
 
+DEFINE_ACTION_FUNCTION_NATIVE(_DukeLevel, tearitup, tearitup)
+{
+	PARAM_PROLOGUE;
+	PARAM_POINTER(sect, sectortype);
+	tearitup(sect);
+	return 0;
+}
+
+
 DEFINE_FIELD_X(DukeGameInfo, DukeGameInfo, max_ammo_amount);
 DEFINE_FIELD_X(DukeGameInfo, DukeGameInfo, playerfriction);
 DEFINE_FIELD_X(DukeGameInfo, DukeGameInfo, gravity);
@@ -1504,8 +1783,16 @@ DEFINE_FIELD_X(DukeGameInfo, DukeGameInfo, impact_damage);
 DEFINE_FIELD_X(DukeGameInfo, DukeGameInfo, playerheight);
 DEFINE_FIELD_X(DukeGameInfo, DukeGameInfo, gutsscale);
 DEFINE_FIELD_X(DukeGameInfo, DukeGameInfo, displayflags);
+DEFINE_FIELD_X(DukeGameInfo, DukeGameInfo, tripbombcontrol);
+DEFINE_FIELD_X(DukeGameInfo, DukeGameInfo, stickybomb_lifetime);
+DEFINE_FIELD_X(DukeGameInfo, DukeGameInfo, stickybomb_lifetime_var);
+DEFINE_FIELD_X(DukeGameInfo, DukeGameInfo, grenade_lifetime);
+DEFINE_FIELD_X(DukeGameInfo, DukeGameInfo, grenade_lifetime_var);
+DEFINE_FIELD_X(DukeGameInfo, DukeGameInfo, weaponsandammosprites);
+
 DEFINE_GLOBAL_UNSIZED(gs)
 
+DEFINE_FIELD_X(DukeUserDefs, user_defs, mapflags);
 DEFINE_FIELD_X(DukeUserDefs, user_defs, god);
 DEFINE_FIELD_X(DukeUserDefs, user_defs, cashman);
 DEFINE_FIELD_X(DukeUserDefs, user_defs, eog);
@@ -1524,6 +1811,8 @@ DEFINE_FIELD_X(DukeUserDefs, user_defs, monsters_off);
 DEFINE_FIELD_X(DukeUserDefs, user_defs, brightness);
 DEFINE_FIELD_X(DukeUserDefs, user_defs, ffire);
 DEFINE_FIELD_X(DukeUserDefs, user_defs, multimode);
+DEFINE_FIELD_X(DukeUserDefs, user_defs, pistonsound);
+DEFINE_FIELD_X(DukeUserDefs, user_defs, fogactive);
 DEFINE_FIELD_X(DukeUserDefs, user_defs, player_skill);
 DEFINE_FIELD_X(DukeUserDefs, user_defs, marker);
 DEFINE_FIELD_X(DukeUserDefs, user_defs, bomb_tag);
@@ -1534,13 +1823,26 @@ DEFINE_FIELD_X(DukeUserDefs, user_defs, ufospawnsminion);
 DEFINE_FIELD_X(DukeUserDefs, user_defs, joe9000);
 DEFINE_GLOBAL_UNSIZED(ud)
 
+DEFINE_FIELD_X(ActorMove, ActorMove, qualifiedName);
+DEFINE_FIELD_X(ActorMove, ActorMove, name);
+DEFINE_FIELD_X(ActorMove, ActorMove, movex);
+DEFINE_FIELD_X(ActorMove, ActorMove, movez);
 
-// this is only a temporary helper until weaponsandammosprites can be migrated to real class types. We absolutely do not want any access to tile numbers in the scripts - even now.
+DEFINE_FIELD_X(ActorAction, ActorAction, qualifiedName);
+DEFINE_FIELD_X(ActorAction, ActorAction, name);
+DEFINE_FIELD_X(ActorAction, ActorAction, base);
+DEFINE_FIELD_X(ActorAction, ActorAction, offset);
+DEFINE_FIELD_X(ActorAction, ActorAction, numframes);
+DEFINE_FIELD_X(ActorAction, ActorAction, rotationtype);
+DEFINE_FIELD_X(ActorAction, ActorAction, increment);
+DEFINE_FIELD_X(ActorAction, ActorAction, delay);
+
+
 void tspritetype_setWeaponOrAmmoSprite(tspritetype* targ, unsigned z)
 {
 	if (z < 15)
 	{
-		targ->picnum = gs.weaponsandammosprites[z];
+		targ->setspritetexture(GetDefaultByType(gs.weaponsandammosprites[z])->spr.spritetexture());
 	}
 }
 
@@ -1552,14 +1854,22 @@ DEFINE_ACTION_FUNCTION_NATIVE(_tspritetype, setWeaponOrAmmoSprite, tspritetype_s
 	return 0;
 }
 
-// this must still work around the lack of proper texture support on the script side.
+DEFINE_ACTION_FUNCTION_NATIVE(_tspritetype, copyfloorpal, copyfloorpal)
+{
+	PARAM_SELF_STRUCT_PROLOGUE(tspritetype);
+	PARAM_POINTER(s, sectortype);
+	copyfloorpal(self, s);
+	return 0;
+}
+
+// this must still work around the lack of proper texture support on the script side and should go away once sprites have proper texture support
 DEFINE_ACTION_FUNCTION(DDukeGenericDestructible, SetBroken)
 {
 	PARAM_SELF_STRUCT_PROLOGUE(DDukeActor);
 	PARAM_INT(bust);
-	int tilenum = self->IntVar(bust ? NAME_brokenstate : NAME_spawnstate);
-	if (tilenum >= 0) self->spr.picnum = tilenum;
-	ACTION_RETURN_BOOL(tilenum < 0);
+	FSetTextureID tilenum(self->IntVar(bust ? NAME_brokenstate : NAME_spawnstate));
+	if (tilenum.isValid()) self->spr.setspritetexture(tilenum);
+	ACTION_RETURN_BOOL(!tilenum.isValid());
 }
 
 

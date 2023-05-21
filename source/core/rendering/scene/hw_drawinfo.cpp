@@ -292,12 +292,11 @@ void HWDrawInfo::DispatchSprites()
 		}
 		if (tspr->cstat2 & CSTAT2_SPRITE_FULLBRIGHT)
 			tspr->shade = -127;
-		tspr->picnum = legacyTileNum(texid);
-		int tilenum = tspr->picnum;
+		tspr->setspritetexture(texid);
 
 		if (!(actor->sprext.renderflags & SPREXT_NOTMD) && !(tspr->cstat2 & CSTAT2_SPRITE_NOMODEL))
 		{
-			auto pt = modelManager.GetModel(tspr->picnum, tspr->pal);
+			auto pt = modelManager.GetModel(tspr->spritetexture(), tspr->pal);
 			if (hw_models && pt && pt->modelid >= 0 && pt->framenum >= 0)
 			{
 				//HWSprite hwsprite;

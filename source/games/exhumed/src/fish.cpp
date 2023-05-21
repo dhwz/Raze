@@ -49,8 +49,9 @@ void BuildFishLimb(DExhumedActor* pActor, int anim)
 {
     auto pChunkActor = insertActor(pActor->sector(), 99);
 
+    pChunkActor->nSeqFile = "fish";
     pChunkActor->nCount = anim + 40;
-    pChunkActor->nFrame = RandomSize(3) % SeqSize[SeqOffsets[kSeqFish] + anim + 40];
+    pChunkActor->nFrame = RandomSize(3) % getSequence(pChunkActor->nSeqFile, pChunkActor->nCount)->frames.Size();
 
 	pChunkActor->spr.pos = pActor->spr.pos;
     pChunkActor->spr.cstat = 0;
@@ -63,9 +64,9 @@ void BuildFishLimb(DExhumedActor* pActor, int anim)
     pChunkActor->spr.yoffset = 0;
     pChunkActor->vel.Z = ((-(RandomByte() + 512)) * 2) / 256.;
 
-    seq_GetSeqPicnum(kSeqFish, pChunkActor->nCount, 0);
+    //getSequence(pChunkActor->nSeqFile, pChunkActor->nCount)->getFirstTexID();
 
-    pChunkActor->spr.picnum = anim;
+    setvalidpic(pChunkActor);
     pChunkActor->spr.lotag = runlist_HeadRun() + 1;
     pChunkActor->clipdist = 0;
 
@@ -74,11 +75,6 @@ void BuildFishLimb(DExhumedActor* pActor, int anim)
     pChunkActor->spr.extra = -1;
     pChunkActor->spr.intowner = runlist_AddRunRec(pChunkActor->spr.lotag - 1, pChunkActor, 0x200000);
     pChunkActor->spr.hitag = runlist_AddRunRec(NewRun, pChunkActor, 0x200000);
-}
-
-void BuildBlood(const DVector3& pos, sectortype* pSector)
-{
-    BuildAnim(nullptr, kSeqFish, 36, pos, pSector, 1.171875, 128);
 }
 
 //---------------------------------------------------------------------------
@@ -92,19 +88,19 @@ void AIFishLimb::Tick(RunListEvent* ev)
     auto pActor = ev->pObjActor;
     if (!pActor) return;
 
-    int nSeq = SeqOffsets[kSeqFish] + pActor->nCount;
+    const auto fishSeq = getSequence(pActor->nSeqFile, pActor->nCount);
 
-    pActor->spr.picnum = seq_GetSeqPicnum2(nSeq, pActor->nFrame);
+    pActor->spr.setspritetexture(fishSeq->frames[pActor->nFrame].getFirstChunkTexture());
 
     Gravity(pActor);
 
     pActor->nFrame++;
 
-    if (pActor->nFrame >= SeqSize[nSeq])
+    if (pActor->nFrame >= fishSeq->frames.Size())
     {
         pActor->nFrame = 0;
         if (RandomBit()) {
-            BuildBlood(pActor->spr.pos, pActor->sector());
+            BuildAnim(nullptr, pActor->nSeqFile, 36, pActor->spr.pos, pActor->sector(), 1.171875, 128);
         }
     }
 
@@ -147,10 +143,10 @@ void AIFishLimb::Tick(RunListEvent* ev)
 
 void AIFishLimb::Draw(RunListEvent* ev)
 {
-    auto pActor = ev->pObjActor;
-    if (pActor == nullptr) return;
-    int nSeq = SeqOffsets[kSeqFish] + pActor->nCount;
-    seq_PlotSequence(ev->nParam, nSeq, pActor->nFrame, 1);
+    if (const auto pActor = ev->pObjActor)
+    {
+        seq_PlotSequence(ev->nParam, pActor->nSeqFile, pActor->nCount, pActor->nFrame, 1);
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -179,7 +175,8 @@ void BuildFish(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, 
     pActor->spr.pal = pActor->sector()->ceilingpal;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->spr.picnum = seq_GetSeqPicnum(kSeqFish, FishSeq[0].a, 0);
+    pActor->nSeqFile = "fish";
+    pActor->spr.setspritetexture(getSequence(pActor->nSeqFile, FishSeq[0].nSeqId)->getFirstFrameTexture());
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
     pActor->vel.Z = 0;
@@ -254,13 +251,12 @@ void DestroyFish(DExhumedActor* pActor)
 
 void AIFish::Draw(RunListEvent* ev)
 {
-    auto pActor = ev->pObjActor;
-    if (pActor == nullptr) return;
-    int nAction = pActor->nAction;
-
-    seq_PlotSequence(ev->nParam, SeqOffsets[kSeqFish] + FishSeq[nAction].a, pActor->nFrame, FishSeq[nAction].b);
-    ev->pTSprite->ownerActor = nullptr;
-    return;
+    if (const auto pActor = ev->pObjActor)
+    {
+        const auto fishSeq = &FishSeq[pActor->nAction];
+        seq_PlotSequence(ev->nParam, pActor->nSeqFile, fishSeq->nSeqId, pActor->nFrame, fishSeq->nFlags);
+        ev->pTSprite->ownerActor = nullptr;
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -362,14 +358,15 @@ void AIFish::Tick(RunListEvent* ev)
         Gravity(pActor);
     }
 
-    int nSeq = SeqOffsets[kSeqFish] + FishSeq[nAction].a;
+    const auto fishSeq = getSequence(pActor->nSeqFile, FishSeq[nAction].nSeqId);
+    const auto& seqFrame = fishSeq->frames[pActor->nFrame];
 
-    pActor->spr.picnum = seq_GetSeqPicnum2(nSeq, pActor->nFrame);
+    pActor->spr.setspritetexture(seqFrame.getFirstChunkTexture());
 
-    seq_MoveSequence(pActor, nSeq, pActor->nFrame);
+    seqFrame.playSound(pActor);
 
     pActor->nFrame++;
-    if (pActor->nFrame >= SeqSize[nSeq]) {
+    if (pActor->nFrame >= fishSeq->frames.Size()) {
         pActor->nFrame = 0;
     }
 

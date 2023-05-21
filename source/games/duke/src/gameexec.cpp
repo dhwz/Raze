@@ -70,8 +70,6 @@ struct ParseState
 {
 	int g_p;
 	int g_x;
-	int* g_t;
-	uint8_t killit_flag;
 	DDukeActor *g_ac;
 	int* insptr;
 	Collision coll;
@@ -81,19 +79,6 @@ struct ParseState
 };
 
 int furthestcanseepoint(DDukeActor* i, DDukeActor* ts, DVector2& pos);
-bool ifsquished(DDukeActor* i, int p);
-void fakebubbaspawn(DDukeActor* actor, int g_p);
-void tearitup(sectortype* sect);
-void destroyit(DDukeActor* actor);
-void mamaspawn(DDukeActor* actor);
-void forceplayerangle(int snum);
-
-bool killthesprite = false;
-
-void addspritetodelete(int spnum)
-{
-	killthesprite = true;
-}
 
 sectortype* toSect(int index)
 {
@@ -551,7 +536,7 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_NEWOWNER:
-		if (bSet && (ps[iPlayer].newOwner = vValue.safeActor())) setForcedSyncInput();
+		if (bSet && (ps[iPlayer].newOwner = vValue.safeActor())) setForcedSyncInput(iPlayer);
 		else SetGameVarID(lVar2, ps[iPlayer].newOwner, sActor, sPlayer);
 		break;
 
@@ -621,7 +606,7 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 		break;
 
 	case PLAYER_ON_CRANE:
-		if (bSet && (ps[iPlayer].on_crane = vValue.safeActor())) setForcedSyncInput();
+		if (bSet && (ps[iPlayer].on_crane = vValue.safeActor())) setForcedSyncInput(iPlayer);
 		else SetGameVarID(lVar2, (ps[iPlayer].on_crane), sActor, sPlayer);
 		break;
 
@@ -692,16 +677,6 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 	case PLAYER_CUSTOMEXITSOUND:
 		if (bSet) ps[iPlayer].customexitsound = lValue;
 		else SetGameVarID(lVar2, ps[iPlayer].customexitsound, sActor, sPlayer);
-		break;
-
-	case PLAYER_WEAPRECS:
-		if (bSet) ps[iPlayer].weaprecs[lParm2] = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].weaprecs[lParm2], sActor, sPlayer);
-		break;
-
-	case PLAYER_WEAPRECCNT:
-		if (bSet) ps[iPlayer].weapreccnt = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].weapreccnt, sActor, sPlayer);
 		break;
 
 	case PLAYER_INTERFACE_TOGGLE_FLAG:
@@ -911,16 +886,6 @@ void DoPlayer(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor,
 	case PLAYER_SECRET_ROOMS:
 		if (bSet) ps[iPlayer].secret_rooms = lValue;
 		else SetGameVarID(lVar2, ps[iPlayer].secret_rooms, sActor, sPlayer);
-		break;
-
-	case PLAYER_MAX_ACTORS_KILLED:
-		if (bSet) ps[iPlayer].max_actors_killed = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].max_actors_killed, sActor, sPlayer);
-		break;
-
-	case PLAYER_ACTORS_KILLED:
-		if (bSet) ps[iPlayer].actors_killed = lValue;
-		else SetGameVarID(lVar2, ps[iPlayer].actors_killed, sActor, sPlayer);
 		break;
 
 	case PLAYER_RETURN_TO_CENTER:
@@ -1180,10 +1145,6 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 		if (bSet) act->spr.cstat = ESpriteFlags::FromInt(lValue);
 		else SetGameVarID(lVar2, act->spr.cstat, sActor, sPlayer);
 		break;
-	case ACTOR_PICNUM:
-		if (bSet) act->spr.picnum = lValue;
-		else SetGameVarID(lVar2, act->spr.picnum, sActor, sPlayer);
-		break;
 	case ACTOR_SHADE:
 		if (bSet) act->spr.shade = lValue;
 		else SetGameVarID(lVar2, act->spr.shade, sActor, sPlayer);
@@ -1262,10 +1223,6 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 		if (bSet) act->cgg = lValue;
 		else SetGameVarID(lVar2, act->cgg, sActor, sPlayer);
 		break;
-	case ACTOR_HTPICNUM:
-		if (bSet) act->attackertype = lValue;
-		else SetGameVarID(lVar2, act->attackertype, sActor, sPlayer);
-		break;
 	case ACTOR_HTANG:
 		if (bSet) act->hitang = mapangle(lValue);
 		else SetGameVarID(lVar2, act->hitang.Buildang(), sActor, sPlayer);
@@ -1290,10 +1247,6 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 		if (bSet) act->actorstayput = toSect(lValue);
 		else SetGameVarID(lVar2, fromSect(act->actorstayput), sActor, sPlayer);
 		break;
-	case ACTOR_HTDISPICNUM:
-		if (bSet) act->dispicnum = lValue;
-		else SetGameVarID(lVar2, act->dispicnum, sActor, sPlayer);
-		break;
 	case ACTOR_HTTIMETOSLEEP:
 		if (bSet) act->timetosleep = lValue;
 		else SetGameVarID(lVar2, act->timetosleep, sActor, sPlayer);
@@ -1315,8 +1268,8 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 		else SetGameVarID(lVar2, int(act->ovel.Y / maptoworld), sActor, sPlayer);
 		break;
 	case ACTOR_HTG_T0:
-		if (bSet) act->temp_data[0] = lValue;
-		else SetGameVarID(lVar2, act->temp_data[0], sActor, sPlayer);
+		if (bSet) act->counter = lValue;
+		else SetGameVarID(lVar2, act->counter, sActor, sPlayer);
 		break;
 	case ACTOR_HTG_T1:
 		if (bSet) act->temp_data[1] = lValue;
@@ -1335,8 +1288,8 @@ void DoActor(bool bSet, int lVar1, int lLabelID, int lVar2, DDukeActor* sActor, 
 		else SetGameVarID(lVar2, act->temp_data[4], sActor, sPlayer);
 		break;
 	case ACTOR_HTG_T5:
-		if (bSet) act->temp_data[5] = lValue;
-		else SetGameVarID(lVar2, act->temp_data[5], sActor, sPlayer);
+		if (bSet) act->temp_data[0] = lValue;
+		else SetGameVarID(lVar2, act->temp_data[0], sActor, sPlayer);
 		break;
 
 	default:
@@ -1355,7 +1308,7 @@ int CheckWeapRec(player_struct* p, DDukeActor* g_ac, int testonly)
 {
 	int j;
 	for (j = 0; j < p->weapreccnt; j++)
-		if (p->weaprecs[j] == g_ac->spr.picnum)
+		if (p->weaprecs[j] == g_ac->GetClass())
 			break;
 
 	if (testonly)
@@ -1364,7 +1317,7 @@ int CheckWeapRec(player_struct* p, DDukeActor* g_ac, int testonly)
 	}
 	else if (p->weapreccnt < 32)
 	{
-		p->weaprecs[p->weapreccnt++] = g_ac->spr.picnum;
+		p->weaprecs[p->weapreccnt++] = g_ac->GetClass();
 		return (g_ac->GetOwner() == g_ac);
 	}
 	return false;
@@ -1430,7 +1383,7 @@ static int ifcanshoottarget(DDukeActor *actor, int g_p, int g_x)
 		}
 		if (hs > sclip)
 		{
-			if (hit != nullptr && hit->spr.picnum == actor->spr.picnum)
+			if (hit != nullptr && hit->GetClass() == actor->GetClass())
 				return 0;
 			else
 			{
@@ -1439,7 +1392,7 @@ static int ifcanshoottarget(DDukeActor *actor, int g_p, int g_x)
 				actor->spr.Angles.Yaw -= angdif;
 				if (hs > sclip)
 				{
-					if (hit != nullptr && hit->spr.picnum == actor->spr.picnum)
+					if (hit != nullptr && hit->GetClass() == actor->GetClass())
 						return 0;
 					else
 					{
@@ -1448,7 +1401,7 @@ static int ifcanshoottarget(DDukeActor *actor, int g_p, int g_x)
 						actor->spr.Angles.Yaw -= angdif;
 						if (hs > 48)
 						{
-							if (hit != nullptr && hit->spr.picnum == actor->spr.picnum)
+							if (hit != nullptr && hit->GetClass() == actor->GetClass())
 								return 0;
 							return 1;
 						}
@@ -1469,7 +1422,7 @@ static int ifcanshoottarget(DDukeActor *actor, int g_p, int g_x)
 //
 //---------------------------------------------------------------------------
 
-static bool ifcansee(DDukeActor* actor, int pnum)
+int ifcansee(DDukeActor* actor, player_struct* p)
 {
 	int j;
 	DDukeActor* tosee;
@@ -1477,19 +1430,19 @@ static bool ifcansee(DDukeActor* actor, int pnum)
 	// select sprite for monster to target
 	// if holoduke is on, let them target holoduke first.
 	// 
-	if (ps[pnum].holoduke_on != nullptr && !isRR())
+	if (p->holoduke_on != nullptr && !isRR())
 	{
-		tosee = ps[pnum].holoduke_on;
+		tosee = p->holoduke_on;
 		j = cansee(actor->spr.pos.plusZ(-zrand(32)), actor->sector(), tosee->spr.pos, tosee->sector());
 
 		if (j == 0)
 		{
 			// they can't see player's holoduke
 			// check for player..
-			tosee = ps[pnum].GetActor();
+			tosee = p->GetActor();
 		}
 	}
-	else tosee = ps[pnum].GetActor();	// holoduke not on. look for player
+	else tosee = p->GetActor();	// holoduke not on. look for player
 
 	// can they see player, (or player's holoduke)
 	j = cansee(actor->spr.pos.plusZ(-zrand(48)), actor->sector(), tosee->spr.pos.plusZ(isRR()? -28 : -24), tosee->sector());
@@ -1518,19 +1471,18 @@ static bool ifcansee(DDukeActor* actor, int pnum)
 
 int ParseState::parse(void)
 {
-	int j, l, s;
+	int j, l;
 
-	if(killit_flag) return 1;
+	if(g_ac->killit_flag) return 1;
 
 	switch (*insptr)
 	{
 	case concmd_ifrnd:
 	{
 		insptr++;
-		// HACK ALERT! The fire animation uses a broken ifrnd setup to delay its start because original CON has no variables.
-		// But the chosen random value of 16/255 is too low and can cause delays of a second or more.
-		int spnum = g_ac->spr.picnum;
-		if (spnum == TILE_FIRE && g_t[4] == 0 && *insptr == 16)
+		// HACK ALERT! The fire animation uses a broken ifrnd setup to delay its start because original CON has no variables
+		// But the chosen random value of 16/255 is too low and can cause delays of a second or more. (identical in Duke and RR.)
+		if (g_ac->IsKindOf(RedneckFireClass) && g_ac->curAction->name == NAME_None && *insptr == 16)
 		{
 			parseifelse(rnd(64));
 			break;
@@ -1556,7 +1508,7 @@ int ParseState::parse(void)
 		parseifelse(g_ac->actorstayput == nullptr);
 		break;
 	case concmd_ifcansee:
-		parseifelse(ifcansee(g_ac, g_p));
+		parseifelse(ifcansee(g_ac, &ps[g_p]));
 		break;
 
 	case concmd_ifhitweapon:
@@ -1574,21 +1526,24 @@ int ParseState::parse(void)
 	}
 	break;
 	case concmd_ai:
+	{
 		insptr++;
-		g_t[5] = *insptr;
-		g_t[4] = ScriptCode[g_t[5]];		  // Action
-		g_t[1] = ScriptCode[g_t[5] + 1];		// move
-		g_ac->spr.hitag = ScriptCode[g_t[5] + 2];	  // Ai
-		g_t[0] = g_t[2] = g_t[3] = 0;
+		auto ai = &ais[*insptr];
+		g_ac->curAI = ai->name;
+		g_ac->curAction = &actions[ai->action];
+		g_ac->curMove = &moves[ai->move];
+		g_ac->spr.hitag = ai->moveflags;
+		g_ac->actioncounter = g_ac->curframe = 0;
+		g_ac->counter = 0;
 		if (g_ac->spr.hitag & random_angle)
 			g_ac->spr.Angles.Yaw = randomAngle();
 		insptr++;
 		break;
+	}
 	case concmd_action:
 		insptr++;
-		g_t[2] = 0;
-		g_t[3] = 0;
-		g_t[4] = *insptr;
+		g_ac->actioncounter = g_ac->curframe = 0;
+		g_ac->curAction = &actions[*insptr];
 		insptr++;
 		break;
 
@@ -1631,7 +1586,7 @@ int ParseState::parse(void)
 		break;
 	case concmd_fakebubba:
 		insptr++;
-		fakebubbaspawn(g_ac, g_p);
+		fakebubbaspawn(g_ac, &ps[g_p]);
 		break;
 
 	case concmd_rndmove:
@@ -1655,29 +1610,7 @@ int ParseState::parse(void)
 		insptr++;
 		break;
 	case concmd_garybanjo:
-		if (banjosound == 0)
-		{
-			int rnum = (krand() & 3) + 1;
-			if (rnum == 4)
-			{
-				banjosound = 262;
-			}
-			else if (rnum == 1)
-			{
-				banjosound = 272;
-			}
-			else if (rnum == 2)
-			{
-				banjosound = 273;
-			}
-			else
-			{
-				banjosound = 273;
-			}
-			S_PlayActorSound(banjosound, g_ac, CHAN_WEAPON);
-		}
-		else if (!S_CheckActorSoundPlaying(g_ac, banjosound))
-			S_PlayActorSound(banjosound, g_ac, CHAN_WEAPON);
+		garybanjo(g_ac);
 		insptr++;
 		break;
 	case concmd_motoloopsnd:
@@ -1700,12 +1633,6 @@ int ParseState::parse(void)
 			g_ac->spr.pal = ps[g_ac->PlayerIndex()].palookup;
 		else
 		{
-			// Copied from DukeGDX.
-			if (g_ac->spr.picnum == TILE_EGG && g_ac->temp_data[5] == TILE_EGG + 2 && g_ac->spr.pal == 1) 
-			{
-				ps[connecthead].max_actors_killed++; //revive the egg
-				g_ac->temp_data[5] = 0;
-			}
 			g_ac->spr.pal = (uint8_t)g_ac->tempval;
 		}
 		g_ac->tempval = 0;
@@ -1724,42 +1651,13 @@ int ParseState::parse(void)
 		break;
 	case concmd_pkick:
 		insptr++;
-
-		if (ud.multimode > 1 && g_ac->isPlayer())
-		{
-			if (ps[otherp].quick_kick == 0)
-				ps[otherp].quick_kick = 14;
-		}
-		else if (!g_ac->isPlayer() && ps[g_p].quick_kick == 0)
-			ps[g_p].quick_kick = 14;
+		playerkick(&ps[g_p], g_ac);
 		break;
 	case concmd_sizeto:
-	{
 		insptr++;
-
-		// JBF 20030805: As I understand it, if repeat becomes 0 it basically kills the
-		// sprite, which is why the "sizeto 0 41" calls in 1.3d became "sizeto 4 41" in
-		// 1.4, so instead of patching the CONs I'll surruptitiously patch the code here
-		//if (!isPlutoPak() && *insptr == 0) *insptr = 4;
-
-		double siz = ((*insptr) * REPEAT_SCALE - g_ac->spr.scale.X);
-		g_ac->spr.scale.X = (clamp(g_ac->spr.scale.X + Sgn(siz) * REPEAT_SCALE, 0., 4.));
-
-		insptr++;
-
-		auto scale = g_ac->spr.scale.Y;
-		auto tex = TexMan.GetGameTexture(g_ac->spr.spritetexture());
-		if ((g_ac->isPlayer() && scale < 0.5626) || *insptr * REPEAT_SCALE < scale || (scale * (tex->GetDisplayHeight() + 8)) < g_ac->floorz - g_ac->ceilingz)
-		{
-			siz = ((*insptr) * REPEAT_SCALE - g_ac->spr.scale.Y);
-			g_ac->spr.scale.Y = (clamp(g_ac->spr.scale.Y + Sgn(siz) * REPEAT_SCALE, 0., 4.));
-		}
-
-		insptr++;
-
+		actorsizeto(g_ac, *insptr * REPEAT_SCALE, *(insptr + 1) * REPEAT_SCALE);
+		insptr += 2;
 		break;
-
-	}
 	case concmd_sizeat:
 		insptr++;
 		g_ac->spr.scale.X = ((uint8_t)*insptr * REPEAT_SCALE);
@@ -1768,10 +1666,22 @@ int ParseState::parse(void)
 		insptr++;
 		break;
 	case concmd_shoot:
+	{
 		insptr++;
-		fi.shoot(g_ac, (short)*insptr, nullptr);
+		int type = *insptr;
+		// hackery to separate RRRA's merged projectiles. We'd prefer not to keep this mess in the core implementation.
+		// Separating it here is easiest as long as the ZScript reimplementation explicitly takes care of these differences.
+		if (isRRRA())
+		{
+			//if (g_ac->GetClass.TypeName == NAME_RedneckCheerleader && type == 3400) typecls = RedneckCheerBatonClass);
+			//if (g_ac->GetClass.TypeName == NAME_RedneckMama && type == 3390) typecls = RedneckRabbitBallClass);
+			//if (g_ac->GetClass.TypeName == NAME_RedneckMinion && type == 3390 && g_ac->spr.pal == 8) typecls = RedneckFrogBallClass);
+			//if (g_ac->GetClass.TypeName == NAME_RedneckMinion && type == 3390 && g_ac->spr.pal == 19)) typecls = RedneckShitBurnClass);
+		}
+		shoot(g_ac, GetSpawnType(*insptr));
 		insptr++;
 		break;
+	}
 	case concmd_ifsoundid:
 		insptr++;
 		parseifelse((short)*insptr == ambienttags.SafeGet(g_ac->spr.detail, {}).lo);
@@ -1839,7 +1749,7 @@ int ParseState::parse(void)
 		ps[g_p].tipincs = 26;
 		break;
 	case concmd_iftipcow:
-	case concmd_ifhittruck: // both have the same code.
+	case concmd_ifhittruck: // both have the same code. Note that 'iftipcpw' ONLY works when used on the cow!
 		if (g_ac->spriteextra == 1) // 
 		{
 			j = 1;
@@ -1857,7 +1767,7 @@ int ParseState::parse(void)
 		insptr++;
 		g_ac->spr.xoffset = 0;
 		g_ac->spr.yoffset = 0;
-		fi.fall(g_ac, g_p);
+		fall(g_ac, g_p);
 		break;
 	case concmd_enda:
 	case concmd_break:
@@ -1869,25 +1779,17 @@ int ParseState::parse(void)
 		return 1;
 	case concmd_addammo:
 		insptr++;
-		if( ps[g_p].ammo_amount[*insptr] >= gs.max_ammo_amount[*insptr] )
-		{
-			killit_flag = 2;
-			break;
-		}
-		addammo( *insptr, &ps[g_p], *(insptr+1) );
-		if(ps[g_p].curr_weapon == KNEE_WEAPON)
-			if( ps[g_p].gotweapon[*insptr] && (WeaponSwitch(g_p) & 1))
-				fi.addweapon(&ps[g_p], *insptr, true);
+		if (!playeraddammo(&ps[g_p], *insptr, *(insptr + 1))) g_ac->killit_flag = 2;
 		insptr += 2;
 		break;
 	case concmd_money:
 		insptr++;
-		fi.lotsofmoney(g_ac,*insptr);
+		lotsofstuff(g_ac,*insptr, DukeMoneyClass);
 		insptr++;
 		break;
 	case concmd_mail:
 		insptr++;
-		fi.lotsofmail(g_ac,*insptr);
+		lotsofstuff(g_ac,*insptr, DukeMailClass);
 		insptr++;
 		break;
 	case concmd_sleeptime:
@@ -1897,22 +1799,12 @@ int ParseState::parse(void)
 		break;
 	case concmd_paper:
 		insptr++;
-		fi.lotsofpaper(g_ac,*insptr);
+		lotsofstuff(g_ac,*insptr, DukePaperClass);
 		insptr++;
 		break;
 	case concmd_addkills:
 		insptr++;
-		if (isRR())
-		{
-			if (g_ac->spriteextra < 1 || g_ac->spriteextra == 128)
-			{
-				if (actorfella(g_ac))
-					ps[g_p].actors_killed += *insptr;
-			}
-		}
-		else ps[g_p].actors_killed += *insptr;
-		g_ac->actorstayput = nullptr;
-		insptr++;
+		dokill(&ps[g_p], g_ac, *insptr++);
 		break;
 	case concmd_lotsofglass:
 		insptr++;
@@ -1921,20 +1813,11 @@ int ParseState::parse(void)
 		break;
 	case concmd_killit:
 		insptr++;
-		killit_flag = 1;
+		g_ac->killit_flag = 1;
 		break;
 	case concmd_addweapon:
 		insptr++;
-		if( ps[g_p].gotweapon[*insptr] == 0 ) fi.addweapon( &ps[g_p], *insptr, !!(WeaponSwitch(g_p) & 1));
-		else if( ps[g_p].ammo_amount[*insptr] >= gs.max_ammo_amount[*insptr] )
-		{
-				killit_flag = 2;
-				break;
-		}
-		addammo( *insptr, &ps[g_p], *(insptr+1) );
-		if(ps[g_p].curr_weapon == KNEE_WEAPON)
-			if( ps[g_p].gotweapon[*insptr] && (WeaponSwitch(g_p) & 1))
-				fi.addweapon(&ps[g_p], *insptr, true);
+		if (!playeraddweapon(&ps[g_p], *insptr, *(insptr + 1))) g_ac->killit_flag = 2;
 		insptr+=2;
 		break;
 	case concmd_debug:
@@ -1952,37 +1835,7 @@ int ParseState::parse(void)
 
 	case concmd_isdrunk: // todo: move out to player_r.
 		insptr++;
-		ps[g_p].drink_amt += *insptr;
-		j = ps[g_p].GetActor()->spr.extra;
-		if (j > 0)
-			j += *insptr;
-		if (j > gs.max_player_health * 2)
-			j = gs.max_player_health * 2;
-		if (j < 0)
-			j = 0;
-
-		if (ud.god == 0)
-		{
-			if (*insptr > 0)
-			{
-				if ((j - *insptr) < (gs.max_player_health >> 2) &&
-					j >= (gs.max_player_health >> 2))
-					S_PlayActorSound(DUKE_GOTHEALTHATLOW, ps[g_p].GetActor());
-
-				ps[g_p].last_extra = j;
-			}
-
-			ps[g_p].GetActor()->spr.extra = j;
-		}
-		if (ps[g_p].drink_amt > 100)
-			ps[g_p].drink_amt = 100;
-
-		if (ps[g_p].GetActor()->spr.extra >= gs.max_player_health)
-		{
-			ps[g_p].GetActor()->spr.extra = gs.max_player_health;
-			ps[g_p].last_extra = gs.max_player_health;
-		}
-		insptr++;
+		playerdrink(&ps[g_p], *insptr++);
 		break;
 	case concmd_strafeleft:
 		insptr++;
@@ -2000,118 +1853,13 @@ int ParseState::parse(void)
 		insptr++;
 		destroyit(g_ac);
 		break;
-	case concmd_iseat: // move out to player_r.
+	case concmd_iseat:
 		insptr++;
-		ps[g_p].eat += *insptr;
-		if (ps[g_p].eat > 100)
-		{
-			ps[g_p].eat = 100;
-		}
-		ps[g_p].drink_amt -= *insptr;
-		if (ps[g_p].drink_amt < 0)
-			ps[g_p].drink_amt = 0;
-		j = ps[g_p].GetActor()->spr.extra;
-		if (g_ac->spr.picnum != TILE_ATOMICHEALTH)
-		{
-			if (j > gs.max_player_health && *insptr > 0)
-			{
-				insptr++;
-				break;
-			}
-			else
-			{
-				if (j > 0)
-					j += (*insptr) * 3;
-				if (j > gs.max_player_health && *insptr > 0)
-					j = gs.max_player_health;
-			}
-		}
-		else
-		{
-			if (j > 0)
-				j += *insptr;
-			if (j > (gs.max_player_health << 1))
-				j = (gs.max_player_health << 1);
-		}
-
-		if (j < 0) j = 0;
-
-		if (ud.god == 0)
-		{
-			if (*insptr > 0)
-			{
-				if ((j - *insptr) < (gs.max_player_health >> 2) &&
-					j >= (gs.max_player_health >> 2))
-					S_PlayActorSound(229, ps[g_p].GetActor());
-
-				ps[g_p].last_extra = j;
-			}
-
-			ps[g_p].GetActor()->spr.extra = j;
-		}
-
-		insptr++;
+		playereat(&ps[g_p], *insptr++, !!(g_ac->flags3 & SFLAG3_BIGHEALTH));
 		break;
-
-	case concmd_addphealth: // todo: move out to player.
+	case concmd_addphealth:
 		insptr++;
-
-		if(!isRR() && ps[g_p].newOwner != nullptr)
-		{
-			ps[g_p].newOwner = nullptr;
-			ps[g_p].GetActor()->restoreloc();
-			updatesector(ps[g_p].GetActor()->getPosWithOffsetZ(), &ps[g_p].cursector);
-
-			DukeStatIterator it(STAT_ACTOR);
-			while (auto actj = it.Next())
-			{
-				if (actorflag(actj, SFLAG2_CAMERA))
-					actj->spr.yint = 0;
-			}
-		}
-
-		j = ps[g_p].GetActor()->spr.extra;
-
-		if(g_ac->spr.picnum != TILE_ATOMICHEALTH)
-		{
-			if( j > gs.max_player_health && *insptr > 0 )
-			{
-				insptr++;
-				break;
-			}
-			else
-			{
-				if(j > 0)
-					j += *insptr;
-				if ( j > gs.max_player_health && *insptr > 0 )
-					j = gs.max_player_health;
-			}
-		}
-		else
-		{
-			if( j > 0 )
-				j += *insptr;
-			if ( j > (gs.max_player_health<<1) )
-				j = (gs.max_player_health<<1);
-		}
-
-		if(j < 0) j = 0;
-
-		if(ud.god == 0)
-		{
-			if(*insptr > 0)
-			{
-				if( ( j - *insptr ) < (gs.max_player_health>>2) &&
-					j >= (gs.max_player_health>>2) )
-						S_PlayActorSound(isRR()? 229 : DUKE_GOTHEALTHATLOW,ps[g_p].GetActor());
-
-				ps[g_p].last_extra = j;
-			}
-
-			ps[g_p].GetActor()->spr.extra = j;
-		}
-
-		insptr++;
+		addphealth(&ps[g_p], *insptr++, !!(g_ac->flags3 & SFLAG3_BIGHEALTH));
 		break;
 
 	case concmd_state:
@@ -2127,9 +1875,9 @@ int ParseState::parse(void)
 		while (1) if (parse()) break;
 		break;
 	case concmd_move:
-		g_t[0]=0;
+		g_ac->counter=0;
 		insptr++;
-		g_t[1] = *insptr;
+		g_ac->curMove = &moves[*insptr];
 		insptr++;
 		g_ac->spr.hitag = *insptr;
 		insptr++;
@@ -2139,72 +1887,38 @@ int ParseState::parse(void)
 	case concmd_spawn:
 		insptr++;
 		if(g_ac->insector())
-			spawn(g_ac,*insptr);
+			spawnsprite(g_ac, *insptr);
 		insptr++;
 		break;
 	case concmd_ifwasweapon:
 	case concmd_ifspawnedby:	// these two are the same
 		insptr++;
-		parseifelse( g_ac->attackertype == *insptr);
+		parseifelse( g_ac->attackertype == GetSpawnType(*insptr));
 		break;
 	case concmd_ifai:
 		insptr++;
-		parseifelse(g_t[5] == *insptr);
+		parseifelse(g_ac->curAI == ais[*insptr].name);
 		break;
 	case concmd_ifaction:
 		insptr++;
-		parseifelse(g_t[4] == *insptr);
+		parseifelse((g_ac->curAction - actions.Data()) == *insptr);
 		break;
 	case concmd_ifactioncount:
 		insptr++;
-		parseifelse(g_t[2] >= *insptr);
+		parseifelse(g_ac->actioncounter >= *insptr);
 		break;
 	case concmd_resetactioncount:
 		insptr++;
-		g_t[2] = 0;
+		g_ac->actioncounter = 0;
 		break;
 	case concmd_debris:
-	{
 		insptr++;
-		int dnum = *insptr - gs.firstdebris;
-		if (dnum < 0 || dnum >= ScrapMax) break;	// this code only works with scrap and nothing else.
-		insptr++;
-		int count = *insptr;
-		bool weap = fi.spawnweapondebris(g_ac->spr.picnum);
-
-
-		if(g_ac->insector())
-			for(j = count; j >= 0; j--)
-		{
-			if(weap)
-				s = 0;
-			else s = (krand()%3);
-			DVector3 offs;
-			offs.X = krandf(16) - 8;
-			offs.Y = krandf(16) - 8;
-			offs.Z = -krandf(16) - 8;
-
-			auto a = randomAngle();
-			auto vel = krandf(8) + 2;
-			auto zvel = -krandf(8);
-			DVector2 scale(0.5 + (krand() & 15) * REPEAT_SCALE, 0.5 + (krand() & 15) * REPEAT_SCALE);
-
-			auto spawned = CreateActor(g_ac->sector(), g_ac->spr.pos + offs, PClass::FindActor("DukeScrap"), g_ac->spr.shade, scale, a, vel, zvel, g_ac, STAT_MISC);
-			if (spawned)
-			{
-				spawned->spriteextra = dnum + s;
-				if (weap)
-					spawned->spr.yint = (j % 15) + 1;
-				else spawned->spr.yint = -1;
-				spawned->spr.pal = g_ac->spr.pal;
-			}
-		}
-		insptr++;
-	}
-	break;
+		spawndebris(g_ac, *insptr - (isRR() ? SCRAP_RR : SCRAP_DUKE), *(insptr + 1)); // must subtract the index of the first scrap tile.
+		insptr += 2;
+		break;
 	case concmd_count:
 		insptr++;
-		g_t[0] = (short) *insptr;
+		g_ac->counter = (short) *insptr;
 		insptr++;
 		break;
 	case concmd_cstator:
@@ -2222,74 +1936,13 @@ int ParseState::parse(void)
 		g_ac->spr.cstat = ESpriteFlags::FromInt(*insptr);
 		insptr++;
 		break;
-	case concmd_newpic:
-		insptr++;
-		g_ac->spr.picnum = (short)*insptr;
-		insptr++;
-		break;
 	case concmd_ifmove:
 		insptr++;
-		parseifelse(g_t[1] == *insptr);
+		parseifelse((g_ac->curMove - moves.Data()) == *insptr);
 		break;
 	case concmd_resetplayer:
 		insptr++;
-
-		if(ud.multimode < 2)
-		{
-			gameaction = ga_autoloadgame;
-			killit_flag = 2;
-		}
-		else
-		{
-			// I am not convinced this is even remotely smart to be executed from here..
-			pickrandomspot(g_p);
-			g_ac->spr.pos = ps[g_p].GetActor()->getPosWithOffsetZ();
-			ps[g_p].GetActor()->backuppos();
-			ps[g_p].setbobpos();
-			g_ac->backuppos();
-			updatesector(ps[g_p].GetActor()->getPosWithOffsetZ(), &ps[g_p].cursector);
-			SetActor(ps[g_p].GetActor(), ps[g_p].GetActor()->spr.pos);
-			g_ac->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
-
-			g_ac->spr.shade = -12;
-			g_ac->clipdist = 16;
-			g_ac->spr.scale = DVector2(0.65625, 0.5625);
-			g_ac->SetOwner(g_ac);
-			g_ac->spr.xoffset = 0;
-			g_ac->spr.pal = ps[g_p].palookup;
-
-			ps[g_p].last_extra = g_ac->spr.extra = gs.max_player_health;
-			ps[g_p].wantweaponfire = -1;
-			ps[g_p].GetActor()->PrevAngles.Pitch = ps[g_p].GetActor()->spr.Angles.Pitch = nullAngle;
-			ps[g_p].on_crane = nullptr;
-			ps[g_p].frag_ps = g_p;
-			ps[g_p].Angles.PrevViewAngles.Pitch = ps[g_p].Angles.ViewAngles.Pitch = nullAngle;
-			ps[g_p].opyoff = 0;
-			ps[g_p].wackedbyactor = nullptr;
-			ps[g_p].shield_amount = gs.max_armour_amount;
-			ps[g_p].dead_flag = 0;
-			ps[g_p].pals.a = 0;
-			ps[g_p].footprintcount = 0;
-			ps[g_p].weapreccnt = 0;
-			ps[g_p].ftq = 0;
-			ps[g_p].vel.X = ps[g_p].vel.Y = 0;
-			if (!isRR()) ps[g_p].Angles.PrevViewAngles.Roll = ps[g_p].Angles.ViewAngles.Roll = nullAngle;
-
-			ps[g_p].falling_counter = 0;
-
-			g_ac->hitextra = -1;
-
-			g_ac->cgg = 0;
-			g_ac->movflag = 0;
-			g_ac->tempval = 0;
-			g_ac->actorstayput = nullptr;
-			g_ac->dispicnum = 0;
-			g_ac->SetHitOwner(ps[g_p].GetActor());
-			g_ac->temp_data[4] = 0;
-
-			resetinventory(g_p);
-			resetweapons(g_p);
-		}
+		playerreset(&ps[g_p], g_ac);
 		break;
 	case concmd_ifcoop:
 		parseifelse(ud.coop || numplayers > 2);
@@ -2319,83 +1972,27 @@ int ParseState::parse(void)
 		break;
 
 	case concmd_ifinwater:
-		parseifelse( g_ac->sector()->lotag == 2);
+		parseifelse( g_ac->sector()->lotag == ST_2_UNDERWATER);
 		break;
 	case concmd_ifcount:
 		insptr++;
-		parseifelse(g_t[0] >= *insptr);
+		parseifelse(g_ac->counter >= *insptr);
 		break;
 	case concmd_ifactor:
 		insptr++;
-		parseifelse(g_ac->spr.picnum == *insptr);
+		parseifelse(g_ac->GetClass() == GetSpawnType(*insptr));
 		break;
 	case concmd_resetcount:
 		insptr++;
-		g_t[0] = 0;
+		g_ac->counter = 0;
 		break;
 	case concmd_addinventory:
-		insptr+=2;
-		switch(*(insptr-1))
-		{
-			case 0:
-				ps[g_p].steroids_amount = *insptr;
-				ps[g_p].inven_icon = 2;
-				break;
-			case 1:
-				ps[g_p].shield_amount +=		  *insptr;// 100;
-				if(ps[g_p].shield_amount > gs.max_player_health)
-					ps[g_p].shield_amount = gs.max_player_health;
-				break;
-			case 2:
-				ps[g_p].scuba_amount =			   *insptr;// 1600;
-				ps[g_p].inven_icon = 6;
-				break;
-			case 3:
-				ps[g_p].holoduke_amount =		   *insptr;// 1600;
-				ps[g_p].inven_icon = 3;
-				break;
-			case 4:
-				ps[g_p].jetpack_amount =		   *insptr;// 1600;
-				ps[g_p].inven_icon = 4;
-				break;
-			case 6:
-				if (isRR())
-				{
-					switch (g_ac->spr.lotag)
-					{
-					case 100: ps[g_p].keys[1] = 1; break;
-					case 101: ps[g_p].keys[2] = 1; break;
-					case 102: ps[g_p].keys[3] = 1; break;
-					case 103: ps[g_p].keys[4] = 1; break;
-					}
-				}
-				else
-				{
-					switch (g_ac->spr.pal)
-					{
-					case  0: ps[g_p].got_access |= 1; break;
-					case 21: ps[g_p].got_access |= 2; break;
-					case 23: ps[g_p].got_access |= 4; break;
-					}
-				}
-				break;
-			case 7:
-				ps[g_p].heat_amount = *insptr;
-				ps[g_p].inven_icon = 5;
-				break;
-			case 9:
-				ps[g_p].inven_icon = 1;
-				ps[g_p].firstaid_amount = *insptr;
-				break;
-			case 10:
-				ps[g_p].inven_icon = 7;
-				ps[g_p].boot_amount = *insptr;
-				break;
-		}
 		insptr++;
+		playeraddinventory(&ps[g_p], g_ac, *insptr, *(insptr+1));
+		insptr += 2;
 		break;
 	case concmd_hitradius:
-		fi.hitradius(g_ac, *(insptr + 1), *(insptr + 2), *(insptr + 3), *(insptr + 4), *(insptr + 5));
+		hitradius(g_ac, *(insptr + 1), *(insptr + 2), *(insptr + 3), *(insptr + 4), *(insptr + 5));
 		insptr+=6;
 		break;
 	case concmd_ifp:
@@ -2462,30 +2059,19 @@ int ParseState::parse(void)
 	case concmd_guts:
 	{
 		insptr += 2;
-		auto info = spawnMap.CheckKey(*(insptr - 1));
-		if (info)
-		{
-			auto clstype = static_cast<PClassActor*>(info->Class(*(insptr - 1)));
-			if (clstype) spawnguts(g_ac, clstype, *insptr);
-		}
+		auto clstype = GetSpawnType(*(insptr - 1));
+		if (clstype) spawnguts(g_ac, clstype, *insptr);
 		insptr++;
 		break;
 	}
 	case concmd_slapplayer:
 		insptr++;
-		forceplayerangle(g_p);
+		forceplayerangle(&ps[g_p]);
 		ps[g_p].vel.XY() -= ps[g_p].GetActor()->spr.Angles.Yaw.ToVector() * 8;
 		return 0;
 	case concmd_wackplayer:
 		insptr++;
-		if (!isRR())
-			forceplayerangle(g_p);
-		else
-		{
-			ps[g_p].vel.XY() -= ps[g_p].GetActor()->spr.Angles.Yaw.ToVector() * 64;
-			ps[g_p].jumping_counter = 767;
-			ps[g_p].jumping_toggle = 1;
-		}
+		wackplayer(&ps[g_p]);
 		return 0;
 	case concmd_ifgapzl:
 		insptr++;
@@ -2502,29 +2088,7 @@ int ParseState::parse(void)
 		break;
 	case concmd_operate:
 		insptr++;
-		if( g_ac->sector()->lotag == 0 )
-		{
-			HitInfo hit{};
-			neartag(g_ac->spr.pos.plusZ(-32), g_ac->sector(), g_ac->spr.Angles.Yaw, hit, 48, NT_Lotag | NT_NoSpriteCheck);
-			auto sectp = hit.hitSector;
-			if (sectp)
-			{
-				if (isanearoperator(sectp->lotag))
-					if ((sectp->lotag & 0xff) == ST_23_SWINGING_DOOR || sectp->floorz == sectp->ceilingz)
-						if ((sectp->lotag & 16384) == 0 && (sectp->lotag & 32768) == 0)
-						{
-							DukeSectIterator it(sectp);
-							DDukeActor* a2;
-							while ((a2 = it.Next()))
-							{
-								if (isactivator(a2))
-									break;
-							}
-							if (a2 == nullptr)
-								operatesectors(sectp, g_ac);
-						}
-			}
-		}
+		actoroperate(g_ac);
 		break;
 	case concmd_ifinspace:
 		parseifelse(ceilingspace(g_ac->sector()));
@@ -2538,12 +2102,19 @@ int ParseState::parse(void)
 		insptr++;
 		break;
 
+	case concmd_newpic:
 	case concmd_cactor:
+	{
 		insptr++;
-		g_ac->spr.picnum = *insptr;
+		auto info = spawnMap.CheckKey(*insptr);
+		if (info != nullptr)
+		{
+			g_ac->ChangeType(info->cls);
+			g_ac->spr.setspritetexture(tileGetTextureID(*insptr));
+		}
 		insptr++;
 		break;
-
+	}
 	case concmd_ifbulletnear:
 		parseifelse( dodge(g_ac) == 1);
 		break;
@@ -2739,75 +2310,11 @@ int ParseState::parse(void)
 
 	case concmd_ifpinventory:
 	{
-			insptr++;
-			j = 0;
-			switch(*(insptr++))
-			{
-				case 0:
-					if( ps[g_p].steroids_amount != *insptr)
-						j = 1;
-					break;
-				case 1:
-					if(ps[g_p].shield_amount != gs.max_player_health )
-						j = 1;
-					break;
-				case 2:
-					if(ps[g_p].scuba_amount != *insptr) j = 1;
-					break;
-				case 3:
-					if(ps[g_p].holoduke_amount != *insptr) j = 1;
-					break;
-				case 4:
-					if(ps[g_p].jetpack_amount != *insptr) j = 1;
-					break;
-				case 6:
-					if (isRR())
-					{
-						switch (g_ac->spr.lotag)
-						{
-						case 100: 
-							if (ps[g_p].keys[1]) j = 1; 
-							break;
-						case 101: 
-							if (ps[g_p].keys[2]) j = 1; 
-							break;
-						case 102: 
-							if (ps[g_p].keys[3]) j = 1; 
-							break;
-						case 103: 
-							if (ps[g_p].keys[4]) j = 1; 
-							break;
-						}
-					}
-					else
-					{
-						switch (g_ac->spr.pal)
-						{
-						case  0: 
-							if (ps[g_p].got_access & 1) j = 1; 
-							break;
-						case 21: 
-							if (ps[g_p].got_access & 2) j = 1; 
-							break;
-						case 23: 
-							if (ps[g_p].got_access & 4) j = 1; 
-							break;
-						}
-					}
-					break;
-				case 7:
-					if(ps[g_p].heat_amount != *insptr) j = 1;
-					break;
-				case 9:
-					if(ps[g_p].firstaid_amount != *insptr) j = 1;
-					break;
-				case 10:
-					if(ps[g_p].boot_amount != *insptr) j = 1;
-					break;
-			}
-
-			parseifelse(j);
-			break;
+		insptr++;
+		j = playercheckinventory(&ps[g_p], g_ac, *insptr, *(insptr + 1));
+		insptr ++;
+		parseifelse(j);
+		break;
 		}
 	case concmd_pstomp:
 		insptr++;
@@ -2874,7 +2381,7 @@ int ParseState::parse(void)
 		lIn = *insptr++;
 		lIn = GetGameVarID(lIn, g_ac, g_p).safeValue();
 		if(g_ac->insector())
-			lReturn = spawn(g_ac, lIn);
+			lReturn = spawn(g_ac, GetSpawnType(lIn));
 
 		SetGameVarID(g_iReturnVarID, (lReturn), g_ac, g_p);
 		break;
@@ -2884,7 +2391,7 @@ int ParseState::parse(void)
 		DDukeActor* lReturn = nullptr;
 		insptr++;
 		if(g_ac->insector())
-			lReturn = spawn(g_ac, *insptr);
+			lReturn = spawn(g_ac, GetSpawnType(*insptr));
 		insptr++;
 		SetGameVarID(g_iReturnVarID, (lReturn), g_ac, g_p);
 		break;
@@ -2947,7 +2454,7 @@ int ParseState::parse(void)
 		DukeStatIterator it(STAT_ACTOR);
 		while (auto actj = it.Next())
 		{
-			if (actj->spr.picnum == lType)
+			if (actj->GetClass() == GetSpawnType(lType))
 			{
 				lTemp = (g_ac->spr.pos.XY() - actj->spr.pos.XY()).Length();
 				if (lTemp < lMaxDist)
@@ -2990,7 +2497,7 @@ int ParseState::parse(void)
 		DukeStatIterator it(STAT_ACTOR);
 		while (auto actj = it.Next())
 		{
-			if (actj->spr.picnum == lType)
+			if (actj->GetClass() == GetSpawnType(lType))
 			{
 				lTemp = (g_ac->spr.pos.XY() - actj->spr.pos.XY()).Length();
 				if (lTemp < lMaxDist)
@@ -3650,7 +3157,7 @@ int ParseState::parse(void)
 	default:
 		Printf(TEXTCOLOR_RED "Unrecognized PCode of %d  in parse.  Killing current sprite.\n",*insptr);
 		Printf(TEXTCOLOR_RED "Offset=%0X\n",int(insptr-ScriptCode.Data()));
-		killit_flag = 1;
+		g_ac->killit_flag = 1;
 		break;
 	}
 	return 0;
@@ -3662,6 +3169,8 @@ int ParseState::parse(void)
 //
 //---------------------------------------------------------------------------
 
+CVAR(Bool, overridecon, false, 0)	// This is for debugging the CON replacement code only.
+
 void LoadActor(DDukeActor *actor, int p, int x)
 {
 	int done;
@@ -3670,13 +3179,14 @@ void LoadActor(DDukeActor *actor, int p, int x)
 	s.g_p = p;	// Player ID
 	s.g_x = x;	// ??
 	s.g_ac = actor;
-	s.g_t = &s.g_ac->temp_data[0];	// Sprite's 'extra' data
 
-	if (actor->spr.picnum < 0 || actor->spr.picnum >= MAXTILES) return;
-	auto addr = gs.tileinfo[actor->spr.picnum].loadeventscriptptr;
+	if ((actor->flags4 & SFLAG4_CONOVERRIDE) && overridecon) return;
+	auto coninf = actor->conInfo();
+	if (coninf == nullptr) return;
+	auto addr = coninf->loadeventscriptptr;
 	if (addr == 0) return;
 
-	s.killit_flag = 0;
+	actor->killit_flag = 0;
 
 	if(!actor->insector())
 	{
@@ -3687,36 +3197,10 @@ void LoadActor(DDukeActor *actor, int p, int x)
 		done = s.parse();
 	while (done == 0);
 
-	if (s.killit_flag == 1)
+	if (actor->killit_flag == 1)
 	{
-		// if player was set to squish, first stop that..
-		if (p >= 0)
-		{
-			if (ps[p].actorsqu == actor)
-				ps[p].actorsqu = nullptr;
-		}
 		actor->Destroy();
 	}
-	else
-	{
-		fi.move(actor, p, x);
-
-		if (actor->spr.statnum == STAT_ACTOR)
-		{
-			if (badguy(actor))
-			{
-				if (actor->spr.scale.X > 0.9375 ) return;
-				if (ud.respawn_monsters == 1 && actor->spr.extra <= 0) return;
-			}
-			else if (ud.respawn_items == 1 && (actor->spr.cstat & CSTAT_SPRITE_INVISIBLE)) return;
-
-			if (actor->timetosleep > 1)
-				actor->timetosleep--;
-			else if (actor->timetosleep == 1)
-				ChangeActorStat(actor, STAT_ZOMBIEACTOR);
-		}
-	}
-
 }
 
 //---------------------------------------------------------------------------
@@ -3725,86 +3209,25 @@ void LoadActor(DDukeActor *actor, int p, int x)
 //
 //---------------------------------------------------------------------------
 
-bool execute(DDukeActor *actor,int p,double xx)
+bool execute(DDukeActor *actor,int p,double pdist)
 {
-	if (gs.actorinfo[actor->spr.picnum].scriptaddress == 0) return false;
+	if ((actor->flags4 & SFLAG4_CONOVERRIDE) && overridecon) return false;
 
-	int done;
+	auto coninf = actor->conInfo();
+	if (coninf == nullptr) 
+		return false;
 
 	ParseState s;
 	s.g_p = p;	// Player ID
-	s.g_x = int(xx / maptoworld);	// ??
+	s.g_x = int(pdist / maptoworld);	// ??
 	s.g_ac = actor;
-	s.g_t = &actor->temp_data[0];	// Sprite's 'extra' data
+	s.insptr = coninf? &ScriptCode[4 + coninf->scriptaddress] : nullptr;
 
-	s.insptr = &ScriptCode[4 + (gs.actorinfo[actor->spr.picnum].scriptaddress)];
-
-	s.killit_flag = 0;
-
-	// this must go away.
-	if(!actor->insector())
-	{
-		if(badguy(actor))
-			ps[p].actors_killed++;
-		actor->Destroy();
-		return true;
-	}
-
-	if (s.g_t[4])
-	{
-		// This code was utterly cryptic in the original source.
-		auto ptr = &ScriptCode[s.g_t[4]];
-		int numframes = ptr[1];
-		int increment = ptr[3];
-		int delay =  ptr[4];
-
-		actor->spr.lotag += TICSPERFRAME;
-		if (actor->spr.lotag > delay)
-		{
-			s.g_t[2]++;
-			actor->spr.lotag = 0;
-			s.g_t[3] += increment;
-		}
-		if (abs(s.g_t[3]) >= abs(numframes * increment))
-			s.g_t[3] = 0;
-	}
-
+	int done;
 	do
 		done = s.parse();
 	while( done == 0 );
 
-	if(s.killit_flag == 1)
-	{
-		// if player was set to squish, first stop that..
-		if(ps[p].actorsqu == actor)
-			ps[p].actorsqu = nullptr;
-		killthesprite = true;
-	}
-	else
-	{
-		fi.move(actor, p, int(xx / maptoworld));
-
-		if (actor->spr.statnum == STAT_ACTOR)
-		{
-			if (badguy(actor))
-			{
-				if (actor->spr.scale.X > 0.9375 ) goto quit;
-				if (ud.respawn_monsters == 1 && actor->spr.extra <= 0) goto quit;
-			}
-			else if (ud.respawn_items == 1 && (actor->spr.cstat & CSTAT_SPRITE_INVISIBLE)) goto quit;
-		}
-
-		if (actor->spr.statnum == STAT_ACTOR || (actor->spr.statnum == STAT_STANDABLE && actorflag(actor, SFLAG_CHECKSLEEP)))
-		{
-			if (actor->timetosleep > 1)
-				actor->timetosleep--;
-			else if (actor->timetosleep == 1)
-				ChangeActorStat(actor, STAT_ZOMBIEACTOR);
-		}
-	}
-quit:
-	if (killthesprite) actor->Destroy();
-	killthesprite = false;
 	return true;
 }
 
@@ -3833,11 +3256,10 @@ void OnEvent(int iEventID, int p, DDukeActor *actor, int x)
 	s.g_p = p;	/// current player ID
 	s.g_x = x;	// ?
 	s.g_ac = actor;
-	s.g_t = actor->temp_data;
 
 	s.insptr = &ScriptCode[apScriptGameEvent[iEventID]];
 
-	s.killit_flag = 0;
+	actor->killit_flag = 0;
 	do
 		done = s.parse();
 	while (done == 0);

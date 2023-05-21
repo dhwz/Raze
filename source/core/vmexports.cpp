@@ -154,6 +154,31 @@ DEFINE_ACTION_FUNCTION_NATIVE(_Raze, FindSoundByResID, Raze_FindSoundByResID)
 	ACTION_RETURN_INT(Raze_FindSoundByResID(i));
 }
 
+int raze_tileflags(int tex)
+{
+	return tileflags(FSetTextureID(tex));
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_Raze, tileflags, raze_tileflags)
+{
+	PARAM_PROLOGUE;
+	PARAM_INT(which);
+	ACTION_RETURN_INT(raze_tileflags(which));
+}
+
+int raze_tilesurface(int tex)
+{
+	return tilesurface(FSetTextureID(tex));
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(_Raze, tilesurface, raze_tilesurface)
+{
+	PARAM_PROLOGUE;
+	PARAM_INT(which);
+	ACTION_RETURN_INT(raze_tilesurface(which));
+}
+
+
 //=============================================================================
 //
 // internal sector struct - no longer identical with on-disk format
@@ -172,6 +197,8 @@ DEFINE_FIELD_X(sectortype, sectortype, type)
 DEFINE_FIELD_X(sectortype, sectortype, hitag)
 DEFINE_FIELD_X(sectortype, sectortype, ceilingheinum)
 DEFINE_FIELD_X(sectortype, sectortype, floorheinum)
+DEFINE_FIELD_X(sectortype, sectortype, ceilingtexture)
+DEFINE_FIELD_X(sectortype, sectortype, floortexture)
 DEFINE_FIELD_X(sectortype, sectortype, extra)
 DEFINE_FIELD_X(sectortype, sectortype, ceilingshade)
 DEFINE_FIELD_X(sectortype, sectortype, ceilingpal)
@@ -187,6 +214,8 @@ DEFINE_FIELD_X(sectortype, sectortype, shadedsector)
 
 DEFINE_FIELD_NAMED_X(walltype, walltype, xpan_, xpan)
 DEFINE_FIELD_NAMED_X(walltype, walltype, ypan_, ypan)
+DEFINE_FIELD_X(walltype, walltype, walltexture)
+DEFINE_FIELD_X(walltype, walltype, overtexture)
 DEFINE_FIELD_X(walltype, walltype, pos)
 DEFINE_FIELD_X(walltype, walltype, point2)
 DEFINE_FIELD_X(walltype, walltype, nextwall)
@@ -768,11 +797,11 @@ void tspritetype_setSpritePic(tspritetype* targ, DCoreActor* self, unsigned z)
 	auto& spriteset = static_cast<PClassActor*>(self->GetClass())->ActorInfo()->SpriteSet;
 	if (z < spriteset.Size())
 	{
-		targ->picnum = spriteset[z];
+		targ->setspritetexture(spriteset[z]);
 	}
 	else if (z == ~0)
 	{
-		targ->picnum = self->dispicnum;
+		targ->setspritetexture(self->dispictex);
 	}
 }
 
@@ -790,7 +819,6 @@ DEFINE_ACTION_FUNCTION_NATIVE(_tspritetype, setSpritePic, tspritetype_setSpriteP
 DEFINE_FIELD_NAMED(DCoreActor, spr.sectp, sector)
 DEFINE_FIELD_NAMED(DCoreActor, spr.cstat, cstat)
 DEFINE_FIELD_NAMED(DCoreActor, spr.cstat2, cstat2)
-DEFINE_FIELD_NAMED(DCoreActor, spr.picnum, picnum)
 DEFINE_FIELD_NAMED(DCoreActor, spr.statnum, statnum)
 DEFINE_FIELD_NAMED(DCoreActor, spr.intangle, intangle)
 DEFINE_FIELD_NAMED(DCoreActor, spr.pos, pos)
@@ -984,6 +1012,16 @@ DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, ChangeStat, ChangeActorStat)
 	return 0;
 }
 
+static int CoreActor_spritetexture(DCoreActor* self)
+{
+	return self->spr.spritetexture().GetIndex();
+}
+
+DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, spritetexture, CoreActor_spritetexture)
+{
+	PARAM_SELF_PROLOGUE(DCoreActor);
+	ACTION_RETURN_INT(CoreActor_spritetexture(self));
+}
 
 
 

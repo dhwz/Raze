@@ -21,10 +21,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "sequence.h"
 #include "names.h"
 #include "player.h"
-#include "input.h"
 #include "sound.h"
 #include "view.h"
-#include "status.h"
 #include "version.h"
 #include "aistuff.h"
 #include "mapinfo.h"
@@ -55,12 +53,8 @@ BEGIN_PS_NS
 int nBestLevel;
 
 void RunCinemaScene(int num);
-void GameMove(void);
 void DrawClock();
-double calc_interpfrac();
 void DoTitle(CompletionFunc completion);
-
-
 
 //---------------------------------------------------------------------------
 //
@@ -79,16 +73,14 @@ void GameInterface::Render()
         DrawClock();
     }
 
-    double const interpfrac = calc_interpfrac();
-
-
-
+    const double interpfrac = bRecord || bPlayback || paused || cl_capfps || !cl_interpolate || EndLevel ? 1. : I_GetTimeFrac();
     DrawView(interpfrac);
+
     if (nFreeze != 2) // Hide when Ramses is talking.
     {
         DrawStatusBar();
         auto offsets = PlayerList[nLocalPlayer].Angles.getCrosshairOffsets(interpfrac);
-        DrawCrosshair(kCrosshairTile, PlayerList[nLocalPlayer].nHealth >> 3, offsets.first.X, offsets.first.Y, 1, offsets.second);
+        DrawCrosshair(PlayerList[nLocalPlayer].nHealth >> 3, offsets.first.X, offsets.first.Y, 1, offsets.second);
 
         if (paused && !M_Active())
         {
@@ -115,13 +107,9 @@ void GameInterface::DrawBackground()
 
     twod->ClearScreen();
 
-    DrawRel(kSkullHead, 160, 100, 0);
-    DrawRel(kSkullJaw, 161, 130, 0);
-    DrawRel(TexMan.GetGameTexture(nLogoTile), 160, 40, 0);
-
-    // draw the fire urn/lamp thingies
-    DrawRel(kTile3512 + dword_9AB5F, 50, 150, 0);
-    DrawRel(kTile3512 + ((dword_9AB5F + 2) & 3), 270, 150, 0);
+    DrawRel(TexMan.GetGameTexture(aTexIds[kTexSkullHead]), 160, 100, 0);
+    DrawRel(TexMan.GetGameTexture(aTexIds[kTexSkullJaw]), 161, 130, 0);
+    DrawLogo();
 }
 
 //---------------------------------------------------------------------------
@@ -154,7 +142,6 @@ void GameInterface::NewGame(MapRecord *map, int skill, bool frommenu)
 	// start a new game on the given level
 	InitNewGame();
     InitLevel(map);
-    gameaction = ga_level;
 }
 
 int GameInterface::GetCurrentSkill()
@@ -234,7 +221,6 @@ void GameInterface::LevelCompleted(MapRecord *to_map, int skill)
 
 void GameInterface::Startup()
 {
-    resettiming();
     EndLevel = 0;
     PlayLogos(ga_mainmenu, ga_mainmenu, false);
 }

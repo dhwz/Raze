@@ -25,34 +25,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_PS_NS
 
-int nMagicSeq = -1;
-int nPreMagicSeq  = -1;
-int nSavePointSeq = -1;
-
 
 //---------------------------------------------------------------------------
 //
 //
 //
 //---------------------------------------------------------------------------
-
-void SerializeAnim(FSerializer& arc)
-{
-    if (arc.BeginObject("anims"))
-    {
-        arc("magic", nMagicSeq)
-            ("premagic", nPreMagicSeq)
-            ("savepoint", nSavePointSeq)
-            .EndObject();
-    }
-}
-
-void InitAnims()
-{
-    nMagicSeq     = SeqOffsets[kSeqItems] + 21;
-    nPreMagicSeq  = SeqOffsets[kSeqMagic2];
-    nSavePointSeq = SeqOffsets[kSeqItems] + 12;
-}
 
 /*
     Use when deleting an ignited actor to check if any actors reference it. 
@@ -61,19 +39,19 @@ void InitAnims()
 
     Without this, the actor will hold reference to an actor which will prevent the GC from deleting it properly.
 
-    Specifically needed for IgniteSprite() anims which can become orphaned from the source sprite (e.g a bullet)
-    when the bullet sprite is deleted.
+    Specifically needed for IgniteSprite() anims which can become orphaned from the source actor (e.g a bullet)
+    when the bullet actor is deleted.
 */
+
 void UnlinkIgnitedAnim(DExhumedActor* pActor)
 {
     ExhumedStatIterator it(kStatIgnited);
     while (auto itActor = it.Next())
     {
-        // .pTarget holds the actor pointer of the source 'actor that's on fire' actor
         if (pActor == itActor->pTarget)
         {
-            itActor->nAction &= ~kAnimLoop; // clear the animation loop flag
-            itActor->pTarget = nullptr; // set the actor target to null
+            itActor->nAction &= ~kAnimLoop;
+            itActor->pTarget = nullptr;
         }
     }
 }
@@ -96,13 +74,10 @@ void DestroyAnim(DExhumedActor* pActor)
 //
 //---------------------------------------------------------------------------
 
-DExhumedActor* BuildAnim(DExhumedActor* pActor, int val, int val2, const DVector3& pos, sectortype* pSector, double nScale, int nFlag)
+DExhumedActor* BuildAnim(DExhumedActor* pActor, const FName seqFile, int seqIndex, const DVector3& pos, sectortype* pSector, double nScale, int nFlag)
 {
-    if (pActor == nullptr) {
+    if (pActor == nullptr)
         pActor = insertActor(pSector, 500);
-    }
-	pActor->spr.pos = pos;
-    pActor->spr.cstat = 0;
 
     if (nFlag & 4)
     {
@@ -115,37 +90,35 @@ DExhumedActor* BuildAnim(DExhumedActor* pActor, int val, int val2, const DVector
         pActor->spr.shade = -12;
     }
 
+    // CHECKME - where is hitag set otherwise?
+    if (pActor->spr.statnum < 900)
+        pActor->spr.hitag = -1;
+
+    if (nFlag & 0x80)
+        pActor->spr.cstat |= CSTAT_SPRITE_TRANSLUCENT; // set transluscence
+
+	pActor->spr.pos = pos;
+    pActor->spr.cstat = 0;
     pActor->clipdist = 2.5;
 	pActor->spr.scale = DVector2(nScale, nScale);
-    pActor->spr.picnum = 1;
+    setvalidpic(pActor);
     pActor->spr.Angles.Yaw = nullAngle;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
     pActor->vel.Z = 0;
-    pActor->backuppos();
-
-    // CHECKME - where is hitag set otherwise?
-    if (pActor->spr.statnum < 900) {
-        pActor->spr.hitag = -1;
-    }
-
     pActor->spr.lotag = runlist_HeadRun() + 1;
     pActor->spr.intowner = -1;
     pActor->spr.extra = runlist_AddRunRec(pActor->spr.lotag - 1, pActor, 0x100000);
-
     pActor->nRun = runlist_AddRunRec(NewRun, pActor, 0x100000);
-    pActor->nAction = nFlag;
-    pActor->nIndex = 0;
-    pActor->nIndex2 = SeqOffsets[val] + val2;
+    pActor->nFlags = nFlag;
+    pActor->nFrame = 0;
+    pActor->nSeqFile = seqFile;
+    pActor->nSeqIndex = seqIndex;
     pActor->pTarget = nullptr;
-    pActor->nDamage = pActor->nRun;
     pActor->nPhase = ITEM_MAGIC;
-
-    if (nFlag & 0x80) {
-        pActor->spr.cstat |= CSTAT_SPRITE_TRANSLUCENT; // set transluscence
-    }
+    pActor->backuppos();
 
     return pActor;
 }
@@ -158,15 +131,15 @@ DExhumedActor* BuildAnim(DExhumedActor* pActor, int val, int val2, const DVector
 
 void AIAnim::Tick(RunListEvent* ev)
 {
-    auto pActor = ev->pObjActor;
-    if (!pActor) return;
+    const auto pActor = ev->pObjActor;
+    if (!pActor || pActor->nSeqFile == NAME_None) return;
 
-    int nIndex2 = pActor->nIndex2;
-    int nIndex = pActor->nIndex;
+    const auto animSeq = getSequence(pActor->nSeqFile, pActor->nSeqIndex);
+    const int nFrame = pActor->nFrame;
 
     if (!(pActor->spr.cstat & CSTAT_SPRITE_INVISIBLE))
     {
-        seq_MoveSequence(pActor, nIndex2, nIndex);
+        animSeq->frames[nFrame].playSound(pActor);
     }
 
     if (pActor->spr.statnum == kStatIgnited)
@@ -190,7 +163,7 @@ void AIAnim::Tick(RunListEvent* ev)
                 }
             }
 
-            if (!nIndex)
+            if (!nFrame)
             {
                 if (pIgniter->spr.cstat != CSTAT_SPRITE_INVISIBLE)
                 {
@@ -228,25 +201,26 @@ void AIAnim::Tick(RunListEvent* ev)
         }
     }
 
-    pActor->nIndex++;
-    if (pActor->nIndex >= SeqSize[nIndex2])
+    pActor->nFrame++;
+    if (pActor->nFrame >= animSeq->frames.Size())
     {
-        if (pActor->nAction & 0x10)
+        if (pActor->nFlags & kAnimLoop)
         {
-            pActor->nIndex = 0;
+            pActor->nFrame = 0;
         }
-        else if (nIndex2 == nPreMagicSeq)
+        else if (pActor->nSeqFile == FName("magic2") && pActor->nSeqIndex == 0)
         {
-            pActor->nIndex = 0;
-            pActor->nIndex2 = nMagicSeq;
-            pActor->nAction |= 0x10;
+            pActor->nFrame = 0;
+            pActor->nSeqFile = "items";
+            pActor->nSeqIndex = 21;
+            pActor->nFlags |= kAnimLoop;
             pActor->spr.cstat |= CSTAT_SPRITE_TRANSLUCENT;
         }
-        else if (nIndex2 == nSavePointSeq)
+        else if (pActor->nSeqFile == FName("items") && pActor->nSeqIndex == 12)
         {
-            pActor->nIndex = 0;
-            pActor->nIndex2++;
-            pActor->nAction |= 0x10;
+            pActor->nFrame = 0;
+            pActor->nSeqIndex++;
+            pActor->nFlags |= kAnimLoop;
         }
         else
         {
@@ -263,11 +237,10 @@ void AIAnim::Tick(RunListEvent* ev)
 
 void AIAnim::Draw(RunListEvent* ev)
 {
-    auto pActor = ev->pObjActor;
-    if (!pActor) return;
-    int nIndex2 = pActor->nIndex2;
+    const auto pActor = ev->pObjActor;
+    if (!pActor || pActor->nSeqFile == NAME_None) return;
 
-    seq_PlotSequence(ev->nParam, nIndex2, pActor->nIndex, 0x101);
+    seq_PlotSequence(ev->nParam, pActor->nSeqFile, pActor->nSeqIndex, pActor->nFrame, 0x101);
     ev->pTSprite->ownerActor = nullptr;
 }
 
@@ -279,20 +252,20 @@ void AIAnim::Draw(RunListEvent* ev)
 
 void BuildExplosion(DExhumedActor* pActor)
 {
-    auto pSector = pActor->sector();
+    const auto pSector = pActor->sector();
 
-    int edx = 36;
+    FName seqFile = "grenpow";
 
     if (pSector->Flag & kSectUnderwater)
     {
-        edx = 75;
+        seqFile = "grenbubb";
     }
-    else if (pActor->spr.pos.Z == pActor->sector()->floorz)
+    else if (pActor->spr.pos.Z == pSector->floorz)
     {
-        edx = 34;
+        seqFile = "grenboom";
     }
 
-    BuildAnim(nullptr, edx, 0, pActor->spr.pos, pActor->sector(), pActor->spr.scale.X, 4);
+    BuildAnim(nullptr, seqFile, 0, pActor->spr.pos, pSector, pActor->spr.scale.X, 4);
 }
 
 //---------------------------------------------------------------------------
@@ -308,7 +281,7 @@ void BuildSplash(DExhumedActor* pActor, sectortype* pSector)
 
     if (pActor->spr.statnum != 200)
     {
-		double rep = pActor->spr.scale.X;
+		const double rep = pActor->spr.scale.X;
         nScale = rep + RandomFloat(rep);
         nSound = kSound0;
     }
@@ -318,22 +291,23 @@ void BuildSplash(DExhumedActor* pActor, sectortype* pSector)
         nSound = kSound1;
     }
 
-    int bIsLava = pSector->Flag & kSectLava;
+    const int bIsLava = pSector->Flag & kSectLava;
 
-    int edx, nFlag;
+    FName seqFile;
+    int nFlag;
 
     if (bIsLava)
     {
-        edx = 43;
+        seqFile = "lsplash";
         nFlag = 4;
     }
     else
     {
-        edx = 35;
+        seqFile = "splash";
         nFlag = 0;
     }
 
-	auto pSpawned = BuildAnim(nullptr, edx, 0, DVector3(pActor->spr.pos.XY(), pSector->floorz), pSector, nScale, nFlag);
+	const auto pSpawned = BuildAnim(nullptr, seqFile, 0, DVector3(pActor->spr.pos.XY(), pSector->floorz), pSector, nScale, nFlag);
 
     if (!bIsLava)
     {

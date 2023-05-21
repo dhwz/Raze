@@ -95,13 +95,13 @@ int callsound(sectortype* sn, DDukeActor* whatsprite, bool endstate)
 
 			// Reset if the desired actor isn't playing anything.
 			bool hival = S_IsSoundValid(act->spr.hitag);
-			if (act->temp_data[0] == 1 && !hival && !endstate)
+			if (act->counter == 1 && !hival && !endstate)
 			{
 				if (!S_CheckActorSoundPlaying(act->temp_actor, snum))
-					act->temp_data[0] = 0;
+					act->counter = 0;
 			}
 
-			if (act->temp_data[0] == 0)
+			if (act->counter == 0)
 			{
 				if ((flags & (SF_GLOBAL | SF_DTAG)) != SF_GLOBAL)
 				{
@@ -114,7 +114,7 @@ int callsound(sectortype* sn, DDukeActor* whatsprite, bool endstate)
 					}
 
 					if ((act->sector()->lotag & 0xff) != ST_22_SPLITTING_DOOR)
-						act->temp_data[0] = 1;
+						act->counter = 1;
 				}
 			}
 			else if (act->spr.hitag < 1000)
@@ -129,7 +129,7 @@ int callsound(sectortype* sn, DDukeActor* whatsprite, bool endstate)
 					if (act->spr.hitag == act->spr.lotag) stopped = true;
 				}
 				if (act->spr.hitag && !stopped) S_PlayActorSound(act->spr.hitag, whatsprite);
-				act->temp_data[0] = 0;
+				act->counter = 0;
 				act->temp_actor = whatsprite;
 			}
 			return act->spr.lotag;
@@ -173,7 +173,7 @@ int check_activator_motion(int lotag)
 					case SE_20_STRETCH_BRIDGE:
 					case SE_31_FLOOR_RISE_FALL:
 					case SE_32_CEILING_RISE_FALL:
-						if (act2->temp_data[0])
+						if (act2->counter)
 							return(1);
 						break;
 					}
@@ -537,7 +537,7 @@ bool activatewarpelevators(DDukeActor* actor, int d) //Parm = sectoreffectornum
 		if (act2->spr.lotag == SE_17_WARP_ELEVATOR || (isRRRA() && act2->spr.lotag == SE_18_INCREMENTAL_SECTOR_RISE_FALL))
 			if (act2->spr.hitag == actor->spr.hitag)
 			{
-				act2->temp_data[0] = d;
+				act2->counter = d;
 				if (act2->spr.lotag == SE_17_WARP_ELEVATOR) act2->temp_data[1] = d; //Make all check warp (only SE17, in SE18 this is a coordinate)
 			}
 	}
@@ -739,7 +739,7 @@ static void handle_st29(sectortype* sptr, DDukeActor* actor)
 		{
 			act2->sector()->extra = -act2->sector()->extra;
 
-			act2->temp_data[0] = sectindex(sptr);
+			act2->counter = sectindex(sptr);
 			act2->temp_data[1] = 1;
 		}
 	}
@@ -965,8 +965,8 @@ static void handle_st27(sectortype* sptr, DDukeActor* actor)
 
 			sptr->lotag ^= 0x8000;
 			if (sptr->lotag & 0x8000) //OPENING
-				act2->temp_data[0] = 1;
-			else act2->temp_data[0] = 2;
+				act2->counter = 1;
+			else act2->counter = 2;
 			callsound(sptr, actor);
 			break;
 		}
@@ -997,9 +997,9 @@ static void handle_st28(sectortype* sptr, DDukeActor* actor)
 	DukeStatIterator it1(STAT_EFFECTOR);
 	while (auto act3 = it.Next())
 	{
-		if ((act3->spr.lotag & 0xff) == 21 && !act3->temp_data[0] &&
+		if ((act3->spr.lotag & 0xff) == 21 && !act3->counter &&
 			(act3->spr.hitag) == j)
-			act3->temp_data[0] = 1;
+			act3->counter = 1;
 	}
 	callsound(sptr, actor);
 }
@@ -1199,7 +1199,7 @@ void operateactivators(int low, player_struct* plr)
 						case SE_36_PROJ_SHOOTER:
 						case SE_31_FLOOR_RISE_FALL:
 						case SE_32_CEILING_RISE_FALL:
-							a2->temp_data[0] = 1 - a2->temp_data[0];
+							a2->counter = 1 - a2->counter;
 							callsound(act->sector(), a2);
 							break;
 						}
@@ -1273,7 +1273,7 @@ void operateforcefields(DDukeActor *effector, int low)
 
 void checkhitwall(DDukeActor* spr, walltype* wal, const DVector3& pos)
 {
-	if (wal->overtexture == mirrortex && actorflag(spr, SFLAG2_BREAKMIRRORS))
+	if (wal->overtexture == mirrortex && (spr->flags2 & SFLAG2_BREAKMIRRORS))
 	{
 		lotsofglass(spr, wal, 70);
 		wal->cstat &= ~CSTAT_WALL_MASKED;
@@ -1375,6 +1375,125 @@ bool checkhitceiling(sectortype* sectp)
 	}
 	return false;
 }
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
+void checkhitdefault(DDukeActor* targ, DDukeActor* proj)
+{
+	if ((targ->spr.cstat & CSTAT_SPRITE_ALIGNMENT_WALL) && targ->spr.hitag == 0 && targ->spr.lotag == 0 && targ->spr.statnum == STAT_DEFAULT)
+		return;
+
+	if (((proj->flags3 & SFLAG3_CANHURTSHOOTER) || proj->GetOwner() != targ) && targ->spr.statnum != STAT_PROJECTILE)
+	{
+		if (badguy(targ))
+		{
+			if (targ->spr.scale.X < targ->FloatVar(NAME_minhitscale))
+				return;
+
+			if (proj->flags4 & SFLAG4_DOUBLEHITDAMAGE) proj->spr.extra <<= 1;
+
+			if (!(targ->flags3 & SFLAG3_NOHITJIBS) && !(proj->flags3 & SFLAG3_NOHITJIBS))
+			{
+				auto spawned = spawn(proj, DukeJibs6Class);
+				if (spawned)
+				{
+					if (proj->spr.pal == 6)
+						spawned->spr.pal = 6;
+					spawned->spr.pos.Z += 4;
+					spawned->vel.X = 1;
+					spawned->spr.scale = DVector2(0.375, 0.375);
+					spawned->spr.Angles.Yaw = DAngle22_5 / 4 - randomAngle(22.5 / 2);
+				}
+			}
+
+			auto Owner = proj->GetOwner();
+
+			if (Owner && Owner->isPlayer() && !(targ->flags3 & SFLAG3_NOSHOTGUNBLOOD))
+				if (ps[Owner->PlayerIndex()].curr_weapon == SHOTGUN_WEAPON)
+				{
+					shoot(targ, DukeBloodSplat3Class);
+					shoot(targ, DukeBloodSplat1Class);
+					shoot(targ, DukeBloodSplat2Class);
+					shoot(targ, DukeBloodSplat4Class);
+				}
+
+			if (!(targ->flags2 & SFLAG2_NODAMAGEPUSH))
+			{
+				if ((targ->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) == 0)
+					targ->spr.Angles.Yaw = proj->spr.Angles.Yaw + DAngle180;
+
+				targ->vel.X = -proj->spr.extra * 0.25;
+				auto sp = targ->sector();
+				pushmove(targ->spr.pos, &sp, 8, 4, 4, CLIPMASK0);
+				if (sp != targ->sector() && sp != nullptr)
+					ChangeActorSect(targ, sp);
+			}
+
+			if (targ->spr.statnum == STAT_ZOMBIEACTOR)
+			{
+				ChangeActorStat(targ, STAT_ACTOR);
+				targ->timetosleep = SLEEPTIME;
+			}
+			if (!shrinkersizecheck(proj->GetClass(), targ)) return;
+		}
+
+		if (targ->spr.statnum != STAT_ZOMBIEACTOR)
+		{
+			if ((proj->flags2 & SFLAG2_FREEZEDAMAGE) && ((targ->isPlayer() && targ->spr.pal == 1) || (gs.freezerhurtowner == 0 && proj->GetOwner() == targ)))
+				return;
+
+			auto hitpic = static_cast<PClassActor*>(proj->GetClass());
+			auto Owner = proj->GetOwner();
+			if (Owner && Owner->isPlayer())
+			{
+				if (targ->isPlayer() && ud.coop != 0 && ud.ffire == 0)
+					return;
+
+				auto tOwner = targ->GetOwner();
+				if (hitpic == DukeFireballClass && tOwner && tOwner->GetClass() != DukeFireballClass) // hack alert! Even with damage types this special check needs to stay.
+					hitpic = DukeFlamethrowerFlameClass;
+			}
+
+			targ->attackertype = hitpic;
+			targ->hitextra += proj->spr.extra;
+			if (!(targ->flags4 & SFLAG4_NODAMAGETURN))
+				targ->hitang = proj->spr.Angles.Yaw;
+			targ->SetHitOwner(Owner);
+		}
+
+		if (targ->spr.statnum == STAT_PLAYER)
+		{
+			auto p = targ->PlayerIndex();
+			if (ps[p].newOwner != nullptr)
+			{
+				ps[p].newOwner = nullptr;
+				ps[p].GetActor()->restoreloc();
+
+				updatesector(ps[p].GetActor()->getPosWithOffsetZ(), &ps[p].cursector);
+
+				DukeStatIterator it(STAT_ACTOR);
+				while (auto itActor = it.Next())
+				{
+					if (itActor->flags2 & SFLAG2_CAMERA) itActor->spr.yint = 0;
+				}
+			}
+
+			if (!shrinkersizecheck(proj->GetClass(), targ))
+				return;
+
+			auto hitowner = targ->GetHitOwner();
+			if (!hitowner || !hitowner->isPlayer())
+				if (ud.player_skill >= 3)
+					proj->spr.extra += (proj->spr.extra >> 1);
+		}
+
+	}
+}
+
 
 //---------------------------------------------------------------------------
 //
@@ -1725,9 +1844,9 @@ bool checkhitswitch(int snum, walltype* wwal, DDukeActor* act)
 
 				case SE_12_LIGHT_SWITCH:
 					other->sector()->floorpal = 0;
-					other->temp_data[0]++;
-					if (other->temp_data[0] == 2)
-						other->temp_data[0]++;
+					other->counter++;
+					if (other->counter == 2)
+						other->counter++;
 
 					break;
 				case SE_24_CONVEYOR:

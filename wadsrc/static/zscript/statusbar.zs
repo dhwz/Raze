@@ -31,6 +31,8 @@ class RazeStatusBar : StatusBarCore
 	virtual void Tick() {}
 	virtual void Reset() {}
 	virtual void UpdateStatusBar(SummaryInfo info) {}
+	virtual void AltHUDOverlay(SummaryInfo summary) {}
+
 
 	void drawStatText(Font statFont, double x, double y, String text, double scale)
 	{
@@ -141,7 +143,7 @@ class RazeStatusBar : StatusBarCore
 		{
 			scale = info.fontscale * hud_statscale;
 			spacing = info.altspacing * hud_statscale;
-			myfont = Raze.isNamWW2GI()? ConFont : Raze.PickSmallFont(allname);
+			myfont = isNamWW2GI()? ConFont : Raze.PickSmallFont(allname);
 		}
 
 		String mapname;

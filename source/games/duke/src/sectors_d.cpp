@@ -35,7 +35,6 @@ source as it is released.
 #include "ns.h"
 #include "global.h"
 #include "sounds.h"
-#include "names_d.h"
 #include "mapinfo.h"
 #include "dukeactor.h"
 #include "secrets.h"
@@ -155,142 +154,6 @@ void checkplayerhurt_d(player_struct* p, const Collision& coll)
 
 //---------------------------------------------------------------------------
 //
-// 
-//
-//---------------------------------------------------------------------------
-
-void checkhitdefault_d(DDukeActor* targ, DDukeActor* proj)
-{
-	if ((targ->spr.cstat & CSTAT_SPRITE_ALIGNMENT_WALL) && targ->spr.hitag == 0 && targ->spr.lotag == 0 && targ->spr.statnum == STAT_DEFAULT)
-		return;
-
-	if ((proj->spr.picnum == DTILE_FREEZEBLAST || proj->GetOwner() != targ) && targ->spr.statnum != STAT_PROJECTILE)
-	{
-		if (badguy(targ) == 1)
-		{
-			if (isWorldTour() && targ->spr.picnum == DTILE_FIREFLY && targ->spr.scale.X < 0.75)
-				return;
-
-			if (proj->spr.picnum == DTILE_RPG) proj->spr.extra <<= 1;
-
-			if ((targ->spr.picnum != DTILE_DRONE) && (targ->spr.picnum != DTILE_ROTATEGUN) && (targ->spr.picnum != DTILE_COMMANDER) && targ->spr.picnum != DTILE_GREENSLIME)
-				if (proj->spr.picnum != DTILE_FREEZEBLAST)
-					//if (actortype[targ->spr.picnum] == 0) //TRANSITIONAL.
-				{
-					auto spawned = spawn(proj, DTILE_JIBS6);
-					if (spawned)
-					{
-						if (proj->spr.pal == 6)
-							spawned->spr.pal = 6;
-						spawned->spr.pos.Z += 4;
-						spawned->vel.X = 1;
-						spawned->spr.scale = DVector2(0.375, 0.375);
-						spawned->spr.Angles.Yaw = DAngle22_5 / 4 - randomAngle(22.5 / 2);
-					}
-				}
-
-			auto Owner = proj->GetOwner();
-
-			if (Owner && Owner->isPlayer() && targ->spr.picnum != DTILE_ROTATEGUN && targ->spr.picnum != DTILE_DRONE)
-				if (ps[Owner->PlayerIndex()].curr_weapon == SHOTGUN_WEAPON)
-				{
-					fi.shoot(targ, -1, PClass::FindActor("DukeBloodSplat3"));
-					fi.shoot(targ, -1, PClass::FindActor("DukeBloodSplat1"));
-					fi.shoot(targ, -1, PClass::FindActor("DukeBloodSplat2"));
-					fi.shoot(targ, -1, PClass::FindActor("DukeBloodSplat4"));
-				}
-
-			if (!actorflag(targ, SFLAG2_NODAMAGEPUSH) && !bossguy(targ)) // RR does not have this.
-			{
-				if ((targ->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) == 0)
-					targ->spr.Angles.Yaw = proj->spr.Angles.Yaw + DAngle180;
-
-				targ->vel.X = -proj->spr.extra * 0.25;
-				auto sp = targ->sector();
-				pushmove(targ->spr.pos, &sp, 8, 4, 4, CLIPMASK0);
-				if (sp != targ->sector() && sp != nullptr)
-					ChangeActorSect(targ, sp);
-			}
-
-			if (targ->spr.statnum == STAT_ZOMBIEACTOR)
-			{
-				ChangeActorStat(targ, STAT_ACTOR);
-				targ->timetosleep = SLEEPTIME;
-			}
-			if ((targ->spr.scale.X < 0.375 || targ->spr.picnum == DTILE_SHARK) && proj->spr.picnum == DTILE_SHRINKSPARK) return;
-		}
-
-		if (targ->spr.statnum != STAT_ZOMBIEACTOR)
-		{
-			if (proj->spr.picnum == DTILE_FREEZEBLAST && ((targ->isPlayer() && targ->spr.pal == 1) || (gs.freezerhurtowner == 0 && proj->GetOwner() == targ)))
-				return;
-
-			int hitpic = proj->spr.picnum;
-			auto Owner = proj->GetOwner();
-			if (Owner && Owner->isPlayer())
-			{
-				if (targ->isPlayer() && ud.coop != 0 && ud.ffire == 0)
-					return;
-
-				auto tOwner = targ->GetOwner();
-				if (isWorldTour() && hitpic == DTILE_FIREBALL && tOwner && tOwner->spr.picnum != DTILE_FIREBALL)
-					hitpic = DTILE_FLAMETHROWERFLAME;
-			}
-
-			targ->attackertype = hitpic;
-			targ->hitextra += proj->spr.extra;
-			targ->hitang = proj->spr.Angles.Yaw;
-			targ->SetHitOwner(Owner);
-		}
-
-		if (targ->spr.statnum == STAT_PLAYER)
-		{
-			auto p = targ->spr.yint;
-			if (ps[p].newOwner != nullptr)
-			{
-				ps[p].newOwner = nullptr;
-				ps[p].GetActor()->restoreloc();
-
-				updatesector(ps[p].GetActor()->getPosWithOffsetZ(), &ps[p].cursector);
-
-				DukeStatIterator it(STAT_ACTOR);
-				while (auto itActor = it.Next())
-				{
-					if (actorflag(itActor, SFLAG2_CAMERA)) itActor->spr.yint = 0;
-				}
-			}
-
-			if (targ->spr.scale.X < 0.375 && proj->spr.picnum == DTILE_SHRINKSPARK)
-				return;
-
-			auto hitowner = targ->GetHitOwner();
-			if (!hitowner || !hitowner->isPlayer())
-				if (ud.player_skill >= 3)
-					proj->spr.extra += (proj->spr.extra >> 1);
-		}
-
-	}
-}
-
-void checkhitsprite_d(DDukeActor* targ, DDukeActor* proj)
-{
-	if (targ->GetClass() != RUNTIME_CLASS(DDukeActor))
-	{
-		CallOnHit(targ, proj);
-		return;
-	}
-
-
-	if (targ->spr.picnum == DTILE_PLAYERONWATER)
-	{
-		targ = targ->GetOwner();
-		if (!targ) return;
-	}
-	checkhitdefault_d(targ, proj);
-}
-
-//---------------------------------------------------------------------------
-//
 // taken out of checksectors to eliminate some gotos.
 //
 //---------------------------------------------------------------------------
@@ -305,7 +168,7 @@ void clearcameras(player_struct* p)
 	DukeStatIterator it(STAT_ACTOR);
 	while (auto act = it.Next())
 	{
-		if (actorflag(act, SFLAG2_CAMERA)) act->spr.yint = 0;
+		if ((act->flags2 & SFLAG2_CAMERA)) act->spr.yint = 0;
 	}
 }
 
@@ -361,7 +224,7 @@ void checksectors_d(int snum)
 	if (chatmodeon || p->GetActor()->spr.extra <= 0) return;
 
 	if (ud.cashman && PlayerInput(snum, SB_OPEN))
-		fi.lotsofmoney(p->GetActor(), 2);
+		lotsofstuff(p->GetActor(), 2, DukeMailClass);
 
 	if (p->newOwner != nullptr)
 	{
@@ -415,7 +278,7 @@ void checksectors_d(int snum)
 				neartag(p->GetActor()->getPosWithOffsetZ().plusZ(16), p->GetActor()->sector(), p->GetActor()->PrevAngles.Yaw, near, 80., NT_Lotag | NT_Hitag);
 				if (near.actor() != nullptr)
 				{
-					if (actorflag(near.actor(), SFLAG2_TRIGGERRESPAWN))
+					if (near.actor()->flags2 & SFLAG2_TRIGGERRESPAWN)
 						return;
 				}
 
@@ -431,7 +294,7 @@ void checksectors_d(int snum)
 			return;
 
 		if (near.actor() == nullptr && near.hitWall == nullptr)
-			if (p->cursector->lotag == 2)
+			if (p->cursector->lotag == ST_2_UNDERWATER)
 			{
 				DDukeActor* hit;
 				dist = hitasprite(p->GetActor(), &hit);

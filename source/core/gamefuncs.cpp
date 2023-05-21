@@ -61,7 +61,7 @@ bool calcChaseCamPos(DVector3& ppos, DCoreActor* act, sectortype** psect, const 
 	// If something is in the way, make cameradist lower if necessary
 	if (npos.XY().Sum() > hpos.XY().Sum())
 	{
-		double DVector3::* c = fabs(npos.X) > fabs(npos.Y) ? &DVector3::X : &DVector3::Y;
+		const auto c = fabs(npos.X) > fabs(npos.Y) ? &DVector3::X : &DVector3::Y;
 
 		if (hitinfo.hitWall != nullptr)
 		{
@@ -75,25 +75,22 @@ bool calcChaseCamPos(DVector3& ppos, DCoreActor* act, sectortype** psect, const 
 			*psect = hitinfo.hitSector;
 			hpos.*c -= npos.*c * (1. / 32.);
 		}
-		else
+		else if (!(hitinfo.hitActor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_WALL))
 		{
 			// If you hit a sprite that's not a wall sprite - try again.
-			if (!(hitinfo.hitActor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_WALL))
-			{
-				bakcstat = hitinfo.hitActor->spr.cstat;
-				hitinfo.hitActor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
-				calcChaseCamPos(ppos, act, psect, angles, interpfrac, backamp);
-				hitinfo.hitActor->spr.cstat = bakcstat;
-				return false;
-			}
-			else
-			{
-				// same as wall calculation.
-				hpos.*c -= npos.*c * npos.XY().dot((act->spr.Angles.Yaw - DAngle90).ToVector().Rotated90CW()) * (1. / 1024.);
-			}
+			bakcstat = hitinfo.hitActor->spr.cstat;
+			hitinfo.hitActor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
+			calcChaseCamPos(ppos, act, psect, angles, interpfrac, backamp);
+			hitinfo.hitActor->spr.cstat = bakcstat;
+			return false;
+		}
+		else
+		{
+			// same as wall calculation.
+			hpos.*c -= npos.*c * npos.XY().dot((act->spr.Angles.Yaw - DAngle90).ToVector().Rotated90CW()) * (1. / 1024.);
 		}
 
-		double newdist = hpos.*c / npos.*c;
+		const double newdist = hpos.*c / npos.*c;
 		if (newdist < cameradist) cameradist = newdist;
 	}
 
@@ -526,7 +523,7 @@ int testpointinquad(const DVector2& pt, const DVector2* quad)
 //
 //==========================================================================
 
-double intersectSprite(DCoreActor* actor, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor)
+double intersectSprite(DCoreActor* actor, const DVector3& start, const DVector3& direction, DVector3& result, double maxfactor, double tolerance = 0)
 {
 	auto end = start + direction;
 	if (direction.XY().isZero()) return false;
@@ -545,7 +542,7 @@ double intersectSprite(DCoreActor* actor, const DVector3& start, const DVector3&
 
 	double siz, hitz = actor->spr.pos.Z + actor->GetOffsetAndHeight(siz);
 
-	if (point.Z < hitz - siz || point.Z > hitz)
+	if (point.Z < hitz - siz - tolerance || point.Z > hitz + tolerance)
 		return -1;
 
 	result = point;
@@ -1126,7 +1123,7 @@ void neartag(const DVector3& pos, sectortype* startsect, DAngle angle, HitInfoBa
 				if (checkTag(&actor->spr))
 				{
 					DVector3 spot;
-					double newfactor = intersectSprite(actor, pos, v, spot, factor - 1. / 65536.);
+					double newfactor = intersectSprite(actor, pos, v, spot, factor - 1. / 65536., 1);
 					if (newfactor > 0)
 					{
 						factor = newfactor;
@@ -1320,7 +1317,7 @@ tspritetype* renderAddTsprite(tspriteArray& tsprites, DCoreActor* actor)
 
 	tspr->pos = actor->spr.pos;
 	tspr->cstat = actor->spr.cstat;
-	tspr->picnum = actor->spr.picnum;
+	tspr->setspritetexture(actor->spr.spritetexture());
 	tspr->shade = actor->spr.shade;
 	tspr->pal = actor->spr.pal;
 	tspr->clipdist = 0;

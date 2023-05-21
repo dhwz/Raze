@@ -20,7 +20,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "gamefuncs.h"
 #include "names.h"
 #include "view.h"
-#include "status.h"
 #include "exhumed.h"
 #include "player.h"
 #include "aistuff.h"
@@ -35,137 +34,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 BEGIN_PS_NS
 
 bool bSubTitles = true;
-
-int16_t dVertPan[kMaxPlayers];
 DVector3 nCamerapos;
 bool bTouchFloor;
-
-double nQuake[kMaxPlayers] = { 0 };
-
 int nChunkTotal = 0;
-
 int nViewTop;
 bool bCamera = false;
 
-
-
 // We cannot drag these through the entire event system... :(
 tspriteArray* mytspriteArray;
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-static void analyzesprites(tspriteArray& tsprites, const DVector3& view, double const interpfrac)
-{
-    mytspriteArray = &tsprites;
-
-    for (unsigned i = 0; i < tsprites.Size(); i++) 
-    {
-        auto pTSprite = tsprites.get(i);
-
-        if (pTSprite->ownerActor)
-        {
-            // interpolate sprite position
-            pTSprite->pos = pTSprite->ownerActor->interpolatedpos(interpfrac);
-            pTSprite->Angles.Yaw = pTSprite->ownerActor->interpolatedyaw(interpfrac);
-        }
-    }
-
-    auto pPlayerActor = PlayerList[nLocalPlayer].pActor;
-
-    double bestclose = 20;
-    double bestside = 30000;
-
-
-    bestTarget = nullptr;
-
-    auto pSector =pPlayerActor->sector();
-
-    DAngle nAngle = -pPlayerActor->spr.Angles.Yaw;
-
-    for (int nTSprite = int(tsprites.Size()-1); nTSprite >= 0; nTSprite--)
-    {
-        auto pTSprite = tsprites.get(nTSprite);
-        auto pActor = static_cast<DExhumedActor*>(pTSprite->ownerActor);
-
-        if (pTSprite->sectp != nullptr)
-        {
-            sectortype *pTSector = pTSprite->sectp;
-            int nSectShade = (pTSector->ceilingstat & CSTAT_SECTOR_SKY) ? pTSector->ceilingshade : pTSector->floorshade;
-            int nShade = pTSprite->shade + nSectShade + 6;
-            pTSprite->shade = clamp(nShade, -128, 127);
-        }
-
-        pTSprite->pal = RemapPLU(pTSprite->pal);
-
-        // PowerSlaveGDX: Torch bouncing fix
-        if ((pTSprite->picnum == kTorch1 || pTSprite->picnum == kTorch2) && (pTSprite->cstat & CSTAT_SPRITE_YCENTER) == 0)
-        {
-            pTSprite->cstat |= CSTAT_SPRITE_YCENTER;
-            auto tex = TexMan.GetGameTexture(pTSprite->spritetexture());
-            double nTileY = (tex->GetDisplayHeight() * pTSprite->scale.Y) * 0.5;
-            pTSprite->pos.Z -= nTileY;
-        }
-
-        if (pTSprite->pal == 4 && pTSprite->shade >= numshades && !hw_int_useindexedcolortextures) pTSprite->shade = numshades - 1;
-
-        if (pActor->spr.statnum > 0)
-        {
-            RunListEvent ev{};
-            ev.pTSprite = pTSprite;
-            runlist_SignalRun(pActor->spr.lotag - 1, nTSprite, &ExhumedAI::Draw, &ev);
-
-            if ((pActor->spr.statnum < 150) && (pActor->spr.cstat & CSTAT_SPRITE_BLOCK_ALL) && (pActor != pPlayerActor))
-            {
-                DVector2 delta = pActor->spr.pos.XY() - view.XY();
-
-                double vcos = nAngle.Cos();
-                double vsin = nAngle.Sin();
-
-
-                double fwd = ((vcos * delta.Y) + (delta.X * vsin));
-                double side = abs((vcos * delta.X) - (delta.Y * vsin));
-
-                if (!side)
-                    continue;
-
-                double close = (abs(fwd) * 32) / side;
-                if (side < 1000 / 16. && side < bestside && close < 10)
-                {
-                    bestTarget = pActor;
-                    bestclose = close;
-                    bestside = side;
-                }
-                else if (side < 30000 / 16.)
-                {
-                    double t = bestclose - close;
-                    if (t > 3 || (side < bestside && abs(t) < 5))
-                    {
-                        bestclose = close;
-                        bestside = side;
-                        bestTarget = pActor;
-                    }
-                }
-            }
-        }
-    }
-    auto targ = bestTarget;
-    if (targ != nullptr)
-    {
-        nCreepyTimer = kCreepyCount;
-
-        if (!cansee(view, pSector, targ->spr.pos.plusZ(-GetActorHeight(targ)), targ->sector()))
-        {
-            bestTarget = nullptr;
-        }
-    }
-
-    mytspriteArray = nullptr;
-
-}
 
 //---------------------------------------------------------------------------
 //
@@ -257,8 +133,8 @@ void DrawView(double interpfrac, bool sceneonly)
     }
     else
     {
-        nCamerapos.Z = min(nCamerapos.Z + nQuake[nLocalPlayer], pPlayerActor->sector()->floorz);
-        nCameraangles.Yaw += DAngle::fromDeg(fmod(nQuake[nLocalPlayer], 16.) * (45. / 128.));
+        nCamerapos.Z = min(nCamerapos.Z + pPlayer->nQuake, pPlayerActor->sector()->floorz);
+        nCameraangles.Yaw += DAngle::fromDeg(fmod(pPlayer->nQuake, 16.) * (45. / 128.));
 
         if (bCamera)
         {
@@ -268,6 +144,10 @@ void DrawView(double interpfrac, bool sceneonly)
                 nCamerapos.Z += 10;
                 calcChaseCamPos(nCamerapos, pPlayerActor, &pSector, nCameraangles, interpfrac, 96.);
             }
+        }
+        else
+        {
+            nCamerapos.Z += interpolatedvalue(pPlayer->nPrevBobZ, pPlayer->nBobZ, interpfrac);
         }
     }
 
@@ -308,7 +188,7 @@ void DrawView(double interpfrac, bool sceneonly)
         }
 
         if (!nFreeze && !sceneonly)
-            DrawWeapons(interpfrac);
+            DrawWeapons(pPlayer, interpfrac);
         render_drawrooms(nullptr, nCamerapos, pSector, nCameraangles, interpfrac);
 
         if (HavePLURemap())
@@ -347,12 +227,14 @@ void DrawView(double interpfrac, bool sceneonly)
                         subtitleOverlay.ReadyCinemaText(currentLevel->ex_ramses_text);
                     }
                     inputState.ClearAllInput();
+                    gameInput.Clear();
                 }
                 else if (nHeadStage == 5)
                 {
                     if ((bSubTitles && !subtitleOverlay.AdvanceCinemaText(I_GetTimeNS() * (120. / 1'000'000'000))) || inputState.CheckAllInput())
                     {
                         inputState.ClearAllInput();
+                        gameInput.Clear();
                         LevelFinished();
                         EndLevel = 1;
 
@@ -403,7 +285,47 @@ bool GameInterface::GenerateSavePic()
 
 void GameInterface::processSprites(tspriteArray& tsprites, const DVector3& view, DAngle viewang, double interpfrac)
 {
-    analyzesprites(tsprites, view, interpfrac);
+    mytspriteArray = &tsprites;
+
+    for (int nTSprite = int(tsprites.Size()-1); nTSprite >= 0; nTSprite--)
+    {
+        auto pTSprite = tsprites.get(nTSprite);
+        auto pActor = static_cast<DExhumedActor*>(pTSprite->ownerActor);
+
+        // interpolate sprite position
+        pTSprite->pos = pActor->interpolatedpos(interpfrac);
+        pTSprite->Angles.Yaw = pActor->interpolatedyaw(interpfrac);
+
+        if (pTSprite->sectp != nullptr)
+        {
+            sectortype *pTSector = pTSprite->sectp;
+            int nSectShade = (pTSector->ceilingstat & CSTAT_SECTOR_SKY) ? pTSector->ceilingshade : pTSector->floorshade;
+            int nShade = pTSprite->shade + nSectShade + 6;
+            pTSprite->shade = clamp(nShade, -128, 127);
+        }
+
+        pTSprite->pal = RemapPLU(pTSprite->pal);
+
+        // PowerSlaveGDX: Torch bouncing fix
+        if ((pTSprite->spritetexture() == aTexIds[kTexTorch1] || pTSprite->spritetexture() == aTexIds[kTexTorch2]) && (pTSprite->cstat & CSTAT_SPRITE_YCENTER) == 0)
+        {
+            pTSprite->cstat |= CSTAT_SPRITE_YCENTER;
+            auto tex = TexMan.GetGameTexture(pTSprite->spritetexture());
+            double nTileY = (tex->GetDisplayHeight() * pTSprite->scale.Y) * 0.5;
+            pTSprite->pos.Z -= nTileY;
+        }
+
+        if (pTSprite->pal == 4 && pTSprite->shade >= numshades && !hw_int_useindexedcolortextures) pTSprite->shade = numshades - 1;
+
+        if (pActor->spr.statnum > 0)
+        {
+            RunListEvent ev{};
+            ev.pTSprite = pTSprite;
+            runlist_SignalRun(pActor->spr.lotag - 1, nTSprite, &ExhumedAI::Draw, &ev);
+        }
+    }
+
+    mytspriteArray = nullptr;
 }
 
 
@@ -418,11 +340,8 @@ void SerializeView(FSerializer& arc)
     if (arc.BeginObject("view"))
     {
         arc("camerapos", nCamerapos)
-            ("touchfloor", bTouchFloor)
             ("chunktotal", nChunkTotal)
             ("camera", bCamera)
-            .Array("vertpan", dVertPan, countof(dVertPan))
-            .Array("quake", nQuake, countof(nQuake))
             .EndObject();
     }
 }

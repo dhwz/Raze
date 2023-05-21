@@ -22,21 +22,27 @@ public:
 	TObjPtr<DExhumedActor*> pTarget;
 
 	int16_t nPhase;
-
 	int16_t nHealth;
-	int16_t nFrame;
-	int16_t nAction;
 	int16_t nCount;
 	int16_t nRun;
 	union { int16_t nIndex; int16_t nAngle; };	// angle is for wasp.
 	union { int16_t nIndex2; int16_t nAngle2; }; // index2 is for scorpion, angle2 is for wasp.
 	union { int16_t nChannel; int16_t nVel; };	// channel is for scorpion, vel is for wasp.
-	union { int16_t nDamage; int16_t nAction2; }; // nAction2 is for the queen.
+	int16_t nDamage;
 	DAngle pitch;	// used by AngleChase
 
 	// for the grenade.
 	int nTurn;
 	DVector2 vec;
+
+	// for sequences.
+	FName nSeqFile;
+	uint16_t nFrame;
+	int16_t nAction;
+
+	// for anims.
+	int16_t nSeqIndex;
+	int16_t nFlags;
 
 
 	DExhumedActor() = default;

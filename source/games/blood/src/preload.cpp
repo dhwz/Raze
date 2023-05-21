@@ -42,10 +42,10 @@ void gibPrecache();
 //
 //---------------------------------------------------------------------------
 
-void tilePrecacheTile(int nTile, int nType, int palette)
+void tilePrecacheTile(FTextureID nTex, int nType, int palette)
 {
-	auto nTex = tileGetTextureID(nTile);
 	int n = 1;
+	if (!nTex.isValid()) return;
 	switch (GetExtInfo(nTex).picanm.extra & 7)
 	{
 	case 0:
@@ -68,57 +68,6 @@ void tilePrecacheTile(int nTile, int nType, int palette)
 	}
 }
 
-
-// To do: This needs to handle the sprite palettes as well to properly precache the needed content.
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-void viewPrecacheTiles()
-{
-	tilePrecacheTile(kArmorbox, 0, 0);
-	tilePrecacheTile(kStatusbar, 0, 0);
-	tilePrecacheTile(kFullHUD, 0, 0);
-	tilePrecacheTile(kBlinkIcon, 0, 0);
-	tilePrecacheTile(kArmor1Gauge, 0, 0);
-	tilePrecacheTile(kArmor2Gauge, 0, 0);
-	tilePrecacheTile(kArmor3Gauge, 0, 0);
-	tilePrecacheTile(kSBPlayerSlot, 0, 0);
-	tilePrecacheTile(kThrowGauge, 0, 0);
-	tilePrecacheTile(kPackSelect, 0, 0);
-	tilePrecacheTile(kHealthicon, 0, 0);
-	tilePrecacheTile(kArmor1Icon, 0, 0);
-	tilePrecacheTile(kArmor2Icon, 0, 0);
-	tilePrecacheTile(kArmor3Icon, 0, 0);
-	for (int i = 0; i < 10; i++)
-	{
-		tilePrecacheTile(kSBarHealthAmount0 + i, 0, 0);
-		tilePrecacheTile(kSBarAmmoAmount0 + i, 0, 0);
-		tilePrecacheTile(kSBarWaponNum0 + i, 0, 0);
-		tilePrecacheTile(kSBarPackAmount0 + i, 0, 0);
-		tilePrecacheTile(kSBarNumberHealth + i, 0, 0);
-		tilePrecacheTile(kSBarNumberAmmo + i, 0, 0);
-		tilePrecacheTile(kSBarNumberInv + i, 0, 0);
-		tilePrecacheTile(kSBarNumberArmor1_1 + i, 0, 0);
-		tilePrecacheTile(kSBarNumberArmor2_1 + i, 0, 0);
-		tilePrecacheTile(kSBarNumberArmor3_1 + i, 0, 0);
-	}
-	/*
-	for (int i = 0; i < 5; i++)
-	{
-		tilePrecacheTile(gPackIcons[i], 0);
-		tilePrecacheTile(gPackIcons2[i].nTile, 0);
-	}
-	*/
-	for (int i = 0; i < 6; i++)
-	{
-		tilePrecacheTile(kKeyIcon1 + i, 0, 0);
-		tilePrecacheTile(kHudKeyIcon1 + i, 0, 0);
-	}
-}
 
 //---------------------------------------------------------------------------
 //
@@ -245,7 +194,7 @@ void PrecacheThing(DBloodActor* actor)
 		//case kThingObjectExplode: weird that only gib object is precached and this one is not
 		break;
 	}
-	tilePrecacheTile(actor->spr.picnum, -1, palette);
+	tilePrecacheTile(actor->spr.spritetexture(), -1, palette);
 }
 
 //---------------------------------------------------------------------------
@@ -273,7 +222,7 @@ void PreloadCache()
 			PrecacheThing(actor);
 			break;
 		default:
-			tilePrecacheTile(actor->spr.picnum, -1, actor->spr.pal);
+			tilePrecacheTile(actor->spr.spritetexture(), -1, actor->spr.pal);
 			break;
 		}
 	}
@@ -284,8 +233,8 @@ void PreloadCache()
 		seqPrecacheId(i, 0);
 	}
 
-	tilePrecacheTile(1147, -1, 0); // water drip
-	tilePrecacheTile(1160, -1, 0); // blood drip
+	tilePrecacheTile(aTexIds[kTexWATERDRIP], -1, 0); // water drip
+	tilePrecacheTile(aTexIds[kTexBLOODDRIP], -1, 0); // blood drip
 
 	// Player SEQs
 	seqPrecacheId(dudeInfo[31].seqStartID + 6, 0);
@@ -314,7 +263,6 @@ void PreloadCache()
 	*/
 
 	WeaponPrecache();
-	viewPrecacheTiles();
 	fxPrecache();
 	gibPrecache();
 

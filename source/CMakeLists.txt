@@ -662,7 +662,6 @@ set( NOT_COMPILED_SOURCE_FILES
 	games/blood/src/blood.cpp
 	games/blood/src/callback.cpp
 	games/blood/src/choke.cpp
-	games/blood/src/controls.cpp
 	games/blood/src/db.cpp
 	games/blood/src/dude.cpp
 	games/blood/src/d_menu.cpp
@@ -703,6 +702,7 @@ set( NOT_COMPILED_SOURCE_FILES
 	games/duke/src/actors_d.cpp
 	games/duke/src/actors_lava.cpp
 	games/duke/src/actors_r.cpp
+	games/duke/src/animatesprites.cpp
 	games/duke/src/animatesprites_d.cpp
 	games/duke/src/animatesprites_r.cpp
 	games/duke/src/bowling.cpp
@@ -710,8 +710,6 @@ set( NOT_COMPILED_SOURCE_FILES
 	games/duke/src/cheats.cpp
 	games/duke/src/dispatch.cpp
 	games/duke/src/d_menu.cpp
-	games/duke/src/flags_d.cpp
-	games/duke/src/flags_r.cpp
 	games/duke/src/game.cpp
 	games/duke/src/gamedef.cpp
 	games/duke/src/gameexec.cpp
@@ -739,8 +737,6 @@ set( NOT_COMPILED_SOURCE_FILES
 	games/duke/src/sectors_r.cpp
 	games/duke/src/sounds.cpp
 	games/duke/src/spawn.cpp
-	games/duke/src/spawn_d.cpp
-	games/duke/src/spawn_r.cpp
 	games/duke/src/vmexports.cpp
 
 	# Shadow Warrior
@@ -815,14 +811,12 @@ set( NOT_COMPILED_SOURCE_FILES
 	games/exhumed/src/cd.cpp
 	games/exhumed/src/cheats.cpp
 	games/exhumed/src/d_menu.cpp
-	games/exhumed/src/enginesubs.cpp
 	games/exhumed/src/exhumed.cpp
 	games/exhumed/src/fish.cpp
 	games/exhumed/src/gameloop.cpp
 	games/exhumed/src/grenade.cpp
 	games/exhumed/src/gun.cpp
 	games/exhumed/src/init.cpp
-	games/exhumed/src/input.cpp
 	games/exhumed/src/items.cpp
 	games/exhumed/src/lavadude.cpp
 	games/exhumed/src/light.cpp
@@ -944,6 +938,7 @@ set (PCH_SOURCES
 
 	core/actorinfo.cpp
 	core/zcc_compile_raze.cpp
+	core/codegen_raze.cpp
 	core/vmexports.cpp
 	core/thingdef_data.cpp
 	core/thingdef_properties.cpp
@@ -975,6 +970,7 @@ set (PCH_SOURCES
 	core/statistics.cpp
 	core/secrets.cpp
 	core/savegamehelp.cpp
+	core/states.cpp
 	core/precache.cpp
 	core/psky.cpp
 	core/quotes.cpp

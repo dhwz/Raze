@@ -178,6 +178,7 @@ struct PLAYER
 	int                 quakeEffect;
 	int                 player_par;
 	int                 nWaterPal;
+	bool                crouch_toggle;
 	POSTURE             pPosture[kModeMax][kPostureMax];
 };
 
@@ -189,10 +190,11 @@ struct AMMOINFO
 
 struct POWERUPINFO
 {
-	int16_t picnum;
+	int16_t picno;
 	bool pickupOnce;
 	int bonusTime;
 	int maxTime;
+	FTextureID textureID() const { return tileGetTextureID(picno); }
 };
 
 void playerResetPosture(PLAYER* pPlayer);

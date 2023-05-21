@@ -51,7 +51,7 @@ DExhumedActor* BuildLavaLimb(DExhumedActor* pActor, int move, double height)
     pLimbActor->spr.xoffset = 0;
     pLimbActor->spr.yoffset = 0;
 	pLimbActor->spr.scale = DVector2(1.40625, 1.40625);
-    pLimbActor->spr.picnum = (move & 3) % 3;
+    pLimbActor->spr.detail = (move & 3) % 3;
     pLimbActor->spr.hitag = 0;
     pLimbActor->spr.lotag = runlist_HeadRun() + 1;
     pLimbActor->clipdist = 0;
@@ -61,6 +61,8 @@ DExhumedActor* BuildLavaLimb(DExhumedActor* pActor, int move, double height)
     pLimbActor->spr.extra = -1;
     pLimbActor->spr.intowner = runlist_AddRunRec(pLimbActor->spr.lotag - 1, pLimbActor, 0x160000);
     pLimbActor->spr.hitag = runlist_AddRunRec(NewRun, pLimbActor, 0x160000);
+
+    pLimbActor->nSeqFile = "lavag";
 
     return pLimbActor;
 }
@@ -90,9 +92,10 @@ void AILavaDudeLimb::Tick(RunListEvent* ev)
 
 void AILavaDudeLimb::Draw(RunListEvent* ev)
 {
-    auto pActor = ev->pObjActor;
-    if (!pActor) return;
-    seq_PlotSequence(ev->nParam, (SeqOffsets[kSeqLavag] + 30) + pActor->spr.picnum, 0, 1);
+    if (const auto pActor = ev->pObjActor)
+    {
+        seq_PlotSequence(ev->nParam, pActor->nSeqFile, 30 + pActor->spr.picnum, 0, 1);
+    }
 }
 
 
@@ -119,7 +122,8 @@ void BuildLava(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, 
 	pActor->clipdist = 31.75;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->spr.picnum = seq_GetSeqPicnum(kSeqLavag, LavadudeSeq[3].a, 0);
+    pActor->nSeqFile = "lavag";
+    pActor->spr.setspritetexture(getSequence(pActor->nSeqFile, LavadudeSeq[3].nSeqId)->getFirstFrameTexture());
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
     pActor->vel.Z = 0;
@@ -146,15 +150,12 @@ void BuildLava(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, 
 
 void AILavaDude::Draw(RunListEvent* ev)
 {
-    auto pActor = ev->pObjActor;
-    if (!pActor) return;
-
-    int nAction = pActor->nAction;
-    int nSeq = LavadudeSeq[nAction].a + SeqOffsets[kSeqLavag];
-
-    seq_PlotSequence(ev->nParam, nSeq, pActor->nFrame, LavadudeSeq[nAction].b);
-    ev->pTSprite->ownerActor = nullptr;
-    return;
+    if (const auto pActor = ev->pObjActor)
+    {
+        const auto lavadudeSeq = &LavadudeSeq[pActor->nAction];
+        seq_PlotSequence(ev->nParam, pActor->nSeqFile, lavadudeSeq->nSeqId, pActor->nFrame, lavadudeSeq->nFlags);
+        ev->pTSprite->ownerActor = nullptr;
+    }
 }
 
 void AILavaDude::Damage(RunListEvent* ev)
@@ -213,21 +214,20 @@ void AILavaDude::Tick(RunListEvent* ev)
     if (!pActor) return;
 
     int nAction = pActor->nAction;
-    int nSeq = LavadudeSeq[nAction].a + SeqOffsets[kSeqLavag];
 
-    pActor->spr.picnum = seq_GetSeqPicnum2(nSeq, pActor->nFrame);
-    int var_38 = pActor->nFrame;
+    const auto lavadudeSeq = getSequence(pActor->nSeqFile, LavadudeSeq[nAction].nSeqId);
+    const auto& seqFrame = lavadudeSeq->frames[pActor->nFrame];
 
-    int nFlag = FrameFlag[SeqBase[nSeq] + var_38];
+    pActor->spr.setspritetexture(seqFrame.getFirstChunkTexture());
 
     int var_1C = 0;
 
     if (nAction)
     {
-        seq_MoveSequence(pActor, nSeq, var_38);
+        seqFrame.playSound(pActor);
 
         pActor->nFrame++;
-        if (pActor->nFrame >= SeqSize[nSeq])
+        if (pActor->nFrame >= lavadudeSeq->frames.Size())
         {
             var_1C = 1;
             pActor->nFrame = 0;
@@ -340,7 +340,7 @@ void AILavaDude::Tick(RunListEvent* ev)
 
     case 3:
     {
-        if ((nFlag & 0x80) && pTarget)
+        if ((seqFrame.flags & 0x80) && pTarget)
         {
              BuildBullet(pActor, 10, INT_MAX, pActor->spr.Angles.Yaw, pTarget, 1);
         }
@@ -367,7 +367,7 @@ void AILavaDude::Tick(RunListEvent* ev)
 
     case 5:
     {
-        if (nFlag & 0x40)
+        if (seqFrame.flags & 0x40)
         {
             auto pLimbSprite = BuildLavaLimb(pActor, pActor->nFrame, 250);
             D3PlayFX(StaticSound[kSound26], pLimbSprite);
@@ -375,7 +375,7 @@ void AILavaDude::Tick(RunListEvent* ev)
 
         if (pActor->nFrame)
         {
-            if (nFlag & 0x80)
+            if (seqFrame.flags & 0x80)
             {
                 int ecx = 0;
                 do

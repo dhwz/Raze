@@ -69,7 +69,11 @@ CVARD(Bool, cl_idplayers, true, CVAR_ARCHIVE, "enable/disable name display when 
 CVARD(Bool, cl_weaponsway, true, CVAR_ARCHIVE|CVAR_GLOBALCONFIG, "enable/disable player weapon swaying")
 
 // Todo: Consolidate these to be consistent across games?
-CVARD(Bool, cl_viewbob, true, CVAR_ARCHIVE|CVAR_GLOBALCONFIG, "enable/disable player head bobbing")
+CUSTOM_CVARD(Int, cl_viewbob, 1, CVAR_ARCHIVE|CVAR_GLOBALCONFIG, "enable/disable player head bobbing")
+{
+	if (self < 0) self = 0;
+	else if (self > 2) self = 2;
+}
 CVARD(Bool, cl_viewhbob, true, CVAR_ARCHIVE, "enable/disable view horizontal bobbing") // Only implemented in Blood
 CVARD(Bool, cl_viewvbob, true, CVAR_ARCHIVE, "enable/disable view vertical bobbing") // Only implemented in Blood
 
@@ -92,6 +96,15 @@ CVARD(Bool, cl_bloodoldweapbalance, false, CVAR_ARCHIVE, "enable/disable legacy 
 CVARD(Bool, cl_loadingscreens, true, CVAR_ARCHIVE|CVAR_GLOBALCONFIG, "enable/disable loading screens for games")
 CVARD(Bool, cl_clampedpitch, true, CVAR_ARCHIVE, "clamp the view pitch to original ranges")
 
+CUSTOM_CVARD(Int, cl_dukepitchmode, 7, CVAR_ARCHIVE, "customise Duke's myriad of pitch options")
+{
+	if (self < 0) self = 0;
+	else if (self > 7) self = 7;
+}
+
+CVARD(Flag, cl_dukepitchlockreturn, cl_dukepitchmode, 1, "enable/disable pitch input while returning to centre");
+CVARD(Flag, cl_dukepitchhardlanding, cl_dukepitchmode, 2, "enable/disable pitch adjustment from a high fall");
+CVARD(Flag, cl_dukepitchlandingrecenter, cl_dukepitchmode, 4, "enable/disable pitch recentreing after a high fall");
 
 CUSTOM_CVARD(Int, cl_autoaim, 1, CVAR_ARCHIVE|CVAR_USERINFO, "enable/disable weapon autoaim")
 {
@@ -239,11 +252,12 @@ ADD_STAT(coord)
 	FString out;
 	if (const auto pActor = gi->getConsoleActor())
 	{
-		out.AppendFormat("X: %.4f ", pActor->spr.pos.X);
-		out.AppendFormat("Y: %.4f ", pActor->spr.pos.Y);
-		out.AppendFormat("Z: %.4f ", pActor->spr.pos.Z);
-		out.AppendFormat("Yaw: %.4f ", pActor->spr.Angles.Yaw.Degrees());
-		out.AppendFormat("Pitch: %.4f\n", pActor->spr.Angles.Pitch.Degrees());
+		out.AppendFormat("X: %.4f  ", pActor->spr.pos.X);
+		out.AppendFormat("Y: %.4f  ", pActor->spr.pos.Y);
+		out.AppendFormat("Z: %.4f\n", pActor->spr.pos.Z);
+		out.AppendFormat("Yaw: %.4f  ", pActor->spr.Angles.Yaw.Degrees());
+		out.AppendFormat("Pitch: %.4f  ", pActor->spr.Angles.Pitch.Degrees());
+		out.AppendFormat("Roll: %.4f\n", pActor->spr.Angles.Roll.Degrees());
 	}
 	return out;
 }

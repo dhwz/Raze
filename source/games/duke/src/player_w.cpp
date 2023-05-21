@@ -36,7 +36,6 @@ source as it is released.
 #include "ns.h"
 #include "global.h"
 #include "gamevar.h"
-#include "names_d.h"
 #include "dukeactor.h"
 
 BEGIN_DUKE_NS
@@ -65,10 +64,10 @@ void DoFire(player_struct* p, int snum)
 
 	SetGameVarID(g_iWeaponVarID, p->curr_weapon, p->GetActor(), snum);
 	SetGameVarID(g_iWorksLikeVarID, aplWeaponWorksLike(p->curr_weapon, snum), p->GetActor(), snum);
-	fi.shoot(p->GetActor(), aplWeaponShoots(p->curr_weapon, snum), nullptr);
+	shoot(p->GetActor(), GetSpawnType(aplWeaponShoots(p->curr_weapon, snum)));
 	for (i = 1; i < aplWeaponShotsPerBurst(p->curr_weapon, snum); i++)
 	{
-		fi.shoot(p->GetActor(), aplWeaponShoots(p->curr_weapon, snum), nullptr);
+		shoot(p->GetActor(), GetSpawnType(aplWeaponShoots(p->curr_weapon, snum)));
 		if (aplWeaponFlags(p->curr_weapon, snum) & WEAPON_FLAG_AMMOPERSHOT)
 		{
 			p->ammo_amount[p->curr_weapon]--;
@@ -111,7 +110,7 @@ void DoSpawn(player_struct *p, int snum)
 	if(!aplWeaponSpawn(p->curr_weapon, snum))
 		return;
 
-	auto j = spawn(p->GetActor(), aplWeaponSpawn(p->curr_weapon, snum));
+	auto j = spawn(p->GetActor(), GetSpawnType(aplWeaponSpawn(p->curr_weapon, snum)));
 	if (!j) return;
 
 	if((aplWeaponFlags(p->curr_weapon, snum) & WEAPON_FLAG_SPAWNTYPE2 ) )
@@ -342,7 +341,7 @@ void operateweapon_ww(int snum, ESyncBits actions)
 				zvel -= 4;
 			}
 
-			auto spawned = CreateActor(p->cursector, p->GetActor()->getPosWithOffsetZ() + p->GetActor()->spr.Angles.Yaw.ToVector() * 16, DTILE_HEAVYHBOMB, -16, DVector2(0.140625, 0.140625),
+			auto spawned = CreateActor(p->cursector, p->GetActor()->getPosWithOffsetZ() + p->GetActor()->spr.Angles.Yaw.ToVector() * 16, DukePipeBombClass, -16, DVector2(0.140625, 0.140625),
 				p->GetActor()->spr.Angles.Yaw, vel + p->hbomb_hold_delay * 2, zvel, pact, 1);
 
 			if (spawned)
@@ -405,7 +404,7 @@ void operateweapon_ww(int snum, ESyncBits actions)
 				}
 				SetGameVarID(g_iWeaponVarID, p->curr_weapon, p->GetActor(), snum);
 				SetGameVarID(g_iWorksLikeVarID, aplWeaponWorksLike(p->curr_weapon, snum), p->GetActor(), snum);
-				fi.shoot(p->GetActor(), aplWeaponShoots(p->curr_weapon, snum), nullptr);
+				shoot(p->GetActor(), GetSpawnType(aplWeaponShoots(p->curr_weapon, snum)));
 			}
 		}
 

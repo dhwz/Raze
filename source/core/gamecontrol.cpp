@@ -84,6 +84,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "hw_material.h"
 #include "tiletexture.h"
 #include "tilesetbuilder.h"
+#include "gameinput.h"
 
 #include "buildtiles.h"
 
@@ -128,7 +129,6 @@ GameInterface* gi;
 int myconnectindex, numplayers;
 int connecthead, connectpoint2[MAXPLAYERS];
 auto vsnprintfptr = vsnprintf;	// This is an inline in Visual Studio but we need an address for it to satisfy the MinGW compiled libraries.
-int lastTic;
 
 extern bool pauseext;
 
@@ -181,7 +181,7 @@ extern int hud_size_max;
 static bool sendPause;
 bool pausedWithKey;
 
-bool gamesetinput = false;
+static bool gamesetinput = false;
 
 int PlayClock;
 extern int nextwipe;
@@ -219,7 +219,7 @@ bool System_DispatchEvent(event_t* ev)
 {
 	if (ev->type == EV_Mouse && !System_WantGuiCapture())
 	{
-		inputState.MouseAddToPos(ev->x, -ev->y);
+		gameInput.MouseAddToPos(ev->x, ev->y);
 		return true;
 	}
 
@@ -382,6 +382,7 @@ void UserConfig::ProcessOptions()
 			gamegrp = v;
 		}
 	}
+	FixPathSeperator(gamegrp);
 
 	Args->CollectFiles("-rts", ".rts");
 	auto rts = Args->CheckValue("-rts");
@@ -1104,8 +1105,6 @@ int RunGame()
 	StartWindow = FStartupScreen::CreateInstance(8, true);
 	StartWindow->Progress();
 
-	inputState.ClearAllInput();
-
 	if (!GameConfig->IsInitialized())
 	{
 		CONFIG_ReadCombatMacros();
@@ -1184,6 +1183,7 @@ int RunGame()
 	D_CheckNetGame();
 	UpdateGenericUI(ui_generic);
 	PClassActor::StaticInit();
+	gi->FinalizeSetup();
 	MainLoop();
 	return 0;
 }
@@ -1423,17 +1423,17 @@ void ST_LoadCrosshair(int num, bool alwaysload);
 CVAR(Int, crosshair, 0, CVAR_ARCHIVE)
 
 
-void DrawCrosshair(int deftile, int health, double xdelta, double ydelta, double scale, DAngle angle, PalEntry color)
+void DrawCrosshair(int health, double xdelta, double ydelta, double scale, DAngle angle, PalEntry color)
 {
 	if (automapMode == am_off && cl_crosshair)
 	{
-		if (deftile < MAXTILES && crosshair == 0)
+		if (crosshair == 0)
 		{
-			auto tile = tileGetTexture(deftile);
-			if (tile)
+			auto tex = TexMan.FindGameTexture("CROSSHAIR", ETextureType::Any);
+			if (tex && tex->isValid())
 			{
 				double crosshair_scale = crosshairscale > 0.0f ? crosshairscale * scale : 1.;
-				DrawTexture(twod, tile, 160 + xdelta, 100 + ydelta, DTA_Color, color, DTA_Rotate, angle.Degrees(),
+				DrawTexture(twod, tex, 160 + xdelta, 100 + ydelta, DTA_Color, color, DTA_Rotate, angle.Degrees(),
 					DTA_FullscreenScale, FSMode_Fit320x200, DTA_ScaleX, crosshair_scale, DTA_ScaleY, crosshair_scale, DTA_CenterOffsetRel, true,
 					DTA_ViewportX, viewport3d.Left(), DTA_ViewportY, viewport3d.Top(), DTA_ViewportWidth, viewport3d.Width(), DTA_ViewportHeight, viewport3d.Height(), TAG_DONE);
 
@@ -1519,9 +1519,26 @@ DEFINE_ACTION_FUNCTION_NATIVE(_Raze, GetBuildTime, I_GetBuildTime)
 	ACTION_RETURN_INT(I_GetBuildTime());
 }
 
+bool SyncInput()
+{
+	return gamesetinput || cl_syncinput || cl_capfps;
+}
+
+void setForcedSyncInput(const int playeridx)
+{
+	if (playeridx == myconnectindex) gamesetinput = true;
+}
+
+void resetForcedSyncInput()
+{
+	gamesetinput = false;
+}
+
 DEFINE_ACTION_FUNCTION_NATIVE(_Raze, forceSyncInput, setForcedSyncInput)
 {
-	setForcedSyncInput();
+	PARAM_PROLOGUE;
+	PARAM_INT(playeridx);
+	setForcedSyncInput(playeridx);
 	return 0;
 }
 
@@ -1571,6 +1588,7 @@ DEFINE_FIELD_X(MapRecord, MapRecord, name)
 DEFINE_FIELD_X(MapRecord, MapRecord, music)
 DEFINE_FIELD_X(MapRecord, MapRecord, cdSongId)
 DEFINE_FIELD_X(MapRecord, MapRecord, flags)
+DEFINE_FIELD_X(MapRecord, MapRecord, gameflags)
 DEFINE_FIELD_X(MapRecord, MapRecord, levelNumber)
 DEFINE_FIELD_X(MapRecord, MapRecord, cluster)
 DEFINE_FIELD_X(MapRecord, MapRecord, NextMap)

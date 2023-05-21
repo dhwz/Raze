@@ -30,7 +30,9 @@ void movecyclers(void);
 void movedummyplayers(void);
 void resetlanepics(void);
 void moveplayers();
+void movefallers();
 void doanimations();
+void checkdive(DDukeActor* transporter, DDukeActor* transported);
 void tickstat(int stat, bool deleteinvalid = false);
 void operaterespawns(int low);
 void moveclouds(double interpfrac);
@@ -38,8 +40,11 @@ void movefta();
 
 void clearcameras(player_struct* p);
 void RANDOMSCRAP(DDukeActor* i);
-void detonate(DDukeActor* i, int explosion);
-void lotsofstuff(DDukeActor* s, int n, int spawntype);
+void detonate(DDukeActor* i, PClassActor* explosion);
+void hitradius(DDukeActor* i, int  r, int  hp1, int  hp2, int  hp3, int  hp4);
+int movesprite_ex(DDukeActor* actor, const DVector3& change, unsigned int cliptype, Collision& result);
+void move(DDukeActor* actor, int pnum, double xvel);
+void lotsofstuff(DDukeActor* s, int n, PClassActor* spawntype);
 void watersplash2(DDukeActor* i);
 bool money(DDukeActor* i, int BLOODPOOL);
 bool bloodpool(DDukeActor* i, bool puke);
@@ -49,8 +54,8 @@ void spawnguts(DDukeActor* origin, PClass* type, int count);
 
 void handle_se00(DDukeActor* i);
 void handle_se01(DDukeActor* i);
-void handle_se14(DDukeActor* i, bool checkstat, int RPG, int JIBS6);
-void handle_se30(DDukeActor* i, int JIBS6);
+void handle_se14(DDukeActor* i, bool checkstat, PClassActor* RPG);
+void handle_se30(DDukeActor* i);
 void handle_se02(DDukeActor* i);
 void handle_se03(DDukeActor* i);
 void handle_se04(DDukeActor* i);
@@ -75,16 +80,13 @@ void handle_se27(DDukeActor* i);
 void handle_se29(DDukeActor* actor);
 void handle_se31(DDukeActor* a, bool choosedir);
 void handle_se32(DDukeActor* i);
-void handle_se35(DDukeActor* i, int SMALLSMOKE, int EXPLOSION2);
+void handle_se35(DDukeActor* i);
+void handle_se36(DDukeActor* i);
 void handle_se128(DDukeActor* i);
-void handle_se130(DDukeActor* i, int countmax, int EXPLOSION2);
-
-void check_fta_sounds_d(DDukeActor* i);
-void check_fta_sounds_r(DDukeActor* i);
+void handle_se130(DDukeActor* i, int countmax);
 
 int dodge(DDukeActor*);
 void alterang(int ang, DDukeActor* actor, int g_p);
-void fall_common(DDukeActor* actor, int g_p, int JIBS6, int DRONE, int BLOODPOOL, int SHOTSPARK1, int squished, int thud, int(*fallspecial)(DDukeActor*, int));
 void checkavailweapon(player_struct* p);
 void addammo(int weapon, player_struct* p, int amount);
 
@@ -108,15 +110,39 @@ void playerLookUp(int snum, ESyncBits actions);
 void playerLookDown(int snum, ESyncBits actions);
 void playerAimUp(int snum, ESyncBits actions);
 void playerAimDown(int snum, ESyncBits actions);
-void tracers(const DVector3& start, const DVector3& dest, int n);
-DDukeActor* aim(DDukeActor* s, int aang);
+DDukeActor* aim(DDukeActor* s, int aang, bool force = true, bool* b = nullptr);
+DDukeActor* aim_(DDukeActor* actor, DDukeActor* weapon, double aimangle, bool* b = nullptr);
+void shoot(DDukeActor* actor, PClass* cls);
 void checkweapons(player_struct* const p);
 int findotherplayer(int p, double* d);
 void quickkill(player_struct* p);
 int setpal(player_struct* p);
 int madenoise(int playerNum);
-int haskey(sectortype* sect, int snum);
+int haslock(sectortype* sect, int snum);
 void purplelavacheck(player_struct* p);
+void addphealth(player_struct* p, int amount, bool bigitem);
+int playereat(player_struct* p, int amount, bool bigitem);
+void playerdrink(player_struct* p, int amount);
+int playeraddammo(player_struct* p, int weaponindex, int amount);
+int playeraddweapon(player_struct* p, int weaponindex, int amount);
+void playeraddinventory(player_struct* p, DDukeActor* item, int type, int amount);
+void actorsizeto(DDukeActor* actor, double x, double y);
+void spawndebris(DDukeActor* g_ac, int dnum, int count);
+int checkp(DDukeActor* self, player_struct* p, int flags);
+int playercheckinventory(player_struct* p, DDukeActor* item, int type, int amount);
+void playerstomp(player_struct* p, DDukeActor* stomped);
+void playerreset(player_struct* p, DDukeActor* g_ac);
+void wackplayer(player_struct* p);
+void actoroperate(DDukeActor* g_ac);
+void playerkick(player_struct* p, DDukeActor* g_ac);
+void garybanjo(DDukeActor* g_ac);
+int ifsquished(DDukeActor* i, int p);
+void fakebubbaspawn(DDukeActor* actor, player_struct* p);
+void tearitup(sectortype* sect);
+void destroyit(DDukeActor* actor);
+void mamaspawn(DDukeActor* actor);
+void forceplayerangle(player_struct* snum);
+
 
 bool checkhitceiling(sectortype* sectp);
 void checkhitwall(DDukeActor* spr, walltype* wal, const DVector3& pos);
@@ -155,7 +181,6 @@ void getglobalz(DDukeActor* s);
 void OnEvent(int id, int pnum = -1, DDukeActor* snum = nullptr, int dist = -1);
 void setFromSpawnRec(DDukeActor* act, SpawnRec* info);
 
-DDukeActor* CreateActor(sectortype* whatsectp, const DVector3& pos, int s_pn, int8_t s_shd, const DVector2& scale, DAngle s_ang, double s_vel, double s_zvel, DDukeActor* s_ow, int8_t s_stat);
 DDukeActor* CreateActor(sectortype* whatsectp, const DVector3& pos, PClassActor* cls, int8_t s_shd, const DVector2& scale, DAngle s_ang, double s_vel, double s_zvel, DDukeActor* s_ow, int8_t s_stat);
 DDukeActor* SpawnActor(sectortype* whatsectp, const DVector3& pos, PClassActor* cls, int8_t s_shd, const DVector2& scale, DAngle s_ang, double s_vel, double s_zvel, DDukeActor* s_ow, int8_t s_stat = -1);
 
@@ -167,30 +192,23 @@ void checkplayerhurt_d(player_struct* p, const Collision& coll);
 void checkplayerhurt_r(player_struct* p, const Collision& coll);
 DDukeActor* dospawnsprite(DDukeActor* actj, int pn);
 
-void spriteinit_d(DDukeActor*);
-void spriteinit_r(DDukeActor*);
-DDukeActor* spawninit_d(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* actors);
-DDukeActor* spawninit_r(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* actors);
+void spriteinit(DDukeActor*, TArray<DDukeActor*>& actors);
+DDukeActor* spawninit(DDukeActor* actj, DDukeActor* act, TArray<DDukeActor*>* actors);
 
-void addspritetodelete(int spnum=0);
 void checkavailinven(player_struct* p);
 bool initspriteforspawn(DDukeActor* spn);
-bool commonEnemySetup(DDukeActor* self, DDukeActor* owner);
-void spawntransporter(DDukeActor* actj, DDukeActor* acti, bool beam);
-int spawnbloodpoolpart1(DDukeActor* acti);
 void initshell(DDukeActor* actj, DDukeActor* acti, bool isshell);
 void spawneffector(DDukeActor* actor, TArray<DDukeActor*>* actors);
 int startrts(int lumpNum, int localPlayer);
 
 void pickrandomspot(int pn);
 void premapcontroller(DDukeActor* ac);
-void resetinventory(int pn);
+void resetinventory(player_struct* pn);
 void resetplayerstats(int pn);
-void resetweapons(int pn);
+void resetweapons(player_struct* pn);
 void resetprestat(int snum, int g);
 void prelevel_common(int g);
-void cacheit_d();
-void cacheit_r();
+void cacheit();
 
 void FTA(int q, player_struct* p);
 void OnMotorcycle(player_struct *pl);
@@ -208,7 +226,7 @@ void displayrooms(int32_t playerNum, double interpfrac, bool sceneonly);
 void setgamepalette(int palid);
 void resetmys();
 void resettimevars();
-bool setnextmap(bool checksecretexit);
+int setnextmap(bool checksecretexit);
 void prelevel_d(int g, TArray<DDukeActor*>&);
 void prelevel_r(int g, TArray<DDukeActor*>&);
 void e4intro(const CompletionFunc& completion);
@@ -218,6 +236,7 @@ void donewgame(MapRecord* map, int sk);
 int playercolor2lookup(int color);
 void PlayerColorChanged(void);
 bool movementBlocked(player_struct *p);
+void underwater(int snum, ESyncBits actions, double floorz, double ceilingz);
 void loadcons();
 void DrawStatusBar();
 void thunder(void);
@@ -225,6 +244,11 @@ bool checkhitswitch(int snum, walltype* wwal, DDukeActor* act);
 
 void drawshadows(tspriteArray& tsprites, tspritetype* t, DDukeActor* h);
 void applyanimations(tspritetype* t, DDukeActor* h, const DVector2& viewVec, DAngle viewang);
+
+int LookupAction(PClass* self, FName name);
+int LookupMove(PClass* self, FName name);
+int LookupAI(PClass* self, FName name);
+
 
 inline int32_t krand(void)
 {

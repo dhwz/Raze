@@ -106,12 +106,12 @@ class AltHud ui
 	
 	virtual void Init()
 	{
-		HudFont = BigFont;	// Strife doesn't have anything nice so use the standard font
-		if (Raze.isBlood()) HudFont = Font.GetFont("HUDFONT_BLOOD");
-		else if (Raze.isDuke()) HudFontOffset = 6;
+		HudFont = BigFont;
+		if (isBlood()) HudFont = Font.GetFont("HUDFONT_BLOOD");
+		else if (isDuke()) HudFontOffset = 6;
 		IndexFont = Font.GetFont("HUDINDEXFONT");
 		if (IndexFont == NULL) IndexFont = ConFont;	// Emergency fallback
-		if (!Raze.isNamWW2GI())
+		if (!isNamWW2GI())
 			StatFont = SmallFont;
 		else
 			StatFont = ConFont;
@@ -277,7 +277,7 @@ class AltHud ui
 			Font.CR_BLUE;
 
 		DrawImageToBox(TexMan.CheckForTexture(currentStats.healthicon), x, y, 31, 17, 0.75, true);
-		if (Raze.isSW()) y -= 4; // still need to figure out why the font is misaligned this much.
+		if (isSW()) y -= 4; // still need to figure out why the font is misaligned this much.
 		DrawHudNumber(HudFont, fontcolor, health, x + 33, y + 17, fontscale:fontscale);
 	}
 
@@ -304,7 +304,7 @@ class AltHud ui
 				Font.CR_BLUE;
 
 			DrawImageToBox(TexMan.CheckForTexture(currentStats.armoricons[i]), x, y, 31, 17, 0.75, true);
-			if (Raze.isSW()) y -= 4; // still need to figure out why the font is misaligned.
+			if (isSW()) y -= 4; // still need to figure out why the font is misaligned.
 			if (ap >= 0) DrawHudNumber(HudFont, fontcolor, ap, x + 33, y + 17, fontscale:fontscale);
 			x += 35 + spacing;
 		}
@@ -463,13 +463,13 @@ class AltHud ui
 	{
 		double trans = weapon == currentstats.weaponselect? 0.85 : 0.4;
 
-		TextureID picnum = TexMan.CheckForTexture(currentstats.weaponicons[weapon]);
+		TextureID texid = TexMan.CheckForTexture(currentstats.weaponicons[weapon]);
 
-		if (picnum.isValid())
+		if (texid.isValid())
 		{
 			// don't draw tall sprites too small.
 			int w, h;
-			[w, h] = TexMan.GetSize(picnum);
+			[w, h] = TexMan.GetSize(texid);
 			int rh;
 			if (w > h) rh = 8;
 			else 
@@ -477,7 +477,7 @@ class AltHud ui
 				rh = 16;
 				y -= 8;	
 			}
-			DrawImageToBox(picnum, x-24, y, 20, rh, trans);
+			DrawImageToBox(texid, x-24, y, 20, rh, trans);
 			y-=10;
 		}
 	}

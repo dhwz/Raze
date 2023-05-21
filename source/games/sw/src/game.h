@@ -1837,6 +1837,7 @@ struct PLAYER
     char cookieQuote[256];          // Should be an FString but must be POD for now so that PLAYER remains POD.
     int cookieTime;
     double height;
+    double svel;
 
     uint8_t WpnReloadState;
 
@@ -1878,7 +1879,6 @@ struct GameInterface : public ::GameInterface
     void NewGame(MapRecord *map, int skill, bool) override;
     bool DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac) override;
     DCoreActor* getConsoleActor() override { return Player[myconnectindex].actor; }
-    PlayerAngles* getConsoleAngles() override { return &Player[myconnectindex].Angles; }
     void ToggleThirdPerson() override;
     void SwitchCoopView() override;
     void processSprites(tspriteArray& tsprites, const DVector3& view, DAngle viewang, double smoothRatio) override;
@@ -1888,10 +1888,11 @@ struct GameInterface : public ::GameInterface
     void ExitFromMenu() override;
     int GetCurrentSkill() override;
     void StartSoundEngine() override;
-    ESyncBits GetNeededInputBits() override { return Player[myconnectindex].input.actions & SB_CENTERVIEW; }
-    void GetInput(HIDInput* const hidInput, InputPacket* const inputBuffer, InputPacket* const currInput, const double scaleAdjust) override
+    void reapplyInputBits(InputPacket* const input) override { input->actions |= Player[myconnectindex].input.actions & SB_CENTERVIEW; }
+    void doPlayerMovement(const float scaleAdjust) override
     {
-        processMovement(hidInput, inputBuffer, currInput, scaleAdjust, 0, !Player[myconnectindex].sop, Player[myconnectindex].sop_control ? 3. / 1.40625 : 1.);
+        const auto pp = &Player[myconnectindex];
+        gameInput.processMovement(&pp->Angles, scaleAdjust, 0, !pp->sop, pp->sop_control ? (3.f / 1.40625f) : 1.f);
     }
 
 
@@ -1907,7 +1908,7 @@ inline bool SectorIsDiveArea(sectortype* sect)
 
 inline bool SectorIsUnderwaterArea(sectortype* sect)
 {
-    return sect ? sect->extra & (SECTFX_UNDERWATER | SECTFX_UNDERWATER2) : false;
+    return sect && sect->extra & (SECTFX_UNDERWATER | SECTFX_UNDERWATER2);
 }
 
 inline bool PlayerFacingRange(PLAYER* pp, DSWActor* a, DAngle range)

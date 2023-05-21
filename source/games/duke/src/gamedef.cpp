@@ -974,6 +974,7 @@ int ConCompiler::parsecommand()
 				transnum(LABEL_DEFINE);
 				j |= popscriptvalue();
 			}
+			if (!isRRRA()) j &= 8191;	// clean out RRRA only moves in other games.
 			appendscriptvalue(j);
 		}
 		else
@@ -984,24 +985,25 @@ int ConCompiler::parsecommand()
 
 			checkforkeyword();
 
-			for (i = 0; i < (int)labels.Size(); i++)
-				if (labels[i].compare(parselabel) == 0)
-				{
-					warningcount++;
-					Printf(TEXTCOLOR_RED "  * WARNING.(%s, line %d) Duplicate move '%s' ignored.\n", fn, line_number, parselabel.GetChars());
-					break;
-				}
-			if (i == (int)labels.Size())
-				appendlabeladdress(LABEL_MOVE);
-			for (j = 0; j < 2; j++)
+			lnum = findlabel(parselabel);
+			if (lnum >= 0)
 			{
-				if (keyword() >= 0) break;
-				transnum(LABEL_DEFINE);
+				warningcount++;
+				Printf(TEXTCOLOR_RED "  * WARNING.(%s, line %d) Duplicate move '%s' ignored.\n", fn, line_number, parselabel.GetChars());
 			}
-			for (k = j; k < 2; k++)
-			{
-				appendscriptvalue(0);
-			}
+
+			else appendlabelvalue(LABEL_MOVE, moves.Size());
+
+			ActorMove& move = moves[moves.Reserve(1)];
+			move.qualifiedName = FStringf("$con$.%s", parselabel.GetChars());
+			move.name = parselabel.GetChars();
+			move.movex = move.movez = 0;
+			if (keyword() >= 0) return 0;
+			transnum(LABEL_DEFINE);
+			move.movex = popscriptvalue() / 16.f;
+			if (keyword() >= 0) return 0;
+			transnum(LABEL_DEFINE);
+			move.movez = popscriptvalue() / 16.f;
 		}
 		return 0;
 
@@ -1117,28 +1119,26 @@ int ConCompiler::parsecommand()
 				warningcount++;
 				Printf(TEXTCOLOR_RED "  * WARNING.(%s, line %d) Duplicate ai '%s' ignored.\n", fn, line_number, parselabel.GetChars());
 			}
-			else appendlabeladdress(LABEL_AI);
+			else appendlabelvalue(LABEL_AI, ais.Size());
 
-			for (j = 0; j < 3; j++)
+			ActorAI& ai = ais[ais.Reserve(1)];
+			ai.name = parselabel.GetChars();
+			ai.move = ai.action = ai.moveflags = 0;
+			if (keyword() >= 0) break;
+			transnum(LABEL_ACTION);
+			ai.action = popscriptvalue();
+			if (keyword() >= 0) return 0;
+			transnum(LABEL_MOVE);
+			ai.move = popscriptvalue();
+			if (keyword() >= 0) return 0;
+			k = 0;
+			while (keyword() == -1)
 			{
-				if (keyword() >= 0) break;
-				if (j == 2)
-				{
-					k = 0;
-					while (keyword() == -1)
-					{
-						transnum(LABEL_DEFINE);
-						k |= popscriptvalue();
-					}
-					appendscriptvalue(k);
-					return 0;
-				}
-				else transnum(j==0? LABEL_ACTION : LABEL_MOVE);
+				transnum(LABEL_DEFINE);
+				k |= popscriptvalue();
 			}
-			for (k = j; k < 3; k++)
-			{
-				appendscriptvalue(0);
-			}
+			if (!isRRRA()) k &= 8191;	// clean out RRRA only moves in other games.
+			ai.moveflags = k;
 		}
 		return 0;
 
@@ -1155,19 +1155,31 @@ int ConCompiler::parsecommand()
 			if (lnum >= 0)
 			{
 				warningcount++;
-				Printf(TEXTCOLOR_RED "  * WARNING.(%s, line %d) Duplicate event '%s' ignored.\n", fn, line_number, parselabel.GetChars());
+				Printf(TEXTCOLOR_RED "  * WARNING.(%s, line %d) Duplicate action '%s' ignored.\n", fn, line_number, parselabel.GetChars());
 			}
-			else appendlabeladdress(LABEL_ACTION);
+			else appendlabelvalue(LABEL_ACTION, actions.Size());
 
-			for (j = 0; j < 5; j++)
-			{
-				if (keyword() >= 0) break;
-				transnum(LABEL_DEFINE);
-			}
-			for (k = j; k < 5; k++)
-			{
-				appendscriptvalue(0);
-			}
+			ActorAction& action = actions[actions.Reserve(1)];
+
+			memset(&action, 0, sizeof(action));
+			action.qualifiedName = FStringf("$con$.%s", parselabel.GetChars());
+			action.name = parselabel.GetChars();
+			action.base.SetNull();	// CON actions are relative to base pic.
+			if (keyword() >= 0) break;
+			transnum(LABEL_DEFINE);
+			action.offset = popscriptvalue();
+			if (keyword() >= 0) break;
+			transnum(LABEL_DEFINE);
+			action.numframes = popscriptvalue();
+			if (keyword() >= 0) break;
+			transnum(LABEL_DEFINE);
+			action.rotationtype = popscriptvalue();
+			if (keyword() >= 0) break;
+			transnum(LABEL_DEFINE);
+			action.increment = popscriptvalue();
+			if (keyword() >= 0) break;
+			transnum(LABEL_DEFINE);
+			action.delay = popscriptvalue();
 		}
 		return 0;
 
@@ -1200,14 +1212,15 @@ int ConCompiler::parsecommand()
 		transnum(LABEL_DEFINE);
 		lnum = popscriptvalue();
 
-		gs.actorinfo[lnum].scriptaddress = parsing_actor;	// TRANSITIONAL should only store an index
+		gs.actorinfo[lnum].scriptaddress = parsing_actor;
 		if (tw == concmd_useractor)
 		{
+			gs.actorinfo[lnum].enemyflags |= EDukeFlags1::FromInt(1);
 			if (j & 1)
-				gs.actorinfo[lnum].flags |= SFLAG_BADGUY;
+				gs.actorinfo[lnum].enemyflags |= SFLAG_BADGUY | SFLAG_KILLCOUNT;
 
 			if (j & 2)
-				gs.actorinfo[lnum].flags |= (SFLAG_BADGUY | SFLAG_BADGUYSTAYPUT);
+				gs.actorinfo[lnum].enemyflags |= (SFLAG_BADGUY | SFLAG_KILLCOUNT | SFLAG_BADGUYSTAYPUT);
 		}
 
 		for (j = 0; j < 4; j++)
@@ -1221,6 +1234,7 @@ int ConCompiler::parsecommand()
 
 					j |= popscriptvalue();
 				}
+				if (!isRRRA()) j &= 8191;	// clean out RRRA only moves in other games.
 				appendscriptvalue(j);
 				break;
 			}
@@ -1998,7 +2012,7 @@ int ConCompiler::parsecommand()
 
 		transnum(LABEL_DEFINE);
 		int n = popscriptvalue();
-		gs.tileinfo[n].loadeventscriptptr = parsing_actor;
+		gs.actorinfo[n].loadeventscriptptr = parsing_actor;
 		checking_ifelse = 0;
 		return 0;
 	}
@@ -3192,7 +3206,7 @@ void loadcons()
 	gs.displayflags = DUKE3D_NO_WIDESCREEN_PINNING;
 
 
-	ScriptCode.Clear();
+	ScriptCode.Resize(1);	// We cannot use 0 as a valid index.
 	labels.Clear();
 
 	SortCommands();
@@ -3260,6 +3274,11 @@ void loadcons()
 			}
 		}
 	}
+
+	gs.tripbombcontrol = GetGameVar("TRIPBOMB_CONTROL", TRIPBOMB_TRIPWIRE, nullptr, -1).value();
+	gs.stickybomb_lifetime = GetGameVar("STICKYBOMB_LIFETIME", NAM_GRENADE_LIFETIME, nullptr, 0).value();
+	gs.stickybomb_lifetime_var = GetGameVar("STICKYBOMB_LIFETIME_VAR", NAM_GRENADE_LIFETIME_VAR, nullptr, 0).value();
+
 
 	if (isWorldTour())
 	{

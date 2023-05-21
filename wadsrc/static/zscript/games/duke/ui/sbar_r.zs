@@ -48,7 +48,7 @@ class RedneckStatusBar : DukeCommonStatusBar
 
 		ammo_sprites.PushV("", "AMMO", "SHOTGUNAMMO", "BATTERYAMMO", "HBOMBAMMO", "HBOMBAMMO", "SAWAMMO", "DEVISTATORAMMO", 
 							"POWDERKEG", "GROWSPRITEICON", "HBOMBAMMO", "", "BOWLINGBALLSPRITE", "MOTOAMMO", "BOATAMMO", "", "RPG2SPRITE");
-		item_icons.PushV("", "FIRSTAID_ICON", "STEROIDS_ICON", "HOLODUKE_ICON", "JETPACK_ICON", "HEAT_ICON", "AIRTANK_ICON", "BOOT_ICON" ); 
+		item_icons.PushV("", "WHISKEY_ICON", "MOONSHINE_ICON", "HOLODUKE_ICON", "COWPIE_ICON", "HEAT_ICON", "SNORKEL_ICON", "BOOT_ICON" ); 
 	}
 
 
@@ -519,7 +519,8 @@ class RedneckStatusBar : DukeCommonStatusBar
 		for(int i = 0; i < ammoOrder.Size(); i++)
 		{
 			int ammonum = ammoorder[i];
-			if (ammonum == RRWpn.CHICKEN_WEAPON && !Raze.isRRRA()) continue;
+			bool myisRRRA = isRRRA(); // temporary hotfix for a compiler bug. The next line makes the compiler assert if it gets optimized out when RRRA is being played.
+			//if (ammonum == RRWpn.CHICKEN_WEAPON && !myisRRRA) continue;
 			if (ammonum == RRWpn.MOTORCYCLE_WEAPON && !p.OnMotorcycle) continue;
 			if (ammonum == RRWpn.BOAT_WEAPON && !p.OnBoat) continue;
 			// dynamite and crossbow dynamite ammo types are coupled.

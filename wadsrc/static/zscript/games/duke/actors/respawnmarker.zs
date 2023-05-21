@@ -5,9 +5,10 @@ class DukeRespawnMarker : DukeActor
 	default
 	{
 		spriteset "RESPAWNMARKERRED", "RESPAWNMARKERYELLOW", "RESPAWNMARKERGREEN";
+		+NOFLOORPAL;
 	}
 	
-	override void Initialize()
+	override void Initialize(DukeActor spawner)
 	{
 		if (!self.mapSpawned && ownerActor != null) self.pos.Z = ownerActor.floorZ;
 		self.scale = (0.375, 0.375);
@@ -15,15 +16,15 @@ class DukeRespawnMarker : DukeActor
 	
 	override void Tick()
 	{
-		self.temp_data[0]++;
-		if (self.temp_data[0] > gs.respawnitemtime)
+		self.counter++;
+		if (self.counter > gs.respawnitemtime)
 		{
 			self.Destroy();
 			return;
 		}
-		if (self.temp_data[0] >= (gs.respawnitemtime >> 1) && self.temp_data[0] < ((gs.respawnitemtime >> 1) + (gs.respawnitemtime >> 2)))
+		if (self.counter >= (gs.respawnitemtime >> 1) && self.counter < ((gs.respawnitemtime >> 1) + (gs.respawnitemtime >> 2)))
 			self.setSpritesetImage(1);
-		else if (self.temp_data[0] > ((gs.respawnitemtime >> 1) + (gs.respawnitemtime >> 2)))
+		else if (self.counter > ((gs.respawnitemtime >> 1) + (gs.respawnitemtime >> 2)))
 			self.setSpritesetImage(2);
 		self.makeitfall();
 	}
@@ -44,7 +45,7 @@ class RedneckRespawnMarker : DukeRespawnMarker
 			"RESPAWNMARKER8", "RESPAWNMARKER9", "RESPAWNMARKER10", "RESPAWNMARKER11", "RESPAWNMARKER12", "RESPAWNMARKER13", "RESPAWNMARKER14";
 	}
 
-	override void Initialize()
+	override void Initialize(DukeActor spawner)
 	{
 		self.scale = (0.125, 0.125);
 	}

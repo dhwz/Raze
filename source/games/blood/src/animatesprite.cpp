@@ -86,22 +86,23 @@ static const int effectDetail[kViewEffectMax] = {
 struct WEAPONICON {
 	int16_t nTile;
 	uint8_t zOffset;
+	FTextureID textureID() const { return aTexIds[nTile]; }
 };
 
 static const WEAPONICON gWeaponIcon[] = {
 	{ -1, 0 },
 	{ -1, 0 }, // 1: pitchfork
-	{ 524, 6 }, // 2: flare gun
-	{ 559, 6 }, // 3: shotgun
-	{ 558, 8 }, // 4: tommy gun
-	{ 526, 6 }, // 5: napalm launcher
-	{ 589, 11 }, // 6: dynamite
-	{ 618, 11 }, // 7: spray can
-	{ 539, 6 }, // 8: tesla gun
-	{ 800, 0 }, // 9: life leech
-	{ 525, 11 }, // 10: voodoo doll
-	{ 811, 11 }, // 11: proxy bomb
-	{ 810, 11 }, // 12: remote bomb
+	{ kTexICONFLAREGUN, 6 }, // 2: flare gun
+	{ kTexICONSHOTGUN, 6 }, // 3: shotgun
+	{ kTexICONTOMMY, 8 }, // 4: tommy gun
+	{ kTexICONNAPALM, 6 }, // 5: napalm launcher
+	{ kTexAmmoIcon5, 11 }, // 6: dynamite
+	{ kTexAmmoIcon6, 11 }, // 7: spray can
+	{ kTexICONTESLA, 6 }, // 8: tesla gun
+	{ kTexICONLEECH, 0 }, // 9: life leech
+	{ kTexAmmoIcon9, 11 }, // 10: voodoo doll
+	{ kTexAmmoIcon10, 11 }, // 11: proxy bomb
+	{ kTexAmmoIcon11, 11 }, // 12: remote bomb
 	{ -1, 0 },
 };
 
@@ -133,7 +134,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		if (!pNSprite2)
 			break;
 
-		pNSprite2->picnum = 2203;
+		pNSprite2->setspritetexture(aTexIds[kTexSPOTPROGRESS]);
 		pNSprite2->scale = DVector2(width * REPEAT_SCALE, 0.3125);
 
 		pNSprite2->pal = 10;
@@ -166,7 +167,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 			vect.Z = pt.Y;
 
 			pNSprite->pos = pTSprite->pos + vect;
-			pNSprite->picnum = 1720;
+			pNSprite->setspritetexture(aTexIds[kTexATOMEFFECT]);
 			pNSprite->shade = -128;
 		}
 		break;
@@ -186,7 +187,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 			pNSprite->scale = DVector2(0.375, 0.375);
 		else
 			pNSprite->scale = DVector2(1, 1);
-		pNSprite->picnum = 3558;
+		pNSprite->setspritetexture(aTexIds[kTexFLAGHAVE]);
 		return pNSprite;
 	}
 	case kViewEffectTesla:
@@ -199,7 +200,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		pNSprite->cstat |= CSTAT_SPRITE_TRANSLUCENT;
 		pNSprite->shade = -128;
 		pNSprite->scale = pTSprite->scale;
-		pNSprite->picnum = 2135;
+		pNSprite->setspritetexture(aTexIds[kTexTESLAEFFECT]);
 		break;
 	}
 	case kViewEffectShoot:
@@ -211,7 +212,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		pNSprite->shade = -128;
 		pNSprite->pal = 0;
 		pNSprite->scale = DVector2(1, 1);
-		pNSprite->picnum = 2605;
+		pNSprite->setspritetexture(aTexIds[kTexSHOOTEFFECT]);
 		return pNSprite;
 	}
 	case kViewEffectReflectiveBall:
@@ -224,7 +225,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		pNSprite->pal = 0;
 		pNSprite->cstat |= CSTAT_SPRITE_TRANSLUCENT;
 		pNSprite->scale = DVector2(1, 1);
-		pNSprite->picnum = 2089;
+		pNSprite->setspritetexture(aTexIds[kTexBALLEFFECT]);
 		break;
 	}
 	case kViewEffectPhase:
@@ -240,7 +241,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		pNSprite->pal = 0;
 		pNSprite->cstat |= CSTAT_SPRITE_TRANSLUCENT;
 		pNSprite->scale = DVector2(0.375, 0.375);
-		pNSprite->picnum = 626;
+		pNSprite->setspritetexture(aTexIds[kTexPHASEEFFECT]);
 		break;
 	}
 	case kViewEffectTrail:
@@ -270,13 +271,12 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 			if (pSector2) pSector = pSector2;
 			pNSprite->sectp = pSector;
 			pNSprite->ownerActor = pTSprite->ownerActor;
-			pNSprite->picnum = pTSprite->picnum;
+			pNSprite->setspritetexture(pTSprite->spritetexture());
 			pNSprite->cstat |= CSTAT_SPRITE_TRANSLUCENT;
 			if (i < 2)
 				pNSprite->cstat |= CSTAT_SPRITE_TRANSLUCENT | CSTAT_SPRITE_TRANS_FLIP;
 			pNSprite->shade = ClipLow(pTSprite->shade - 16, -128);
 			pNSprite->scale = pTSprite->scale;
-			pNSprite->picnum = pTSprite->picnum;
 		}
 		break;
 	}
@@ -288,7 +288,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 
 		pNSprite->shade = -128;
 		pNSprite->pos.Z = pTSprite->pos.Z;
-		pNSprite->picnum = 908;
+		pNSprite->setspritetexture(aTexIds[kTexFLAMEEFFECT]);
 		pNSprite->statnum = kStatDecoration;
 		s = (pTTex->GetDisplayWidth() * pTSprite->scale.X) / 64.;
 		pNSprite->scale = DVector2(s, s);
@@ -304,9 +304,9 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		GetSpriteExtents(pTSprite, &top, &bottom);
 		pNSprite->pos.Z = top;
 		if (IsDudeSprite(pTSprite))
-			pNSprite->picnum = 672;
+			pNSprite->setspritetexture(aTexIds[kTexBIGSMOKEEFFECT]);
 		else
-			pNSprite->picnum = 754;
+			pNSprite->setspritetexture(aTexIds[kTexSMALLSMOKEEFFECT]);
 		pNSprite->cstat |= CSTAT_SPRITE_TRANSLUCENT;
 		pNSprite->shade = 8;
 		pNSprite->scale = pTSprite->scale;
@@ -322,9 +322,9 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		GetSpriteExtents(pTSprite, &top, &bottom);
 		pNSprite->pos.Z = bottom;
 		if (pTSprite->type >= kDudeBase && pTSprite->type < kDudeMax)
-			pNSprite->picnum = 672;
+			pNSprite->setspritetexture(aTexIds[kTexBIGSMOKEEFFECT]);
 		else
-			pNSprite->picnum = 754;
+			pNSprite->setspritetexture(aTexIds[kTexSMALLSMOKEEFFECT]);
 		pNSprite->cstat |= CSTAT_SPRITE_TRANSLUCENT;
 		pNSprite->shade = 8;
 		pNSprite->scale = pTSprite->scale;
@@ -339,7 +339,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		double top, bottom;
 		GetSpriteExtents(pTSprite, &top, &bottom);
 		pNSprite->pos.Z = top;
-		pNSprite->picnum = 2101;
+		pNSprite->setspritetexture(aTexIds[kTexTORCHEFFECT]);
 		pNSprite->shade = -128;
 		s = (pTTex->GetDisplayWidth() * pTSprite->scale.X) / 32.;
 		pNSprite->scale = DVector2(s, s);
@@ -354,7 +354,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		double top, bottom;
 		GetSpriteExtents(pTSprite, &top, &bottom);
 		pNSprite->pos.Z = bottom;
-		pNSprite->picnum = 2101;
+		pNSprite->setspritetexture(aTexIds[kTexTORCHEFFECT]);
 		pNSprite->shade = -128;
 		s = (pTTex->GetDisplayWidth() * pTSprite->scale.X) / 32.;
 		pNSprite->scale = DVector2(s, s);
@@ -388,9 +388,9 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		pNSprite->cstat |= CSTAT_SPRITE_TRANSLUCENT;
 		pNSprite->scale.X = pTSprite->scale.X;
 		pNSprite->scale.Y = pTSprite->scale.Y * 0.25;
-		pNSprite->picnum = pTSprite->picnum;
+		pNSprite->setspritetexture(pTSprite->spritetexture());
 		if (!VanillaMode() && (pTSprite->type == kThingDroppedLifeLeech)) // fix shadow for thrown lifeleech
-			pNSprite->picnum = 800;
+			pNSprite->setspritetexture(aTexIds[kTexICONLEECH]);
 		pNSprite->pal = 5;
 		auto tex = TexMan.GetGameTexture(pNSprite->spritetexture());
 		double height = tex->GetDisplayHeight();
@@ -409,7 +409,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		pNSprite->cstat |= CSTAT_SPRITE_TRANSLUCENT;
 		pNSprite->pos.Z = pTSprite->pos.Z;
 		pNSprite->scale = pTSprite->scale;
-		pNSprite->picnum = 2427;
+		pNSprite->setspritetexture(aTexIds[kTexHALOEFFECT]);
 		break;
 	}
 	case kViewEffectCeilGlow:
@@ -421,7 +421,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		sectortype* pSector = pTSprite->sectp;
 		pNSprite->pos = { pTSprite->pos.X, pTSprite->pos.Y, pSector->ceilingz };
 
-		pNSprite->picnum = 624;
+		pNSprite->setspritetexture(aTexIds[kTexGLOWEFFECT]);
 		pNSprite->shade = int(pTSprite->pos.Z - pSector->ceilingz) - 64;
 		pNSprite->pal = 2;
 		pNSprite->scale = DVector2(1, 1);
@@ -438,7 +438,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 
 		sectortype* pSector = pTSprite->sectp;
 		pNSprite->pos = { pTSprite->pos.X, pTSprite->pos.Y, pSector->floorz };
-		pNSprite->picnum = 624;
+		pNSprite->setspritetexture(aTexIds[kTexGLOWEFFECT]);
 		uint8_t nShade = (uint8_t)clamp(pSector->floorz - pTSprite->pos.Z, 0., 255.);
 		pNSprite->shade = nShade - 32;
 		pNSprite->pal = 2;
@@ -459,7 +459,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 			pNSprite->cstat |= CSTAT_SPRITE_TRANSLUCENT | CSTAT_SPRITE_TRANS_FLIP;
 		pNSprite->shade = ClipLow(pTSprite->shade - 32, -128);
 		pNSprite->scale = DVector2(pTSprite->scale.X, 1);
-		pNSprite->picnum = 775;
+		pNSprite->setspritetexture(aTexIds[kTexSAWBLOOD]);
 		break;
 	}
 	case kViewEffectShowWeapon:
@@ -467,17 +467,17 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		assert(pTSprite->type >= kDudePlayer1 && pTSprite->type <= kDudePlayer8);
 		PLAYER* pPlayer = &gPlayer[pTSprite->type - kDudePlayer1];
 		WEAPONICON weaponIcon = gWeaponIcon[pPlayer->curWeapon];
-		auto& nTile = weaponIcon.nTile;
-		if (nTile < 0) break;
+		auto nTex = weaponIcon.textureID();
+		if (!nTex.isValid()) break;
 		auto pNSprite = viewInsertTSprite(tsprites, pTSprite->sectp, 32767, pTSprite);
 		if (!pNSprite)
 			break;
 
 		pNSprite->pos = pTSprite->pos.plusZ(-32 - weaponIcon.zOffset);
-		pNSprite->picnum = nTile;
+		pNSprite->setspritetexture(nTex);
 		pNSprite->shade = pTSprite->shade;
 		pNSprite->scale = DVector2(0.5, 0.5);
-		int nVoxel = GetExtInfo(tileGetTextureID(nTile)).tiletovox;
+		int nVoxel = GetExtInfo(nTex).tiletovox;
 		if (cl_showweapon == 2 && r_voxels && nVoxel != -1)
 		{
 			auto gView = &gPlayer[gViewIndex];
@@ -546,14 +546,6 @@ void viewProcessSprites(tspriteArray& tsprites, const DVector3& cPos, DAngle cA,
 		}
 		auto nTex = pTSprite->spritetexture();
 		if (!nTex.isValid())
-		{
-			pTSprite->scale = DVector2(0, 0);
-			continue;
-		}
-		// skip picnum 0 on face sprites. picnum 0 is a simple wall texture in Blood, 
-		// but there are maps that use 0 on some operator sprites that may show up in portals as a result.
-		// Since the wall texture is perfectly fine for wall and floor sprites, these will be allowed to pass.
-		if (legacyTileNum(nTex) == 0 && (pTSprite->cstat & CSTAT_SPRITE_ALIGNMENT_MASK) == CSTAT_SPRITE_ALIGNMENT_FACING)
 		{
 			pTSprite->scale = DVector2(0, 0);
 			continue;
@@ -635,7 +627,7 @@ void viewProcessSprites(tspriteArray& tsprites, const DVector3& cPos, DAngle cA,
 		case 6:
 		case 7:
 		{
-			if (hw_models && modelManager.CheckModel(pTSprite->picnum, pTSprite->pal) && !(owneractor->sprext.renderflags & SPREXT_NOTMD))
+			if (hw_models && modelManager.CheckModel(pTSprite->spritetexture(), pTSprite->pal) && !(owneractor->sprext.renderflags & SPREXT_NOTMD))
 				break;
 
 			// Can be overridden by def script
@@ -657,7 +649,7 @@ void viewProcessSprites(tspriteArray& tsprites, const DVector3& cPos, DAngle cA,
 		}
 		while (nAnim > 0)
 		{
-			pTSprite->picnum += GetExtInfo(pTSprite->spritetexture()).picanm.num + 1;
+			pTSprite->setspritetexture(pTSprite->spritetexture() + GetExtInfo(pTSprite->spritetexture()).picanm.num + 1);
 			nAnim--;
 		}
 
@@ -675,11 +667,12 @@ void viewProcessSprites(tspriteArray& tsprites, const DVector3& cPos, DAngle cA,
 		}
 		nShade += GetExtInfo(pTSprite->spritetexture()).tileshade;
 		pTSprite->shade = ClipRange(nShade, -128, 127);
+#if 0 // This was disabled because it seemingly cannot be activated (see comment below) and the sprites being used here are part of something else.
 		if ((pTSprite->flags & kHitagRespawn) && pTSprite->ownerActor->spr.intowner == 3 && owneractor->hasX())    // Where does this 3 come from? Nothing sets it.
 		{
 			pTSprite->scale = DVector2(0.75, 0.75);
 			pTSprite->shade = -128;
-			pTSprite->picnum = 2272 + 2 * owneractor->xspr.respawnPending;
+			pTSprite->p icnum = 2272 + 2 * owneractor->xspr.respawnPending;
 			pTSprite->cstat &= ~(CSTAT_SPRITE_TRANSLUCENT | CSTAT_SPRITE_TRANS_FLIP);
 			if (((IsItemSprite(pTSprite) || IsAmmoSprite(pTSprite)) && gGameOptions.nItemSettings == 2)
 				|| (IsWeaponSprite(pTSprite) && gGameOptions.nWeaponSettings == 3))
@@ -691,6 +684,7 @@ void viewProcessSprites(tspriteArray& tsprites, const DVector3& cPos, DAngle cA,
 				pTSprite->scale = DVector2(0, 0);
 			}
 		}
+#endif
 		if (owneractor->hasX() && owneractor->xspr.burnTime > 0)
 		{
 			pTSprite->shade = ClipRange(pTSprite->shade - 16 - QRandom(8), -128, 127);
@@ -721,7 +715,7 @@ void viewProcessSprites(tspriteArray& tsprites, const DVector3& cPos, DAngle cA,
 				break;
 			case kDecorationTorch:
 				if (!owneractor->hasX() || owneractor->xspr.state == 1) {
-					pTSprite->picnum++;
+					pTSprite->setspritetexture(pTSprite->spritetexture() + 1);
 					viewAddEffect(tsprites, nTSprite, kViewEffectTorchHigh);
 				}
 				else {
@@ -889,13 +883,13 @@ void viewProcessSprites(tspriteArray& tsprites, const DVector3& cPos, DAngle cA,
 			if (pTSprite->type == kTrapSawCircular) {
 				if (owneractor->xspr.state) {
 					if (owneractor->xspr.data1) {
-						pTSprite->picnum = 772;
+						pTSprite->setspritetexture(aTexIds[kTexCIRCLESAW1]);
 						if (owneractor->xspr.data2)
 							viewAddEffect(tsprites, nTSprite, kViewEffectSpear);
 					}
 				}
-				else if (owneractor->xspr.data1) pTSprite->picnum = 773;
-				else pTSprite->picnum = 656;
+				else if (owneractor->xspr.data1) pTSprite->setspritetexture(aTexIds[kTexCIRCLESAW2]);
+				else pTSprite->setspritetexture(aTexIds[kTexCIRCLESAWOFF]);
 
 			}
 			break;
@@ -941,7 +935,7 @@ void viewProcessSprites(tspriteArray& tsprites, const DVector3& cPos, DAngle cA,
 		}
 		while (nAnim > 0)
 		{
-			pTSprite->picnum += GetExtInfo(pTSprite->spritetexture()).picanm.num + 1;
+			pTSprite->setspritetexture(pTSprite->spritetexture() + GetExtInfo(pTSprite->spritetexture()).picanm.num + 1);
 			nAnim--;
 		}
 	}
@@ -958,8 +952,6 @@ void GameInterface::processSprites(tspriteArray& tsprites, const DVector3& view,
 {
 	viewProcessSprites(tsprites, view, viewang, interpfrac);
 }
-
-int display_mirror;
 
 void GameInterface::EnterPortal(DCoreActor* viewer, int type)
 {

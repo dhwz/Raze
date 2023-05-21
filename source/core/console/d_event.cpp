@@ -37,7 +37,7 @@
 #include "d_event.h"
 #include "c_console.h"
 #include "d_gui.h"
-#include "inputstate.h"
+#include "gameinput.h"
 #include "razemenu.h"
 #include "gamestate.h"
 #include "gamecontrol.h"
@@ -72,7 +72,7 @@ bool G_Responder (event_t *ev)
 		if (ev->data1 == KEY_ESCAPE && gi->WantEscape())
 		{
 			// special case: This is hardcoded to the 'Escape' button. Only used by Duke's cameras.
-			ActionsToSend |= SB_ESCAPE;
+			gameInput.SendAction(SB_ESCAPE);
 			return true;
 		}
 		if (C_DoKey (ev, &Bindings, &DoubleBindings))

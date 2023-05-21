@@ -73,7 +73,7 @@ struct Queen
     TObjPtr<DExhumedActor*> pActor;
     TObjPtr<DExhumedActor*> pTarget;
     int16_t nHealth;
-    int16_t nFrame;
+    uint16_t nFrame;
     int16_t nAction;
     int16_t nAction2;
     int16_t nIndex;
@@ -86,7 +86,7 @@ struct Egg
     TObjPtr<DExhumedActor*> pActor;
     TObjPtr<DExhumedActor*> pTarget;
     int16_t nHealth;
-    int16_t nFrame;
+    uint16_t nFrame;
     int16_t nAction;
     int16_t nRun;
     int16_t nCounter;
@@ -97,7 +97,7 @@ struct Head
     TObjPtr<DExhumedActor*> pActor;
     TObjPtr<DExhumedActor*> pTarget;
     int16_t nHealth;
-    int16_t nFrame;
+    uint16_t nFrame;
     int16_t nAction;
     int16_t nRun;
     int16_t nIndex;
@@ -250,9 +250,11 @@ int GrabEgg()
 
 void BlowChunks(DExhumedActor* pActor)
 {
+    const auto spiderSeqs = getFileSeqs("spider");
+
     for (int i = 0; i < 4; i++)
     {
-        BuildCreatureChunk(pActor, seq_GetSeqPicnum(16, i + 41, 0));
+        BuildCreatureChunk(pActor, spiderSeqs->Data(i + 41)->getFirstFrameTexture());
     }
 }
 
@@ -269,13 +271,15 @@ void DestroyEgg(int nEgg)
 
     if (QueenEgg[nEgg].nAction != 4)
     {
-        BuildAnim(nullptr, 34, 0, pActor->spr.pos, pActor->sector(), pActor->spr.scale.X, 4);
+        BuildAnim(nullptr, "grenboom", 0, pActor->spr.pos, pActor->sector(), pActor->spr.scale.X, 4);
     }
     else
     {
+        const auto queeneggSeqs = getFileSeqs("queenegg");
+
         for (int i = 0; i < 4; i++)
         {
-            BuildCreatureChunk(pActor, seq_GetSeqPicnum(kSeqQueenEgg, (i % 2) + 24, 0));
+            BuildCreatureChunk(pActor, queeneggSeqs->Data((i % 2) + 24)->getFirstFrameTexture());
         }
     }
 
@@ -368,7 +372,7 @@ Collision QueenAngleChase(DExhumedActor* pActor, DExhumedActor* pActor2, int thr
 
     double zz = pActor->pitch.Sin() * veclen;
 
-    return movesprite(pActor, vec, zz * 16 + BobVal(bobangle) * 2, 0, CLIPMASK1);
+    return movesprite(pActor, vec, zz * 16 + BobVal(PlayerList[GetPlayerFromActor(pActor)].nWeapBob) * 2, 0, CLIPMASK1);
 }
 
 //---------------------------------------------------------------------------
@@ -426,7 +430,7 @@ void BuildTail()
         pTailActor->spr.cstat = 0;
         pTailActor->clipdist = 25;
 		pTailActor->spr.scale = DVector2(1.25, 1.25);
-        pTailActor->spr.picnum = 1;
+        setvalidpic(pTailActor);
         pTailActor->spr.pal = pTailActor->sector()->ceilingpal;
         pTailActor->spr.xoffset = 0;
         pTailActor->spr.yoffset = 0;
@@ -471,8 +475,8 @@ void BuildQueenEgg(int nQueen, int nVal)
     pActor2->spr.xoffset = 0;
     pActor2->spr.yoffset = 0;
     pActor2->spr.shade = -12;
-    pActor2->spr.picnum = 1;
-	pActor2->spr.Angles.Yaw = pActor->spr.Angles.Yaw + RandomAngle9() - DAngle45;
+    setvalidpic(pActor2);
+    pActor2->spr.Angles.Yaw = pActor->spr.Angles.Yaw + RandomAngle9() - DAngle45;
     pActor2->backuppos();
 
     if (!nVal)
@@ -494,6 +498,7 @@ void BuildQueenEgg(int nQueen, int nVal)
     pActor2->spr.lotag = runlist_HeadRun() + 1;
     pActor2->spr.extra = -1;
     pActor2->spr.hitag = 0;
+    pActor2->nSeqFile = "queenegg";
 
     GrabTimeSlot(3);
 
@@ -542,16 +547,17 @@ void AIQueenEgg::Tick(RunListEvent* ev)
         Gravity(pActor);
     }
 
-    int nSeq = SeqOffsets[kSeqQueenEgg] + EggSeq[nAction].a;
+    const auto eggSeq = getSequence(pActor->nSeqFile, EggSeq[nAction].nSeqId);
+    const auto& seqFrame = eggSeq->frames[pEgg->nFrame];
 
-    pActor->spr.picnum = seq_GetSeqPicnum2(nSeq, pEgg->nFrame);
+    pActor->spr.setspritetexture(seqFrame.getFirstChunkTexture());
 
     if (nAction != 4)
     {
-        seq_MoveSequence(pActor, nSeq, pEgg->nFrame);
+        seqFrame.playSound(pActor);
 
         pEgg->nFrame++;
-        if (pEgg->nFrame >= SeqSize[nSeq])
+        if (pEgg->nFrame >= eggSeq->frames.Size())
         {
             pEgg->nFrame = 0;
             bVal = true;
@@ -566,6 +572,7 @@ void AIQueenEgg::Tick(RunListEvent* ev)
         {
             pEgg->pTarget = nullptr;
             pEgg->nAction = 0;
+            pEgg->nFrame = 0;
         }
         else
         {
@@ -601,7 +608,7 @@ void AIQueenEgg::Tick(RunListEvent* ev)
             default:
                 return;
             case kHitWall:
-                nAngle = GetWallNormal(nMov.hitWall);
+                nAngle = nMov.hitWall->normalAngle();
                 break;
             case kHitSprite:
                 nAngle = nMov.actor()->spr.Angles.Yaw;
@@ -620,6 +627,7 @@ void AIQueenEgg::Tick(RunListEvent* ev)
         if (bVal)
         {
             pEgg->nAction = 3;
+            pEgg->nFrame = 0;
             pActor->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
         }
         break;
@@ -723,9 +731,10 @@ void AIQueenEgg::Damage(RunListEvent* ev)
 
 void AIQueenEgg::Draw(RunListEvent* ev)
 {
-    int nEgg = RunData[ev->nRun].nObjIndex;
-    Egg* pEgg = &QueenEgg[nEgg];
-    seq_PlotSequence(ev->nParam, SeqOffsets[kSeqQueenEgg] + EggSeq[pEgg->nAction].a, pEgg->nFrame, EggSeq[pEgg->nAction].b);
+    const auto nEgg = RunData[ev->nRun].nObjIndex;
+    const auto pEgg = &QueenEgg[nEgg];
+    const auto eggSeq = &EggSeq[pEgg->nAction];
+    seq_PlotSequence(ev->nParam, pEgg->pActor->nSeqFile, eggSeq->nSeqId, pEgg->nFrame, eggSeq->nFlags);
 }
 
 //---------------------------------------------------------------------------
@@ -748,7 +757,7 @@ void BuildQueenHead(int nQueen)
 	pActor2->clipdist = 17.5;
 	pActor2->spr.scale = DVector2(1.25, 1.25);
     pActor2->spr.cstat = 0;
-    pActor2->spr.picnum = 1;
+    setvalidpic(pActor2);
     pActor2->spr.shade = -12;
     pActor2->spr.pal = 0;
     pActor2->spr.xoffset = 0;
@@ -762,6 +771,7 @@ void BuildQueenHead(int nQueen)
     pActor2->spr.lotag = runlist_HeadRun() + 1;
     pActor2->spr.hitag = 0;
     pActor2->spr.extra = -1;
+    pActor2->nSeqFile = "queen";
 
     GrabTimeSlot(3);
 
@@ -798,14 +808,15 @@ void AIQueenHead::Tick(RunListEvent* ev)
         Gravity(pActor);
     }
 
-    int nSeq = SeqOffsets[kSeqQueen] + HeadSeq[QueenHead.nAction].a;
+    const auto queenSeq = getSequence(pActor->nSeqFile, HeadSeq[QueenHead.nAction].nSeqId);
+    const auto& seqFrame = queenSeq->frames[QueenHead.nFrame];
 
-    seq_MoveSequence(pActor, nSeq, QueenHead.nFrame);
+    seqFrame.playSound(pActor);
 
-    pActor->spr.picnum = seq_GetSeqPicnum2(nSeq, QueenHead.nFrame);
+    pActor->spr.setspritetexture(seqFrame.getFirstChunkTexture());
 
     QueenHead.nFrame++;
-    if (QueenHead.nFrame >= SeqSize[nSeq])
+    if (QueenHead.nFrame >= queenSeq->frames.Size())
     {
         QueenHead.nFrame = 0;
         var_14 = 1;
@@ -856,7 +867,7 @@ void AIQueenHead::Tick(RunListEvent* ev)
             if (nMov.exbits == 0)
             {
                 if (nMov.type == kHitSprite) nNewAng = nMov.actor()->spr.Angles.Yaw;
-                else if (nMov.type == kHitWall) nNewAng = GetWallNormal(nMov.hitWall);
+                else if (nMov.type == kHitWall) nNewAng = nMov.hitWall->normalAngle();
             }
             else if (nMov.exbits == kHitAux2)
             {
@@ -1126,25 +1137,15 @@ void AIQueenHead::Damage(RunListEvent* ev)
 
 void AIQueenHead::Draw(RunListEvent* ev)
 {
-    int nHead = RunData[ev->nRun].nObjIndex;
-    int nAction = QueenHead.nAction;
-
-    int nSeq = SeqOffsets[kSeqQueen];
-
-    int edx;
-
-    if (nHead == 0)
+    if (RunData[ev->nRun].nObjIndex == 0)
     {
-        edx = HeadSeq[nAction].b;
-        nSeq += HeadSeq[nAction].a;
+        const auto headSeq = &HeadSeq[QueenHead.nAction];
+        seq_PlotSequence(ev->nParam, QueenHead.pActor->nSeqFile, headSeq->nSeqId, QueenHead.nFrame, headSeq->nFlags);
     }
     else
     {
-        edx = 1;
-        nSeq += 73;
+        seq_PlotSequence(ev->nParam, QueenHead.pActor->nSeqFile, 73, QueenHead.nFrame, 1);
     }
-
-    seq_PlotSequence(ev->nParam, nSeq, QueenHead.nFrame, edx);
 }
 
 //---------------------------------------------------------------------------
@@ -1181,7 +1182,7 @@ void BuildQueen(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector,
 	pActor->spr.scale = DVector2(1.25, 1.25);
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->spr.picnum = 1;
+    setvalidpic(pActor);
     pActor->spr.Angles.Yaw = nAngle;
     pActor->vel.X = 0;
     pActor->vel.Y = 0;
@@ -1189,6 +1190,7 @@ void BuildQueen(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector,
     pActor->spr.lotag = runlist_HeadRun() + 1;
     pActor->spr.extra = -1;
     pActor->spr.hitag = 0;
+    pActor->nSeqFile = "queen";
 
     GrabTimeSlot(3);
 
@@ -1239,20 +1241,19 @@ void AIQueen::Tick(RunListEvent* ev)
         Gravity(pActor);
     }
 
-    int nSeq = SeqOffsets[kSeqQueen] + QueenSeq[nAction].a;
+    const auto queenSeq = getSequence(pActor->nSeqFile, QueenSeq[nAction].nSeqId);
+    const auto& seqFrame = queenSeq->frames[QueenList[nQueen].nFrame];
 
-    pActor->spr.picnum = seq_GetSeqPicnum2(nSeq, QueenList[nQueen].nFrame);
+    pActor->spr.setspritetexture(seqFrame.getFirstChunkTexture());
 
-    seq_MoveSequence(pActor, nSeq, QueenList[nQueen].nFrame);
+    seqFrame.playSound(pActor);
 
     QueenList[nQueen].nFrame++;
-    if (QueenList[nQueen].nFrame >= SeqSize[nSeq])
+    if (QueenList[nQueen].nFrame >= queenSeq->frames.Size())
     {
         QueenList[nQueen].nFrame = 0;
         bVal = true;
     }
-
-    int nFlag = FrameFlag[SeqBase[nSeq] + QueenList[nQueen].nFrame];
 
     if (pActor != nullptr)
     {
@@ -1263,6 +1264,7 @@ void AIQueen::Tick(RunListEvent* ev)
                 pTarget = nullptr;
                 QueenList[nQueen].pTarget = nullptr;
                 QueenList[nQueen].nAction = 0;
+                QueenList[nQueen].nFrame = 0;
             }
         }
     }
@@ -1293,6 +1295,7 @@ void AIQueen::Tick(RunListEvent* ev)
         {
             BuildQueenEgg(nQueen, 1);
             QueenList[nQueen].nAction = 3;
+            QueenList[nQueen].nFrame = 0;
             QueenList[nQueen].nIndex = RandomSize(6) + 60;
         }
 
@@ -1394,11 +1397,12 @@ void AIQueen::Tick(RunListEvent* ev)
         if (bVal && QueenList[nQueen].nIndex2 <= 0)
         {
             QueenList[nQueen].nAction = 0;
+            QueenList[nQueen].nFrame = 0;
             QueenList[nQueen].nIndex = 15;
         }
         else
         {
-            if (nFlag & 0x80)
+            if (seqFrame.flags & 0x80)
             {
                 QueenList[nQueen].nIndex2--;
 
@@ -1440,18 +1444,19 @@ void AIQueen::Tick(RunListEvent* ev)
                 if (QueenList[nQueen].nIndex <= 0)
                 {
                     pActor->spr.cstat = 0;
+                    const auto queenPicnum = getSequence("queen", 57)->getFirstFrameTexture();
 
                     for (int i = 0; i < 20; i++)
                     {
-                        auto pChunkActor = BuildCreatureChunk(pActor, seq_GetSeqPicnum(kSeqQueen, 57, 0));
+                        auto pChunkActor = BuildCreatureChunk(pActor, queenPicnum);
 
-                        pChunkActor->spr.picnum = kQueenChunk + (i % 3);
+                        pChunkActor->spr.setspritetexture(aTexIds[kTexQueenChunk + (i % 3)]);
 						pChunkActor->spr.scale = DVector2(1.5625, 1.5625);
                     }
 
-                    auto pChunkActor = BuildCreatureChunk(pActor, seq_GetSeqPicnum(kSeqQueen, 57, 0));
+                    auto pChunkActor = BuildCreatureChunk(pActor, queenPicnum);
 
-                    pChunkActor->spr.picnum = kTile3126;
+                    pChunkActor->spr.setspritetexture(aTexIds[kTexAltQueenChunk]);
 					pChunkActor->spr.scale = DVector2(1.5625, 1.5625);
 
                     PlayFXAtXYZ(
@@ -1531,7 +1536,7 @@ void AIQueen::Damage(RunListEvent* ev)
                 QueenList[nQueen].nHealth = 4000;
                 QueenList[nQueen].nAction = 7;
 
-                BuildAnim(nullptr, 36, 0, pActor->spr.pos.plusZ(-30), pActor->sector(), pActor->spr.scale.X, 4);
+                BuildAnim(nullptr, "grenpow", 0, pActor->spr.pos.plusZ(-30), pActor->sector(), pActor->spr.scale.X, 4);
                 break;
             case 2:
                 QueenList[nQueen].nHealth = 4000;
@@ -1569,10 +1574,12 @@ void AIQueen::Damage(RunListEvent* ev)
 
 void AIQueen::Draw(RunListEvent* ev)
 {
-    int nQueen = RunData[ev->nRun].nObjIndex;
+    const int nQueen = RunData[ev->nRun].nObjIndex;
     assert(nQueen >= 0 && nQueen < kMaxQueens);
-    int nAction = QueenList[nQueen].nAction;
-    seq_PlotSequence(ev->nParam, SeqOffsets[kSeqQueen] + QueenSeq[nAction].a, QueenList[nQueen].nFrame, QueenSeq[nAction].b);
+
+    const auto thisQueen = &QueenList[nQueen];
+    const auto queenSeq = &QueenSeq[thisQueen->nAction];
+    seq_PlotSequence(ev->nParam, thisQueen->pActor->nSeqFile, queenSeq->nSeqId, thisQueen->nFrame, queenSeq->nFlags);
 }
 
 END_PS_NS

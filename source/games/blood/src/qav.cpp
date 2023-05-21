@@ -62,12 +62,12 @@ static void qavInitTileFinderMap()
 {
 	// Interpolate between frames if the picnums match. This is safest but could miss interpolations between suitable picnums.
 	qavPrevTileFinders.Insert("picnum", [](FRAMEINFO* const thisFrame, FRAMEINFO* const prevFrame, const int i) -> TILE_FRAME* {
-		return prevFrame->tiles[i].picnum == thisFrame->tiles[i].picnum ? &prevFrame->tiles[i] : nullptr;
+		return prevFrame->tiles[i].texid == thisFrame->tiles[i].texid ? &prevFrame->tiles[i] : nullptr;
 		});
 
-	// Interpolate between frames if the picnum is valid. This can be problematic if tile indices change between frames.
+	// Interpolate between frames if the tilenum is valid. This can be problematic if tile indices change between frames.
 	qavPrevTileFinders.Insert("index", [](FRAMEINFO* const thisFrame, FRAMEINFO* const prevFrame, const int i) -> TILE_FRAME* {
-		return prevFrame->tiles[i].picnum > 0 ? &prevFrame->tiles[i] : nullptr;
+		return prevFrame->tiles[i].texid.isValid() ? &prevFrame->tiles[i] : nullptr;
 		});
 
 	// Find previous frame by iterating all previous frame's tiles and return on first matched x coordinate.
@@ -123,19 +123,20 @@ void GameInterface::RemoveQAVInterpProps(const int res_id)
 //
 //---------------------------------------------------------------------------
 
-void DrawFrame(double x, double y, double z, double a, double alpha, int picnum, int stat, int shade, int palnum, bool to3dview)
+void DrawFrame(double x, double y, double z, double a, double alpha, FTextureID texid, int stat, int shade, int palnum, bool to3dview)
 {
+	double scale = z * (1. / 65536.);
 	if (!to3dview)
 	{
-		auto tex = tileGetTexture(picnum);
-		double scale = z * (1. / 65536.);
+		auto tex = TexMan.GetGameTexture(texid);
 		int renderstyle = (stat & RS_NOMASK) ? STYLE_Normal : STYLE_Translucent;
 		int pin = (stat & kQavOrientationLeft) ? -1 : (stat & RS_ALIGN_R) ? 1 : 0;
 		auto translation = TRANSLATION(Translation_Remap, palnum);
 		bool topleft = !!(stat & RS_TOPLEFT);
 
+
 		bool xflip = !!(stat & 0x100); // repurposed flag
-		bool yflip = !!(stat & RS_YFLIP);
+		bool yflip = !!(stat & 4);
 		auto color = shadeToLight(shade);
 
 		DrawTexture(twod, tex, x, y, DTA_ScaleX, scale, DTA_ScaleY, scale, DTA_Rotate, a, DTA_LegacyRenderStyle, renderstyle, DTA_Alpha, alpha, DTA_Pin, pin, DTA_TranslationIndex, translation,
@@ -145,14 +146,14 @@ void DrawFrame(double x, double y, double z, double a, double alpha, int picnum,
 	else
 	{
 		// there's some disagreements about flag values between QAV and the drawer. Shuffle these around.
-		if (stat & RS_YFLIP) stat |= RS_YFLIPHUD;
-		stat &= ~RS_YFLIP;
+		if (stat & 4) stat |= RS_YFLIPHUD;
+		stat &= ~4;
 		if (stat & 0x100) stat |= RS_XFLIPHUD;
 		stat &= ~0x100;
 		if ((stat & kQavOrientationLeft)) stat |= RS_ALIGN_L;
 		stat &= ~kQavOrientationLeft;
 
-		hud_drawsprite(x, y, z, a, picnum, shade, palnum, stat, alpha);
+		hud_drawsprite(x, y, scale, a, texid, shade, palnum, stat, alpha);
 	}
 }
 
@@ -179,7 +180,7 @@ void QAV::Draw(int ticks, int stat, int shade, int palnum, bool to3dview, double
 
 	for (int i = 0; i < 8; i++)
 	{
-		if (thisFrame->tiles[i].picnum > 0)
+		if (thisFrame->tiles[i].texid.isValid())
 		{
 			TILE_FRAME* const thisTile = &thisFrame->tiles[i];
 			TILE_FRAME* const prevTile = interpolate && interpdata->CanInterpFrameTile(nFrame, i) ? interpdata->PrevTileFinder(thisFrame, prevFrame, i) : nullptr;
@@ -214,7 +215,7 @@ void QAV::Draw(int ticks, int stat, int shade, int palnum, bool to3dview, double
 				tileAlpha = (tileStat & RS_TRANS1) ? glblend[0].def[!!(tileStat & RS_TRANS2)].alpha : 1.f;
 			}
 
-			DrawFrame(tileX + x, tileY + y, tileZ, (angle - tileA).Degrees(), tileAlpha, thisTile->picnum, tileStat, tileShade + shade, (palnum <= 0 ? thisTile->palnum : palnum), to3dview);
+			DrawFrame(tileX + x, tileY + y, tileZ, (angle - tileA).Degrees(), tileAlpha, thisTile->texid, tileStat, tileShade + shade, (palnum <= 0 ? thisTile->palnum : palnum), to3dview);
 		}
 	}
 }
@@ -293,8 +294,8 @@ void QAV::Precache(int palette)
 	{
 		for (int j = 0; j < 8; j++)
 		{
-			if (frames[i].tiles[j].picnum >= 0)
-				tilePrecacheTile(frames[i].tiles[j].picnum, 0, palette);
+			if (frames[i].tiles[j].texid.isValid())
+				markTextureForPrecache(frames[i].tiles[j].texid, palette);
 		}
 	}
 }
@@ -409,7 +410,8 @@ QAV* getQAV(int res_id)
 		// Read TILE_FRAME data.
 		for (int j = 0; j < 8; j++)
 		{
-			qavdata->frames[i].tiles[j].picnum = fr.ReadInt32();
+			int tile = fr.ReadInt32();
+			qavdata->frames[i].tiles[j].texid = tile <= 0 ? FNullTextureID() : tileGetTextureID(tile);
 			qavdata->frames[i].tiles[j].x = fr.ReadInt32();
 			qavdata->frames[i].tiles[j].y = fr.ReadInt32();
 			qavdata->frames[i].tiles[j].z = fr.ReadInt32();

@@ -25,9 +25,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_PS_NS
 
-int nMinChunk;
-int nPlayerPic;
-int nMaxChunk;
+FTextureID nPlayerPic;
 
 static actionSeq RatSeq[] = {
     {0, 1},
@@ -47,9 +45,7 @@ void SerializeRat(FSerializer& arc)
 {
     if (arc.BeginObject("rat"))
     {
-        arc("minchunk", nMinChunk)
-            ("maxchunk", nMaxChunk)
-            ("playerpic", nPlayerPic)
+        arc("playerpic", nPlayerPic)
             .EndObject();
     }
 }
@@ -62,21 +58,7 @@ void SerializeRat(FSerializer& arc)
 
 void InitRats()
 {
-    nMinChunk = 9999;
-    nMaxChunk = -1;
-
-    for (int i = 122; i <= 131; i++)
-    {
-        int nPic = seq_GetSeqPicnum(kSeqJoe, i, 0);
-
-        if (nPic < nMinChunk)
-            nMinChunk = nPic;
-
-        if (nPic > nMaxChunk)
-            nMaxChunk = nPic;
-    }
-
-    nPlayerPic = seq_GetSeqPicnum(kSeqJoe, 120, 0);
+    nPlayerPic = getSequence("joe", 120)->getFirstFrameTexture();
 }
 
 void SetRatVel(DExhumedActor* pActor)
@@ -108,7 +90,7 @@ void BuildRat(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, D
     pActor->spr.shade = -12;
     pActor->spr.xoffset = 0;
     pActor->spr.yoffset = 0;
-    pActor->spr.picnum = 1;
+    setvalidpic(pActor);
     pActor->spr.pal = pActor->sector()->ceilingpal;
 	pActor->clipdist = 7.5;
     pActor->spr.Angles.Yaw = nAngle;
@@ -135,6 +117,8 @@ void BuildRat(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, D
     pActor->spr.intowner = runlist_AddRunRec(pActor->spr.lotag - 1, pActor, 0x240000);
 
     pActor->nRun = runlist_AddRunRec(NewRun, pActor, 0x240000);
+
+    pActor->nSeqFile = "rat";
 }
 
 //---------------------------------------------------------------------------
@@ -165,7 +149,7 @@ DExhumedActor* FindFood(DExhumedActor* pActor)
     DExhumedActor* pActor2 = nBodySprite[RandomSize(7) % nBodyTotal];
     if (pActor2 != nullptr)
     {
-        if (nPlayerPic == pActor2->spr.picnum)
+        if (nPlayerPic == pActor2->spr.spritetexture())
         {
             if (cansee(pActor->spr.pos, pSector, pActor2->spr.pos, pActor2->sector())) {
                 return pActor2;
@@ -220,11 +204,11 @@ void AIRat::Damage(RunListEvent* ev)
 
 void AIRat::Draw(RunListEvent* ev)
 {
-    auto pActor = ev->pObjActor;
-    if (!pActor) return;
-    int nAction = pActor->nAction;
-
-    seq_PlotSequence(ev->nParam, SeqOffsets[kSeqRat] + RatSeq[nAction].a, pActor->nFrame, RatSeq[nAction].b);
+    if (const auto pActor = ev->pObjActor)
+    {
+        const auto ratSeq = &RatSeq[pActor->nAction];
+        seq_PlotSequence(ev->nParam, pActor->nSeqFile, ratSeq->nSeqId, pActor->nFrame, ratSeq->nFlags);
+    }
 }
 
 
@@ -244,13 +228,15 @@ void AIRat::Tick(RunListEvent* ev)
 
     bool bVal = false;
 
-    int nSeq = SeqOffsets[kSeqRat] + RatSeq[nAction].a;
-    pActor->spr.picnum = seq_GetSeqPicnum2(nSeq, pActor->nFrame);
+    const auto ratSeq = getSequence(pActor->nSeqFile, RatSeq[nAction].nSeqId);
+    const auto& seqFrame = ratSeq->frames[pActor->nFrame];
 
-    seq_MoveSequence(pActor, nSeq, pActor->nFrame);
+    pActor->spr.setspritetexture(seqFrame.getFirstChunkTexture());
+
+    seqFrame.playSound(pActor);
 
     pActor->nFrame++;
-    if (pActor->nFrame >= SeqSize[nSeq])
+    if (pActor->nFrame >= ratSeq->frames.Size())
     {
         bVal = true;
         pActor->nFrame = 0;
@@ -274,7 +260,7 @@ void AIRat::Tick(RunListEvent* ev)
 
 		auto delta = pActor->spr.pos.XY() - pTarget->spr.pos.XY();
 
-        if (abs(delta.X) > CHECK_DIST || abs(delta.Y) >= CHECK_DIST)
+        if (abs(delta.X) > CHECK_DIST || abs(delta.Y) > CHECK_DIST)
         {
             pActor->nAction = 2;
             pActor->nFrame = 0;
@@ -288,6 +274,12 @@ void AIRat::Tick(RunListEvent* ev)
         pActor->nFrame ^= 1;
         pActor->nCount = RandomSize(5) + 4;
         pActor->nPhase--;
+
+        if (pActor->nFrame >= ratSeq->frames.Size())
+        {
+            bVal = true;
+            pActor->nFrame = 0;
+        }
 
         if (pActor->nPhase <= 0)
         {
@@ -326,7 +318,7 @@ void AIRat::Tick(RunListEvent* ev)
 
 		auto delta = pActor->spr.pos.XY() - pTarget->spr.pos.XY();
 
-		if (abs(delta.X) > CHECK_DIST || abs(delta.Y) >= CHECK_DIST)
+		if (abs(delta.X) > CHECK_DIST || abs(delta.Y) > CHECK_DIST)
         {
             pActor->nCount--;
             if (pActor->nCount < 0)

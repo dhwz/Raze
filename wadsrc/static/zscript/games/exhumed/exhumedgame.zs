@@ -7,9 +7,7 @@ struct Exhumed native
 	native static bool LocalSoundPlaying();
 	native static void playCDTrack(int track, bool looped);
 	native static void DrawPlasma();
-	native static int, int GetStatusSequence(int seq, int index);
-	native static int MoveStatusSequence(int s1, int s2);
-	native static int SizeOfStatusSequence(int s1);
+	native static Seq GetStatusSequence(int seqId);
 	native static ExhumedPlayer GetViewPlayer();
 	native static int GetPistolClip();
 	native static int GetPlayerClip();
@@ -32,6 +30,32 @@ struct Exhumed native
 	}
 }
 
+struct SeqFrameChunk native
+{
+    native int16 xpos;
+    native int16 ypos;
+    native TextureID tex;
+    native int16 flags;
+}
+
+struct SeqFrame native
+{
+    native int16 sound;
+    native int16 flags;
+
+    native uint Size();
+    native SeqFrameChunk getChunk(int chunkId);
+    native void playSound();
+}
+
+struct Seq native
+{
+    native int16 flags;
+
+    native uint Size();
+    native SeqFrame getFrame(int frameId);
+}
+
 struct ExhumedPlayer native
 {
 	native int16 nHealth;
@@ -39,13 +63,10 @@ struct ExhumedPlayer native
 	native int16 nDouble;
 	native int16 nInvisible;
 	native int16 nTorch;
-	native int16 nSeqSize;
-	native int16 nAction;
 	//native int16 nSprite;
 	native int16 bIsMummified;
 	native int16 invincibility;
 	native int16 nAir;
-	native int16 nSeq;
 	native int16 nMaskAmount;
 	native uint16 keys;
 	native int16 nMagic;
@@ -55,13 +76,12 @@ struct ExhumedPlayer native
 	native int16 nPlayerWeapons;
 
 	native int16 nCurrentWeapon;
-	native int16 nSeqSize2;
+	native int16 nWeapFrame;
 	native int16 nNextWeapon;
 	native int16 nState;
 	native int16 nLastWeapon;
 	native int16 bIsFiring;
 	native int16 nRun;
-	native bool bPlayerPan, bLockPan;
 	//fixedhoriz nDestVertPan;
 
 	//PlayerHorizon horizon;

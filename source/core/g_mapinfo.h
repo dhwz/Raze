@@ -38,22 +38,34 @@
 #include "vectors.h"
 #include "sc_man.h"
 #include "file_zip.h"
+#include "actorinfo.h"
 
 struct SpawnRec
 {
 	PClassActor* cls;
-	int basetex, brokentex;
+	FTextureID basetex, brokentex;
 	FSoundID breaksound;
 	int8_t fullbright, clipdist;
 	int16_t flags;
-
-	PClassActor* Class(int pn)
-	{
-		return cls;
-	}
 };
 using SpawnMap = TMap<int, SpawnRec>;
 inline SpawnMap spawnMap;
+
+inline PClassActor* GetSpawnType(int spawnnum)
+{
+	auto info = spawnMap.CheckKey(spawnnum);
+	if (info)
+	{
+		return static_cast<PClassActor*>(info->cls);
+	}
+	return nullptr;
+}
+
+inline void insertSpawnType(int typenum, const SpawnRec& entry)
+{
+	spawnMap.Insert(typenum, entry);
+	if (!entry.basetex.isValid()) entry.cls->ActorInfo()->TypeNum = typenum;
+}
 
 struct BreakWallRec
 {

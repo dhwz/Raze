@@ -9,27 +9,22 @@ constexpr int REALGAMETICSPERSEC = 30; // The number of game state updates per s
 constexpr int TICSPERFRAME = (TICRATE / REALGAMETICSPERSEC); // (This used to be TICRATE/GAMETICSPERSEC, which was 120/26 = 4.615~ truncated to 4 by integer division.)
 
 
-// tile names which are identical for all games.
-enum
+// the few remaining tile numbers we still need, mainly for the init code.
+enum EFixedTiles
 {
-	SECTOREFFECTOR = 1,
-	ACTIVATOR = 2,
-	TOUCHPLATE = 3,
-	ACTIVATORLOCKED = 4,
-	MUSICANDSFX = 5,
-	LOCATORS = 6,
-	CYCLER = 7,
-	MASTERSWITCH = 8,
-	RESPAWN = 9,
-	GPSPEED = 10,
 	FOF = 13,
 	MIRROR_DUKE = 560,
 	MIRROR_RR = 1089,
+	SCRAP_DUKE = 2390,
+	SCRAP_RR = 1595,
+	VIEWSCREEN_DUKE = 502,
+	VIEWSCREEN_RR = 1055,
+	BOWLINGLANE = 2025,
 
 	// hack alert! CYCLER is free for use here as all items of this type get destroyed right on map spawn and this value never gets checked anywhere else.
 	// This avoids overallocation of empty tile slots as a high value slightly below the tile limit would do.
 	// Once we can do texture management without tile numbers this can be done as a regular texture without a valid tile index.
-	TILE_VIEWSCR = CYCLER 
+	TILE_VIEWSCR = 7 
 
 };	
 
@@ -115,7 +110,7 @@ enum
 	ST_0_NO_EFFECT   = 0,
 	ST_1_ABOVE_WATER = 1,
 	ST_2_UNDERWATER  = 2,
-	ST_3             = 3,
+	ST_3_BOSS2             = 3,
 	// ^^^ maybe not complete substitution in code
 	ST_9_SLIDING_ST_DOOR     = 9,
 	ST_15_WARP_ELEVATOR      = 15,
@@ -140,6 +135,12 @@ enum
 
 	ST_160_FLOOR_TELEPORT	= 160,
 	ST_161_CEILING_TELEPORT = 161,
+
+	ST_800_KILLSTUFF		= 800,
+	ST_801_ROCKY			= 801,
+	ST_802_KILLBADGUYS		= 802,
+	ST_803_KILLROCKS		= 803,
+
 	// left: ST 32767, 65534, 65535
 };
 
@@ -318,6 +319,12 @@ enum amoveflags_t
 	antifaceplayerslow = 32768
 };
 
+enum mapflags_t
+{
+	MFLAG_SECTORTYPE800 = 1,					// RR only needs 800 by default - this flag is purely internal. For new content ALLSECTORTYPES will do better.
+	MFLAG_ALLSECTORTYPES =2,					// enables RRRA's sector types regardless of the game being played.
+};
+
 enum sflags_t
 {
 	SFLAG_INVENTORY				= 0x00000001,
@@ -326,18 +333,18 @@ enum sflags_t
 	SFLAG_FORCEAUTOAIM			= 0x00000008,
 	SFLAG_BOSS					= 0x00000010,
 	SFLAG_BADGUYSTAYPUT			= 0x00000020,
-	SFLAG_GREENSLIMEFOOD		= 0x00800040,
-	SFLAG_NODAMAGEPUSH			= 0x00000080,
+	SFLAG_GREENSLIMEFOOD		= 0x00000040,
+	SFLAG_NOAUTOAIM				= 0x00000080,
 	SFLAG_NOWATERDIP			= 0x00000100,
 	SFLAG_INTERNAL_BADGUY		= 0x00000200, // a separate flag is needed for the internal ones because SFLAG_BADGUY has additional semantics.
 	SFLAG_KILLCOUNT				= 0x00000400,
-	SFLAG_NOCANSEECHECK			= 0x00000800,
+	SFLAG_SKILLFILTER			= 0x00000800, // not used, was applied to all actors with LOOKALLAROUND.
 	SFLAG_HITRADIUSCHECK		= 0x00001000,
-	SFLAG_MOVEFTA_CHECKSEE		= 0x00002000,
+	SFLAG_LOOKALLAROUND			= 0x00002000,
 	SFLAG_MOVEFTA_MAKESTANDABLE = 0x00004000,
 	SFLAG_TRIGGER_IFHITSECTOR	= 0x00008000,
 	SFLAG_MOVEFTA_WAKEUPCHECK	= 0x00010000,
-	SFLAG_MOVEFTA_CHECKSEEWITHPAL8 = 0x00020000,	// let's hope this can be done better later. For now this was what blocked merging the Duke and RR variants of movefta
+	SFLAG_LOOKALLAROUNDWITHPAL8 = 0x00020000,	// let's hope this can be done better later. For now this was what blocked merging the Duke and RR variants of movefta
 	SFLAG_NOSHADOW				= 0x00040000,
 	SFLAG_SE24_NOCARRY			= 0x00080000,
 	SFLAG_NOINTERPOLATE			= 0x00100000,
@@ -345,8 +352,8 @@ enum sflags_t
 	SFLAG_FLAMMABLEPOOLEFFECT	= 0x00400000,
 	SFLAG_INFLAME				= 0x00800000,
 	SFLAG_NOFLOORFIRE			= 0x01000000,
-	SFLAG_HITRADIUS_FLAG1		= 0x02000000,
-	SFLAG_HITRADIUS_FLAG2		= 0x04000000,
+	SFLAG_HITRADIUS_CHECKHITONLY		= 0x02000000,
+	SFLAG_HITRADIUS_FORCEEFFECT		= 0x04000000,
 	SFLAG_CHECKSLEEP			= 0x08000000,
 	SFLAG_NOTELEPORT			= 0x10000000,
 	SFLAG_SE24_REMOVE			= 0x20000000,
@@ -369,11 +376,11 @@ enum sflags2_t
 	SFLAG2_BREAKMIRRORS			= 0x00000080,
 	SFLAG2_CAMERA				= 0x00000100,
 	SFLAG2_DONTANIMATE			= 0x00000200,
-	//SFLAG2_INTERPOLATEANGLE		= 0x00000400,
+	SFLAG2_ALTHITSCANDIRECTION	= 0x00000400,
 	SFLAG2_GREENBLOOD			= 0x00000800,
 	SFLAG2_ALWAYSROTATE1		= 0x00001000,
 	SFLAG2_DIENOW				= 0x00002000,
-	SFLAG2_TRANFERPALTOJIBS		= 0x00004000,
+	SFLAG2_TRANSFERPALTOJIBS	= 0x00004000,
 	SFLAG2_NORADIUSPUSH			= 0x00008000,
 	SFLAG2_FREEZEDAMAGE			= 0x00010000,
 	SFLAG2_REFLECTIVE			= 0x00020000,
@@ -404,12 +411,49 @@ enum sflags3_t
 	SFLAG3_BROWNBLOOD = 0x00000004,
 	SFLAG3_LIGHTDAMAGE = 0x00000008,
 	SFLAG3_FORCERUNCON = 0x00000010,	// by default only STAT_ACTOR runs CON - this enables it for other statnums as well, provided they run Tick()
-	SFLAG3_NOGRAVITY = 0x00000020,		// disables makeitfall.
+	SFLAG3_BIGHEALTH = 0x00000020,
+	SFLAG3_NOGRAVITY = 0x00000040,		// disables makeitfall.
+	SFLAG3_SIMPLEINIT = 0x00000080,		// Internal: skip default init stuff in DukeActor::Initialize.
+	SFLAG3_NOHITSCANHIT			= 0x00000100, // just pretend the hit never happened. RR's tornado uses it.
+	SFLAG3_SPECIALINIT = 0x00000200,		// special aiming case for Duke's BOSS2
+	SFLAG3_DONTLIGHTSHOOTER = 0x00000400,
+	SFLAG3_SHOOTCENTERED = 0x00000800,	// enemies default to right hand shooting. This disables it.
+	SFLAG3_NOCEILINGBLAST = 0x00001000,	// do not damage ceilings when exploding
+	SFLAG3_HITRADIUS_DONTHURTSHOOTER = 0x00002000,
+	SFLAG3_HITRADIUS_NODAMAGE = 0x00004000,		// Hitradius inflicts no damage, only a damage type.
+	SFLAG3_HITRADIUS_NOEFFECT = 0x00008000,		// Completely immune to hitradius
+	SFLAG3_HITRADIUS_DONTHURTSPECIES = 0x00010000,	// don't hurt others of the shooter's species.
+	SFLAG3_ST3CONFINED = 0x00020000,
+	SFLAG3_DONTENTERWATER = 0x00040000,
+	SFLAG3_DONTENTERWATERONGROUND = 0x00080000,
+	SFLAG3_RANDOMANGLEONWATER = 0x00100000,
+	SFLAG3_NORANDOMANGLEWHENBLOCKED = 0x00200000,
+	SFLAG3_QUICKALTERANG = 0x00400000,
+	SFLAG3_SPAWNWEAPONDEBRIS = 0x00800000,
+	SFLAG3_NOJIBS = 0x01000000,
+	SFLAG3_NOVERTICALMOVE = 0x02000000,
+	SFLAG3_MOVE_NOPLAYERINTERACT = 0x04000000,
+	SFLAG3_MAGMAIMMUNE = 0x08000000,
+	SFLAG3_DESTRUCTOIMMUNE = 0x10000000,
+	SFLAG3_NOHITJIBS = 0x20000000,
+	SFLAG3_CANHURTSHOOTER = 0x40000000,
+	SFLAG3_NOSHOTGUNBLOOD = 0x80000000,
 
 };
 
 using EDukeFlags3 = TFlags<sflags3_t, uint32_t>;
 DEFINE_TFLAGS_OPERATORS(EDukeFlags3)
+
+enum sflags4_t
+{
+	SFLAG4_DOUBLEHITDAMAGE = 0x00000001,
+	SFLAG4_NODAMAGETURN = 0x00000002,
+	SFLAG4_CONOVERRIDE = 0x00000004,	// this is strictly internal
+	SFLAG4_INRUNSTATE = 0x00000008,		// exception throwing guard.
+};
+
+using EDukeFlags4 = TFlags<sflags4_t, uint32_t>;
+DEFINE_TFLAGS_OPERATORS(EDukeFlags4)
 
 // these get stored as user flags inside the texture manager.
 enum
@@ -499,6 +543,7 @@ enum
 enum miscConstants
 {
 	MAXSLEEPDIST = 16384,
+	MAXSLEEPDISTF = 1024,
 	SLEEPTIME = 1536,
 	ZOFFSET6 = (4 << 8),
 	FOURSLEIGHT = (1 << 8),
