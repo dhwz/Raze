@@ -63,8 +63,12 @@ enum SICommands
 	SI_PitchSet,
 	SI_PitchSetDuke,
 	SI_DukeFlags,
+	SI_SWFlags,
 	SI_Loop,
 	SI_BloodRelVol,
+	SI_Volume,
+	SI_Attenuation,
+	SI_Rolloff,
 };
 
 
@@ -99,8 +103,12 @@ static const char *SICommandStrings[] =
 	"$pitchset",
 	"$pitchsetduke",
 	"$dukeflags",
+	"$swflags",
 	"$loop",
 	"$bloodrelvol",
+	"$volume",
+	"$attenuation",
+	"$rolloff",
 	NULL
 };
 
@@ -151,7 +159,8 @@ static FSoundID S_AddSound(const char* logicalname, int lumpnum, FScanner* sc)
 FSoundID S_AddSound(const char* logicalname, const char* lumpname, FScanner* sc)
 {
 	int lump = fileSystem.CheckNumForFullName(lumpname, true, ns_sounds);
-	if (lump == -1 && sc) sc->ScriptMessage("%s: sound file not found", sc->String);
+	if (lump == -1 && sc && fileSystem.GetFileContainer(sc->LumpNum) > fileSystem.GetMaxIwadNum())
+		sc->ScriptMessage("%s: sound file not found", sc->String);
 	return S_AddSound(logicalname, lump, sc);
 }
 
@@ -335,6 +344,77 @@ static void S_AddSNDINFO (int lump)
 				}
 				break;
 
+			case SI_Volume: {
+				// $volume <logical name> <volume>
+				FSoundID sfx;
+
+				sc.MustGetString();
+				sfx = soundEngine->FindSoundTentative(sc.String);
+				sc.MustGetFloat();
+				auto sfxp = soundEngine->GetWritableSfx(sfx);
+				sfxp->Volume = (float)sc.Float;
+			}
+		  break;
+
+			case SI_Attenuation: {
+				// $attenuation <logical name> <attenuation>
+				FSoundID sfx;
+
+				sc.MustGetString();
+				sfx = soundEngine->FindSoundTentative(sc.String);
+				sc.MustGetFloat();
+				auto sfxp = soundEngine->GetWritableSfx(sfx);
+				sfxp->Attenuation = (float)sc.Float;
+			}
+		   break;
+
+			case SI_Rolloff: {
+				// $rolloff *|<logical name> [linear|log|custom] <min dist> <max dist/rolloff factor>
+				// Using * for the name makes it the default for sounds that don't specify otherwise.
+				FRolloffInfo* rolloff;
+				int type;
+				FSoundID sfx;
+
+				sc.MustGetString();
+				if (sc.Compare("*"))
+				{
+					sfx = INVALID_SOUND;
+					rolloff = &soundEngine->GlobalRolloff();
+				}
+				else
+				{
+					sfx = soundEngine->FindSoundTentative(sc.String);
+					auto sfxp = soundEngine->GetWritableSfx(sfx);
+					rolloff = &sfxp->Rolloff;
+				}
+				type = ROLLOFF_Doom;
+				if (!sc.CheckFloat())
+				{
+					sc.MustGetString();
+					if (sc.Compare("linear"))
+					{
+						rolloff->RolloffType = ROLLOFF_Linear;
+					}
+					else if (sc.Compare("log"))
+					{
+						rolloff->RolloffType = ROLLOFF_Log;
+					}
+					else if (sc.Compare("custom"))
+					{
+						rolloff->RolloffType = ROLLOFF_Custom;
+					}
+					else
+					{
+						sc.ScriptError("Unknown rolloff type '%s'", sc.String);
+					}
+					sc.MustGetFloat();
+				}
+				rolloff->MinDistance = (float)sc.Float;
+				sc.MustGetFloat();
+				rolloff->MaxDistance = (float)sc.Float;
+				break;
+			}
+
 			case SI_PitchSet: {
 				// $pitchset <logical name> <pitch amount as float> [range maximum]
 				FSoundID sfx;
@@ -391,15 +471,18 @@ static void S_AddSNDINFO (int lump)
 			case SI_DukeFlags: {
 				static const char* dukeflags[] = { "LOOP", "MSFX", "TALK", "GLOBAL", nullptr};
 
-				// dukesound <logical name> <flag> <flag> <flag>..
-				// Sets a pitch range for the sound.
+				// dukeflags <logical name> <flag> <flag> <flag>..
 				sc.MustGetString();
 				auto sfxid = soundEngine->FindSoundTentative(sc.String, DEFAULT_LIMIT);
 				int flags = 0;
 				while (sc.GetString())
 				{
 					int bit = sc.MatchString(dukeflags);
-					if (bit == -1) break;
+					if (bit == -1)
+					{
+						sc.UnGet();
+						break;
+					}
 					flags |= 1 << bit;
 				}
 				if (isDukeEngine())
@@ -410,11 +493,41 @@ static void S_AddSNDINFO (int lump)
 						sfx->UserData.Resize(Duke3d::kMaxUserData);
 						memset(sfx->UserData.Data(), 0, Duke3d::kMaxUserData * sizeof(int));
 					}
-					sfx->UserData[Duke3d::kFlags] = flags;
+					sfx->UserVal = flags;
 				}
 				else
 				{
 					sc.ScriptMessage("'$dukeflags' is not available in the current game and will be ignored");
+				}
+				break;
+
+			}
+
+			case SI_SWFlags: {
+				static const char* swflags[] = { "PLAYERVOICE", "PLAYERSPEECH", "LOOP", nullptr };
+
+				// swflags <logical name> <flag> <flag> <flag>..
+				sc.MustGetString();
+				auto sfxid = soundEngine->FindSoundTentative(sc.String, DEFAULT_LIMIT);
+				int flags = 0;
+				while (sc.GetString())
+				{
+					int bit = sc.MatchString(swflags);
+					if (bit == -1)
+					{
+						sc.UnGet();
+						break;
+					}
+					flags |= 1 << bit;
+				}
+				if (isSWALL())
+				{
+					auto sfx = soundEngine->GetWritableSfx(sfxid);
+					sfx->UserVal = flags;
+				}
+				else
+				{
+					sc.ScriptMessage("'$swflags' is not available in the current game and will be ignored");
 				}
 				break;
 
@@ -443,11 +556,7 @@ static void S_AddSNDINFO (int lump)
 				if (isBlood())
 				{
 					auto sfx = soundEngine->GetWritableSfx(sfxid);
-					if (sfx->UserData.Size() < 1)
-					{
-						sfx->UserData.Resize(1);
-					}
-					sfx->UserData[0] = sc.Number;
+					sfx->UserVal = sc.Number;
 				}
 				else
 				{

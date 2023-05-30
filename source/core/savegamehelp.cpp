@@ -91,8 +91,8 @@ END_BLD_NS
 
 static void SerializeSession(FSerializer& arc)
 {
-	// In Duke and Blood we now have reliable sound names.
-	if (isDukeEngine() || isBlood()) arc.SetUniqueSoundNames();	
+	// Only Exhumed still depends in indexed sounds.
+	if (!isExhumed()) arc.SetUniqueSoundNames();	
 
 	arc.ReadObjects(false);
 	SerializeMap(arc);
@@ -140,7 +140,7 @@ bool ReadSavegame(const char* name)
 		}
 
 		void* data = info->Lock();
-		FSerializer arc;
+		FRazeSerializer arc;
 		if (!arc.OpenReader((const char*)data, info->LumpSize))
 		{
 			info->Unlock();
@@ -173,7 +173,7 @@ bool WriteSavegame(const char* filename, const char *name)
 {
 	BufferWriter savepic;
 	FSerializer savegameinfo;		// this is for displayable info about the savegame.
-	FSerializer savegamesession;	// saved game session settings.
+	FRazeSerializer savegamesession;	// saved game session settings.
 
 	char buf[100];
 	mysnprintf(buf, countof(buf), GAMENAME " %s", GetVersionString());

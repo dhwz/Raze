@@ -42,11 +42,8 @@ Prepared for public release: 03/28/2005 - Charlie Wiederhold, 3D Realms
 BEGIN_SW_NS
 
 DVector2 DoTrack(SECTOR_OBJECT* sop, short locktics);
-void DoAutoTurretObject(SECTOR_OBJECT* sop);
-void DoTornadoObject(SECTOR_OBJECT* sop);
 int PickJumpSpeed(DSWActor*, int pix_height);
 DSWActor* FindNearSprite(DSWActor, short);
-ANIMATOR NinjaJumpActionFunc;
 
 #define ACTOR_STD_JUMP (-384)
 DAngle GlobSpeedSO;
@@ -154,7 +151,7 @@ short ActorFindTrack(DSWActor* actor, int8_t player_dir, int track_type, int* tr
         {
         case BIT(TT_DUCK_N_SHOOT):
         {
-            if (!actor->user.ActorActionSet->Duck)
+            if (!actor->hasState(NAME_Duck))
                 return -1;
 
             end_point[1] = 0;
@@ -164,7 +161,7 @@ short ActorFindTrack(DSWActor* actor, int8_t player_dir, int track_type, int* tr
         // for ladders only look at first track point
         case BIT(TT_LADDER):
         {
-            if (!actor->user.ActorActionSet->Climb)
+            if (!actor->hasState(NAME_Climb))
                 return -1;
 
             end_point[1] = 0;
@@ -174,7 +171,7 @@ short ActorFindTrack(DSWActor* actor, int8_t player_dir, int track_type, int* tr
         case BIT(TT_JUMP_UP):
         case BIT(TT_JUMP_DOWN):
         {
-            if (!actor->user.ActorActionSet->Jump)
+            if (!actor->hasState(NAME_Jump))
                 return -1;
 
             end_point[1] = 0;
@@ -183,7 +180,7 @@ short ActorFindTrack(DSWActor* actor, int8_t player_dir, int track_type, int* tr
 
         case BIT(TT_TRAVERSE):
         {
-            if (!actor->user.ActorActionSet->Crawl || !actor->user.ActorActionSet->Jump)
+            if (!actor->hasState(NAME_Crawl) || !!actor->hasState(NAME_Jump))
                 return -1;
 
             break;
@@ -804,7 +801,7 @@ void SectorObjectSetupBounds(SECTOR_OBJECT* sop)
                 if (!itActor->hasU())
                     SpawnUser(itActor, 0, nullptr);
 
-                itActor->user.RotNum = 0;
+                itActor->user.__legacyState.RotNum = 0;
 
                 itActor->backuppos();
                 itActor->user.oz = itActor->opos.Z;
@@ -930,12 +927,6 @@ void SetupSectorObject(sectortype* sectp, short tag)
     // initialize stuff first time through
     if (sop->num_sectors == -1)
     {
-        void DoTornadoObject(SECTOR_OBJECT* sop);
-        void MorphTornado(SECTOR_OBJECT* sop);
-        void MorphFloor(SECTOR_OBJECT* sop);
-        void ScaleSectorObject(SECTOR_OBJECT* sop);
-        void DoAutoTurretObject(SECTOR_OBJECT* sop);
-
         memset(sop->sectp, 0, sizeof(sop->sectp));
         memset(sop->so_actors, 0, sizeof(sop->so_actors));
         sop->morph_wall_point = nullptr;
@@ -988,9 +979,8 @@ void SetupSectorObject(sectortype* sectp, short tag)
         sop->morph_dist = 0;
         sop->morph_off = { 0,0 };
 
-        sop->PreMoveAnimator = nullptr;
-        sop->PostMoveAnimator = nullptr;
-        sop->Animator = nullptr;
+        sop->PreMoveScale = false;
+        sop->AnimType = SOType_None;
     }
 
     switch (tag % 5)
@@ -1071,12 +1061,12 @@ void SetupSectorObject(sectortype* sectp, short tag)
                     {
                         change_actor_stat(actor, STAT_NO_STATE);
                         SpawnUser(actor, 0, nullptr);
-                        actor->user.ActorActionFunc = nullptr;
+                        actor->clearActionFunc();
                     }
                     break;
 
                 case SO_AUTO_TURRET:
-                    sop->Animator = DoAutoTurretObject;
+                    sop->AnimType = SOType_AutoTurret;
                     KillActor(actor);
                     break;
 
@@ -1089,9 +1079,8 @@ void SetupSectorObject(sectortype* sectp, short tag)
                     sop->spin_speed = DAngle22_5 * (1. / 16);
                     sop->last_ang = sop->ang;
                     // animators
-                    sop->Animator = DoTornadoObject;
-                    sop->PreMoveAnimator = ScaleSectorObject;
-                    sop->PostMoveAnimator = MorphTornado;
+                    sop->PreMoveScale = true;
+                    sop->AnimType = SOType_Tornado;
                     // clip
                     sop->clipdist = 156.25;
                     // morph point
@@ -1108,7 +1097,7 @@ void SetupSectorObject(sectortype* sectp, short tag)
                     sop->scale_type = SO_SCALE_NONE;
                     sop->morph_speed = 7.5;
                     sop->morph_z_speed = 7;
-                    sop->PostMoveAnimator = MorphFloor;
+                    sop->AnimType = SOType_Floor;
                     sop->morph_dist_max = 250;
                     sop->morph_rand_freq = 8;
                     KillActor(actor);
@@ -1118,7 +1107,7 @@ void SetupSectorObject(sectortype* sectp, short tag)
                     sop->flags |= (SOBJ_DYNAMIC);
                     //sop->scale_type = SO_SCALE_CYCLE;
                     sop->scale_type = SO_SCALE_RANDOM_POINT;
-                    sop->PreMoveAnimator = ScaleSectorObject;
+                    sop->PreMoveScale = true;
 
                     memset(sop->scale_point_dist,0,sizeof(sop->scale_point_dist));;
                     sop->scale_point_base_speed = 0.25 + RandomRangeF(0.5);
@@ -1288,7 +1277,7 @@ void SetupSectorObject(sectortype* sectp, short tag)
         sectp->hitag = 0;
 
         if (sop->max_damage <= 0)
-            VehicleSetSmoke(sop, SpawnVehicleSmoke);
+            VehicleSetSmoke(sop, AF(SpawnVehicleSmoke));
 
         break;
     }
@@ -1770,8 +1759,8 @@ void RefreshPoints(SECTOR_OBJECT* sop, const DVector2& move, bool dynamic)
     DAngle delta_ang_from_orig;
 
     // do scaling
-    if (dynamic && sop->PreMoveAnimator)
-        (*sop->PreMoveAnimator)(sop);
+    if (dynamic && sop->PreMoveScale)
+        ScaleSectorObject(sop);
 
     sectortype** sectp;
     int j;
@@ -1843,8 +1832,18 @@ void RefreshPoints(SECTOR_OBJECT* sop, const DVector2& move, bool dynamic)
     MovePoints(sop, delta_ang_from_orig, move);
 
     // do morphing - angle independent
-    if (dynamic && sop->PostMoveAnimator)
-        (*sop->PostMoveAnimator)(sop);
+    if (dynamic)
+    {
+        switch (sop->AnimType)
+        {
+        case SOType_Floor:
+            MorphFloor(sop);
+            break;
+        case SOType_Tornado:
+            MorphTornado(sop);
+            break;
+        }
+    }
 }
 
 void KillSectorObjectSprites(SECTOR_OBJECT* sop)
@@ -2565,7 +2564,7 @@ void PlaceSectorObject(SECTOR_OBJECT* sop, const DVector2& pos)
     RefreshPoints(sop, pos - sop->pmid.XY(), false);
 }
 
-void VehicleSetSmoke(SECTOR_OBJECT* sop, ANIMATOR* animator)
+void VehicleSetSmoke(SECTOR_OBJECT* sop, VMFunction* animator)
 {
     sectortype* *sectp;
 
@@ -2897,11 +2896,11 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
         break;
 
     case TRACK_ACTOR_STAND:
-        NewStateGroup(actor, actor->user.ActorActionSet->Stand);
+        actor->setStateGroup(NAME_Stand);
         break;
 
     case TRACK_ACTOR_JUMP:
-        if (actor->user.ActorActionSet->Jump)
+        if (actor->hasState(NAME_Jump))
         {
             actor->spr.Angles.Yaw = tpoint->angle;
 
@@ -2911,14 +2910,14 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
                 actor->user.jump_speed = -tpoint->tag_high;
 
             DoActorBeginJump(actor);
-            actor->user.ActorActionFunc = DoActorMoveJump;
+            actor->user.ActorActionFunc = AF(DoActorMoveJump);
         }
 
         break;
 
     case TRACK_ACTOR_QUICK_JUMP:
     case TRACK_ACTOR_QUICK_SUPER_JUMP:
-        if (actor->user.ActorActionSet->Jump)
+        if (actor->hasState(NAME_Jump))
         {
             int zdiff;
             HitInfo hit{};
@@ -2957,7 +2956,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
             }
 
             DoActorBeginJump(actor);
-            actor->user.ActorActionFunc = DoActorMoveJump;
+            actor->user.ActorActionFunc = AF(DoActorMoveJump);
 
             return false;
         }
@@ -2966,7 +2965,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
 
     case TRACK_ACTOR_QUICK_JUMP_DOWN:
 
-        if (actor->user.ActorActionSet->Jump)
+        if (actor->hasState(NAME_Jump))
         {
             actor->spr.Angles.Yaw = tpoint->angle;
 
@@ -2982,7 +2981,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
             }
 
             DoActorBeginJump(actor);
-            actor->user.ActorActionFunc = DoActorMoveJump;
+            actor->user.ActorActionFunc = AF(DoActorMoveJump);
             return false;
         }
 
@@ -2990,7 +2989,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
 
     case TRACK_ACTOR_QUICK_SCAN:
 
-        if (actor->user.ActorActionSet->Jump)
+        if (actor->hasState(NAME_Jump))
         {
             ActorLeaveTrack(actor);
             return false;
@@ -3000,7 +2999,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
 
     case TRACK_ACTOR_QUICK_DUCK:
 
-        if (actor->user.Rot != actor->user.ActorActionSet->Duck)
+        if (!actor->checkStateGroup(NAME_Duck))
         {
             actor->spr.Angles.Yaw = tpoint->angle;
 
@@ -3012,7 +3011,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
                 actor->user.WaitTics = tpoint->tag_high * 128;
 
             InitActorDuck(actor);
-            actor->user.ActorActionFunc = DoActorDuck;
+            actor->user.ActorActionFunc = AF(DoActorDuck);
             return false;
         }
 
@@ -3024,7 +3023,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
         HitInfo near{};
         double z[2];
 
-        if (actor->user.Rot == actor->user.ActorActionSet->Sit || actor->user.Rot == actor->user.ActorActionSet->Stand)
+        if (actor->checkStateGroup(NAME_Sit) || actor->checkStateGroup(NAME_Stand))
             return false;
 
         actor->spr.Angles.Yaw = tpoint->angle;
@@ -3045,7 +3044,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
                     else
                         actor->user.WaitTics = tpoint->tag_high * 128;
 
-                    NewStateGroup(actor, actor->user.ActorActionSet->Stand);
+                    actor->setStateGroup(NAME_Stand);
                 }
             }
         }
@@ -3059,7 +3058,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
                 else
                     actor->user.WaitTics = tpoint->tag_high * 128;
 
-                NewStateGroup(actor, actor->user.ActorActionSet->Sit);
+                actor->setStateGroup(NAME_Sit);
             }
         }
 
@@ -3067,7 +3066,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
     }
 
     case TRACK_ACTOR_JUMP_IF_FORWARD:
-        if (actor->user.ActorActionSet->Jump && actor->user.track_dir == 1)
+        if (actor->hasState(NAME_Jump) && actor->user.track_dir == 1)
         {
             if (!tpoint->tag_high)
                 actor->user.jump_speed = ACTOR_STD_JUMP;
@@ -3080,7 +3079,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
         break;
 
     case TRACK_ACTOR_JUMP_IF_REVERSE:
-        if (actor->user.ActorActionSet->Jump && actor->user.track_dir == -1)
+        if (actor->hasState(NAME_Jump) && actor->user.track_dir == -1)
         {
             if (!tpoint->tag_high)
                 actor->user.jump_speed = ACTOR_STD_JUMP;
@@ -3093,92 +3092,92 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
         break;
 
     case TRACK_ACTOR_CRAWL:
-        if (actor->user.Rot != actor->user.ActorActionSet->Crawl)
-            NewStateGroup(actor, actor->user.ActorActionSet->Crawl);
+        if (!actor->checkStateGroup(NAME_Crawl))
+            actor->setStateGroup(NAME_Crawl);
         else
-            NewStateGroup(actor, actor->user.ActorActionSet->Rise);
+            actor->setStateGroup(NAME_Rise);
         break;
 
     case TRACK_ACTOR_SWIM:
-        if (actor->user.Rot != actor->user.ActorActionSet->Swim)
-            NewStateGroup(actor, actor->user.ActorActionSet->Swim);
+        if (!actor->checkStateGroup(NAME_Swim))
+            actor->setStateGroup(NAME_Swim);
         else
-            NewStateGroup(actor, actor->user.ActorActionSet->Rise);
+            actor->setStateGroup(NAME_Rise);
         break;
 
     case TRACK_ACTOR_FLY:
-        NewStateGroup(actor, actor->user.ActorActionSet->Fly);
+        actor->setStateGroup(NAME_Fly);
         break;
 
     case TRACK_ACTOR_SIT:
 
-        if (actor->user.ActorActionSet->Sit)
+        if (actor->hasState(NAME_Sit))
         {
             if (!tpoint->tag_high)
                 actor->user.WaitTics = 3 * 120;
             else
                 actor->user.WaitTics = tpoint->tag_high * 128;
 
-            NewStateGroup(actor, actor->user.ActorActionSet->Sit);
+            actor->setStateGroup(NAME_Sit);
         }
 
         break;
 
     case TRACK_ACTOR_DEATH1:
-        if (actor->user.ActorActionSet->Death2)
+        if (actor->hasState(NAME_Death2))
         {
             actor->user.WaitTics = 4 * 120;
-            NewStateGroup(actor, actor->user.ActorActionSet->Death1);
+            actor->setStateGroup(NAME_Death1);
         }
         break;
 
     case TRACK_ACTOR_DEATH2:
 
-        if (actor->user.ActorActionSet->Death2)
+        if (actor->hasState(NAME_Death2))
         {
             actor->user.WaitTics = 4 * 120;
-            NewStateGroup(actor, actor->user.ActorActionSet->Death2);
+            actor->setStateGroup(NAME_Death2);
         }
 
         break;
 
     case TRACK_ACTOR_DEATH_JUMP:
 
-        if (actor->user.ActorActionSet->DeathJump)
+        if (actor->hasState(NAME_DeathJump))
         {
             actor->user.Flags |= (SPR_DEAD);
             actor->vel.X *= 2;
             actor->user.jump_speed = -495;
             DoActorBeginJump(actor);
-            NewStateGroup(actor, actor->user.ActorActionSet->DeathJump);
+            actor->setStateGroup(NAME_DeathJump);
         }
 
         break;
 
     case TRACK_ACTOR_CLOSE_ATTACK1:
 
-        if (actor->user.ActorActionSet->CloseAttack[0])
+        if (actor->hasState(NAME_CloseAttack, 0))
         {
             if (!tpoint->tag_high)
                 actor->user.WaitTics = 2 * 120;
             else
                 actor->user.WaitTics = tpoint->tag_high * 128;
 
-            NewStateGroup(actor, actor->user.ActorActionSet->CloseAttack[0]);
+            actor->setStateGroup(NAME_CloseAttack, 0);
         }
 
         break;
 
     case TRACK_ACTOR_CLOSE_ATTACK2:
 
-        if (actor->user.ActorActionSet->CloseAttack[1])
+        if (actor->hasState(NAME_CloseAttack, 1))
         {
             if (!tpoint->tag_high)
                 actor->user.WaitTics = 4 * 120;
             else
                 actor->user.WaitTics = tpoint->tag_high * 128;
 
-            NewStateGroup(actor, actor->user.ActorActionSet->CloseAttack[1]);
+            actor->setStateGroup(NAME_CloseAttack, 1);
         }
 
         break;
@@ -3190,7 +3189,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
     case TRACK_ACTOR_ATTACK5:
     case TRACK_ACTOR_ATTACK6:
     {
-        STATE* **ap = &actor->user.ActorActionSet->Attack[0] + (tpoint->tag_low - TRACK_ACTOR_ATTACK1);
+        STATE* **ap = &actor->user.__legacyState.ActorActionSet->Attack[0] + (tpoint->tag_low - TRACK_ACTOR_ATTACK1);
 
 
         if (*ap)
@@ -3221,7 +3220,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
 
     case TRACK_ACTOR_CLIMB_LADDER:
 
-        if (actor->user.ActorActionSet->Jump)
+        if (actor->hasState(NAME_Jump))
         {
             HitInfo near;
 
@@ -3290,7 +3289,7 @@ bool ActorTrackDecide(TRACK_POINT* tpoint, DSWActor* actor)
             //
 
             actor->user.Flags |= (SPR_CLIMBING);
-            NewStateGroup(actor, actor->user.ActorActionSet->Climb);
+            actor->setStateGroup(NAME_Climb);
 
             actor->vel.Z -= 1;
         }
@@ -3356,7 +3355,7 @@ int ActorFollowTrack(DSWActor* actor, short locktics)
         if (actor->user.WaitTics <= 0)
         {
             actor->user.Flags &= ~(SPR_DONT_UPDATE_ANG);
-            NewStateGroup(actor, actor->user.ActorActionSet->Run);
+            actor->setStateGroup(NAME_Run);
             actor->user.WaitTics = 0;
         }
 
@@ -3436,7 +3435,7 @@ int ActorFollowTrack(DSWActor* actor, short locktics)
                 actor->spr.pos.Z += actor->user.pos.Y;
 
                 DoActorSetSpeed(actor, SLOW_SPEED);
-                actor->user.ActorActionFunc = NinjaJumpActionFunc;
+                actor->user.ActorActionFunc = AF(NinjaJumpActionFunc);
                 actor->user.jump_speed = -650;
                 DoActorBeginJump(actor);
 
@@ -3466,23 +3465,5 @@ int ActorFollowTrack(DSWActor* actor, short locktics)
     return true;
 }
 
-
-#include "saveable.h"
-
-static saveable_code saveable_track_code[] =
-{
-    SAVE_CODE(DoTornadoObject),
-    SAVE_CODE(DoAutoTurretObject),
-};
-
-saveable_module saveable_track =
-{
-    // code
-    saveable_track_code,
-    SIZ(saveable_track_code),
-
-    // data
-    nullptr,0
-};
 
 END_SW_NS

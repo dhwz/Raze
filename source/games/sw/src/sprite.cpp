@@ -85,11 +85,6 @@ int SetupPachinko2(DSWActor*);
 int SetupPachinko3(DSWActor*);
 int SetupPachinko4(DSWActor*);
 int SetupGirlNinja(DSWActor*);
-ANIMATOR DoVator, DoVatorAuto;
-ANIMATOR DoRotator;
-ANIMATOR DoSlidor;
-ANIMATOR DoSpike, DoSpikeAuto;
-ANIMATOR DoLavaErupt;
 int DoSlidorInstantClose(DSWActor*);
 
 void InitWeaponRocket(PLAYER*);
@@ -125,84 +120,82 @@ int DirArr[] = {NORTH, NE, EAST, SE, SOUTH, SW, WEST, NW, NORTH, NE, EAST, SE, S
 
 STATE s_DebrisNinja[] =
 {
-    {NINJA_DIE + 3, 100, DoActorDebris, &s_DebrisNinja[0]},
+    {NINJA_DIE + 3, 100, &AF(DoActorDebris), &s_DebrisNinja[0]},
 };
 
 STATE s_DebrisRat[] =
 {
-    {750, 100, DoActorDebris, &s_DebrisRat[0]},
+    {750, 100, &AF(DoActorDebris), &s_DebrisRat[0]},
 };
 
 STATE s_DebrisCrab[] =
 {
-    {423, 100, DoActorDebris, &s_DebrisCrab[0]},
+    {423, 100, &AF(DoActorDebris), &s_DebrisCrab[0]},
 };
 
 STATE s_DebrisStarFish[] =
 {
-    {426, 100, DoActorDebris, &s_DebrisStarFish[0]},
+    {426, 100, &AF(DoActorDebris), &s_DebrisStarFish[0]},
 };
-
-ANIMATOR DoGet, DoKey, DoSpriteFade;
 
 // temporary
 #define ICON_REPAIR_KIT 1813
 #define REPAIR_KIT_RATE 1100
 STATE s_RepairKit[] =
 {
-    {ICON_REPAIR_KIT + 0, REPAIR_KIT_RATE, DoGet, &s_RepairKit[0]}
+    {ICON_REPAIR_KIT + 0, REPAIR_KIT_RATE, &AF(DoGet), &s_RepairKit[0]}
 };
 
 STATE s_GoldSkelKey[] =
 {
-    {GOLD_SKELKEY, 100, DoGet, &s_GoldSkelKey[0]}
+    {GOLD_SKELKEY, 100, &AF(DoGet), &s_GoldSkelKey[0]}
 };
 STATE s_BlueKey[] =
 {
-    {BLUE_KEY, 100, DoGet, &s_BlueKey[0]}
+    {BLUE_KEY, 100, &AF(DoGet), &s_BlueKey[0]}
 };
 STATE s_BlueCard[] =
 {
-    {BLUE_CARD, 100, DoGet, &s_BlueCard[0]}
+    {BLUE_CARD, 100, &AF(DoGet), &s_BlueCard[0]}
 };
 
 STATE s_SilverSkelKey[] =
 {
-    {SILVER_SKELKEY, 100, DoGet, &s_SilverSkelKey[0]}
+    {SILVER_SKELKEY, 100, &AF(DoGet), &s_SilverSkelKey[0]}
 };
 STATE s_RedKey[] =
 {
-    {RED_KEY, 100, DoGet, &s_RedKey[0]}
+    {RED_KEY, 100, &AF(DoGet), &s_RedKey[0]}
 };
 STATE s_RedCard[] =
 {
-    {RED_CARD, 100, DoGet, &s_RedCard[0]}
+    {RED_CARD, 100, &AF(DoGet), &s_RedCard[0]}
 };
 
 STATE s_BronzeSkelKey[] =
 {
-    {BRONZE_SKELKEY, 100, DoGet, &s_BronzeSkelKey[0]}
+    {BRONZE_SKELKEY, 100, &AF(DoGet), &s_BronzeSkelKey[0]}
 };
 STATE s_GreenKey[] =
 {
-    {GREEN_KEY, 100, DoGet, &s_GreenKey[0]}
+    {GREEN_KEY, 100, &AF(DoGet), &s_GreenKey[0]}
 };
 STATE s_GreenCard[] =
 {
-    {GREEN_CARD, 100, DoGet, &s_GreenCard[0]}
+    {GREEN_CARD, 100, &AF(DoGet), &s_GreenCard[0]}
 };
 
 STATE s_RedSkelKey[] =
 {
-    {RED_SKELKEY, 100, DoGet, &s_RedSkelKey[0]}
+    {RED_SKELKEY, 100, &AF(DoGet), &s_RedSkelKey[0]}
 };
 STATE s_YellowKey[] =
 {
-    {YELLOW_KEY, 100, DoGet, &s_YellowKey[0]}
+    {YELLOW_KEY, 100, &AF(DoGet), &s_YellowKey[0]}
 };
 STATE s_YellowCard[] =
 {
-    {YELLOW_CARD, 100, DoGet, &s_YellowCard[0]}
+    {YELLOW_CARD, 100, &AF(DoGet), &s_YellowCard[0]}
 };
 
 STATE* s_Key[] =
@@ -223,73 +216,6 @@ STATE* s_Key[] =
 
 #define KEY_RATE 25
 
-#if 0
-STATE s_BlueKey[] =
-{
-    {BLUE_KEY + 0, KEY_RATE, DoKey, &s_BlueKey[0]}
-};
-
-STATE s_RedKey[] =
-{
-    {RED_KEY + 0, KEY_RATE, DoKey, &s_RedKey[0]}
-};
-
-STATE s_GreenKey[] =
-{
-    {GREEN_KEY + 0, KEY_RATE, DoKey, &s_GreenKey[0]}
-};
-
-STATE s_YellowKey[] =
-{
-    {YELLOW_KEY + 0, KEY_RATE, DoKey, &s_YellowKey[0]}
-};
-
-STATE* s_Key[] =
-{
-    s_RedKey,
-    s_BlueKey,
-    s_GreenKey,
-    s_YellowKey,
-    s_RedCard,
-    s_BlueCard,
-    s_GreenCard,
-    s_YellowCard,
-    s_GoldSkelKey,
-    s_SilverSkelKey,
-    s_BronzeSkelKey,
-    s_RedSkelKey
-};
-#endif
-
-#if 0
-STATE s_BlueKeyStatue[] =
-{
-    {BLUE_KEY_STATUE + 0, KEY_RATE, DoSpriteFade, &s_BlueKeyStatue[0]}
-};
-
-STATE s_RedKeyStatue[] =
-{
-    {RED_KEY_STATUE + 0, KEY_RATE, DoSpriteFade, &s_RedKeyStatue[0]}
-};
-
-STATE s_GreenKeyStatue[] =
-{
-    {GREEN_KEY_STATUE + 0, KEY_RATE, DoSpriteFade, &s_GreenKeyStatue[0]}
-};
-
-STATE s_YellowKeyStatue[] =
-{
-    {YELLOW_KEY_STATUE + 0, KEY_RATE, DoSpriteFade, &s_YellowKeyStatue[0]}
-};
-
-STATE* s_KeyStatue[] =
-{
-    s_RedKeyStatue,
-    s_BlueKeyStatue,
-    s_GreenKeyStatue,
-    s_YellowKeyStatue,
-};
-#endif
 
 #define Red_COIN 2440
 #define Yellow_COIN 2450
@@ -297,289 +223,269 @@ STATE* s_KeyStatue[] =
 #define RED_COIN_RATE 10
 #define YELLOW_COIN_RATE 8
 #define GREEN_COIN_RATE 6
-ANIMATOR DoCoin;
 STATE s_RedCoin[] =
 {
-    {Red_COIN + 0, RED_COIN_RATE, DoCoin, &s_RedCoin[1]},
-    {Red_COIN + 1, RED_COIN_RATE, DoCoin, &s_RedCoin[2]},
-    {Red_COIN + 2, RED_COIN_RATE, DoCoin, &s_RedCoin[3]},
-    {Red_COIN + 3, RED_COIN_RATE, DoCoin, &s_RedCoin[4]},
-    {Red_COIN + 4, RED_COIN_RATE, DoCoin, &s_RedCoin[5]},
-    {Red_COIN + 5, RED_COIN_RATE, DoCoin, &s_RedCoin[6]},
-    {Red_COIN + 6, RED_COIN_RATE, DoCoin, &s_RedCoin[7]},
-    {Red_COIN + 7, RED_COIN_RATE, DoCoin, &s_RedCoin[0]},
+    {Red_COIN + 0, RED_COIN_RATE, &AF(DoCoin), &s_RedCoin[1]},
+    {Red_COIN + 1, RED_COIN_RATE, &AF(DoCoin), &s_RedCoin[2]},
+    {Red_COIN + 2, RED_COIN_RATE, &AF(DoCoin), &s_RedCoin[3]},
+    {Red_COIN + 3, RED_COIN_RATE, &AF(DoCoin), &s_RedCoin[4]},
+    {Red_COIN + 4, RED_COIN_RATE, &AF(DoCoin), &s_RedCoin[5]},
+    {Red_COIN + 5, RED_COIN_RATE, &AF(DoCoin), &s_RedCoin[6]},
+    {Red_COIN + 6, RED_COIN_RATE, &AF(DoCoin), &s_RedCoin[7]},
+    {Red_COIN + 7, RED_COIN_RATE, &AF(DoCoin), &s_RedCoin[0]},
 };
 
 // !JIM! Frank, I made coins go progressively faster
 STATE s_YellowCoin[] =
 {
-    {Yellow_COIN + 0, YELLOW_COIN_RATE, DoCoin, &s_YellowCoin[1]},
-    {Yellow_COIN + 1, YELLOW_COIN_RATE, DoCoin, &s_YellowCoin[2]},
-    {Yellow_COIN + 2, YELLOW_COIN_RATE, DoCoin, &s_YellowCoin[3]},
-    {Yellow_COIN + 3, YELLOW_COIN_RATE, DoCoin, &s_YellowCoin[4]},
-    {Yellow_COIN + 4, YELLOW_COIN_RATE, DoCoin, &s_YellowCoin[5]},
-    {Yellow_COIN + 5, YELLOW_COIN_RATE, DoCoin, &s_YellowCoin[6]},
-    {Yellow_COIN + 6, YELLOW_COIN_RATE, DoCoin, &s_YellowCoin[7]},
-    {Yellow_COIN + 7, YELLOW_COIN_RATE, DoCoin, &s_YellowCoin[0]},
+    {Yellow_COIN + 0, YELLOW_COIN_RATE, &AF(DoCoin), &s_YellowCoin[1]},
+    {Yellow_COIN + 1, YELLOW_COIN_RATE, &AF(DoCoin), &s_YellowCoin[2]},
+    {Yellow_COIN + 2, YELLOW_COIN_RATE, &AF(DoCoin), &s_YellowCoin[3]},
+    {Yellow_COIN + 3, YELLOW_COIN_RATE, &AF(DoCoin), &s_YellowCoin[4]},
+    {Yellow_COIN + 4, YELLOW_COIN_RATE, &AF(DoCoin), &s_YellowCoin[5]},
+    {Yellow_COIN + 5, YELLOW_COIN_RATE, &AF(DoCoin), &s_YellowCoin[6]},
+    {Yellow_COIN + 6, YELLOW_COIN_RATE, &AF(DoCoin), &s_YellowCoin[7]},
+    {Yellow_COIN + 7, YELLOW_COIN_RATE, &AF(DoCoin), &s_YellowCoin[0]},
 };
 
 STATE s_GreenCoin[] =
 {
-    {Green_COIN + 0, GREEN_COIN_RATE, DoCoin, &s_GreenCoin[1]},
-    {Green_COIN + 1, GREEN_COIN_RATE, DoCoin, &s_GreenCoin[2]},
-    {Green_COIN + 2, GREEN_COIN_RATE, DoCoin, &s_GreenCoin[3]},
-    {Green_COIN + 3, GREEN_COIN_RATE, DoCoin, &s_GreenCoin[4]},
-    {Green_COIN + 4, GREEN_COIN_RATE, DoCoin, &s_GreenCoin[5]},
-    {Green_COIN + 5, GREEN_COIN_RATE, DoCoin, &s_GreenCoin[6]},
-    {Green_COIN + 6, GREEN_COIN_RATE, DoCoin, &s_GreenCoin[7]},
-    {Green_COIN + 7, GREEN_COIN_RATE, DoCoin, &s_GreenCoin[0]},
+    {Green_COIN + 0, GREEN_COIN_RATE, &AF(DoCoin), &s_GreenCoin[1]},
+    {Green_COIN + 1, GREEN_COIN_RATE, &AF(DoCoin), &s_GreenCoin[2]},
+    {Green_COIN + 2, GREEN_COIN_RATE, &AF(DoCoin), &s_GreenCoin[3]},
+    {Green_COIN + 3, GREEN_COIN_RATE, &AF(DoCoin), &s_GreenCoin[4]},
+    {Green_COIN + 4, GREEN_COIN_RATE, &AF(DoCoin), &s_GreenCoin[5]},
+    {Green_COIN + 5, GREEN_COIN_RATE, &AF(DoCoin), &s_GreenCoin[6]},
+    {Green_COIN + 6, GREEN_COIN_RATE, &AF(DoCoin), &s_GreenCoin[7]},
+    {Green_COIN + 7, GREEN_COIN_RATE, &AF(DoCoin), &s_GreenCoin[0]},
 };
 
-ANIMATOR DoFireFly;
-
-#if 0
 STATE s_FireFly[] =
 {
-    {FIRE_FLY0, 120 * 3, DoFireFly, &s_FireFly[1]},
-    {FIRE_FLY1, 20, DoFireFly, &s_FireFly[2]},
-    {FIRE_FLY2, 20, DoFireFly, &s_FireFly[3]},
-    {FIRE_FLY3, 20, DoFireFly, &s_FireFly[4]},
-    {FIRE_FLY4, 60, DoFireFly, &s_FireFly[0]},
+    {FIRE_FLY0, FIRE_FLY_RATE * 4, &AF(DoFireFly), &s_FireFly[0]}
 };
-
-#else
-STATE s_FireFly[] =
-{
-    {FIRE_FLY0, FIRE_FLY_RATE * 4, DoFireFly, &s_FireFly[0]}
-};
-
-#endif
 
 
 STATE s_IconStar[] =
 {
-    {ICON_STAR, 100, DoGet, &s_IconStar[0]}
+    {ICON_STAR, 100, &AF(DoGet), &s_IconStar[0]}
 };
 
 STATE s_IconUzi[] =
 {
-    {ICON_UZI, 100, DoGet, &s_IconUzi[0]}
+    {ICON_UZI, 100, &AF(DoGet), &s_IconUzi[0]}
 };
 
 STATE s_IconLgUziAmmo[] =
 {
-    {ICON_LG_UZI_AMMO, 100, DoGet, &s_IconLgUziAmmo[0]}
+    {ICON_LG_UZI_AMMO, 100, &AF(DoGet), &s_IconLgUziAmmo[0]}
 };
 
 STATE s_IconUziFloor[] =
 {
-    {ICON_UZIFLOOR, 100, DoGet, &s_IconUziFloor[0]}
+    {ICON_UZIFLOOR, 100, &AF(DoGet), &s_IconUziFloor[0]}
 };
 
 STATE s_IconRocket[] =
 {
-    {ICON_ROCKET, 100, DoGet, &s_IconRocket[0]}
+    {ICON_ROCKET, 100, &AF(DoGet), &s_IconRocket[0]}
 };
 
 STATE s_IconLgRocket[] =
 {
-    {ICON_LG_ROCKET, 100, DoGet, &s_IconLgRocket[0]}
+    {ICON_LG_ROCKET, 100, &AF(DoGet), &s_IconLgRocket[0]}
 };
 
 STATE s_IconShotgun[] =
 {
-    {ICON_SHOTGUN, 100, DoGet, &s_IconShotgun[0]}
+    {ICON_SHOTGUN, 100, &AF(DoGet), &s_IconShotgun[0]}
 };
 
 STATE s_IconLgShotshell[] =
 {
-    {ICON_LG_SHOTSHELL, 100, DoGet, &s_IconLgShotshell[0]}
+    {ICON_LG_SHOTSHELL, 100, &AF(DoGet), &s_IconLgShotshell[0]}
 };
 
 STATE s_IconAutoRiot[] =
 {
-    {ICON_AUTORIOT, 100, DoGet, &s_IconAutoRiot[0]}
+    {ICON_AUTORIOT, 100, &AF(DoGet), &s_IconAutoRiot[0]}
 };
 
 STATE s_IconGrenadeLauncher[] =
 {
-    {ICON_GRENADE_LAUNCHER, 100, DoGet, &s_IconGrenadeLauncher[0]}
+    {ICON_GRENADE_LAUNCHER, 100, &AF(DoGet), &s_IconGrenadeLauncher[0]}
 };
 
 STATE s_IconLgGrenade[] =
 {
-    {ICON_LG_GRENADE, 100, DoGet, &s_IconLgGrenade[0]}
+    {ICON_LG_GRENADE, 100, &AF(DoGet), &s_IconLgGrenade[0]}
 };
 
 
 STATE s_IconLgMine[] =
 {
-    {ICON_LG_MINE, 100, DoGet, &s_IconLgMine[0]}
+    {ICON_LG_MINE, 100, &AF(DoGet), &s_IconLgMine[0]}
 };
 
 STATE s_IconGuardHead[] =
 {
-    {ICON_GUARD_HEAD + 0, 15, DoGet, &s_IconGuardHead[0]},
-//    {ICON_GUARD_HEAD + 1, 15, DoGet, &s_IconGuardHead[2]},
-//    {ICON_GUARD_HEAD + 2, 15, DoGet, &s_IconGuardHead[0]}
+    {ICON_GUARD_HEAD + 0, 15, &AF(DoGet), &s_IconGuardHead[0]},
 };
 
 
 #define FIREBALL_LG_AMMO_RATE 12
 STATE s_IconFireballLgAmmo[] =
 {
-    {ICON_FIREBALL_LG_AMMO + 0, FIREBALL_LG_AMMO_RATE, DoGet, &s_IconFireballLgAmmo[1]},
-    {ICON_FIREBALL_LG_AMMO + 1, FIREBALL_LG_AMMO_RATE, DoGet, &s_IconFireballLgAmmo[2]},
-    {ICON_FIREBALL_LG_AMMO + 2, FIREBALL_LG_AMMO_RATE, DoGet, &s_IconFireballLgAmmo[0]},
+    {ICON_FIREBALL_LG_AMMO + 0, FIREBALL_LG_AMMO_RATE, &AF(DoGet), &s_IconFireballLgAmmo[1]},
+    {ICON_FIREBALL_LG_AMMO + 1, FIREBALL_LG_AMMO_RATE, &AF(DoGet), &s_IconFireballLgAmmo[2]},
+    {ICON_FIREBALL_LG_AMMO + 2, FIREBALL_LG_AMMO_RATE, &AF(DoGet), &s_IconFireballLgAmmo[0]},
 };
 
 STATE s_IconHeart[] =
 {
-    {ICON_HEART + 0, 25, DoGet, &s_IconHeart[1]},
-    {ICON_HEART + 1, 25, DoGet, &s_IconHeart[0]},
+    {ICON_HEART + 0, 25, &AF(DoGet), &s_IconHeart[1]},
+    {ICON_HEART + 1, 25, &AF(DoGet), &s_IconHeart[0]},
 };
 
 #define HEART_LG_AMMO_RATE 12
 STATE s_IconHeartLgAmmo[] =
 {
-    {ICON_HEART_LG_AMMO + 0, HEART_LG_AMMO_RATE, DoGet, &s_IconHeartLgAmmo[1]},
-    {ICON_HEART_LG_AMMO + 1, HEART_LG_AMMO_RATE, DoGet, &s_IconHeartLgAmmo[0]},
+    {ICON_HEART_LG_AMMO + 0, HEART_LG_AMMO_RATE, &AF(DoGet), &s_IconHeartLgAmmo[1]},
+    {ICON_HEART_LG_AMMO + 1, HEART_LG_AMMO_RATE, &AF(DoGet), &s_IconHeartLgAmmo[0]},
 };
 
 STATE s_IconMicroGun[] =
 {
-    {ICON_MICRO_GUN, 100, DoGet, &s_IconMicroGun[0]}
+    {ICON_MICRO_GUN, 100, &AF(DoGet), &s_IconMicroGun[0]}
 };
 
 STATE s_IconMicroBattery[] =
 {
-    {ICON_MICRO_BATTERY, 100, DoGet, &s_IconMicroBattery[0]}
+    {ICON_MICRO_BATTERY, 100, &AF(DoGet), &s_IconMicroBattery[0]}
 };
 
 // !JIM!  Added rail crap
 STATE s_IconRailGun[] =
 {
-    {ICON_RAIL_GUN, 100, DoGet, &s_IconRailGun[0]}
+    {ICON_RAIL_GUN, 100, &AF(DoGet), &s_IconRailGun[0]}
 };
 
 STATE s_IconRailAmmo[] =
 {
-    {ICON_RAIL_AMMO, 100, DoGet, &s_IconRailAmmo[0]}
+    {ICON_RAIL_AMMO, 100, &AF(DoGet), &s_IconRailAmmo[0]}
 };
 
 
 STATE s_IconElectro[] =
 {
-    {ICON_ELECTRO + 0, 25, DoGet, &s_IconElectro[1]},
-    {ICON_ELECTRO + 1, 25, DoGet, &s_IconElectro[0]},
+    {ICON_ELECTRO + 0, 25, &AF(DoGet), &s_IconElectro[1]},
+    {ICON_ELECTRO + 1, 25, &AF(DoGet), &s_IconElectro[0]},
 };
 
 #define ICON_SPELL_RATE 8
 
 STATE s_IconSpell[] =
 {
-    {ICON_SPELL + 0, ICON_SPELL_RATE, DoGet, &s_IconSpell[1]},
-    {ICON_SPELL + 1, ICON_SPELL_RATE, DoGet, &s_IconSpell[2]},
-    {ICON_SPELL + 2, ICON_SPELL_RATE, DoGet, &s_IconSpell[3]},
-    {ICON_SPELL + 3, ICON_SPELL_RATE, DoGet, &s_IconSpell[4]},
-    {ICON_SPELL + 4, ICON_SPELL_RATE, DoGet, &s_IconSpell[5]},
-    {ICON_SPELL + 5, ICON_SPELL_RATE, DoGet, &s_IconSpell[6]},
-    {ICON_SPELL + 6, ICON_SPELL_RATE, DoGet, &s_IconSpell[7]},
-    {ICON_SPELL + 7, ICON_SPELL_RATE, DoGet, &s_IconSpell[8]},
-    {ICON_SPELL + 8, ICON_SPELL_RATE, DoGet, &s_IconSpell[9]},
-    {ICON_SPELL + 9, ICON_SPELL_RATE, DoGet, &s_IconSpell[10]},
-    {ICON_SPELL + 10, ICON_SPELL_RATE, DoGet, &s_IconSpell[11]},
-    {ICON_SPELL + 11, ICON_SPELL_RATE, DoGet, &s_IconSpell[12]},
-    {ICON_SPELL + 12, ICON_SPELL_RATE, DoGet, &s_IconSpell[13]},
-    {ICON_SPELL + 13, ICON_SPELL_RATE, DoGet, &s_IconSpell[14]},
-    {ICON_SPELL + 14, ICON_SPELL_RATE, DoGet, &s_IconSpell[15]},
-    {ICON_SPELL + 15, ICON_SPELL_RATE, DoGet, &s_IconSpell[0]},
+    {ICON_SPELL + 0, ICON_SPELL_RATE, &AF(DoGet), &s_IconSpell[1]},
+    {ICON_SPELL + 1, ICON_SPELL_RATE, &AF(DoGet), &s_IconSpell[2]},
+    {ICON_SPELL + 2, ICON_SPELL_RATE, &AF(DoGet), &s_IconSpell[3]},
+    {ICON_SPELL + 3, ICON_SPELL_RATE, &AF(DoGet), &s_IconSpell[4]},
+    {ICON_SPELL + 4, ICON_SPELL_RATE, &AF(DoGet), &s_IconSpell[5]},
+    {ICON_SPELL + 5, ICON_SPELL_RATE, &AF(DoGet), &s_IconSpell[6]},
+    {ICON_SPELL + 6, ICON_SPELL_RATE, &AF(DoGet), &s_IconSpell[7]},
+    {ICON_SPELL + 7, ICON_SPELL_RATE, &AF(DoGet), &s_IconSpell[8]},
+    {ICON_SPELL + 8, ICON_SPELL_RATE, &AF(DoGet), &s_IconSpell[9]},
+    {ICON_SPELL + 9, ICON_SPELL_RATE, &AF(DoGet), &s_IconSpell[10]},
+    {ICON_SPELL + 10, ICON_SPELL_RATE, &AF(DoGet), &s_IconSpell[11]},
+    {ICON_SPELL + 11, ICON_SPELL_RATE, &AF(DoGet), &s_IconSpell[12]},
+    {ICON_SPELL + 12, ICON_SPELL_RATE, &AF(DoGet), &s_IconSpell[13]},
+    {ICON_SPELL + 13, ICON_SPELL_RATE, &AF(DoGet), &s_IconSpell[14]},
+    {ICON_SPELL + 14, ICON_SPELL_RATE, &AF(DoGet), &s_IconSpell[15]},
+    {ICON_SPELL + 15, ICON_SPELL_RATE, &AF(DoGet), &s_IconSpell[0]},
 };
 
 STATE s_IconArmor[] =
 {
-    {ICON_ARMOR + 0, 15, DoGet, &s_IconArmor[0]},
+    {ICON_ARMOR + 0, 15, &AF(DoGet), &s_IconArmor[0]},
 };
 
 STATE s_IconMedkit[] =
 {
-    {ICON_MEDKIT + 0, 15, DoGet, &s_IconMedkit[0]},
+    {ICON_MEDKIT + 0, 15, &AF(DoGet), &s_IconMedkit[0]},
 };
 
 STATE s_IconChemBomb[] =
 {
-    {ICON_CHEMBOMB, 15, DoGet, &s_IconChemBomb[0]},
+    {ICON_CHEMBOMB, 15, &AF(DoGet), &s_IconChemBomb[0]},
 };
 
 STATE s_IconFlashBomb[] =
 {
-    {ICON_FLASHBOMB, 15, DoGet, &s_IconFlashBomb[0]},
+    {ICON_FLASHBOMB, 15, &AF(DoGet), &s_IconFlashBomb[0]},
 };
 
 STATE s_IconNuke[] =
 {
-    {ICON_NUKE, 15, DoGet, &s_IconNuke[0]},
+    {ICON_NUKE, 15, &AF(DoGet), &s_IconNuke[0]},
 };
 
 STATE s_IconCaltrops[] =
 {
-    {ICON_CALTROPS, 15, DoGet, &s_IconCaltrops[0]},
+    {ICON_CALTROPS, 15, &AF(DoGet), &s_IconCaltrops[0]},
 };
 
 #define ICON_SM_MEDKIT 1802
 STATE s_IconSmMedkit[] =
 {
-    {ICON_SM_MEDKIT + 0, 15, DoGet, &s_IconSmMedkit[0]},
+    {ICON_SM_MEDKIT + 0, 15, &AF(DoGet), &s_IconSmMedkit[0]},
 };
 
 #define ICON_BOOSTER 1810
 STATE s_IconBooster[] =
 {
-    {ICON_BOOSTER + 0, 15, DoGet, &s_IconBooster[0]},
+    {ICON_BOOSTER + 0, 15, &AF(DoGet), &s_IconBooster[0]},
 };
 
 #define ICON_HEAT_CARD 1819
 STATE s_IconHeatCard[] =
 {
-    {ICON_HEAT_CARD + 0, 15, DoGet, &s_IconHeatCard[0]},
+    {ICON_HEAT_CARD + 0, 15, &AF(DoGet), &s_IconHeatCard[0]},
 };
 
 #if 0
 STATE s_IconEnvironSuit[] =
 {
-    {ICON_ENVIRON_SUIT + 0, 20, DoGet, &s_IconEnvironSuit[0]},
+    {ICON_ENVIRON_SUIT + 0, 20, &AF(DoGet), &s_IconEnvironSuit[0]},
 };
 #endif
 
 STATE s_IconCloak[] =
 {
-//   {ICON_CLOAK + 0, 20, DoGet, &s_IconCloak[1]},
-//   {ICON_CLOAK + 1, 20, DoGet, &s_IconCloak[2]},
-    {ICON_CLOAK + 0, 20, DoGet, &s_IconCloak[0]},
+    {ICON_CLOAK + 0, 20, &AF(DoGet), &s_IconCloak[0]},
 };
 
 STATE s_IconFly[] =
 {
-    {ICON_FLY + 0, 20, DoGet, &s_IconFly[1]},
-    {ICON_FLY + 1, 20, DoGet, &s_IconFly[2]},
-    {ICON_FLY + 2, 20, DoGet, &s_IconFly[3]},
-    {ICON_FLY + 3, 20, DoGet, &s_IconFly[4]},
-    {ICON_FLY + 4, 20, DoGet, &s_IconFly[5]},
-    {ICON_FLY + 5, 20, DoGet, &s_IconFly[6]},
-    {ICON_FLY + 6, 20, DoGet, &s_IconFly[7]},
-    {ICON_FLY + 7, 20, DoGet, &s_IconFly[0]}
+    {ICON_FLY + 0, 20, &AF(DoGet), &s_IconFly[1]},
+    {ICON_FLY + 1, 20, &AF(DoGet), &s_IconFly[2]},
+    {ICON_FLY + 2, 20, &AF(DoGet), &s_IconFly[3]},
+    {ICON_FLY + 3, 20, &AF(DoGet), &s_IconFly[4]},
+    {ICON_FLY + 4, 20, &AF(DoGet), &s_IconFly[5]},
+    {ICON_FLY + 5, 20, &AF(DoGet), &s_IconFly[6]},
+    {ICON_FLY + 6, 20, &AF(DoGet), &s_IconFly[7]},
+    {ICON_FLY + 7, 20, &AF(DoGet), &s_IconFly[0]}
 };
 
 STATE s_IconNightVision[] =
 {
-    {ICON_NIGHT_VISION + 0, 20, DoGet, &s_IconNightVision[0]},
+    {ICON_NIGHT_VISION + 0, 20, &AF(DoGet), &s_IconNightVision[0]},
 };
 
 STATE s_IconFlag[] =
 {
-    {ICON_FLAG + 0, 32, DoGet, &s_IconFlag[1]},
-    {ICON_FLAG + 1, 32, DoGet, &s_IconFlag[2]},
-    {ICON_FLAG + 2, 32, DoGet, &s_IconFlag[0]}
+    {ICON_FLAG + 0, 32, &AF(DoGet), &s_IconFlag[1]},
+    {ICON_FLAG + 1, 32, &AF(DoGet), &s_IconFlag[2]},
+    {ICON_FLAG + 2, 32, &AF(DoGet), &s_IconFlag[0]}
 };
 
 //---------------------------------------------------------------------------
@@ -788,7 +694,7 @@ void ChangeState(DSWActor* actor, STATE* statep)
         return;
 
     actor->user.Tics = 0;
-    actor->user.State = actor->user.StateStart = statep;
+    actor->user.__legacyState.State = actor->user.__legacyState.StateStart = statep;
     actor->spr.cstat2 |= CSTAT2_SPRITE_NOANIMATE; // just in case
 }
 
@@ -859,7 +765,7 @@ void SpawnUser(DSWActor* actor, short id, STATE* state)
     PRODUCTION_ASSERT(actor->hasU());
 
     // be careful State can be nullptr
-    actor->user.State = actor->user.StateStart = state;
+    actor->user.__legacyState.State = actor->user.__legacyState.StateStart = state;
 
     change_actor_stat(actor, actor->spr.statnum);
 
@@ -920,9 +826,9 @@ DSWActor* SpawnActor(int stat, int id, STATE* state, sectortype* sect, const DVe
     SpawnUser(spawnedActor, id, state);
 
     // be careful State can be nullptr
-    if (spawnedActor->user.State)
+    if (spawnedActor->user.__legacyState.State)
     {
-        spawnedActor->spr.picnum = spawnedActor->user.State->Pic;
+        spawnedActor->spr.picnum = spawnedActor->user.__legacyState.State->Pic;
         spawnedActor->spr.cstat2 |= CSTAT2_SPRITE_NOANIMATE; // just in case
 
     }
@@ -1562,7 +1468,7 @@ void SpriteSetupPost(void)
             jActor->user.ceiling_dist = 4;
             jActor->user.floor_dist = -2;
 
-            jActor->user.ActorActionFunc = DoActorDebris;
+            jActor->user.ActorActionFunc = AF(DoActorDebris);
 
             jActor->spr.cstat |= CSTAT_SPRITE_BREAKABLE;
             jActor->spr.extra |= SPRX_BREAKABLE;
@@ -2014,23 +1920,6 @@ void SpriteSetup(void)
                     break;
                 }
 
-#if 0
-                case SECT_DEBRIS_SEWER:
-                {
-                    ANIMATOR DoGenerateSewerDebris;
-
-                    SpawnUser(actor, 0, nullptr);
-
-                    ASSERT(actor->hasU());
-                    actor->user.RotNum = 0;
-                    actor->user.WaitTics = actor->spr.lotag * 120;
-
-                    actor->user.ActorActionFunc = DoGenerateSewerDebris;
-
-                    change_actor_stat(actor, STAT_NO_STATE);
-                    break;
-                }
-#endif
 
                 case SECT_VATOR:
                 {
@@ -2071,18 +1960,18 @@ void SpriteSetup(void)
                     {
                     case 0:
                         actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = DoVator;
+                        actor->user.ActorActionFunc = AF(DoVator);
                         break;
                     case 1:
                         actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = DoVator;
+                        actor->user.ActorActionFunc = AF(DoVator);
                         break;
                     case 2:
-                        actor->user.ActorActionFunc = DoVatorAuto;
+                        actor->user.ActorActionFunc = AF(DoVatorAuto);
                         break;
                     case 3:
                         actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = DoVatorAuto;
+                        actor->user.ActorActionFunc = AF(DoVatorAuto);
                         break;
                     }
 
@@ -2179,11 +2068,11 @@ void SpriteSetup(void)
                     {
                     case 0:
                         actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = DoRotator;
+                        actor->user.ActorActionFunc = AF(DoRotator);
                         break;
                     case 1:
                         actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = DoRotator;
+                        actor->user.ActorActionFunc = AF(DoRotator);
                         break;
                     }
 
@@ -2224,11 +2113,11 @@ void SpriteSetup(void)
                     {
                     case 0:
                         actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = DoSlidor;
+                        actor->user.ActorActionFunc = AF(DoSlidor);
                         break;
                     case 1:
                         actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = DoSlidor;
+                        actor->user.ActorActionFunc = AF(DoSlidor);
                         break;
                     }
 
@@ -2272,18 +2161,18 @@ void SpriteSetup(void)
                     {
                     case 0:
                         actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = DoSpike;
+                        actor->user.ActorActionFunc = AF(DoSpike);
                         break;
                     case 1:
                         actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = DoSpike;
+                        actor->user.ActorActionFunc = AF(DoSpike);
                         break;
                     case 2:
-                        actor->user.ActorActionFunc = DoSpikeAuto;
+                        actor->user.ActorActionFunc = AF(DoSpikeAuto);
                         break;
                     case 3:
                         actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = DoSpikeAuto;
+                        actor->user.ActorActionFunc = AF(DoSpikeAuto);
                         break;
                     }
 
@@ -2460,7 +2349,7 @@ void SpriteSetup(void)
                     SpawnUser(actor, ST1, nullptr);
 
                     change_actor_stat(actor, STAT_NO_STATE);
-                    actor->user.ActorActionFunc = DoLavaErupt;
+                    actor->user.ActorActionFunc = AF(DoLavaErupt);
 
                     // interval between erupts
                     if (SP_TAG10(actor) == 0)
@@ -4298,11 +4187,11 @@ int NewStateGroup(DSWActor* actor, STATE* StateGroup[])
 
     // Kind of a goofy check, but it should catch alot of invalid states!
     // BTW, 6144 is the max tile number allowed in editart.
-    if (actor->user.State && (actor->user.State->Pic < 0 || actor->user.State->Pic > MAXTILES))    // JBF: verify this!
+    if (actor->user.__legacyState.State && (actor->user.__legacyState.State->Pic < 0 || actor->user.__legacyState.State->Pic > MAXTILES))    // JBF: verify this!
         return 0;
 
-    actor->user.Rot = StateGroup;
-    actor->user.State = actor->user.StateStart = StateGroup[0];
+    actor->user.__legacyState.Rot = StateGroup;
+    actor->user.__legacyState.State = actor->user.__legacyState.StateStart = StateGroup[0];
 
     actor->user.Tics = 0;
 
@@ -4796,20 +4685,20 @@ int DoCoin(DSWActor* actor)
 
     if (actor->user.WaitTics < 10*120)
     {
-        if (actor->user.StateStart != s_GreenCoin)
+        if (actor->user.__legacyState.StateStart != s_GreenCoin)
         {
-            offset = int(actor->user.State - actor->user.StateStart);
+            offset = int(actor->user.__legacyState.State - actor->user.__legacyState.StateStart);
             ChangeState(actor, s_GreenCoin);
-            actor->user.State = actor->user.StateStart + offset;
+            actor->user.__legacyState.State = actor->user.__legacyState.StateStart + offset;
         }
     }
     else if (actor->user.WaitTics < 20*120)
     {
-        if (actor->user.StateStart != s_YellowCoin)
+        if (actor->user.__legacyState.StateStart != s_YellowCoin)
         {
-            offset = int(actor->user.State - actor->user.StateStart);
+            offset = int(actor->user.__legacyState.State - actor->user.__legacyState.StateStart);
             ChangeState(actor, s_YellowCoin);
-            actor->user.State = actor->user.StateStart + offset;
+            actor->user.__legacyState.State = actor->user.__legacyState.StateStart + offset;
         }
     }
 
@@ -6018,10 +5907,9 @@ int  StateControl(DSWActor* actor)
 {
     short StateTics;
 
-    if (!actor->user.State)
+    if (!actor->user.__legacyState.State)
     {
-        ASSERT(actor->user.ActorActionFunc);
-        (actor->user.ActorActionFunc)(actor);
+        actor->callAction();
         return 0;
     }
 
@@ -6031,30 +5919,30 @@ int  StateControl(DSWActor* actor)
         actor->user.Tics += ACTORMOVETICS;
 
     // Skip states if too much time has passed
-    while (actor->user.Tics >= (actor->user.State->Tics & SF_TICS_MASK))
+    while (actor->user.Tics >= (actor->user.__legacyState.State->Tics & SF_TICS_MASK))
     {
-        StateTics = (actor->user.State->Tics & SF_TICS_MASK);
+        StateTics = (actor->user.__legacyState.State->Tics & SF_TICS_MASK);
 
-        if ((actor->user.State->Tics & SF_TIC_ADJUST))
+        if ((actor->user.__legacyState.State->Tics & SF_TIC_ADJUST))
         {
-            ASSERT(actor->user.Attrib);
+            ASSERT(actor->user.__legacyState.Attrib);
             ASSERT(actor->user.speed < MAX_SPEED);
-            ASSERT(StateTics > -actor->user.Attrib->TicAdjust[actor->user.speed]);
+            ASSERT(StateTics > -actor->user.__legacyState.Attrib->TicAdjust[actor->user.speed]);
 
-            StateTics += actor->user.Attrib->TicAdjust[actor->user.speed];
+            StateTics += actor->user.__legacyState.Attrib->TicAdjust[actor->user.speed];
         }
 
         // Set Tics
         actor->user.Tics -= StateTics;
 
         // Transition to the next state
-        actor->user.State = actor->user.State->NextState;
+        actor->user.__legacyState.State = actor->user.__legacyState.State->NextState;
 
         // Look for flags embedded into the Tics variable
-        while ((actor->user.State->Tics & SF_QUICK_CALL))
+        while ((actor->user.__legacyState.State->Tics & SF_QUICK_CALL))
         {
             // Call it once and go to the next state
-            (*actor->user.State->Animator)(actor);
+            actor->callStateAction();
 
             ASSERT(actor->hasU()); //put this in to see if actor was getting killed with in his QUICK_CALL state
 
@@ -6063,39 +5951,38 @@ int  StateControl(DSWActor* actor)
 
             // if still on the same QUICK_CALL should you
             // go to the next state.
-            if ((actor->user.State->Tics & SF_QUICK_CALL))
-                actor->user.State = actor->user.State->NextState;
+            if ((actor->user.__legacyState.State->Tics & SF_QUICK_CALL))
+                actor->user.__legacyState.State = actor->user.__legacyState.State->NextState;
         }
 
         if (!actor->hasU())
             break;
 
-        if (!actor->user.State->Pic)
+        if (!actor->user.__legacyState.State->Pic)
         {
-            NewStateGroup(actor, (STATE* *) actor->user.State->NextState);
+            NewStateGroup(actor, (STATE* *) actor->user.__legacyState.State->NextState);
         }
     }
 
     if (actor->hasU())
     {
-        ASSERT(actor->user.State);
-        // Set picnum to the correct pic
-        if ((actor->user.State->Tics & SF_WALL_STATE))
+        ASSERT(actor->user.__legacyState.State);
+        // Set the correct pic
+        if ((actor->user.__legacyState.State->Tics & SF_WALL_STATE))
         {
             ASSERT(actor->user.WallP);
-            actor->user.WallP->setwalltexture(tileGetTextureID(actor->user.State->Pic));
+            actor->user.WallP->setwalltexture(tileGetTextureID(actor->user.__legacyState.State->Pic));
         }
         else
         {
-            if (actor->user.RotNum > 1)
-                actor->spr.picnum = actor->user.Rot[0]->Pic;
+            if (actor->user.__legacyState.RotNum > 1)
+                actor->spr.picnum = actor->user.__legacyState.Rot[0]->Pic;
             else
-                actor->spr.picnum = actor->user.State->Pic;
+                actor->spr.picnum = actor->user.__legacyState.State->Pic;
         }
 
         // Call the correct animator
-        if (actor->user.State->Animator && actor->user.State->Animator != NullAnimator)
-            (*actor->user.State->Animator)(actor);
+        actor->callStateAction();
     }
 
     return 0;
@@ -6191,8 +6078,7 @@ void SpriteControl(void)
     it.Reset(STAT_NO_STATE);
     while (auto actor = it.Next())
     {
-        if (actor->hasU() && actor->user.ActorActionFunc)
-            actor->user.ActorActionFunc(actor);
+        if (actor->hasU()) actor->callAction();
     }
 
     if (MoveSkip8 == 0)
@@ -6231,7 +6117,7 @@ void SpriteControl(void)
         if (!(actor->user.Flags & SPR_ACTIVE))
             continue;
 
-        actor->user.ActorActionFunc(actor);
+        actor->callAction();
     }
 
     it.Reset(STAT_SPIKE);
@@ -6248,7 +6134,7 @@ void SpriteControl(void)
         if (!(actor->user.Flags & SPR_ACTIVE))
             continue;
 
-        actor->user.ActorActionFunc(actor);
+        actor->callAction();
     }
 
     it.Reset(STAT_ROTATOR);
@@ -6265,7 +6151,7 @@ void SpriteControl(void)
         if (!(actor->user.Flags & SPR_ACTIVE))
             continue;
 
-        actor->user.ActorActionFunc(actor);
+        actor->callAction();
     }
 
     it.Reset(STAT_SLIDOR);
@@ -6282,7 +6168,7 @@ void SpriteControl(void)
         if (!(actor->user.Flags & SPR_ACTIVE))
             continue;
 
-        actor->user.ActorActionFunc(actor);
+        actor->callAction();
     }
 
     it.Reset(STAT_SUICIDE);
@@ -6774,14 +6660,6 @@ Collision move_ground_missile(DSWActor* actor, const DVector2& change, double ce
 
 #include "saveable.h"
 
-static saveable_code saveable_sprite_code[] =
-{
-    SAVE_CODE(DoGrating),
-    SAVE_CODE(DoKey),
-    SAVE_CODE(DoCoin),
-    SAVE_CODE(DoGet),
-};
-
 static saveable_data saveable_sprite_data[] =
 {
     SAVE_DATA(Track),
@@ -6810,13 +6688,7 @@ static saveable_data saveable_sprite_data[] =
     SAVE_DATA(s_GreenKey),
     SAVE_DATA(s_YellowKey),
     SAVE_DATA(s_Key),
-    /*
-    SAVE_DATA(s_BlueKeyStatue),
-    SAVE_DATA(s_RedKeyStatue),
-    SAVE_DATA(s_GreenKeyStatue),
-    SAVE_DATA(s_YellowKeyStatue),
-    SAVE_DATA(s_KeyStatue),
-    */
+
     SAVE_DATA(s_RedCoin),
     SAVE_DATA(s_YellowCoin),
     SAVE_DATA(s_GreenCoin),
@@ -6852,7 +6724,6 @@ static saveable_data saveable_sprite_data[] =
     SAVE_DATA(s_IconSmMedkit),
     SAVE_DATA(s_IconBooster),
     SAVE_DATA(s_IconHeatCard),
-    //SAVE_DATA(s_IconEnvironSuit),
     SAVE_DATA(s_IconCloak),
     SAVE_DATA(s_IconFly),
     SAVE_DATA(s_IconNightVision),
@@ -6862,8 +6733,7 @@ static saveable_data saveable_sprite_data[] =
 saveable_module saveable_sprite =
 {
     // code
-    saveable_sprite_code,
-    SIZ(saveable_sprite_code),
+    nullptr, 0,
 
     // data
     saveable_sprite_data,

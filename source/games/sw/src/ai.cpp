@@ -40,10 +40,9 @@ Prepared for public release: 03/28/2005 - Charlie Wiederhold, 3D Realms
 
 BEGIN_SW_NS
 
-ANIMATOR InitActorRunToward;
 bool DropAhead(DSWActor* actor, double min_height);
 
-ANIMATOR* ChooseAction(DECISION decision[]);
+VMFunction* ChooseAction(DECISION decision[]);
 
 
 #define CHOOSE2(value) (RANDOM_P2(1024) < (value))
@@ -68,11 +67,7 @@ bool ActorMoveHitReact(DSWActor* actor)
             // if you ran into a player - call close range functions
             DoActorPickClosePlayer(actor);
             auto action = ChooseAction(actor->user.Personality->TouchTarget);
-            if (action)
-            {
-                (*action)(actor);
-                return true;
-            }
+            actor->callFunction(action);
         }
     }
     return false;
@@ -107,15 +102,13 @@ void DoActorSetSpeed(DSWActor* actor, uint8_t speed)
     if (actor->spr.cstat & (CSTAT_SPRITE_RESTORE))
         return;
 
-    ASSERT(actor->user.Attrib);
+    ASSERT(actor->user.__legacyState.Attrib);
 
     actor->user.speed = speed;
 
-    int vel;
+    int vel = actor->user.__legacyState.Attrib->Speed[speed];
     if (ActorFlaming(actor))
-        vel = actor->user.Attrib->Speed[speed] + (actor->user.Attrib->Speed[speed] >> 1);
-    else
-        vel = actor->user.Attrib->Speed[speed];
+        vel = (vel * 3) >> 1;
 
     actor->vel.X = vel * maptoworld;
 }
@@ -128,7 +121,7 @@ void DoActorSetSpeed(DSWActor* actor, uint8_t speed)
 */
 //---------------------------------------------------------------------------
 
-ANIMATOR* ChooseAction(DECISION decision[])
+VMFunction* ChooseAction(DECISION decision[])
 {
     // !JIM! Here is an opportunity for some AI, instead of randomness!
     int random_value = RANDOM_P2(1024<<5)>>5;
@@ -139,10 +132,27 @@ ANIMATOR* ChooseAction(DECISION decision[])
 
         if (random_value <= decision[i].range)
         {
-            return decision[i].action;
+            return *decision[i].action;
         }
     }
 }
+
+int ChooseNoise(DECISIONB decision[])
+{
+    // !JIM! Here is an opportunity for some AI, instead of randomness!
+    int random_value = RANDOM_P2(1024 << 5) >> 5;
+
+    for (int i = 0; true; i++)
+    {
+        ASSERT(i < 10);
+
+        if (random_value <= decision[i].range)
+        {
+            return decision[i].noise;
+        }
+    }
+}
+
 
 //---------------------------------------------------------------------------
 /*
@@ -169,54 +179,14 @@ int ChooseActionNumber(int16_t decision[])
 //
 //---------------------------------------------------------------------------
 
-int DoActorNoise(ANIMATOR* Action, DSWActor* actor)
+int DoActorNoise(DSWActor* actor, int noise)
 {
-    if (Action == InitActorAmbientNoise)
+    if (noise == attr_alert)
     {
-        PlaySpriteSound(actor, attr_ambient, v3df_follow);
+        if (!actor->hasU() || actor->user.DidAlert) // This only allowed once
+            return 0;
     }
-    else if (Action == InitActorAlertNoise)
-    {
-        if (actor->hasU() && !actor->user.DidAlert) // This only allowed once
-            PlaySpriteSound(actor, attr_alert, v3df_follow);
-    }
-    else if (Action == InitActorAttackNoise)
-    {
-        PlaySpriteSound(actor, attr_attack, v3df_follow);
-    }
-    else if (Action == InitActorPainNoise)
-    {
-        PlaySpriteSound(actor, attr_pain, v3df_follow);
-    }
-    else if (Action == InitActorDieNoise)
-    {
-        PlaySpriteSound(actor, attr_die, v3df_none);
-    }
-    else if (Action == InitActorExtra1Noise)
-    {
-        PlaySpriteSound(actor, attr_extra1, v3df_follow);
-    }
-    else if (Action == InitActorExtra2Noise)
-    {
-        PlaySpriteSound(actor, attr_extra2, v3df_follow);
-    }
-    else if (Action == InitActorExtra3Noise)
-    {
-        PlaySpriteSound(actor, attr_extra3, v3df_follow);
-    }
-    else if (Action == InitActorExtra4Noise)
-    {
-        PlaySpriteSound(actor, attr_extra4, v3df_follow);
-    }
-    else if (Action == InitActorExtra5Noise)
-    {
-        PlaySpriteSound(actor, attr_extra5, v3df_follow);
-    }
-    else if (Action == InitActorExtra6Noise)
-     {
-        PlaySpriteSound(actor, attr_extra6, v3df_follow);
-    }
-
+    PlaySpriteSound(actor, noise, v3df_follow);
     return 0;
 }
 
@@ -421,7 +391,7 @@ int DoActorOperate(DSWActor* actor)
     if (actor->user.ID == HORNET_RUN_R0 || actor->user.ID == EEL_RUN_R0 || actor->user.ID == BUNNY_RUN_R0)
         return false;
 
-    if (actor->user.Rot == actor->user.ActorActionSet->Sit || actor->user.Rot == actor->user.ActorActionSet->Stand)
+    if (actor->checkStateGroup(NAME_Sit) || actor->checkStateGroup(NAME_Stand))
         return false;
 
     if ((actor->user.WaitTics -= ACTORMOVETICS) > 0)
@@ -441,7 +411,7 @@ int DoActorOperate(DSWActor* actor)
         {
             actor->user.WaitTics = 2 * 120;
 
-            NewStateGroup(actor, actor->user.ActorActionSet->Sit);
+            actor->setStateGroup(NAME_Sit);
         }
     }
 
@@ -457,9 +427,9 @@ int DoActorOperate(DSWActor* actor)
 
 DECISION GenericFlaming[] =
 {
-    {30, InitActorAttack},
-    {512, InitActorRunToward},
-    {1024, InitActorRunAway},
+    {30, &AF(InitActorAttack)},
+    {512, &AF(InitActorRunToward)},
+    {1024, &AF(InitActorRunAway)},
 };
 
 /*
@@ -473,9 +443,9 @@ DECISION GenericFlaming[] =
  do anymore and then this routine is called again.
 */
 
-ANIMATOR* DoActorActionDecide(DSWActor* actor)
+VMFunction* DoActorActionDecide(DSWActor* actor)
 {
-    ANIMATOR* action;
+    VMFunction* action;
     bool ICanSee=false;
 
     // REMINDER: This function is not even called if SpriteControl doesn't let
@@ -484,7 +454,7 @@ ANIMATOR* DoActorActionDecide(DSWActor* actor)
     ASSERT(actor->user.Personality);
 
     actor->user.Dist = 0;
-    action = InitActorDecide;
+    action = AF(InitActorDecide);
 
     // target is gone.
     if (actor->user.targetActor == nullptr)
@@ -556,8 +526,8 @@ ANIMATOR* DoActorActionDecide(DSWActor* actor)
                 actor->user.Flags &= ~(SPR_TARGETED);        // as far as actor
                 // knows, its not a
                 // target any more
-                if (actor->user.ActorActionSet->Duck && RANDOM_P2(1024<<8)>>8 < 100)
-                    action = InitActorDuck;
+                if (actor->hasState(NAME_Duck) && RANDOM_P2(1024<<8)>>8 < 100)
+                    action = AF(InitActorDuck);
                 else
                 {
                     if ((actor->user.ID == COOLG_RUN_R0 && (actor->spr.cstat & CSTAT_SPRITE_TRANSLUCENT)) || (actor->spr.cstat & CSTAT_SPRITE_INVISIBLE))
@@ -620,7 +590,7 @@ ANIMATOR* DoActorActionDecide(DSWActor* actor)
                 //CON_Message("Surprised");
                 if (!actor->user.DidAlert && ICanSee)
                 {
-                    DoActorNoise(InitActorAlertNoise, actor);
+                    DoActorNoise(actor, attr_alert);
                     actor->user.DidAlert = true;
                 }
                 return action;
@@ -630,14 +600,14 @@ ANIMATOR* DoActorActionDecide(DSWActor* actor)
             {
                 // Player has not seen actor, to be fair let him know actor
                 // are there
-                DoActorNoise(ChooseAction(actor->user.Personality->Broadcast),actor);
-                //CON_Message("Actor Noise");
+                ;
+                DoActorNoise(actor, ChooseNoise(actor->user.Personality->Broadcast));
                 return action;
             }
         }
     }
 
-    //CON_Message("Couldn't resolve decide, InitActorDecide");
+    //CON_Message("Couldn't resolve decide, &AF(InitActorDecide)");
     return action;
 }
 
@@ -649,8 +619,14 @@ ANIMATOR* DoActorActionDecide(DSWActor* actor)
 
 int InitActorDecide(DSWActor* actor)
 {
-    actor->user.ActorActionFunc = DoActorDecide;
+    actor->setActionDecide();
     return DoActorDecide(actor);
+}
+
+int InitActorSetDecide(DSWActor* actor)
+{
+    actor->setActionDecide();
+    return 0;
 }
 
 //---------------------------------------------------------------------------
@@ -661,13 +637,14 @@ int InitActorDecide(DSWActor* actor)
 
 int DoActorDecide(DSWActor* actor)
 {
-    ANIMATOR* actor_action;
+    VMFunction* actor_action;
 
     // See what to do next
+
     actor_action = DoActorActionDecide(actor);
 
     // Fix for the GenericFlaming bug for actors that don't have attack states
-    if (actor_action == InitActorAttack && actor->user.WeaponNum == 0)
+    if (actor_action == AF(InitActorAttack) && actor->user.WeaponNum == 0)
         return 0;   // Just let the actor do as it was doing before in this case
 
     // Target is gone.
@@ -675,7 +652,7 @@ int DoActorDecide(DSWActor* actor)
         return 0;
 
     // zombie is attacking a player
-    if (actor_action == InitActorAttack && actor->user.ID == ZOMBIE_RUN_R0 && actor->user.targetActor->user.PlayerP)
+    if (actor_action == AF(InitActorAttack) && actor->user.ID == ZOMBIE_RUN_R0 && actor->user.targetActor->user.PlayerP)
     {
         // Don't let zombies shoot at master
         if (GetOwner(actor) == actor->user.targetActor)
@@ -688,123 +665,19 @@ int DoActorDecide(DSWActor* actor)
 
     ASSERT(actor_action != nullptr);
 
-    if (actor_action != InitActorDecide)
+    if (actor_action != AF(InitActorDecide))
     {
         // NOT staying put
-        (*actor_action)(actor);
-        //CON_Message("DoActorDecide: NOT Staying put");
+        actor->callFunction(actor_action);
     }
     else
     {
         // Actually staying put
-        NewStateGroup(actor, actor->user.ActorActionSet->Stand);
-        //CON_Message("DoActorDecide: Staying put");
+        actor->setStateGroup(NAME_Stand);
     }
 
     return 0;
 }
-
-// Important note: The functions below are being checked for as state identifiers.
-// But they are all identical content wise which makes MSVC merge them together into one.
-// Assigning 'sw_snd_scratch' different values makes them different so that merging does not occur.
-int sw_snd_scratch = 0;
-
-
-//---------------------------------------------------------------------------
-//
-// 
-//
-//---------------------------------------------------------------------------
-
-int InitActorAlertNoise(DSWActor* actor)
-{
-    sw_snd_scratch = 1;
-    actor->user.ActorActionFunc = DoActorDecide;
-
-    return 0;
-}
-
-
-int InitActorAmbientNoise(DSWActor* actor)
-{
-    sw_snd_scratch = 2;
-    actor->user.ActorActionFunc = DoActorDecide;
-
-    return 0;
-}
-
-int InitActorAttackNoise(DSWActor* actor)
-{
-    sw_snd_scratch = 3;
-    actor->user.ActorActionFunc = DoActorDecide;
-
-    return 0;
-}
-
-int InitActorPainNoise(DSWActor* actor)
-{
-    sw_snd_scratch = 4;
-    actor->user.ActorActionFunc = DoActorDecide;
-
-    return 0;
-}
-
-int InitActorDieNoise(DSWActor* actor)
-{
-    sw_snd_scratch = 5;
-    actor->user.ActorActionFunc = DoActorDecide;
-
-    return 0;
-}
-
-int InitActorExtra1Noise(DSWActor* actor)
-{
-    sw_snd_scratch = 6;
-    actor->user.ActorActionFunc = DoActorDecide;
-
-    return 0;
-}
-
-int InitActorExtra2Noise(DSWActor* actor)
-{
-    sw_snd_scratch = 7;
-    actor->user.ActorActionFunc = DoActorDecide;
-
-    return 0;
-}
-
-int InitActorExtra3Noise(DSWActor* actor)
-{
-    sw_snd_scratch = 8;
-    actor->user.ActorActionFunc = DoActorDecide;
-
-    return 0;
-}
-
-int InitActorExtra4Noise(DSWActor* actor)
-{
-    sw_snd_scratch = 9;
-    actor->user.ActorActionFunc = DoActorDecide;
-
-    return 0;
-}
-
-int InitActorExtra5Noise(DSWActor* actor)
-{
-    sw_snd_scratch = 10;
-    actor->user.ActorActionFunc = DoActorDecide;
-
-    return 0;
-}
-
-int InitActorExtra6Noise(DSWActor* actor)
-{
-    sw_snd_scratch = 11;
-    actor->user.ActorActionFunc = DoActorDecide;
-
-    return 0;
-}
-
 
 //---------------------------------------------------------------------------
 /*
@@ -814,12 +687,12 @@ int InitActorExtra6Noise(DSWActor* actor)
 
 int InitActorMoveCloser(DSWActor* actor)
 {
-    actor->user.ActorActionFunc = DoActorMoveCloser;
+    actor->user.ActorActionFunc = AF(DoActorMoveCloser);
 
-    if (actor->user.Rot != actor->user.ActorActionSet->Run)
-        NewStateGroup(actor, actor->user.ActorActionSet->Run);
+    if (!actor->checkStateGroup(NAME_Run))
+        actor->setStateGroup(NAME_Run);
 
-    (*actor->user.ActorActionFunc)(actor);
+    actor->callAction();
 
     return 0;
 }
@@ -842,8 +715,8 @@ int DoActorCantMoveCloser(DSWActor* actor)
         DoActorSetSpeed(actor, MID_SPEED);
         actor->user.Flags |= (SPR_FIND_PLAYER);
 
-        actor->user.ActorActionFunc = DoActorDecide;
-        NewStateGroup(actor, actor->user.ActorActionSet->Run);
+        actor->setActionDecide();
+        actor->setStateGroup(NAME_Run);
     }
     else
     {
@@ -872,7 +745,7 @@ int DoActorMoveCloser(DSWActor* actor)
     }
 
     // Do a noise if ok
-    DoActorNoise(ChooseAction(actor->user.Personality->Broadcast), actor);
+    DoActorNoise(actor, ChooseNoise(actor->user.Personality->Broadcast));
 
     // after moving a ways check to see if player is still in sight
     if (actor->user.DistCheck > 34.375)
@@ -1078,8 +951,8 @@ int FindWanderTrack(DSWActor* actor)
 
 int InitActorRunAway(DSWActor* actor)
 {
-    actor->user.ActorActionFunc = DoActorDecide;
-    NewStateGroup(actor, actor->user.ActorActionSet->Run);
+    actor->setActionDecide();
+    actor->setStateGroup(NAME_Run);
 
     actor->user.track = FindTrackAwayFromPlayer(actor);
 
@@ -1107,8 +980,8 @@ int InitActorRunAway(DSWActor* actor)
 
 int InitActorRunToward(DSWActor* actor)
 {
-    actor->user.ActorActionFunc = DoActorDecide;
-    NewStateGroup(actor, actor->user.ActorActionSet->Run);
+    actor->setActionDecide();
+    actor->setStateGroup(NAME_Run);
 
     InitActorReposition(actor);
     DoActorSetSpeed(actor, FAST_SPEED);
@@ -1167,10 +1040,10 @@ int InitActorAttack(DSWActor* actor)
         return 0;
     }
 
-    actor->user.ActorActionFunc = DoActorAttack;
+    actor->user.ActorActionFunc = AF(DoActorAttack);
 
     // move into standing frame
-    //NewStateGroup(actor, actor->user.ActorActionSet->Stand);
+    //actor->setStateGroup(NAME_Stand);
 
     // face player when attacking
     actor->spr.Angles.Yaw = (actor->user.targetActor->spr.pos - actor->spr.pos).Angle();
@@ -1183,7 +1056,7 @@ int InitActorAttack(DSWActor* actor)
     }
 
     // Hari Kari for Ninja's
-    if (actor->user.ActorActionSet->Death2)
+    if (actor->hasState(NAME_Death2))
     {
         const int SUICIDE_HEALTH_VALUE = 38;
 
@@ -1191,15 +1064,15 @@ int InitActorAttack(DSWActor* actor)
         {
             if (CHOOSE2(100))
             {
-                actor->user.ActorActionFunc = DoActorDecide;
-                NewStateGroup(actor, actor->user.ActorActionSet->Death2);
+                actor->setActionDecide();
+                actor->setStateGroup(NAME_Death2);
                 return 0;
             }
         }
     }
 
 
-    (*actor->user.ActorActionFunc)(actor);
+    actor->callAction();
 
     return 0;
 }
@@ -1214,31 +1087,29 @@ int DoActorAttack(DSWActor* actor)
 {
     int rand_num;
 
-    DoActorNoise(ChooseAction(actor->user.Personality->Broadcast),actor);
+    DoActorNoise(actor, ChooseNoise(actor->user.Personality->Broadcast));
 
     double dist =(actor->spr.pos.XY() - actor->user.targetActor->spr.pos.XY()).Length();
 
     auto pActor = GetPlayerSpriteNum(actor);
-    if ((actor->user.ActorActionSet->CloseAttack[0] && dist < CloseRangeDist(actor, actor->user.targetActor)) ||
+    if ((actor->user.__legacyState.ActorActionSet->CloseAttack[0] && dist < CloseRangeDist(actor, actor->user.targetActor)) ||
         (pActor && pActor->hasU() && pActor->user.WeaponNum == WPN_FIST))      // JBF: added null check
     {
-        rand_num = ChooseActionNumber(actor->user.ActorActionSet->CloseAttackPercent);
+        rand_num = ChooseActionNumber(actor->user.__legacyState.ActorActionSet->CloseAttackPercent);
 
-        NewStateGroup(actor, actor->user.ActorActionSet->CloseAttack[rand_num]);
+        actor->setStateGroup(NAME_CloseAttack, rand_num);
     }
     else
     {
         ASSERT(actor->user.WeaponNum != 0);
 
-        rand_num = ChooseActionNumber(actor->user.ActorActionSet->AttackPercent);
+        rand_num = ChooseActionNumber(actor->user.__legacyState.ActorActionSet->AttackPercent);
 
         ASSERT(rand_num < actor->user.WeaponNum);
 
-        NewStateGroup(actor, actor->user.ActorActionSet->Attack[rand_num]);
-        actor->user.ActorActionFunc = DoActorDecide;
+        actor->setStateGroup(NAME_Attack, rand_num);
+        actor->setActionDecide();
     }
-
-    //actor->user.ActorActionFunc = DoActorDecide;
 
     return 0;
 }
@@ -1254,8 +1125,8 @@ int InitActorEvade(DSWActor* actor)
     // Evade is same thing as run away except when you get to the end of the track
     // you stop and take up the fight again.
 
-    actor->user.ActorActionFunc = DoActorDecide;
-    NewStateGroup(actor, actor->user.ActorActionSet->Run);
+    actor->setActionDecide();
+    actor->setStateGroup(NAME_Run);
 
     actor->user.track = FindTrackAwayFromPlayer(actor);
 
@@ -1279,8 +1150,8 @@ int InitActorEvade(DSWActor* actor)
 
 int InitActorWanderAround(DSWActor* actor)
 {
-    actor->user.ActorActionFunc = DoActorDecide;
-    NewStateGroup(actor, actor->user.ActorActionSet->Run);
+    actor->setActionDecide();
+    actor->setStateGroup(NAME_Run);
 
     DoActorPickClosePlayer(actor);
 
@@ -1304,8 +1175,8 @@ int InitActorWanderAround(DSWActor* actor)
 
 int InitActorFindPlayer(DSWActor* actor)
 {
-    actor->user.ActorActionFunc = DoActorDecide;
-    NewStateGroup(actor, actor->user.ActorActionSet->Run);
+    actor->setActionDecide();
+    actor->setStateGroup(NAME_Run);
 
     actor->user.track = FindTrackToPlayer(actor);
 
@@ -1316,8 +1187,8 @@ int InitActorFindPlayer(DSWActor* actor)
         DoActorSetSpeed(actor, MID_SPEED);
         actor->user.Flags |= (SPR_FIND_PLAYER);
 
-        actor->user.ActorActionFunc = DoActorDecide;
-        NewStateGroup(actor, actor->user.ActorActionSet->Run);
+        actor->setActionDecide();
+        actor->setStateGroup(NAME_Run);
     }
     else
     {
@@ -1334,14 +1205,14 @@ int InitActorFindPlayer(DSWActor* actor)
 
 int InitActorDuck(DSWActor* actor)
 {
-    if (!actor->user.ActorActionSet->Duck)
+    if (!actor->hasState(NAME_Duck))
     {
-        actor->user.ActorActionFunc = DoActorDecide;
+        actor->setActionDecide();
         return 0;
     }
 
-    actor->user.ActorActionFunc = DoActorDuck;
-    NewStateGroup(actor, actor->user.ActorActionSet->Duck);
+    actor->user.ActorActionFunc = AF(DoActorDuck);
+    actor->setStateGroup(NAME_Duck);
 
 	double dist = (actor->spr.pos.XY() - actor->user.targetActor->spr.pos.XY()).LengthSquared();
 
@@ -1356,7 +1227,7 @@ int InitActorDuck(DSWActor* actor)
     }
 
 
-    (*actor->user.ActorActionFunc)(actor);
+    actor->callAction();
 
     return 0;
 }
@@ -1371,8 +1242,8 @@ int DoActorDuck(DSWActor* actor)
 {
     if ((actor->user.WaitTics -= ACTORMOVETICS) < 0)
     {
-        NewStateGroup(actor, actor->user.ActorActionSet->Rise);
-        actor->user.ActorActionFunc = DoActorDecide;
+        actor->setStateGroup(NAME_Rise);
+        actor->setActionDecide();
         actor->user.Flags &= ~(SPR_TARGETED);
     }
 
@@ -1691,11 +1562,11 @@ int InitActorReposition(DSWActor* actor)
     }
 
 
-    actor->user.ActorActionFunc = DoActorReposition;
+    actor->user.ActorActionFunc = AF(DoActorReposition);
     if (!(actor->user.Flags & SPR_SWIMMING))
-        NewStateGroup(actor, actor->user.ActorActionSet->Run);
+        actor->setStateGroup(NAME_Run);
 
-    (*actor->user.ActorActionFunc)(actor);
+    actor->callAction();
 
     return 0;
 }
@@ -1737,9 +1608,9 @@ int DoActorReposition(DSWActor* actor)
 
 int InitActorPause(DSWActor* actor)
 {
-    actor->user.ActorActionFunc = DoActorPause;
+    actor->user.ActorActionFunc = AF(DoActorPause);
 
-    (*actor->user.ActorActionFunc)(actor);
+    actor->callAction();
 
     return 0;
 }
@@ -1756,69 +1627,12 @@ int DoActorPause(DSWActor* actor)
     // WaitTics is used by too much other actor code and causes problems here
     if ((actor->user.Vis -= ACTORMOVETICS) < 0)
     {
-        actor->user.ActorActionFunc = DoActorDecide;
+        actor->setActionDecide();
         actor->user.Flags &= ~(SPR_TARGETED);
     }
 
     return 0;
 }
 
-//---------------------------------------------------------------------------
-//
-// 
-//
-//---------------------------------------------------------------------------
 
-#include "saveable.h"
-
-static saveable_code saveable_ai_code[] =
-{
-    SAVE_CODE(InitActorDecide),
-    SAVE_CODE(DoActorDecide),
-    SAVE_CODE(InitActorAlertNoise),
-    SAVE_CODE(InitActorAmbientNoise),
-    SAVE_CODE(InitActorAttackNoise),
-    SAVE_CODE(InitActorPainNoise),
-    SAVE_CODE(InitActorDieNoise),
-    SAVE_CODE(InitActorExtra1Noise),
-    SAVE_CODE(InitActorExtra2Noise),
-    SAVE_CODE(InitActorExtra3Noise),
-    SAVE_CODE(InitActorExtra4Noise),
-    SAVE_CODE(InitActorExtra5Noise),
-    SAVE_CODE(InitActorExtra6Noise),
-    SAVE_CODE(InitActorMoveCloser),
-    SAVE_CODE(DoActorMoveCloser),
-    SAVE_CODE(FindTrackToPlayer),
-    SAVE_CODE(FindTrackAwayFromPlayer),
-    SAVE_CODE(FindWanderTrack),
-    SAVE_CODE(InitActorRunAway),
-    SAVE_CODE(InitActorRunToward),
-    SAVE_CODE(InitActorAttack),
-    SAVE_CODE(DoActorAttack),
-    SAVE_CODE(InitActorEvade),
-    SAVE_CODE(InitActorWanderAround),
-    SAVE_CODE(InitActorFindPlayer),
-    SAVE_CODE(InitActorDuck),
-    SAVE_CODE(DoActorDuck),
-    SAVE_CODE(DoActorMoveJump),
-    SAVE_CODE(InitActorReposition),
-    SAVE_CODE(DoActorReposition),
-    SAVE_CODE(DoActorPause)
-};
-
-static saveable_data saveable_ai_data[] =
-{
-    SAVE_DATA(GenericFlaming)
-};
-
-saveable_module saveable_ai =
-{
-    // code
-    saveable_ai_code,
-    SIZ(saveable_ai_code),
-
-    // data
-    saveable_ai_data,
-    SIZ(saveable_ai_data)
-};
 END_SW_NS

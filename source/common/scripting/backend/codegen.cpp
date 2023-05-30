@@ -2568,7 +2568,15 @@ ExpEmit FxAssign::Emit(VMFunctionBuilder *build)
 	}
 
 	pointer.Free(build);
-	return result;
+
+	if(intconst)
+	{	//fix int constant return for assignment
+		return Right->Emit(build);
+	}
+	else
+	{
+		return result;
+	}
 }
 
 //==========================================================================
@@ -9143,7 +9151,7 @@ FxExpression *FxVMFunctionCall::Resolve(FCompileContext& ctx)
 	// [Player701] Catch attempts to call abstract functions directly at compile time
 	if (NoVirtual && Function->Variants[0].Implementation->VarFlags & VARF_Abstract)
 	{
-		ScriptPosition.Message(MSG_ERROR, "Cannot call abstract function %s", Function->Variants[0].Implementation->PrintableName.GetChars());
+		ScriptPosition.Message(MSG_ERROR, "Cannot call abstract function %s", Function->Variants[0].Implementation->PrintableName);
 		delete this;
 		return nullptr;
 	}
