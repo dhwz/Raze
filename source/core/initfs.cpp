@@ -47,6 +47,9 @@
 #include "findfile.h"
 #include "palutil.h"
 #include "startupinfo.h"
+#include "files.h"
+
+using namespace FileSys;
 
 #ifndef PATH_MAX
 #define PATH_MAX 260
@@ -60,10 +63,10 @@ static const char* validexts[] = { "*.grp", "*.zip", "*.pk3", "*.pk4", "*.7z", "
 //
 //==========================================================================
 
-static TArray<FString> ParseGameInfo(TArray<FString>& pwads, const char* fn, const char* data, int size)
+static std::vector<std::string> ParseGameInfo(std::vector<std::string>& pwads, const char* fn, const char* data, int size)
 {
 	FScanner sc;
-	TArray<FString> bases;
+	std::vector<std::string> bases;
 	int pos = 0;
 
 	const char* lastSlash = strrchr(fn, '/');
@@ -78,7 +81,7 @@ static TArray<FString> ParseGameInfo(TArray<FString>& pwads, const char* fn, con
 		if (!nextKey.CompareNoCase("GAME"))
 		{
 			sc.MustGetString();
-			bases.Push(sc.String);
+			bases.push_back(sc.String);
 		}
 		else if (!nextKey.CompareNoCase("LOAD"))
 		{
@@ -105,7 +108,7 @@ static TArray<FString> ParseGameInfo(TArray<FString>& pwads, const char* fn, con
 				}
 				else
 				{
-					pos += D_AddFile(pwads, checkpath, true, pos, GameConfig);
+					pos += D_AddFile(pwads, checkpath.GetChars(), true, pos, GameConfig);
 				}
 			} while (sc.CheckToken(','));
 		}
@@ -149,17 +152,18 @@ static TArray<FString> ParseGameInfo(TArray<FString>& pwads, const char* fn, con
 //
 //==========================================================================
 
-static TArray<FString> CheckGameInfo(TArray<FString>& pwads)
+static std::vector<std::string> CheckGameInfo(std::vector<std::string>& pwads)
 {
+#if 1
 	// scan the list of WADs backwards to find the last one that contains a GAMEINFO lump
-	for (int i = pwads.Size() - 1; i >= 0; i--)
+	for (int i = (int)pwads.size() - 1; i >= 0; i--)
 	{
 		bool isdir = false;
 		FResourceFile* resfile;
-		const char* filename = pwads[i];
+		const char* filename = pwads[i].c_str();
 
 		// Does this exist? If so, is it a directory?
-		if (!DirEntryExists(pwads[i], &isdir))
+		if (!DirEntryExists(pwads[i].c_str(), &isdir))
 		{
 			Printf(TEXTCOLOR_RED "Could not find %s\n", filename);
 			continue;
@@ -176,20 +180,20 @@ static TArray<FString> CheckGameInfo(TArray<FString>& pwads)
 			resfile = FResourceFile::OpenResourceFile(filename, fr, true);
 		}
 		else
-			resfile = FResourceFile::OpenDirectory(filename, true);
+			resfile = FResourceFile::OpenDirectory(filename);
 
-		FName gameinfo = "GAMEINFO.TXT";
-		if (resfile != NULL)
+		const char* gameinfo = "GAMEINFO.TXT";
+		if (resfile != nullptr)
 		{
-			uint32_t cnt = resfile->LumpCount();
+			uint32_t cnt = resfile->EntryCount();
 			for (int c = cnt - 1; c >= 0; c--)
 			{
-				FResourceLump* lmp = resfile->GetLump(c);
-
-				if (FName(lmp->getName(), true) == gameinfo)
+				if (!stricmp(resfile->getName(c), gameinfo))
 				{
 					// Found one!
-					auto bases = ParseGameInfo(pwads, resfile->FileName, (const char*)lmp->Lock(), lmp->LumpSize);
+					auto data = resfile->Read(c);
+					auto wadname = resfile->GetFileName();
+					auto bases = ParseGameInfo(pwads, wadname, data.string(), (int)data.size());
 					delete resfile;
 					return bases;
 				}
@@ -197,7 +201,8 @@ static TArray<FString> CheckGameInfo(TArray<FString>& pwads)
 			delete resfile;
 		}
 	}
-	return TArray<FString>();
+#endif
+	return std::vector<std::string>();
 }
 
 //==========================================================================
@@ -206,19 +211,19 @@ static TArray<FString> CheckGameInfo(TArray<FString>& pwads)
 //
 //==========================================================================
 
-TArray<FString> GetGameFronUserFiles()
+std::vector<std::string> GetGameFronUserFiles()
 {
-	TArray<FString> Files;
+	std::vector<std::string> Files;
 
 	if (userConfig.AddFilesPre) for (auto& file : *userConfig.AddFilesPre)
 	{
-		D_AddFile(Files, file, true, -1, GameConfig);
+		D_AddFile(Files, file.GetChars(), true, -1, GameConfig);
 	}
 	if (userConfig.AddFiles)
 	{
 		for (auto& file : *userConfig.AddFiles)
 		{
-			D_AddFile(Files, file, true, -1, GameConfig);
+			D_AddFile(Files, file.GetChars(), true, -1, GameConfig);
 		}
 
 		// Finally, if the last entry in the chain is a directory, it's being considered the mod directory, and all GRPs inside need to be loaded, too.
@@ -226,16 +231,16 @@ TArray<FString> GetGameFronUserFiles()
 		{
 			auto fn = (*userConfig.AddFiles)[userConfig.AddFiles->NumArgs() - 1];
 			bool isdir = false;
-			if (DirEntryExists(fn, &isdir) && isdir)
+			if (DirEntryExists(fn.GetChars(), &isdir) && isdir)
 			{
 				// Insert the GRPs before this entry itself.
-				FString lastfn;
-				Files.Pop(lastfn);
+				std::string lastfn = std::move(Files.back());
+				Files.pop_back();
 				for (auto ext : validexts)
 				{
-					D_AddDirectory(Files, fn, ext, GameConfig);
+					D_AddDirectory(Files, fn.GetChars(), ext, GameConfig);
 				}
-				Files.Push(lastfn);
+				Files.push_back(std::move(lastfn));
 			}
 		}
 	}
@@ -269,7 +274,7 @@ static void DeleteStuff(FileSystem &fileSystem, const TArray<FString>& deletelum
 			auto fname = fileSystem.GetFileFullName(i, false);
 			if (cf >= 1 && cf <= numgamefiles && !str.CompareNoCase(fname))
 			{
-				fileSystem.RenameFile(i, renameTo);
+				fileSystem.RenameFile(i, renameTo.GetChars());
 			}
 		}
 	}
@@ -279,10 +284,9 @@ static void DeleteStuff(FileSystem &fileSystem, const TArray<FString>& deletelum
 //
 //
 //==========================================================================
-const char* iwad_folders[13] = { "textures/", "hires/", "sounds/", "music/", "maps/" };
 const char* iwad_reserved_duke[12] = { ".map", "rmapinfo", ".con", "menudef", "gldefs", "zscript", "maps/", nullptr };
 const char* iwad_reserved_blood[12] = { ".map", "rmapinfo", ".ini", "menudef", "gldefs", "zscript", "maps/", nullptr };
-const char* iwad_reserved_sw[12] = { ".map", "rmapinfo", "swcustom.txt", "menudef", "gldefs", "zscript", "maps/", nullptr };
+const char* iwad_reserved_sw[12] = { ".map", "rmapinfo", "swcustom.txt", "menudef", "gldefs", "zscript", "swvoxfil.txt", "maps/", nullptr };
 const char* iwad_reserved_ex[12] = { ".map", "rmapinfo", "menudef", "gldefs", "zscript", "maps/", nullptr };
 
 const char** iwad_reserved()
@@ -292,10 +296,40 @@ const char** iwad_reserved()
 		(g_gameType & GAMEFLAG_BLOOD) ? iwad_reserved_blood : iwad_reserved_duke;
 }
 
+static int FileSystemPrintf(FSMessageLevel level, const char* fmt, ...)
+{
+	va_list arg;
+	va_start(arg, fmt);
+	FString text;
+	text.VFormat(fmt, arg);
+	switch (level)
+	{
+	case FSMessageLevel::Error:
+		return Printf(TEXTCOLOR_RED "%s", text.GetChars());
+		break;
+	case FSMessageLevel::Warning:
+		Printf(TEXTCOLOR_YELLOW "%s", text.GetChars());
+		break;
+	case FSMessageLevel::Attention:
+		Printf(TEXTCOLOR_BLUE "%s", text.GetChars());
+		break;
+	case FSMessageLevel::Message:
+		Printf("%s", text.GetChars());
+		break;
+	case FSMessageLevel::DebugWarn:
+		DPrintf(DMSG_WARNING, "%s", text.GetChars());
+		break;
+	case FSMessageLevel::DebugNotify:
+		DPrintf(DMSG_NOTIFY, "%s", text.GetChars());
+		break;
+	}
+	return (int)text.Len();
+}
+
 void InitFileSystem(TArray<GrpEntry>& groups)
 {
 	TArray<int> dependencies;
-	TArray<FString> Files;
+	std::vector<std::string> Files;
 
 	// First comes the engine's own stuff.
 	const char* baseres = BaseFileSearch(ENGINERES_FILE, nullptr, true, GameConfig);
@@ -313,15 +347,15 @@ void InitFileSystem(TArray<GrpEntry>& groups)
 		// This can be overridden via command line switch if needed.
 		if (!grp.FileInfo.loaddirectory && grp.FileName.IsNotEmpty())
 		{
-			D_AddFile(Files, grp.FileName, true, -1, GameConfig);
-			fn = ExtractFilePath(grp.FileName);
+			D_AddFile(Files, grp.FileName.GetChars(), true, -1, GameConfig);
+			fn = ExtractFilePath(grp.FileName.GetChars());
 			if (fn.Len() > 0 && fn.Back() != '/') fn += '/';
 		}
 
 		for (auto& fname : grp.FileInfo.loadfiles)
 		{
 			FString newname = fn + fname;
-			D_AddFile(Files, newname, true, -1, GameConfig);
+			D_AddFile(Files, newname.GetChars(), true, -1, GameConfig);
 		}
 		bool insert = (!insertdirectoriesafter && &grp == &groups[0]) || (insertdirectoriesafter && &grp == &groups.Last());
 
@@ -332,15 +366,15 @@ void InitFileSystem(TArray<GrpEntry>& groups)
 			// Do this only if explicitly requested because this severely limits the usability of GRP files.
 			if (insertdirectoriesafter && userConfig.AddFilesPre) for (auto& file : *userConfig.AddFilesPre)
 			{
-				D_AddFile(Files, file, true, -1, GameConfig);
+				D_AddFile(Files, file.GetChars(), true, -1, GameConfig);
 			}
 
-			D_AddFile(Files, fn, true, -1, GameConfig);
+			D_AddFile(Files, fn.GetChars(), true, -1, GameConfig);
 		}
 		i--;
 	}
 	fileSystem.SetIwadNum(1);
-	fileSystem.SetMaxIwadNum(Files.Size() - 1);
+	fileSystem.SetMaxIwadNum((int)Files.size() - 1);
 
 	D_AddConfigFiles(Files, "Global.Autoload", "*.grp", GameConfig);
 
@@ -350,19 +384,19 @@ void InitFileSystem(TArray<GrpEntry>& groups)
 	while (lastpos < LumpFilter.Len() && (len = strcspn(LumpFilter.GetChars() + lastpos, ".")) > 0)
 	{
 		auto file = LumpFilter.Left(len + lastpos) + ".Autoload";
-		D_AddConfigFiles(Files, file, "*.grp", GameConfig);
+		D_AddConfigFiles(Files, file.GetChars(), "*.grp", GameConfig);
 		lastpos += len + 1;
 	}
 
 	if (!insertdirectoriesafter && userConfig.AddFilesPre) for (auto& file : *userConfig.AddFilesPre)
 	{
-		D_AddFile(Files, file, true, -1, GameConfig);
+		D_AddFile(Files, file.GetChars(), true, -1, GameConfig);
 	}
 	if (userConfig.AddFiles)
 	{
 		for (auto& file : *userConfig.AddFiles)
 		{
-			D_AddFile(Files, file, true, -1, GameConfig);
+			D_AddFile(Files, file.GetChars(), true, -1, GameConfig);
 		}
 
 		// Finally, if the last entry in the chain is a directory, it's being considered the mod directory, and all GRPs inside need to be loaded, too.
@@ -370,16 +404,16 @@ void InitFileSystem(TArray<GrpEntry>& groups)
 		{
 			auto fname = (*userConfig.AddFiles)[userConfig.AddFiles->NumArgs() - 1];
 			bool isdir = false;
-			if (DirEntryExists(fname, &isdir) && isdir)
+			if (DirEntryExists(fname.GetChars(), &isdir) && isdir)
 			{
 				// Insert the GRPs before this entry itself.
-				FString lastfn;
-				Files.Pop(lastfn);
+				std::string lastfn = std::move(Files.back());
+				Files.pop_back();
 				for (auto ext : validexts)
 				{
-					D_AddDirectory(Files, fname, ext, GameConfig);
+					D_AddDirectory(Files, fname.GetChars(), ext, GameConfig);
 				}
-				Files.Push(lastfn);
+				Files.push_back(std::move(lastfn));
 			}
 		}
 	}
@@ -392,31 +426,29 @@ void InitFileSystem(TArray<GrpEntry>& groups)
 	}
 	todelete.Append(userConfig.toBeDeleted);
 	LumpFilterInfo lfi;
-	for (auto p : iwad_folders) lfi.reservedFolders.Push(p);
-	for (auto p = iwad_reserved(); *p; p++) lfi.requiredPrefixes.Push(*p);
+	lfi.reservedFolders = { "textures/", "hires/", "sounds/", "music/", "maps/" };
+	for (auto p = iwad_reserved(); *p; p++) lfi.requiredPrefixes.push_back(*p);
 	if (isBlood())
 	{
-		lfi.embeddings.Push("blood.rff");
-		lfi.embeddings.Push("sounds.rff");
+		lfi.embeddings = { "blood.rff", "sounds.rff" };
 	}
 
-	lfi.dotFilter = LumpFilter;
-
-	if (isDukeEngine()) lfi.gameTypeFilter.Push("DukeEngine");
-	if (isDukeLike()) lfi.gameTypeFilter.Push("DukeLike");
+	if (isDukeEngine()) lfi.gameTypeFilter.push_back("DukeEngine");
+	if (isDukeLike()) lfi.gameTypeFilter.push_back("DukeLike");
+	lfi.gameTypeFilter.push_back(LumpFilter.GetChars());
 
 	lfi.postprocessFunc = [&]()
 	{
 		DeleteStuff(fileSystem, todelete, groups.Size());
 	};
-	fileSystem.InitMultipleFiles(Files, false, &lfi);
+	fileSystem.InitMultipleFiles(Files, &lfi, FileSystemPrintf);
 	if (Args->CheckParm("-dumpfs"))
 	{
 		FILE* f = fopen("filesystem.dir", "wb");
 		for (int num = 0; num < fileSystem.GetNumEntries(); num++)
 		{
-			auto fd = fileSystem.GetFileAt(num);
-			fprintf(f, "%.50s   %60s  %d\n", fd->getName(), fileSystem.GetResourceFileFullName(fileSystem.GetFileContainer(num)), fd->Size());
+			int64_t fd = fileSystem.FileLength(num);
+			fprintf(f, "%.50s   %60s  %lld\n", fileSystem.GetFileFullName(num), fileSystem.GetResourceFileFullName(fileSystem.GetFileContainer(num)), fd);
 		}
 		fclose(f);
 	}

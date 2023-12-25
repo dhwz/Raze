@@ -70,6 +70,31 @@ IMPLEMENT_POINTER(xspr.burnSource)
 IMPLEMENT_POINTER(xspr.target)
 IMPLEMENT_POINTERS_END
 
+IMPLEMENT_CLASS(DBloodPlayer, false, true)
+IMPLEMENT_POINTERS_START(DBloodPlayer)
+IMPLEMENT_POINTER(ctfFlagState[0])
+IMPLEMENT_POINTER(ctfFlagState[1])
+IMPLEMENT_POINTER(aimTarget)
+IMPLEMENT_POINTER(fragger)
+IMPLEMENT_POINTER(voodooTarget)
+IMPLEMENT_POINTER(aimTargets[0])
+IMPLEMENT_POINTER(aimTargets[1])
+IMPLEMENT_POINTER(aimTargets[2])
+IMPLEMENT_POINTER(aimTargets[3])
+IMPLEMENT_POINTER(aimTargets[4])
+IMPLEMENT_POINTER(aimTargets[5])
+IMPLEMENT_POINTER(aimTargets[6])
+IMPLEMENT_POINTER(aimTargets[7])
+IMPLEMENT_POINTER(aimTargets[8])
+IMPLEMENT_POINTER(aimTargets[9])
+IMPLEMENT_POINTER(aimTargets[10])
+IMPLEMENT_POINTER(aimTargets[11])
+IMPLEMENT_POINTER(aimTargets[12])
+IMPLEMENT_POINTER(aimTargets[13])
+IMPLEMENT_POINTER(aimTargets[14])
+IMPLEMENT_POINTER(aimTargets[15])
+IMPLEMENT_POINTERS_END
+
 //---------------------------------------------------------------------------
 //
 //
@@ -96,15 +121,6 @@ static void markgcroots()
 	GC::MarkArray(gPhysSpritesList, gPhysSpritesCount);
 	GC::MarkArray(gImpactSpritesList, gImpactSpritesCount);
 	MarkSprInSect();
-	for (auto& pl : gPlayer)
-	{
-		GC::Mark(pl.actor);
-		GC::MarkArray(pl.ctfFlagState, 2);
-		GC::Mark(pl.aimTarget);
-		GC::MarkArray(pl.aimTargets, 16);
-		GC::Mark(pl.fragger);
-		GC::Mark(pl.voodooTarget);
-	}
 	for (auto& evobj : rxBucket)
 	{
 		evobj.Mark();
@@ -123,7 +139,7 @@ bool bNoDemo = false;
 int gNetPlayers;
 int gChokeCounter = 0;
 int blood_globalflags;
-PLAYER gPlayerTemp[kMaxPlayers];
+PlayerSave gPlayerTemp[kMaxPlayers];
 int gHealthTemp[kMaxPlayers];
 int16_t startang;
 sectortype* startsector;
@@ -143,7 +159,7 @@ void QuitGame(void)
 
 void EndLevel(void)
 {
-	gViewPos = VIEWPOS_0;
+	gViewPos = viewFirstPerson;
 	sndKillAllSounds();
 	sfxKillAllSounds();
 	ambKillAll();
@@ -264,16 +280,15 @@ void StartLevel(MapRecord* level, bool newgame)
 	//drawLoadingScreen();
 	BloodSpawnSpriteDef sprites;
 	DVector3 startpos;
-	dbLoadMap(currentLevel->fileName, startpos, &startang, &startsector, nullptr, sprites);
+	dbLoadMap(currentLevel->fileName.GetChars(), startpos, &startang, &startsector, nullptr, sprites);
 	auto startangle = mapangle(startang);
-	SECRET_SetMapName(currentLevel->DisplayName(), currentLevel->name);
-	STAT_NewLevel(currentLevel->fileName);
-	TITLE_InformName(currentLevel->name);
+	SECRET_SetMapName(currentLevel->DisplayName(), currentLevel->name.GetChars());
+	STAT_NewLevel(currentLevel->fileName.GetChars());
+	TITLE_InformName(currentLevel->name.GetChars());
 	wsrand(dbReadMapCRC(currentLevel->LabelName()));
 	gHitInfo.hitSector = nullptr;
 	gHitInfo.hitWall = nullptr;
-	gKillMgr.Clear();
-	gSecretMgr.Clear();
+	Level.clearStats();
 	automapping = 1;
 
 	// Here is where later the actors must be spawned.
@@ -340,25 +355,16 @@ void StartLevel(MapRecord* level, bool newgame)
 	{
 		for (int i = connecthead; i >= 0; i = connectpoint2[i])
 		{
-			PLAYER* pPlayer = &gPlayer[i];
-			pPlayer->actor->xspr.health &= 0xf000;
-			pPlayer->actor->xspr.health |= gHealthTemp[i];
-			pPlayer->weaponQav = gPlayerTemp[i].weaponQav;
-			pPlayer->curWeapon = gPlayerTemp[i].curWeapon;
-			pPlayer->weaponState = gPlayerTemp[i].weaponState;
-			pPlayer->weaponAmmo = gPlayerTemp[i].weaponAmmo;
-			pPlayer->qavCallback = gPlayerTemp[i].qavCallback;
-			pPlayer->qavLoop = gPlayerTemp[i].qavLoop;
-			pPlayer->weaponTimer = gPlayerTemp[i].weaponTimer;
-			pPlayer->nextWeapon = gPlayerTemp[i].nextWeapon;
-			pPlayer->qavLastTick = gPlayerTemp[i].qavLastTick;
-			pPlayer->qavTimer = gPlayerTemp[i].qavTimer;			
+			DBloodPlayer* pPlayer = getPlayer(i);
+			pPlayer->GetActor()->xspr.health &= 0xf000;
+			pPlayer->GetActor()->xspr.health |= gHealthTemp[i];
+			gPlayerTemp[i].CopyToPlayer(pPlayer);
 		}
 	}
 	PreloadCache();
 	InitMirrors();
 	trInit(actorlist);
-	if (!gPlayer[myconnectindex].packSlots[1].isActive) // if diving suit is not active, turn off reverb sound effect
+	if (!getPlayer(myconnectindex)->packSlots[1].isActive) // if diving suit is not active, turn off reverb sound effect
 		sfxSetReverb(0);
 	ambInit();
 	gChokeCounter = 0;
@@ -377,6 +383,7 @@ void StartLevel(MapRecord* level, bool newgame)
 //
 //
 //---------------------------------------------------------------------------
+void packClear(DBloodPlayer* pPlayer);
 
 void NewLevel(MapRecord *sng, int skill, bool newgame)
 {
@@ -389,6 +396,8 @@ void GameInterface::NewGame(MapRecord *sng, int skill, bool)
 {
 	gGameOptions.uGameFlags = 0;
 	cheatReset();
+	DBloodPlayer* pPlayer = getPlayer(myconnectindex);
+	packClear(pPlayer);
 	NewLevel(sng, skill, true);
 }
 
@@ -422,17 +431,18 @@ void GameInterface::Ticker()
 		thinktime.Reset();
 		thinktime.Clock();
 
-		PLAYER* pPlayer = &gPlayer[myconnectindex];
+		const auto mciPlayer = getPlayer(myconnectindex);
+		const auto mciActor = mciPlayer->GetActor();
 
 		// disable synchronised input if set by game.
-		resetForcedSyncInput();
+		gameInput.ResetInputSync();
 
 		for (int i = connecthead; i >= 0; i = connectpoint2[i])
 		{
-			gPlayer[i].input = playercmds[i].ucmd;
-			gPlayer[i].Angles.resetCameraAngles();
-			viewBackupView(i);
-			playerProcess(&gPlayer[i]);
+			const auto pPlayer = getPlayer(i);
+			pPlayer->resetCameraAngles();
+			viewBackupView(pPlayer);
+			playerProcess(pPlayer);
 		}
 
 		trProcessBusy();
@@ -447,25 +457,25 @@ void GameInterface::Ticker()
 		actortime.Unclock();
 
 		viewCorrectPrediction();
-		ambProcess(pPlayer);
-		viewUpdateDelirium(pPlayer);
+		ambProcess(mciPlayer);
+		viewUpdateDelirium(mciPlayer);
 		gi->UpdateSounds();
-		if (pPlayer->hand == 1)
+		if (mciPlayer->hand == 1)
 		{
-			const int CHOKERATE = 8;
-			const int COUNTRATE = 30;
+			static constexpr int CHOKERATE = 8;
+			static constexpr int COUNTRATE = 30;
 			gChokeCounter += CHOKERATE;
 			while (gChokeCounter >= COUNTRATE)
 			{
-				gChoke.callback(pPlayer);
+				gChoke.callback(mciPlayer);
 				gChokeCounter -= COUNTRATE;
 			}
 		}
 		thinktime.Unclock();
 
 		// update console player's viewzoffset at the end of the tic.
-		pPlayer->actor->oviewzoffset = pPlayer->actor->viewzoffset;
-		pPlayer->actor->viewzoffset = pPlayer->zView - pPlayer->actor->spr.pos.Z;
+		mciActor->oviewzoffset = mciActor->viewzoffset;
+		mciActor->viewzoffset = mciPlayer->zView - mciActor->spr.pos.Z;
 
 		gFrameCount++;
 		PlayClock += kTicsPerFrame;
@@ -552,9 +562,9 @@ void GameInterface::loadPalette(void)
 
 	for (int i = 0; i < 5; i++)
 	{
-		auto pal = fileSystem.LoadFile(PAL[i]);
-		if (pal.Size() < 768) I_FatalError("%s: file too small", PAL[i]);
-		paletteSetColorTable(i, pal.Data(), false, false);
+		auto pal = fileSystem.ReadFileFullName(PAL[i]);
+		if (pal.size() < 768) I_FatalError("%s: file too small", PAL[i]);
+		paletteSetColorTable(i, pal.bytes(), false, false);
 	}
 
 	numshades = 64;
@@ -566,13 +576,13 @@ void GameInterface::loadPalette(void)
 			if (i < 15) I_FatalError("%s: file not found", PLU[i]);
 			else continue;
 		}
-		auto data = fileSystem.GetFileData(lump);
-		if (data.Size() != 64 * 256)
+		auto data = fileSystem.ReadFile(lump);
+		if (data.size() != 64 * 256)
 		{
 			if (i < 15) I_FatalError("%s: Incorrect PLU size", PLU[i]);
 			else continue;
 		}
-		lookups.setTable(i, data.Data());
+		lookups.setTable(i, data.bytes());
 	}
 
 	lookups.setFadeColor(1, 255, 255, 255);
@@ -587,6 +597,13 @@ void GameInterface::loadPalette(void)
 
 void GameInterface::app_init()
 {
+	// Initialise player array.
+	for (unsigned i = 0; i < MAXPLAYERS; i++)
+	{
+		PlayerArray[i] = Create<DBloodPlayer>(i);
+		GC::WriteBarrier(PlayerArray[i]);
+	}
+
 	mirrortile = tileGetTextureID(504);
 	InitTextureIDs();
 
@@ -671,12 +688,6 @@ void sndPlaySpecialMusicOrNothing(int nMusic)
 //
 //---------------------------------------------------------------------------
 
-extern  IniFile* BloodINI;
-void GameInterface::FreeGameData()
-{
-	if (BloodINI) delete BloodINI;
-}
-
 void GameInterface::FreeLevelData()
 {
 	EndLevel();
@@ -744,7 +755,7 @@ DEFINE_ACTION_FUNCTION(_Blood, sndStartSampleNamed)
 	PARAM_STRING(id);
 	PARAM_INT(vol);
 	PARAM_INT(chan);
-	sndStartSample(id, vol, chan);
+	sndStartSample(id.GetChars(), vol, chan);
 	return 0;
 }
 
@@ -764,18 +775,18 @@ DEFINE_ACTION_FUNCTION(_Blood, PowerupIcon)
 DEFINE_ACTION_FUNCTION(_Blood, GetViewPlayer)
 {
 	PARAM_PROLOGUE;
-	ACTION_RETURN_POINTER(&gPlayer[gViewIndex]);
+	ACTION_RETURN_POINTER(getPlayer(gViewIndex));
 }
 
 DEFINE_ACTION_FUNCTION(_BloodPlayer, GetHealth)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(PLAYER);
-	ACTION_RETURN_INT(self->actor->xspr.health);
+	PARAM_SELF_STRUCT_PROLOGUE(DBloodPlayer);
+	ACTION_RETURN_INT(self->GetActor()->xspr.health);
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_BloodPlayer, powerupCheck, powerupCheck)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(PLAYER);
+	PARAM_SELF_STRUCT_PROLOGUE(DBloodPlayer);
 	PARAM_INT(pwup);
 	ACTION_RETURN_INT(powerupCheck(self, pwup));
 }

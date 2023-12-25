@@ -50,7 +50,7 @@ void FuncAnubis(int, int a, int b, int c);
 
 void BuildBubbleMachine(DExhumedActor* nSprite);
 void DoBubbleMachines();
-void DoBubbles(int nPlayer);
+void DoBubbles(DExhumedPlayer* const pPlayer);
 void FuncBubble(int, int, int, int);
 
 // bullet
@@ -96,8 +96,8 @@ void FuncFishLimb(int a, int b, int c);
 
 enum { kMaxGrenades = 50 };
 
-void BuildGrenade(int nPlayer);
-void ThrowGrenade(int nPlayer, double ecx, double push1);
+void BuildGrenade(DExhumedPlayer* const pPlayer);
+void ThrowGrenade(DExhumedPlayer* const pPlayer, double ecx, double push1);
 void FuncGrenade(int, int, int, int);
 
 // gun
@@ -128,17 +128,17 @@ struct Weapon
 
 extern Weapon WeaponInfo[];
 
-void RestoreMinAmmo(int nPlayer);
-void FillWeapons(int nPlayer);
-void ResetPlayerWeapons(int nPlayer);
+void RestoreMinAmmo(DExhumedPlayer* const pPlayer);
+void FillWeapons(DExhumedPlayer* const pPlayer);
+void ResetPlayerWeapons(DExhumedPlayer* const pPlayer);
 void InitWeapons();
-void SetNewWeapon(int nPlayer, int nWeapon);
-void SetNewWeaponImmediate(int nPlayer, int nWeapon);
-void SetNewWeaponIfBetter(int nPlayer, int nWeapon);
-void SelectNewWeapon(int nPlayer);
-void CheckClip(int nPlayer);
-void MoveWeapons(int nPlayer);
-void DrawWeapons(Player* const pPlayer, double interpfrac);
+void SetNewWeapon(DExhumedPlayer* const pPlayer, int nWeapon);
+void SetNewWeaponImmediate(DExhumedPlayer* const pPlayer, int nWeapon);
+void SetNewWeaponIfBetter(DExhumedPlayer* const pPlayer, int nWeapon);
+void SelectNewWeapon(DExhumedPlayer* const pPlayer);
+void CheckClip(DExhumedPlayer* const pPlayer);
+void MoveWeapons(DExhumedPlayer* const pPlayer);
+void DrawWeapons(DExhumedPlayer* const pPlayer, double interpfrac);
 
 // items
 
@@ -156,10 +156,9 @@ extern const int16_t nItemMagic[];
 
 void BuildItemAnim(DExhumedActor* nSprite);
 void ItemFlash();
-void FillItems(int nPlayer);
-void UseItem(int nPlayer, int nItem);
-void UseCurItem(int nPlayer);
-int GrabItem(int nPlayer, int nItem);
+void FillItems(DExhumedPlayer* const pPlayer);
+void UseItem(DExhumedPlayer* const pPlayer, int nItem);
+int GrabItem(DExhumedPlayer* const pPlayer, int nItem);
 void DropMagic(DExhumedActor* actor);
 void InitItems();
 void StartRegenerate(DExhumedActor* nSprite);
@@ -177,12 +176,12 @@ void FuncLava(int, int, int, int);
 
 void InitLights();
 void AddFlash(sectortype* pSector, const DVector3& pos, int val);
-void SetTorch(int nPlayer, int bTorchOnOff);
+void SetTorch(DExhumedPlayer* const pPlayer, int bTorchOnOff);
 void UndoFlashes();
 void DoLights();
 void AddFlow(sectortype* pSect, int nSpeed, int b, DAngle ang = -minAngle);
 void AddFlow(walltype* pWall, int nSpeed, int b);
-void BuildFlash(int nPlayer, int nVal);
+void BuildFlash(DExhumedPlayer* const pPlayer, int nVal);
 void AddGlow(sectortype* pSector, int nVal);
 void AddFlicker(sectortype* pSector, int nVal);
 
@@ -211,10 +210,10 @@ void MoveThings();
 void InitChunks();
 void InitPushBlocks();
 void Gravity(DExhumedActor* actor);
-DExhumedActor* UpdateEnemy(DExhumedActor** ppEnemy);
+DExhumedActor* UpdateEnemy(DExhumedActor* ppEnemy);
 Collision MoveCreature(DExhumedActor* nSprite);
 Collision MoveCreatureWithCaution(DExhumedActor* actor);
-DVector3 WheresMyMouth(int nPlayer, sectortype** sectnum);
+DVector3 WheresMyMouth(DExhumedPlayer* const pPlayer, sectortype** sectnum);
 double GetActorHeight(DExhumedActor* nSprite);
 DExhumedActor* insertActor(sectortype* s, int st);
 DExhumedActor* GrabBody();
@@ -312,9 +311,9 @@ struct RA
 extern RA Ra[];
 
 void FreeRa(int nPlayer);
-void BuildRa(int nPlayer);
+void BuildRa(DExhumedPlayer* const pPlayer);
 void InitRa();
-void MoveRaToEnemy(int nPlayer);
+void MoveRaToEnemy(RA* const pRa);
 void FuncRa(int, int, int, int);
 
 // rat
@@ -725,7 +724,7 @@ extern FreeListArray<Snake, kMaxSnakes> SnakeList;
 
 void InitSnakes();
 int GrabSnake();
-void BuildSnake(int nPlayer, double zVal);
+void BuildSnake(DExhumedPlayer* const pPlayer, double zVal);
 void FuncSnake(int, int, int, int);
 
 // spider

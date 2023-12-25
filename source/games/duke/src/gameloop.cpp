@@ -64,12 +64,11 @@ void GameInterface::Ticker()
 		// this must be done before the view is backed up.
 		for (int i = connecthead; i >= 0; i = connectpoint2[i])
 		{
-			ps[i].Angles.resetCameraAngles();
-			ps[i].sync = playercmds[i].ucmd;
+			getPlayer(i)->resetCameraAngles();
 		}
 
 		// disable synchronised input if set by game.
-		resetForcedSyncInput();
+		gameInput.ResetInputSync();
 
 		DukeSpriteIterator it;
 		while (auto ac = it.Next())
@@ -83,13 +82,13 @@ void GameInterface::Ticker()
 
 		for (int i = connecthead; i >= 0; i = connectpoint2[i])
 		{
-			auto p = &ps[i];
+			auto p = getPlayer(i);
 			if (p->pals.a > 0)
 				p->pals.a--;
 
-			hud_input(i);
-			fi.processinput(i);
-			fi.checksectors(i);
+			hud_input(p);
+			fi.processinput(p);
+			fi.checksectors(p);
 		}
 
 		fi.think();
@@ -118,7 +117,7 @@ void GameInterface::Ticker()
 
 void GameInterface::Startup()
 {
-	ps[myconnectindex].ftq = 0;
+	getPlayer(myconnectindex)->ftq = 0;
 	PlayLogos(ga_mainmenunostopsound, ga_mainmenunostopsound, false);
 }
 

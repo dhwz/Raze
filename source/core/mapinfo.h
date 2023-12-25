@@ -7,6 +7,7 @@
 #include "vectors.h"
 #include "screenjob.h"
 #include "maptypes.h"
+#include "d_net.h"
 
 #ifdef GetMessage
 #undef GetMessage	// Windows strikes...
@@ -157,18 +158,18 @@ struct MapRecord
 	const char* LabelName() const
 	{
 		if (flags & MI_USERMAP) return GStrings("MNU_USERMAP");
-		return labelName;
+		return labelName.GetChars();
 	}
 	const char *DisplayName() const
 	{
-		if (name.IsEmpty()) return labelName;
-		return GStrings.localize(name);
+		if (name.IsEmpty()) return labelName.GetChars();
+		return GStrings.localize(name.GetChars());
 	}
 	void SetName(const char *n)
 	{
 		name = n;
 		name.StripRight();
-		name = FStringTable::MakeMacro(name);
+		name = FStringTable::MakeMacro(name.GetChars());
 	}
 	void SetFileName(const char* n)
 	{
@@ -189,6 +190,35 @@ struct MapRecord
 	}
 };
 
+struct StatRecord
+{
+	int max;
+	int got;
+	int player[MAXPLAYERS];
+
+	void addTotal(int amount = 1)
+	{
+		max += amount;
+		if (amount < 0 && max < 0) max = 0;
+	}
+
+	void add(int playerno, int amount = 1)
+	{
+		got += amount;
+		if (amount < 0 && got < 0) got = 0;
+		if (playerno >= 0 && playerno < MAXPLAYERS)
+		{
+			player[playerno] += amount;
+			if (amount < 0 && player[playerno] < 0) player[playerno] = 0;
+		}
+	}
+
+	void clear()
+	{
+		memset(this, 0, sizeof(*this));
+	}
+};
+
 struct SummaryInfo
 {
 	int kills;
@@ -203,8 +233,69 @@ struct SummaryInfo
 	bool endofgame;
 };
 
+struct MapLocals
+{
+	StatRecord kills, secrets, superSecrets;
+
+	void fillSummary(SummaryInfo& sum);
+
+	void clearStats()
+	{
+		kills.clear();
+		secrets.clear();
+		superSecrets.clear();
+	}
+
+	void setKills(int num)
+	{
+		kills.clear();
+		kills.max = num;
+	}
+
+	void setSecrets(int num, int supernum = 0)
+	{
+		secrets.clear();
+		secrets.max = num;
+		superSecrets.clear();
+		superSecrets.max = supernum;
+	}
+
+	void addKillCount(int amount = 1)
+	{
+		kills.addTotal(amount);
+	}
+
+	void addSecretCount(int amount = 1)
+	{
+		secrets.addTotal(amount);
+	}
+
+	void addKill(int playerno, int amount = 1)
+	{
+		kills.add(playerno, amount);
+	}
+
+	void addSecret(int playerno, int amount = 1)
+	{
+		secrets.add(playerno, amount);
+	}
+
+	void addSuperSecret(int playerno, int amount = 1)
+	{
+		superSecrets.add(playerno, amount);
+	}
+
+	void addFrags(int playerno, int amount)
+	{
+		// todo
+	}
+
+};
+
+
 extern GlobalCutscenes globalCutscenes;
-extern MapRecord *currentLevel;	
+extern MapRecord* currentLevel;	// level that is currently played.
+extern MapLocals Level;
 
 void SetMusicReplacement(const char *mapname, const char *music);
 void ReplaceMusics(bool namehack = false);

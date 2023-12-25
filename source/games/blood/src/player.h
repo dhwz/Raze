@@ -52,6 +52,18 @@ enum
 	kPostureMax = 3,
 };
 
+// inventory pack
+enum
+{
+	kPackBase        = 0,
+	kPackMedKit      = kPackBase,
+	kPackDivingSuit  = 1,
+	kPackCrystalBall = 2,
+	kPackBeastVision = 3,
+	kPackJumpBoots   = 4,
+	kPackMax         = 5,
+};
+
 struct PACKINFO
 {
 	bool isActive; // is active (0/1)
@@ -78,109 +90,7 @@ struct POSTURE
 
 extern POSTURE gPostureDefaults[kModeMax][kPostureMax];
 
-struct PLAYER
-{
-	DBloodActor* actor;
-	DUDEINFO* pDudeInfo;
-	InputPacket         input;
-	PlayerAngles        Angles;
-	uint8_t             newWeapon;
-	int                 used1;  // something related to game checksum
-	int                 weaponQav;
-	int                 qavCallback;
-	bool                isRunning;
-	int                 posture;   // stand, crouch, swim
-	int                 sceneQav;  // by NoOne: used to keep qav id
-	double              bobPhase;
-	int                 bobAmp;
-	double              bobHeight;
-	double              bobWidth;
-	double              obobHeight;
-	double              obobWidth;
-	int                 swayPhase;
-	int                 swayAmp;
-	double              swayHeight;
-	double              swayWidth;
-	double              oswayHeight;
-	double              oswayWidth;
-	int                 nPlayer;  // Connect id
-	int                 lifeMode;
-	int                 bloodlust;  // ---> useless
-	double              zView;
-	double              ozView;
-	double              zViewVel;
-	double              zWeapon;
-	double              ozWeapon;
-	double              zWeaponVel;
-	double              slope;
-	bool                isUnderwater;
-	bool                hasKey[8];
-	int8_t              hasFlag;
-	TObjPtr<DBloodActor*>        ctfFlagState[2];
-	int                 damageControl[7];
-	int8_t              curWeapon;
-	int8_t              nextWeapon;
-	int                 weaponTimer;
-	int                 weaponState;
-	int                 weaponAmmo;  //rename
-	bool                hasWeapon[kWeapMax];
-	int                 weaponMode[kWeapMax];
-	int                 weaponOrder[2][kWeapMax];
-	//int               at149[14];
-	int                 ammoCount[12];
-	bool                qavLoop;
-	int                 qavLastTick;
-	int                 qavTimer;
-	int                 fuseTime;
-	int                 throwTime;
-	double              throwPower;
-	DVector3            aim;  // world
-	DVector3            relAim;  // relative
-	DVector3 flt_aim() const { return aim; }
-	DVector3 flt_relAim() const { return relAim; }
-	TObjPtr<DBloodActor*>        aimTarget;  // aim target sprite
-	int                 aimTargetsCount;
-	TObjPtr<DBloodActor*>        aimTargets[16];
-	int                 deathTime;
-	int                 pwUpTime[kMaxPowerUps];
-	int                 fragCount;
-	int                 fragInfo[8];
-	int                 teamId;
-	TObjPtr<DBloodActor*>        fragger;
-	int                 underwaterTime;
-	int                 bubbleTime;
-	int                 restTime;
-	int                 kickPower;
-	int                 laughCount;
-	bool                godMode;
-	bool                fallScream;
-	bool                cantJump;
-	int                 packItemTime;  // pack timer
-	int                 packItemId;    // pack id 1: diving suit, 2: crystal ball, 3: beast vision 4: jump boots
-	PACKINFO            packSlots[5];  // at325 [1]: diving suit, [2]: crystal ball, [3]: beast vision [4]: jump boots
-	int                 armor[3];      // armor
-	//int               at342;
-	//int               at346;
-	TObjPtr<DBloodActor*>        voodooTarget;
-	int                 voodooTargets;  // --> useless
-	int                 voodooVar1;     // --> useless
-	int                 vodooVar2;      // --> useless
-	int                 flickerEffect;
-	int                 tiltEffect;
-	int                 visibility;
-	int                 painEffect;
-	int                 blindEffect;
-	int                 chokeEffect;
-	int                 handTime;
-	bool                hand;  // if true, there is hand start choking the player
-	int                 pickupEffect;
-	bool                flashEffect;  // if true, reduce pPlayer->visibility counter
-	int                 quakeEffect;
-	int                 player_par;
-	int                 nWaterPal;
-	bool                crouch_toggle;
-	POSTURE             pPosture[kModeMax][kPostureMax];
-};
+class DBloodPlayer;
 
 struct AMMOINFO
 {
@@ -197,9 +107,7 @@ struct POWERUPINFO
 	FTextureID textureID() const { return tileGetTextureID(picno); }
 };
 
-void playerResetPosture(PLAYER* pPlayer);
-
-extern PLAYER gPlayer[kMaxPlayers];
+void playerResetPosture(DBloodPlayer* pPlayer);
 
 extern bool gBlueFlagDropped;
 extern bool gRedFlagDropped;
@@ -209,40 +117,40 @@ extern int team_ticker[kMaxPlayers];
 extern AMMOINFO gAmmoInfo[];
 extern POWERUPINFO gPowerUpInfo[kMaxPowerUps];
 
-bool IsTargetTeammate(PLAYER* pSourcePlayer, DBloodActor* target);
-int powerupCheck(PLAYER* pPlayer, int nPowerUp);
-bool powerupActivate(PLAYER* pPlayer, int nPowerUp);
-void powerupDeactivate(PLAYER* pPlayer, int nPowerUp);
-void powerupSetState(PLAYER* pPlayer, int nPowerUp, bool bState);
-void powerupProcess(PLAYER* pPlayer);
-void powerupClear(PLAYER* pPlayer);
+bool IsTargetTeammate(DBloodPlayer* pSourcePlayer, DBloodActor* target);
+int powerupCheck(DBloodPlayer* pPlayer, int nPowerUp);
+bool powerupActivate(DBloodPlayer* pPlayer, int nPowerUp);
+void powerupDeactivate(DBloodPlayer* pPlayer, int nPowerUp);
+void powerupSetState(DBloodPlayer* pPlayer, int nPowerUp, bool bState);
+void powerupProcess(DBloodPlayer* pPlayer);
+void powerupClear(DBloodPlayer* pPlayer);
 int packItemToPowerup(int nPack);
 int powerupToPackItem(int nPowerUp);
-bool packAddItem(PLAYER* pPlayer, unsigned int nPack);
-int packCheckItem(PLAYER* pPlayer, int nPack);
-bool packItemActive(PLAYER* pPlayer, int nPack);
-void packUseItem(PLAYER* pPlayer, int nPack);
-void packPrevItem(PLAYER* pPlayer);
-void packNextItem(PLAYER* pPlayer);
-bool playerSeqPlaying(PLAYER* pPlayer, int nSeq);
-void playerSetRace(PLAYER* pPlayer, int nLifeMode);
-void playerSetGodMode(PLAYER* pPlayer, bool bGodMode);
-void playerResetInertia(PLAYER* pPlayer);
-void playerCorrectInertia(PLAYER* pPlayer, const DVector3& oldpos);
+bool packAddItem(DBloodPlayer* pPlayer, unsigned int nPack);
+int packCheckItem(DBloodPlayer* pPlayer, int nPack);
+bool packItemActive(DBloodPlayer* pPlayer, int nPack);
+void packUseItem(DBloodPlayer* pPlayer, int nPack);
+void packPrevItem(DBloodPlayer* pPlayer);
+void packNextItem(DBloodPlayer* pPlayer);
+bool playerSeqPlaying(DBloodPlayer* pPlayer, int nSeq);
+void playerSetRace(DBloodPlayer* pPlayer, int nLifeMode);
+void playerSetGodMode(DBloodPlayer* pPlayer, bool bGodMode);
+void playerResetInertia(DBloodPlayer* pPlayer);
+void playerCorrectInertia(DBloodPlayer* pPlayer, const DVector3& oldpos);
 void playerStart(int nPlayer, int bNewLevel = 0);
-void playerReset(PLAYER* pPlayer);
+void playerReset(DBloodPlayer* pPlayer);
 void playerInit(int nPlayer, unsigned int a2);
-void CheckPickUp(PLAYER* pPlayer);
-void ProcessInput(PLAYER* pPlayer);
-void playerProcess(PLAYER* pPlayer);
-DBloodActor* playerFireMissile(PLAYER* pPlayer, double xyoff, const DVector3& vec, int nType);
-DBloodActor* playerFireThing(PLAYER* pPlayer, double xyoff, double zvel, int thingType, double nSpeed);
-void playerFrag(PLAYER* pKiller, PLAYER* pVictim);
-int playerDamageArmor(PLAYER* pPlayer, DAMAGE_TYPE nType, int nDamage);
-int playerDamageSprite(DBloodActor* nSource, PLAYER* pPlayer, DAMAGE_TYPE nDamageType, int nDamage);
-int UseAmmo(PLAYER* pPlayer, int nAmmoType, int nDec);
-void voodooTarget(PLAYER* pPlayer);
-void playerLandingSound(PLAYER* pPlayer);
+void CheckPickUp(DBloodPlayer* pPlayer);
+void ProcessInput(DBloodPlayer* pPlayer);
+void playerProcess(DBloodPlayer* pPlayer);
+DBloodActor* playerFireMissile(DBloodPlayer* pPlayer, double xyoff, const DVector3& vec, int nType);
+DBloodActor* playerFireThing(DBloodPlayer* pPlayer, double xyoff, double zvel, int thingType, double nSpeed);
+void playerFrag(DBloodPlayer* pKiller, DBloodPlayer* pVictim);
+int playerDamageArmor(DBloodPlayer* pPlayer, DAMAGE_TYPE nType, int nDamage);
+int playerDamageSprite(DBloodActor* nSource, DBloodPlayer* pPlayer, DAMAGE_TYPE nDamageType, int nDamage);
+int UseAmmo(DBloodPlayer* pPlayer, int nAmmoType, int nDec);
+void voodooTarget(DBloodPlayer* pPlayer);
+void playerLandingSound(DBloodPlayer* pPlayer);
 void PlayerSurvive(int, DBloodActor*);
 
 END_BLD_NS

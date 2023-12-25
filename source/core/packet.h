@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include "m_fixed.h"
 #include "tflags.h"
+#include "vectors.h"
 
 enum ESyncBits_ : uint32_t
 {
@@ -34,11 +35,10 @@ enum ESyncBits_ : uint32_t
     SB_LOOK_UP = SB_AIM_UP|SB_CENTERVIEW,
     SB_LOOK_DOWN = SB_AIM_DOWN|SB_CENTERVIEW,
     SB_CROUCH = 1 << 25,
-    SB_CROUCH_LOCK = 1 << 26,
-    SB_RUN = 1 << 27,
-    SB_JUMP = 1 << 28,
-    SB_FIRE = 1 << 29,
-    SB_ALTFIRE = 1 << 30,
+    SB_RUN = 1 << 26,
+    SB_JUMP = 1 << 27,
+    SB_FIRE = 1 << 28,
+    SB_ALTFIRE = 1 << 29,
 
     SB_WEAPONMASK_BITS = (15u * SB_FIRST_WEAPON_BIT), // Weapons take up 4 bits
     SB_ITEMUSE_BITS = (127u * SB_ITEM_BIT_1),
@@ -70,12 +70,8 @@ enum
 
 struct InputPacket
 {
-    float svel;
-    float fvel;
-    float uvel;
-    float avel;
-    float horz;
-    float roll;
+    DVector3 vel;
+    DRotator ang;
     ESyncBits actions;
 
 

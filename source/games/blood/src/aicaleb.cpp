@@ -66,9 +66,9 @@ void SeqAttackCallback(int, DBloodActor* actor)
 
 	for (int i = 0; i < 2; i++)
 	{
-		double r1 = Random3F(500, 4);
+		double r3 = Random3F(500, 4);
 		double r2 = Random3F(1000, 4);
-		double r3 = Random3F(1000, 8);
+		double r1 = Random3F(1000, 8);
 		actFireVector(actor, 0, 0, vect + DVector3(r1, r2, r3), kVectorShell);
 	}
 	if (Chance(0x8000))
@@ -140,7 +140,7 @@ static void calebThinkChase(DBloodActor* actor)
 		}
 		return;
 	}
-	if (target->IsPlayerActor() && powerupCheck(&gPlayer[target->spr.type - kDudePlayer1], kPwUpShadowCloak) > 0)
+	if (target->IsPlayerActor() && powerupCheck(getPlayer(target->spr.type - kDudePlayer1), kPwUpShadowCloak) > 0)
 	{
 		if (pXSector && pXSector->Underwater)
 			aiNewState(actor, &tinycalebSwimSearch);
@@ -242,7 +242,7 @@ static void calebThinkSwimChase(DBloodActor* actor)
 		aiNewState(actor, &tinycalebSwimSearch);
 		return;
 	}
-	if (target->IsPlayerActor() && powerupCheck(&gPlayer[target->spr.type - kDudePlayer1], kPwUpShadowCloak) > 0)
+	if (target->IsPlayerActor() && powerupCheck(getPlayer(target->spr.type - kDudePlayer1), kPwUpShadowCloak) > 0)
 	{
 		aiNewState(actor, &tinycalebSwimSearch);
 		return;
@@ -263,9 +263,9 @@ static void calebThinkSwimChase(DBloodActor* actor)
 				else
 					aiNewState(actor, &tinycaleb13967C);
 			}
-			else
-				aiNewState(actor, &tinycaleb13967C);
 		}
+		else
+			aiNewState(actor, &tinycaleb13967C);
 		return;
 	}
 	aiNewState(actor, &tinycalebSwimGoto);

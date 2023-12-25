@@ -237,8 +237,8 @@ void LifeLeechOperate(DBloodActor* actor, EVENT event)
 		int nPlayer = actor->xspr.data4;
 		if (nPlayer >= 0 && nPlayer < kMaxPlayers && playeringame[nPlayer])
 		{
-			PLAYER* pPlayer = &gPlayer[nPlayer];
-			if (pPlayer->actor->xspr.health > 0)
+			DBloodPlayer* pPlayer = getPlayer(nPlayer);
+			if (pPlayer->GetActor()->xspr.health > 0)
 			{
 				evKillActor(actor);
 				pPlayer->ammoCount[8] = ClipHigh(pPlayer->ammoCount[8] + actor->xspr.data3, gAmmoInfo[8].max);
@@ -485,7 +485,7 @@ void OperateSprite(DBloodActor* actor, EVENT event)
 		{
 			auto spawned = actSpawnDude(actor, actor->xspr.data1, -1);
 			if (spawned) {
-				gKillMgr.AddKillCount(spawned);
+				if (AllowedKillType(spawned)) Level.addKillCount();
 				switch (actor->xspr.data1) {
 				case kDudeBurningInnocent:
 				case kDudeBurningCultist:
@@ -511,9 +511,9 @@ void OperateSprite(DBloodActor* actor, EVENT event)
 		SetSpriteState(actor, 1, initiator);
 		for (int p = connecthead; p >= 0; p = connectpoint2[p]) 
 		{
-			auto vec = actor->spr.pos - gPlayer[p].actor->spr.pos;
+			auto vec = actor->spr.pos - getPlayer(p)->GetActor()->spr.pos;
 			int nDist = int(vec.LengthSquared()) + 0x40000;
-			gPlayer[p].quakeEffect = DivScale(actor->xspr.data1, nDist, 16);
+			getPlayer(p)->quakeEffect = DivScale(actor->xspr.data1, nDist, 16);
 		}
 		break;
 	case kThingTNTBarrel:
@@ -598,9 +598,9 @@ void OperateSprite(DBloodActor* actor, EVENT event)
 	case kSoundPlayer:
 		if (gGameOptions.nGameType == 0)
 		{
-			PLAYER* pPlayer = &gPlayer[myconnectindex];
+			DBloodPlayer* pPlayer = getPlayer(myconnectindex);
 
-			if (pPlayer->actor->xspr.health <= 0)
+			if (pPlayer->GetActor()->xspr.health <= 0)
 				break;
 			pPlayer->restTime = 0;
 		}
@@ -897,7 +897,7 @@ void TranslateSector(sectortype* pSector, double wave1, double wave2, const DVec
 		case kStatMarker:
 		case kStatPathMarker:
 #ifdef NOONE_EXTENSIONS
-			if (!gModernMap || !(actor->spr.flags & 0x1)) continue;
+			if (!gModernMap || !(actor->spr.flags & kPhysMove)) continue;
 #else
 			continue;
 #endif
@@ -906,7 +906,7 @@ void TranslateSector(sectortype* pSector, double wave1, double wave2, const DVec
 
 		if (actor->spr.cstat & CSTAT_SPRITE_MOVE_FORWARD)
 		{
-			auto spot = rotatepoint(pivot, actor->basePoint, ptang_w2);
+			auto spot = rotatepoint(pivot, actor->basePoint.XY(), ptang_w2);
 			viewBackupSpriteLoc(actor);
 			actor->spr.pos.XY() = spot + pt_w2 - pivot;
 			actor->spr.Angles.Yaw += angleofs;
@@ -917,7 +917,7 @@ void TranslateSector(sectortype* pSector, double wave1, double wave2, const DVec
 			// fix Y arg in RotatePoint for reverse (green) moving sprites. (Original Blood bug?)
 			DVector2 pivotDy(pivot.X, gModernMap ? pivot.Y : pivot.X);
 
-			auto spot = rotatepoint(pivotDy, actor->basePoint, ptang_w2);
+			auto spot = rotatepoint(pivotDy, actor->basePoint.XY(), ptang_w2);
 			viewBackupSpriteLoc(actor);
 			actor->spr.pos.XY() = spot - pt_w2 + pivot;
 			actor->spr.Angles.Yaw += angleofs;
@@ -956,19 +956,19 @@ void TranslateSector(sectortype* pSector, double wave1, double wave2, const DVec
 
 				if (ac->spr.cstat & CSTAT_SPRITE_MOVE_FORWARD)
 				{
-					auto spot = rotatepoint(pivot, ac->basePoint, ptang_w2);
+					auto spot = rotatepoint(pivot, ac->basePoint.XY(), ptang_w2);
 					viewBackupSpriteLoc(ac);
 					ac->spr.pos.XY() = spot + pt_w2 - pivot;
 					ac->spr.Angles.Yaw += angleofs;
-					if (!VanillaMode() && ac->IsPlayerActor()) gPlayer[ac->spr.type - kDudePlayer1].actor->spr.Angles.Yaw += angleofs;
+					if (!VanillaMode() && ac->IsPlayerActor()) getPlayer(ac->spr.type - kDudePlayer1)->GetActor()->spr.Angles.Yaw += angleofs;
 				}
 				else if (ac->spr.cstat & CSTAT_SPRITE_MOVE_REVERSE)
 				{
-					auto spot = rotatepoint(pivot, ac->basePoint, ptang_w2);
+					auto spot = rotatepoint(pivot, ac->basePoint.XY(), ptang_w2);
 					viewBackupSpriteLoc(ac);
 					ac->spr.pos.XY() = spot - pt_w2 + pivot;
 					ac->spr.Angles.Yaw += angleofs;
-					if (!VanillaMode() && ac->IsPlayerActor()) gPlayer[ac->spr.type - kDudePlayer1].actor->spr.Angles.Yaw += angleofs;
+					if (!VanillaMode() && ac->IsPlayerActor()) getPlayer(ac->spr.type - kDudePlayer1)->GetActor()->spr.Angles.Yaw += angleofs;
 				}
 			}
 		}
@@ -1360,7 +1360,7 @@ int HDoorBusy(sectortype* pSector, unsigned int a2, DBloodActor* initiator)
 	if (!pXSector->marker0 || !pXSector->marker1) return 0;
 	auto marker0 = pXSector->marker0;
 	auto marker1 = pXSector->marker1;
-	TranslateSector(pSector, GetWaveValue(pXSector->busy, nWave), GetWaveValue(a2, nWave), marker0->spr.pos, marker0->spr.pos, marker0->spr.Angles.Yaw, marker1->spr.pos, marker1->spr.Angles.Yaw, pSector->type == kSectorSlide);
+	TranslateSector(pSector, GetWaveValue(pXSector->busy, nWave), GetWaveValue(a2, nWave), marker0->spr.pos.XY(), marker0->spr.pos.XY(), marker0->spr.Angles.Yaw, marker1->spr.pos.XY(), marker1->spr.Angles.Yaw, pSector->type == kSectorSlide);
 	ZTranslateSector(pSector, pXSector, a2, nWave);
 	pXSector->busy = a2;
 	if (pXSector->command == kCmdLink && pXSector->txID)
@@ -1391,7 +1391,7 @@ int RDoorBusy(sectortype* pSector, unsigned int a2, DBloodActor* initiator)
 		nWave = pXSector->busyWaveB;
 	if (!pXSector->marker0) return 0;
 	auto marker0 = pXSector->marker0;
-	TranslateSector(pSector, GetWaveValue(pXSector->busy, nWave), GetWaveValue(a2, nWave), marker0->spr.pos, marker0->spr.pos, nullAngle, marker0->spr.pos, marker0->spr.Angles.Yaw, pSector->type == kSectorRotate);
+	TranslateSector(pSector, GetWaveValue(pXSector->busy, nWave), GetWaveValue(a2, nWave), marker0->spr.pos.XY(), marker0->spr.pos.XY(), nullAngle, marker0->spr.pos.XY(), marker0->spr.Angles.Yaw, pSector->type == kSectorRotate);
 	ZTranslateSector(pSector, pXSector, a2, nWave);
 	pXSector->busy = a2;
 	if (pXSector->command == kCmdLink && pXSector->txID)
@@ -1424,13 +1424,13 @@ int StepRotateBusy(sectortype* pSector, unsigned int a2, DBloodActor* initiator)
 	{
 		ang2 = ang1 + marker0->spr.Angles.Yaw;
 		int nWave = pXSector->busyWaveA;
-		TranslateSector(pSector, GetWaveValue(pXSector->busy, nWave), GetWaveValue(a2, nWave), marker0->spr.pos, marker0->spr.pos, ang1, marker0->spr.pos, ang2, true);
+		TranslateSector(pSector, GetWaveValue(pXSector->busy, nWave), GetWaveValue(a2, nWave), marker0->spr.pos.XY(), marker0->spr.pos.XY(), ang1, marker0->spr.pos.XY(), ang2, true);
 	}
 	else
 	{
 		 ang2 = ang1 - marker0->spr.Angles.Yaw;
 		int nWave = pXSector->busyWaveB;
-		TranslateSector(pSector, GetWaveValue(pXSector->busy, nWave), GetWaveValue(a2, nWave), marker0->spr.pos, marker0->spr.pos, ang2, marker0->spr.pos, ang1, true);
+		TranslateSector(pSector, GetWaveValue(pXSector->busy, nWave), GetWaveValue(a2, nWave), marker0->spr.pos.XY(), marker0->spr.pos.XY(), ang2, marker0->spr.pos.XY(), ang1, true);
 	}
 	pXSector->busy = a2;
 	if (pXSector->command == kCmdLink && pXSector->txID)
@@ -1484,7 +1484,7 @@ int PathBusy(sectortype* pSector, unsigned int a2, DBloodActor* initiator)
 	if (!basepath || !marker0 || !marker1) return 0;
 
 	int nWave = marker0->xspr.wave;
-	TranslateSector(pSector, GetWaveValue(pXSector->busy, nWave), GetWaveValue(a2, nWave), basepath->spr.pos, marker0->spr.pos, marker0->spr.Angles.Yaw, marker1->spr.pos,  marker1->spr.Angles.Yaw, true);
+	TranslateSector(pSector, GetWaveValue(pXSector->busy, nWave), GetWaveValue(a2, nWave), basepath->spr.pos.XY(), marker0->spr.pos.XY(), marker0->spr.Angles.Yaw, marker1->spr.pos.XY(), marker1->spr.Angles.Yaw, true);
 	ZTranslateSector(pSector, pXSector, a2, nWave);
 	pXSector->busy = a2;
 	if ((a2 & 0xffff) == 0)
@@ -1596,10 +1596,10 @@ void OperateTeleport(sectortype* pSector)
 	{
 		if (actor->spr.statnum == kStatDude)
 		{
-			PLAYER* pPlayer;
+			DBloodPlayer* pPlayer;
 			bool bPlayer = actor->IsPlayerActor();
 			if (bPlayer)
-				pPlayer = &gPlayer[actor->spr.type - kDudePlayer1];
+				pPlayer = getPlayer(actor->spr.type - kDudePlayer1);
 			else
 				pPlayer = NULL;
 			if (bPlayer || !SectorContainsDudes(destactor->sector()))
@@ -1620,7 +1620,7 @@ void OperateTeleport(sectortype* pSector)
 				{
 					playerResetInertia(pPlayer);
 					pPlayer->zViewVel = pPlayer->zWeaponVel = 0;
-					pPlayer->actor->PrevAngles.Yaw = pPlayer->actor->spr.Angles.Yaw = actor->spr.Angles.Yaw;
+					pPlayer->GetActor()->PrevAngles.Yaw = pPlayer->GetActor()->spr.Angles.Yaw = actor->spr.Angles.Yaw;
 				}
 			}
 		}
@@ -2324,9 +2324,9 @@ void trInit(TArray<DBloodActor*>& actors)
 			{
 				auto marker0 = pXSector->marker0;
 				auto marker1 = pXSector->marker1;
-				TranslateSector(pSector, 0, -1, marker0->spr.pos, marker0->spr.pos, marker0->spr.Angles.Yaw, marker1->spr.pos, marker1->spr.Angles.Yaw, pSector->type == kSectorSlide);
+				TranslateSector(pSector, 0, -1, marker0->spr.pos.XY(), marker0->spr.pos.XY(), marker0->spr.Angles.Yaw, marker1->spr.pos.XY(), marker1->spr.Angles.Yaw, pSector->type == kSectorSlide);
 				UpdateBasePoints(pSector);
-				TranslateSector(pSector, 0, FixedToFloat(pXSector->busy), marker0->spr.pos, marker0->spr.pos, marker0->spr.Angles.Yaw, marker1->spr.pos, marker1->spr.Angles.Yaw, pSector->type == kSectorSlide);
+				TranslateSector(pSector, 0, FixedToFloat(pXSector->busy), marker0->spr.pos.XY(), marker0->spr.pos.XY(), marker0->spr.Angles.Yaw, marker1->spr.pos.XY(), marker1->spr.Angles.Yaw, pSector->type == kSectorSlide);
 				ZTranslateSector(pSector, pXSector, pXSector->busy, 1);
 				break;
 			}
@@ -2334,9 +2334,9 @@ void trInit(TArray<DBloodActor*>& actors)
 			case kSectorRotate:
 			{
 				auto marker0 = pXSector->marker0;
-				TranslateSector(pSector, 0, -1, marker0->spr.pos, marker0->spr.pos, nullAngle, marker0->spr.pos, marker0->spr.Angles.Yaw, pSector->type == kSectorRotate);
+				TranslateSector(pSector, 0, -1, marker0->spr.pos.XY(), marker0->spr.pos.XY(), nullAngle, marker0->spr.pos.XY(), marker0->spr.Angles.Yaw, pSector->type == kSectorRotate);
 				UpdateBasePoints(pSector);
-				TranslateSector(pSector, 0, FixedToFloat(pXSector->busy), marker0->spr.pos, marker0->spr.pos, nullAngle, marker0->spr.pos, marker0->spr.Angles.Yaw, pSector->type == kSectorRotate);
+				TranslateSector(pSector, 0, FixedToFloat(pXSector->busy), marker0->spr.pos.XY(), marker0->spr.pos.XY(), nullAngle, marker0->spr.pos.XY(), marker0->spr.Angles.Yaw, pSector->type == kSectorRotate);
 				ZTranslateSector(pSector, pXSector, pXSector->busy, 1);
 				break;
 			}

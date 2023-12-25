@@ -100,14 +100,14 @@ static void viewBurnTime(int gScale)
 //
 //---------------------------------------------------------------------------
 
-void hudDraw(PLAYER* pPlayer, sectortype* pSector, double bobx, double boby, double zDelta, DAngle angle, int basepal, double interpfrac)
+void hudDraw(DBloodPlayer* pPlayer, sectortype* pSector, double bobx, double boby, double zDelta, DAngle angle, int basepal, double interpfrac)
 {
 	if (gViewPos == 0)
 	{
 		// Nullify incoming roll angle for now as it doesn't draw weapons made up of parts correctly.
 		angle = nullAngle;
 
-		auto cXY = DVector2(160, 220) + pPlayer->Angles.getWeaponOffsets(interpfrac).first;
+		auto cXY = DVector2(160, 220) + pPlayer->getWeaponOffsets(interpfrac).first;
 
 		if (cl_weaponsway)
 		{
@@ -128,8 +128,8 @@ void hudDraw(PLAYER* pPlayer, sectortype* pSector, double bobx, double boby, dou
 		}
 		int nShade = pSector? pSector->floorshade : 0;
 		int nPalette = 0;
-		if (pPlayer->actor->sector()->hasX()) {
-			sectortype* pViewSect = pPlayer->actor->sector();
+		if (pPlayer->GetActor()->sector()->hasX()) {
+			sectortype* pViewSect = pPlayer->GetActor()->sector();
 			XSECTOR* pXSector = &pViewSect->xs();
 			if (pXSector->color)
 				nPalette = pViewSect->floorpal;
@@ -137,7 +137,7 @@ void hudDraw(PLAYER* pPlayer, sectortype* pSector, double bobx, double boby, dou
 
 		#ifdef NOONE_EXTENSIONS
 		if (pPlayer->sceneQav < 0) WeaponDraw(pPlayer, nShade, cXY.X, cXY.Y, nPalette, angle);
-			else if (pPlayer->actor->xspr.health > 0) playerQavSceneDraw(pPlayer, nShade, cXY.X, cXY.Y, nPalette, angle);
+			else if (pPlayer->GetActor()->xspr.health > 0) playerQavSceneDraw(pPlayer, nShade, cXY.X, cXY.Y, nPalette, angle);
 		else {
 			pPlayer->sceneQav = pPlayer->weaponQav = kQAVNone;
 			pPlayer->qavTimer = pPlayer->weaponTimer = pPlayer->curWeapon = 0;
@@ -146,9 +146,9 @@ void hudDraw(PLAYER* pPlayer, sectortype* pSector, double bobx, double boby, dou
 			WeaponDraw(pPlayer, nShade, cX, cY, nPalette);
 		#endif
 	}
-	if (gViewPos == 0 && pPlayer->actor->xspr.burnTime > 60)
+	if (gViewPos == 0 && pPlayer->GetActor()->xspr.burnTime > 60)
 	{
-		viewBurnTime(pPlayer->actor->xspr.burnTime);
+		viewBurnTime(pPlayer->GetActor()->xspr.burnTime);
 	}
 	if (packItemActive(pPlayer, 1))
 	{
@@ -169,8 +169,8 @@ void hudDraw(PLAYER* pPlayer, sectortype* pSector, double bobx, double boby, dou
 	}
 
 	int zn = int(((pPlayer->zWeapon - pPlayer->zView - 12) * 2.) + 220);
-	PLAYER* pPSprite = &gPlayer[pPlayer->actor->spr.type - kDudePlayer1];
-	if (pPlayer->actor->IsPlayerActor() && pPSprite->hand == 1)
+	DBloodPlayer* pPSprite = getPlayer(pPlayer->GetActor()->spr.type - kDudePlayer1);
+	if (pPlayer->GetActor()->IsPlayerActor() && pPSprite->hand == 1)
 	{
 		gChoke.animateChoke(160, zn, interpfrac);
 	}

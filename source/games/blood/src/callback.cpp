@@ -337,7 +337,7 @@ void PlayerBubble(DBloodActor* actor, sectortype*) // 10
 	if (!actor) return;
 	if (actor->IsPlayerActor())
 	{
-		PLAYER* pPlayer = &gPlayer[actor->spr.type - kDudePlayer1];
+		DBloodPlayer* pPlayer = getPlayer(actor->spr.type - kDudePlayer1);
 		if (!pPlayer->bubbleTime)
 			return;
 		double top, bottom;
@@ -436,7 +436,7 @@ void CounterCheck(DBloodActor*, sectortype* pSector) // 12
 void FinishHim(DBloodActor* actor, sectortype*) // 13
 {
 	if (!actor) return;
-	if (actor->IsPlayerActor() && playerSeqPlaying(&gPlayer[actor->spr.type - kDudePlayer1], 16) && actor == gPlayer[myconnectindex].actor)
+	if (actor->IsPlayerActor() && playerSeqPlaying(getPlayer(actor->spr.type - kDudePlayer1), 16) && actor == getPlayer(myconnectindex)->GetActor())
 		sndStartSample(3313, -1, 1, 0);
 }
 
@@ -452,7 +452,7 @@ void fxBloodBits(DBloodActor* actor, sectortype*) // 14
 	DAngle nAngle = RandomAngle();
 	int nDist = Random(16);
 	auto pos = actor->spr.pos + nAngle.ToVector() * nDist * 4;
-	gFX.fxSpawnActor(FX_48, actor->sector(), DVector3(pos, actor->spr.pos.Z));
+	gFX.fxSpawnActor(FX_48, actor->sector(), DVector3(pos.XY(), actor->spr.pos.Z));
 	if (actor->spr.Angles.Yaw == DAngle180)
 	{
 		int nChannel = 28 + (actor->GetIndex() & 2);    // this is a little stupid...
@@ -460,7 +460,7 @@ void fxBloodBits(DBloodActor* actor, sectortype*) // 14
 	}
 	if (Chance(0x5000))
 	{
-		auto pFX = gFX.fxSpawnActor(FX_36, actor->sector(), DVector3(pos, floorZ - 0.25));
+		auto pFX = gFX.fxSpawnActor(FX_36, actor->sector(), DVector3(pos.XY(), floorZ - 0.25));
 		if (pFX)
 			pFX->spr.Angles.Yaw = nAngle;
 	}
@@ -694,7 +694,7 @@ void LeechStateTimer(DBloodActor* actor, sectortype*) // 20
 //
 //---------------------------------------------------------------------------
 
-void sub_76A08(DBloodActor* actor, DBloodActor* actor2, PLAYER* pPlayer) // ???
+void sub_76A08(DBloodActor* actor, DBloodActor* actor2, DBloodPlayer* pPlayer) // ???
 {
 	double top, bottom;
 	GetActorExtents(actor, &top, &bottom);
@@ -726,9 +726,9 @@ void DropVoodooCb(DBloodActor* actor, sectortype*) // unused
 		evPostActor(actor, 0, kCallbackRemove);
 		return;
 	}
-	PLAYER* pPlayer;
+	DBloodPlayer* pPlayer;
 	if (Owner->IsPlayerActor())
-		pPlayer = &gPlayer[Owner->spr.type - kDudePlayer1];
+		pPlayer = getPlayer(Owner->spr.type - kDudePlayer1);
 	else
 		pPlayer = nullptr;
 	if (!pPlayer)
@@ -753,9 +753,9 @@ void DropVoodooCb(DBloodActor* actor, sectortype*) // unused
 				continue;
 			if (actor2->hasX())
 			{
-				PLAYER* pPlayer2;
+				DBloodPlayer* pPlayer2;
 				if (actor2->IsPlayerActor())
-					pPlayer2 = &gPlayer[actor2->spr.type - kDudePlayer1];
+					pPlayer2 = getPlayer(actor2->spr.type - kDudePlayer1);
 				else
 					pPlayer2 = nullptr;
 

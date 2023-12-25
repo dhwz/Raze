@@ -369,7 +369,7 @@ void EnemyDefaults(DSWActor* actor, ACTOR_ACTION_SET* action, PERSONALITY* perso
     case PACHINKO2:
     case PACHINKO3:
     case PACHINKO4:
-    case 623:
+    case PACHINKOWINLIGHT:
     case TOILETGIRL_R0:
     case WASHGIRL_R0:
     case CARGIRL_R0:
@@ -381,7 +381,7 @@ void EnemyDefaults(DSWActor* actor, ACTOR_ACTION_SET* action, PERSONALITY* perso
         break;
     default:
     {
-        TotalKillable++;
+        Level.addKillCount();
     }
 
     break;
@@ -491,6 +491,12 @@ int SetupCoolie(DSWActor* actor)
     return 0;
 }
 
+DEFINE_ACTION_FUNCTION(DSWCoolie, Initialize)
+{
+    PARAM_SELF_PROLOGUE(DSWActor);
+    SetupCoolie(self);
+    return 0;
+}
 
 //---------------------------------------------------------------------------
 //

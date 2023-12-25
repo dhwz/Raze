@@ -251,6 +251,7 @@ class DukeStatue : DukeActor
 	{
 		self.clipdist = 32;
 		self.cstat |= CSTAT_SPRITE_BLOCK_ALL;
+		self.ChangeStat(STAT_ACTOR);
 	}
 
 	override void OnHit(DukeActor proj)
@@ -373,4 +374,24 @@ class DukeSeriousSam : DukeActor
 		self.ChangeStat(STAT_ZOMBIEACTOR);
 	}
 }		
+
+//---------------------------------------------------------------------------
+//
+// 
+//
+//---------------------------------------------------------------------------
+
+class DukeWeatherWarn : DukeActor
+{
+	default
+	{
+		pic "WEATHERWARN";
+	}
+	
+	override void Initialize(DukeActor spawner)
+	{
+		self.ChangeStat(STAT_ACTOR);
+	}	
+}
+
 

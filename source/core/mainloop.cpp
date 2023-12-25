@@ -79,7 +79,6 @@
 #include "v_video.h"
 #include "palette.h"
 #include "build.h"
-#include "g_input.h"
 #include "mapinfo.h"
 #include "automap.h"
 #include "statusbar.h"
@@ -98,11 +97,20 @@ CVAR(Bool, r_ticstability, true, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 EXTERN_CVAR(Bool, cl_capfps)
 CVAR(Bool, cl_resumesavegame, true, CVAR_ARCHIVE)
 
-ticcmd_t playercmds[MAXPLAYERS];
-
 static uint64_t stabilityticduration = 0;
 static uint64_t stabilitystarttime = 0;
-static double inputScale;
+
+DCorePlayer* PlayerArray[MAXPLAYERS];
+
+IMPLEMENT_CLASS(DCorePlayer, true, true)
+IMPLEMENT_POINTERS_START(DCorePlayer)
+IMPLEMENT_POINTER(actor)
+IMPLEMENT_POINTERS_END
+
+void MarkPlayers()
+{
+	GC::MarkArray(PlayerArray, MAXPLAYERS);
+}
 
 bool r_NoInterpolate;
 int entertic;
@@ -131,13 +139,12 @@ void G_BuildTiccmd(ticcmd_t* cmd)
 	{
 		sendsave = false;
 		Net_WriteByte(DEM_SAVEGAME);
-		Net_WriteString(savegamefile);
-		Net_WriteString(savedescription);
+		Net_WriteString(savegamefile.GetChars());
+		Net_WriteString(savedescription.GetChars());
 		savegamefile = "";
 	}
 	cmd->ucmd = {};
-	I_GetEvent();
-	gameInput.getInput(inputScale, &cmd->ucmd);
+	gameInput.getInput(&cmd->ucmd);
 	cmd->consistency = consistency[myconnectindex][(maketic / ticdup) % BACKUPTICS];
 }
 
@@ -150,11 +157,13 @@ bool newGameStarted;
 
 void NewGame(MapRecord* map, int skill, bool ns = false)
 {
+	gi->FreeLevelData();
 	newGameStarted = true;
 	ShowIntermission(nullptr, map, nullptr, [=](bool) { 
 		gi->NewGame(map, skill, ns); 
 		gameaction = ga_level;
 		ResetStatusBar();
+		gameInput.resetCrouchToggle();
 		});
 }
 
@@ -166,8 +175,6 @@ void NewGame(MapRecord* map, int skill, bool ns = false)
 
 static void GameTicker()
 {
-	int i;
-
 	handleevents();
 
 	// Todo: Migrate state changes to here instead of doing them ad-hoc
@@ -181,14 +188,13 @@ static void GameTicker()
 			C_FlushDisplay();
 			if (BackupSaveGame.IsNotEmpty() && cl_resumesavegame)
 			{
-				DoLoadGame(BackupSaveGame);
+				DoLoadGame(BackupSaveGame.GetChars());
 			}
 			else
 			{
 				g_nextmap = currentLevel;
 				FX_StopAllSounds();
-				FX_SetReverb(0);
-				gi->FreeLevelData();
+				S_SetReverb(0);
 				NewGame(g_nextmap, -1);
 				BackupSaveGame = "";
 			}
@@ -196,7 +202,7 @@ static void GameTicker()
 
 		case ga_completed:
 			FX_StopAllSounds();
-			FX_SetReverb(0);
+			S_SetReverb(0);
 			gi->LevelCompleted(g_nextmap, g_nextskill);
 			break;
 
@@ -213,8 +219,7 @@ static void GameTicker()
 			[[fallthrough]];
 		case ga_newgamenostopsound:
 			DeleteScreenJob();
-			FX_SetReverb(0);
-			gi->FreeLevelData();
+			S_SetReverb(0);
 			C_FlushDisplay();
 			BackupSaveGame = "";
 			NewGame(g_nextmap, g_nextskill, ga == ga_newgamenostopsound);
@@ -248,7 +253,7 @@ static void GameTicker()
 			break;
 
 		case ga_savegame:
-			G_DoSaveGame(true, false, savegamefile, savedescription);
+			G_DoSaveGame(true, false, savegamefile.GetChars(), savedescription.GetChars());
 			gameaction = ga_nothing;
 			savegamefile = "";
 			savedescription = "";
@@ -303,12 +308,13 @@ static void GameTicker()
 	// get commands, check consistancy, and build new consistancy check
 	int buf = (gametic / ticdup) % BACKUPTICS;
 
-	for (i = 0; i < MAXPLAYERS; i++)
+	for (int i = 0; i < MAXPLAYERS; i++)
 	{
 		if (playeringame[i])
 		{
-			ticcmd_t* cmd = &playercmds[i];
+			ticcmd_t* cmd = &PlayerArray[i]->cmd;
 			ticcmd_t* newcmd = &netcmds[i][buf];
+			PlayerArray[i]->lastcmd = *cmd;
 
 			if ((gametic % ticdup) == 0)
 			{
@@ -610,10 +616,9 @@ void TryRunTics (void)
 			gi->Predict(myconnectindex);
 #endif
 		}
-		if (!SyncInput())
+		if (!gameInput.SyncInput())
 		{
-			I_GetEvent();
-			gameInput.getInput(inputScale);
+			gameInput.getInput();
 		}
 		return;
 	}
@@ -720,10 +725,10 @@ void MainLoop ()
 
 	if (userConfig.CommandMap.IsNotEmpty())
 	{
-		auto maprecord = FindMapByName(userConfig.CommandMap);
+		auto maprecord = FindMapByName(userConfig.CommandMap.GetChars());
 		if (maprecord == nullptr)
 		{
-			maprecord = SetupUserMap(userConfig.CommandMap, g_gameType & GAMEFLAG_DUKE? "dethtoll.mid" : nullptr);
+			maprecord = SetupUserMap(userConfig.CommandMap.GetChars(), g_gameType & GAMEFLAG_DUKE? "dethtoll.mid" : nullptr);
 		}
 		userConfig.CommandMap = "";
 		if (maprecord)
@@ -745,7 +750,7 @@ void MainLoop ()
 			I_SetFrameTime();
 
 			// update the scale factor for unsynchronised input here.
-			inputScale = I_GetInputFrac();
+			gameInput.UpdateInputScale();
 
 			TryRunTics (); // will run at least one tic
 			// Update display, next frame, with current state.

@@ -2427,7 +2427,7 @@ static void actInitDudes()
 {
 	if (gGameOptions.nMonsterSettings == 0)
 	{
-		gKillMgr.SetCount(0);
+		Level.setKills(0);
 		BloodStatIterator it(kStatDude);
 		while (auto act = it.Next())
 		{
@@ -2438,16 +2438,17 @@ static void actInitDudes()
 	}
 	else
 	{
-		// by NoOne: WTF is this?
-		///////////////
+		int TotalKills = 0;
+
 		BloodStatIterator it(kStatDude);
 		while (auto act = it.Next())
 		{
-			if (act->spr.type < kDudeBase || act->spr.type >= kDudeMax)
+			if (!act->IsDudeActor())
 				I_Error("Non-enemy sprite (%d) in the enemy sprite list.\n", act->GetIndex());
+			if (AllowedKillType(act)) TotalKills++;
 		}
+		Level.setKills(TotalKills);
 
-		gKillMgr.CountTotalKills();
 		///////////////
 
 		for (int i = 0; i < kDudeMax - kDudeBase; i++)
@@ -3052,7 +3053,7 @@ static void checkAddFrag(DBloodActor* killerActor, DBloodActor* actor)
 	{
 		if (killerActor->IsPlayerActor())
 		{
-			PLAYER* pPlayer = &gPlayer[killerActor->spr.type - kDudePlayer1];
+			DBloodPlayer* pPlayer = getPlayer(killerActor->spr.type - kDudePlayer1);
 			if (gGameOptions.nGameType == 1)
 				pPlayer->fragCount++;
 		}
@@ -3067,7 +3068,7 @@ static void checkAddFrag(DBloodActor* killerActor, DBloodActor* actor)
 		case kDudeBurningInnocent:
 			break;
 		default:
-			PLAYER* pKillerPlayer = &gPlayer[killerActor->spr.type - kDudePlayer1];
+			DBloodPlayer* pKillerPlayer = getPlayer(killerActor->spr.type - kDudePlayer1);
 			pKillerPlayer->fragCount++;
 			break;
 		}
@@ -3380,8 +3381,8 @@ void actKillDude(DBloodActor* killerActor, DBloodActor* actor, DAMAGE_TYPE damag
 
 	for (int p = connecthead; p >= 0; p = connectpoint2[p])
 	{
-		if (gPlayer[p].fragger == actor && gPlayer[p].deathTime > 0)
-			gPlayer[p].fragger = nullptr;
+		if (getPlayer(p)->fragger == actor && getPlayer(p)->deathTime > 0)
+			getPlayer(p)->fragger = nullptr;
 	}
 	if (actor->spr.type != kDudeCultistBeast)
 		trTriggerSprite(actor, kCmdOff, killerActor);
@@ -3395,7 +3396,7 @@ void actKillDude(DBloodActor* killerActor, DBloodActor* actor, DAMAGE_TYPE damag
 	if (!getSequence(getDudeInfo(nType + kDudeBase)->seqStartID + nSeq))
 	{
 		seqKill(actor);
-		gKillMgr.AddKill(actor);
+		AddKill(killerActor, actor);
 		actPostSprite(actor, kStatFree);
 		return;
 	}
@@ -3575,7 +3576,7 @@ void actKillDude(DBloodActor* killerActor, DBloodActor* actor, DAMAGE_TYPE damag
 		for (int i = 0; i < 4; i++)
 			fxSpawnBlood(actor, damage);
 	}
-	gKillMgr.AddKill(actor);
+	AddKill(killerActor, actor);
 	actCheckRespawn(actor);
 	actor->spr.type = kThingBloodChunks;
 	actPostSprite(actor, kStatThing);
@@ -3615,7 +3616,7 @@ static int actDamageDude(DBloodActor* source, DBloodActor* actor, int damage, DA
 	}
 	else
 	{
-		PLAYER* pPlayer = &gPlayer[actor->spr.type - kDudePlayer1];
+		DBloodPlayer* pPlayer = getPlayer(actor->spr.type - kDudePlayer1);
 		if (actor->xspr.health > 0 || playerSeqPlaying(pPlayer, 16))
 			damage = playerDamageSprite(source, pPlayer, damageType, damage);
 
@@ -3629,7 +3630,7 @@ static int actDamageDude(DBloodActor* source, DBloodActor* actor, int damage, DA
 //
 //---------------------------------------------------------------------------
 
-static int actDamageThing(DBloodActor* source, DBloodActor* actor, int damage, DAMAGE_TYPE damageType, PLAYER* pSourcePlayer)
+static int actDamageThing(DBloodActor* source, DBloodActor* actor, int damage, DAMAGE_TYPE damageType, DBloodPlayer* pSourcePlayer)
 {
 	assert(actor->spr.type >= kThingBase && actor->spr.type < kThingMax);
 	int nType = actor->spr.type - kThingBase;
@@ -3675,7 +3676,7 @@ static int actDamageThing(DBloodActor* source, DBloodActor* actor, int damage, D
 		case kThingZombieHead:
 			if (damageType == 3 && pSourcePlayer && PlayClock > pSourcePlayer->laughCount && Chance(0x4000))
 			{
-				sfxPlay3DSound(pSourcePlayer->actor, gPlayerGibThingComments[Random(10)], 0, 2);
+				sfxPlay3DSound(pSourcePlayer->GetActor(), gPlayerGibThingComments[Random(10)], 0, 2);
 				pSourcePlayer->laughCount = PlayClock + 3600;
 			}
 			break;
@@ -3738,8 +3739,8 @@ int actDamageSprite(DBloodActor* source, DBloodActor* actor, DAMAGE_TYPE damageT
 
 	if (source == nullptr) source = actor;
 
-	PLAYER* pSourcePlayer = nullptr;
-	if (source->IsPlayerActor()) pSourcePlayer = &gPlayer[source->spr.type - kDudePlayer1];
+	DBloodPlayer* pSourcePlayer = nullptr;
+	if (source->IsPlayerActor()) pSourcePlayer = getPlayer(source->spr.type - kDudePlayer1);
 	if (!gGameOptions.bFriendlyFire && IsTargetTeammate(pSourcePlayer, actor)) return 0;
 
 	switch (actor->spr.statnum)
@@ -4150,7 +4151,7 @@ static void checkCeilHit(DBloodActor* actor)
 					actor2->spr.flags |= 5;
 #ifdef NOONE_EXTENSIONS
 					// add size shroom abilities
-					if ((actor->IsPlayerActor() && isShrinked(actor)) || (actor2->IsPlayerActor() && isGrown(actor2))) {
+					if ((actor->IsPlayerActor() && isShrunk(actor)) || (actor2->IsPlayerActor() && isGrown(actor2))) {
 
 						int mass1 = getDudeInfo(actor2->spr.type)->mass;
 						int mass2 = getDudeInfo(actor->spr.type)->mass;
@@ -4172,7 +4173,7 @@ static void checkCeilHit(DBloodActor* actor)
 						}
 					}
 #endif
-					if (!actor->IsPlayerActor() || gPlayer[actor->spr.type - kDudePlayer1].godMode == 0)
+					if (!actor->IsPlayerActor() || getPlayer(actor->spr.type - kDudePlayer1)->godMode == 0)
 					{
 						switch (actor2->spr.type)
 						{
@@ -4191,7 +4192,7 @@ static void checkCeilHit(DBloodActor* actor)
 								actDamageSprite(actor2, actor, kDamageFall, dmg);
 								if (actor->hasX() && !actor->isActive()) aiActivateDude(actor);
 							}
-							else if (powerupCheck(&gPlayer[actor->spr.type - kDudePlayer1], kPwUpJumpBoots) > 0) actDamageSprite(actor2, actor, kDamageExplode, dmg);
+							else if (powerupCheck(getPlayer(actor->spr.type - kDudePlayer1), kPwUpJumpBoots) > 0) actDamageSprite(actor2, actor, kDamageExplode, dmg);
 							else actDamageSprite(actor2, actor, kDamageFall, dmg);
 							break;
 #endif
@@ -4236,7 +4237,7 @@ static void checkHit(DBloodActor* actor)
 
 #ifdef NOONE_EXTENSIONS
 			// add size shroom abilities
-			if ((actor2->IsPlayerActor() && isShrinked(actor2)) || (actor->IsPlayerActor() && isGrown(actor)))
+			if ((actor2->IsPlayerActor() && isShrunk(actor2)) || (actor->IsPlayerActor() && isGrown(actor)))
 			{
 				if (actor->vel.X != 0 && actor2->IsDudeActor())
 				{
@@ -4309,7 +4310,7 @@ static void checkFloorHit(DBloodActor* actor)
 
 #ifdef NOONE_EXTENSIONS
 			// add size shroom abilities
-			if ((actor2->IsPlayerActor() && isShrinked(actor2)) || (actor->IsPlayerActor() && isGrown(actor)))
+			if ((actor2->IsPlayerActor() && isShrunk(actor2)) || (actor->IsPlayerActor() && isGrown(actor)))
 			{
 
 				int mass1 = getDudeInfo(actor->spr.type)->mass;
@@ -4333,8 +4334,8 @@ static void checkFloorHit(DBloodActor* actor)
 			}
 #endif
 
-			PLAYER* pPlayer = nullptr;
-			if (actor->IsPlayerActor()) pPlayer = &gPlayer[actor->spr.type - kDudePlayer1];
+			DBloodPlayer* pPlayer = nullptr;
+			if (actor->IsPlayerActor()) pPlayer = getPlayer(actor->spr.type - kDudePlayer1);
 
 			switch (actor2->spr.type)
 			{
@@ -4401,7 +4402,7 @@ static void checkFloorHit(DBloodActor* actor)
 			case kDudePlayer7:
 			case kDudePlayer8:
 #ifdef NOONE_EXTENSIONS
-				if (pPlayer && !isShrinked(actor))
+				if (pPlayer && !isShrunk(actor))
 #else
 				if (pPlayer)
 #endif
@@ -4690,8 +4691,8 @@ static Collision MoveThing(DBloodActor* actor)
 
 void MoveDude(DBloodActor* actor)
 {
-	PLAYER* pPlayer = nullptr;
-	if (actor->IsPlayerActor()) pPlayer = &gPlayer[actor->spr.type - kDudePlayer1];
+	DBloodPlayer* pPlayer = nullptr;
+	if (actor->IsPlayerActor()) pPlayer = getPlayer(actor->spr.type - kDudePlayer1);
 	if (!(actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax))
 	{
 		Printf(PRINT_HIGH, "%d: actor->spr.type >= kDudeBase && actor->spr.type < kDudeMax", actor->spr.type);
@@ -4897,7 +4898,7 @@ void MoveDude(DBloodActor* actor)
 			{
 				pPlayer->posture = 0;
 				pPlayer->bubbleTime = 0;
-				if (!pPlayer->cantJump && (pPlayer->input.actions & SB_JUMP))
+				if (!pPlayer->cantJump && (pPlayer->cmd.ucmd.actions & SB_JUMP))
 				{
 					actor->vel.Z = FixedToFloat(-0x6aaaa);
 					pPlayer->cantJump = 1;
@@ -5084,11 +5085,11 @@ void MoveDude(DBloodActor* actor)
 			switch (tileGetSurfType(floorColl))
 			{
 			case kSurfWater:
-				gFX.fxSpawnActor(FX_9, actor->sector(), DVector3(actor->spr.pos, floorZ));
+				gFX.fxSpawnActor(FX_9, actor->sector(), DVector3(actor->spr.pos.XY(), floorZ));
 				break;
 			case kSurfLava:
 			{
-				auto pFX = gFX.fxSpawnActor(FX_10, actor->sector(), DVector3(actor->spr.pos, floorZ));
+				auto pFX = gFX.fxSpawnActor(FX_10, actor->sector(), DVector3(actor->spr.pos.XY(), floorZ));
 				if (pFX)
 				{
 					for (int i = 0; i < 7; i++)
@@ -5154,15 +5155,9 @@ void MoveDude(DBloodActor* actor)
 		actor->vel.X += FixedToFloat(-mulscale16r(FloatToFixed(actor->vel.X), nDrag));
 		actor->vel.Y += FixedToFloat(-mulscale16r(FloatToFixed(actor->vel.Y), nDrag));
 
-		if (pPlayer)
-		{
-			pPlayer->Angles.StrafeVel += FixedToFloat(-mulscale16r(FloatToFixed(pPlayer->Angles.StrafeVel), nDrag));
-		}
-
 		if (actor->vel.XY().Length() < 0.0625)
 		{
 			actor->vel.XY().Zero();
-			if (pPlayer) pPlayer->Angles.StrafeVel = 0;
 		}
 	}
 }
@@ -5403,7 +5398,7 @@ void actExplodeSprite(DBloodActor* actor)
 	case kTrapExploder:
 	{
 		// Defaults for exploder
-		nType = 1;
+		nType = kExplosionStandard;
 		int nSnd = 304;
 		int nSeq = 4;
 
@@ -5415,13 +5410,13 @@ void actExplodeSprite(DBloodActor* actor)
 			int tSeq = actor->xspr.data2; // SEQ id
 			int tSnd = actor->xspr.data3; // Sound Id
 
-			if (nType <= 1 || nType > kExplodeMax) { nType = 1; nSeq = 4; nSnd = 304; }
-			else if (nType == 2) { nSeq = 4; nSnd = 305; }
-			else if (nType == 3) { nSeq = 9; nSnd = 307; }
-			else if (nType == 4) { nSeq = 5; nSnd = 307; }
-			else if (nType <= 6) { nSeq = 4; nSnd = 303; }
-			else if (nType == 7) { nSeq = 4; nSnd = 303; }
-			else if (nType == 8) { nType = 0; nSeq = 3; nSnd = 303; }
+			if (nType <= kExplosionStandard || nType > kExplodeMax) { nType = 1; nSeq = 4; nSnd = 304; }
+			else if (nType == kExplosionLarge) { nSeq = 4; nSnd = 305; }
+			else if (nType == kExplosionFireball) { nSeq = 9; nSnd = 307; }
+			else if (nType == kExplosionSpray) { nSeq = 5; nSnd = 307; }
+			else if (nType <= kExplosion6) { nSeq = 4; nSnd = 303; }
+			else if (nType == kExplosionNapalm) { nSeq = 4; nSnd = 303; }
+			else if (nType == kExplosionMax) { nType = 0; nSeq = 3; nSnd = 303; }
 
 			// Override previous sound and seq assigns
 			if (tSeq > 0) nSeq = tSeq;
@@ -5548,8 +5543,8 @@ static void actCheckProximity()
 							auto Owner = actor->GetOwner();
 							if (!Owner->IsPlayerActor()) continue;
 
-							PLAYER* pPlayer = &gPlayer[Owner->spr.type - kDudePlayer1];
-							PLAYER* pPlayer2 = dudeactor->IsPlayerActor() ? &gPlayer[dudeactor->spr.type - kDudePlayer1] : nullptr;
+							auto pPlayer = getPlayer(Owner);
+							DBloodPlayer* pPlayer2 = dudeactor->IsPlayerActor() ? getPlayer(dudeactor) : nullptr;
 
 							if (dudeactor == Owner || dudeactor->spr.type == kDudeZombieAxeBuried || dudeactor->spr.type == kDudeRat || dudeactor->spr.type == kDudeBat) continue;
 							if (gGameOptions.nGameType == 3 && pPlayer2 && pPlayer->teamId == pPlayer2->teamId) continue;
@@ -5808,11 +5803,11 @@ static void actCheckExplosion()
 
 		for (int p = connecthead; p >= 0; p = connectpoint2[p])
 		{
-			auto dv = apos - gPlayer[p].actor->spr.pos;
+			auto dv = apos - getPlayer(p)->GetActor()->spr.pos;
 			int nDist = int(dv.LengthSquared() + 0x40000);
 
 			int t = DivScale(actor->xspr.data2, nDist, 16);
-			gPlayer[p].flickerEffect += t;
+			getPlayer(p)->flickerEffect += t;
 		}
 
 #ifdef NOONE_EXTENSIONS
@@ -5980,7 +5975,7 @@ static void actCheckDudes()
 			}
 			if (actor->IsPlayerActor())
 			{
-				PLAYER* pPlayer = &gPlayer[actor->spr.type - kDudePlayer1];
+				DBloodPlayer* pPlayer = getPlayer(actor->spr.type - kDudePlayer1);
 				if (pPlayer->voodooTargets) voodooTarget(pPlayer);
 				if (pPlayer->hand && Chance(0x8000)) actDamageSprite(actor, actor, kDamageDrown, 12);
 
@@ -6010,7 +6005,7 @@ static void actCheckDudes()
 				}
 				else if (gGameOptions.nGameType == 0)
 				{
-					if (pPlayer->actor->xspr.health > 0 && pPlayer->restTime >= 1200 && Chance(0x200))
+					if (pPlayer->GetActor()->xspr.health > 0 && pPlayer->restTime >= 1200 && Chance(0x200))
 					{
 						pPlayer->restTime = -1;
 						sfxPlay3DSound(actor, 3100 + Random(11), 0, 2);
@@ -6051,6 +6046,17 @@ static void actCheckDudes()
 		}
 		if (pXSector && pXSector->Underwater) actAirDrag(actor, 5376);
 		else actAirDrag(actor, 128);
+
+		if (actor->IsPlayerActor())
+		{
+			DBloodPlayer* pPlayer = getPlayer(actor->spr.type - kDudePlayer1);
+			double nDrag = FixedToFloat(gDudeDrag);
+			if (actor->xspr.height > 0)
+				nDrag -= Scale(nDrag, (double)actor->xspr.height, 256.);
+
+			pPlayer->doRollInput(false);
+			pPlayer->StrafeVel -= pPlayer->StrafeVel * nDrag;
+		}
 
 		if ((actor->spr.flags & 4) || !actor->vel.isZero() || actor->sector()->velFloor || actor->sector()->velCeil)
 			MoveDude(actor);
@@ -6617,7 +6623,7 @@ void actFireVector(DBloodActor* shooter, double offset, double zoffset, DVector3
 		if (!gGameOptions.bFriendlyFire && IsTargetTeammate(shooter, hitactor)) return;
 		if (hitactor->IsPlayerActor())
 		{
-			PLAYER* pPlayer = &gPlayer[hitactor->spr.type - kDudePlayer1];
+			DBloodPlayer* pPlayer = getPlayer(hitactor->spr.type - kDudePlayer1);
 			if (powerupCheck(pPlayer, kPwUpReflectShots))
 			{
 				gHitInfo.hitActor = shooter;

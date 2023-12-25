@@ -58,21 +58,20 @@ enum
     SINE_SLOPED = BIT(3),
 };
 
-void DoPlayerBeginForceJump(PLAYER*);
+void DoPlayerBeginForceJump(DSWPlayer*);
 
 sectortype* FindNextSectorByTag(sectortype* sect, int tag);
-short LevelSecrets;
 bool TestVatorMatchActive(short match);
 bool TestSpikeMatchActive(short match);
 bool TestRotatorMatchActive(short match);
 bool TestSlidorMatchActive(short match);
-int PlayerCheckDeath(PLAYER*, DSWActor*);
-void DoVatorOperate(PLAYER*, sectortype*);
-void DoVatorMatch(PLAYER* pp, short match);
-void DoRotatorOperate(PLAYER*, sectortype*);
-void DoRotatorMatch(PLAYER* pp, short match, bool);
-void DoSlidorOperate(PLAYER*, sectortype*);
-void DoSlidorMatch(PLAYER* pp, short match, bool);
+int PlayerCheckDeath(DSWPlayer*, DSWActor*);
+void DoVatorOperate(DSWPlayer*, sectortype*);
+void DoVatorMatch(DSWPlayer* pp, short match);
+void DoRotatorOperate(DSWPlayer*, sectortype*);
+void DoRotatorMatch(DSWPlayer* pp, short match, bool);
+void DoSlidorOperate(DSWPlayer*, sectortype*);
+void DoSlidorMatch(DSWPlayer* pp, short match, bool);
 
 void DoTornadoObject(SECTOR_OBJECT* sop);
 void DoAutoTurretObject(SECTOR_OBJECT* sop);
@@ -81,7 +80,7 @@ void KillMatchingCrackSprites(short match);
 int DoTrapReset(short match);
 int DoTrapMatch(short match);
 
-PLAYER* GlobPlayerP;
+DSWPlayer* GlobPlayerP;
 
 ANIM Anim[MAXANIM];
 short AnimCnt = 0;
@@ -413,8 +412,6 @@ void SectorSetup(void)
     memset(SineWaveFloor, 0, sizeof(SineWaveFloor));
     memset(SpringBoard, 0, sizeof(SpringBoard));
 
-    LevelSecrets = 0;
-
     for(auto&sect: sector)
     {
         auto const sectp = &sect;
@@ -475,7 +472,7 @@ void SectorSetup(void)
         switch (tag)
         {
         case TAG_SECRET_AREA_TRIGGER:
-            LevelSecrets++;
+            Level.addSecretCount();
             break;
 
         case TAG_DOOR_SLIDING:
@@ -647,7 +644,7 @@ DVector3 SectorMidPoint(sectortype* sectp)
 //
 //---------------------------------------------------------------------------
 
-void DoSpringBoard(PLAYER* pp)
+void DoSpringBoard(DSWPlayer* pp)
 {
 
     pp->jump_speed = -pp->cursector->hitag;
@@ -747,7 +744,7 @@ short DoSpawnActorTrigger(short match)
 
 int OperateSector(sectortype* sect, short player_is_operating)
 {
-    PLAYER* pp = GlobPlayerP;
+    DSWPlayer* pp = GlobPlayerP;
 
     // Don't let actors operate locked or secret doors
     if (!player_is_operating)
@@ -792,28 +789,6 @@ int OperateSector(sectortype* sect, short player_is_operating)
     return false;
 }
 
-enum
-{
-    SWITCH_LEVER = 581,
-    SWITCH_FUSE = 558,
-    SWITCH_FLIP = 561,
-    SWITCH_RED_CHAIN = 563,
-    SWITCH_GREEN_CHAIN = 565,
-    SWITCH_TOUCH = 567,
-    SWITCH_DRAGON = 569,
-
-    SWITCH_LIGHT = 551,
-    SWITCH_1 = 575,
-    SWITCH_3 = 579,
-
-    SWITCH_SHOOTABLE_1 = 577,
-    SWITCH_4 = 571,
-    SWITCH_5 = 573,
-    SWITCH_6 = 583,
-    EXIT_SWITCH = 2470,
-
-    SWITCH_SKULL = 553,
-};
 
 //---------------------------------------------------------------------------
 //
@@ -862,21 +837,21 @@ int AnimateSwitch(DSWActor* actor, int tgt_value)
         return true;
 
     // set to true
-    case SWITCH_SKULL + 1:
-    case SWITCH_LEVER + 1:
-    case SWITCH_LIGHT + 1:
-    case SWITCH_1 + 1:
-    case SWITCH_3 + 1:
-    case SWITCH_FLIP + 1:
-    case SWITCH_RED_CHAIN + 1:
-    case SWITCH_GREEN_CHAIN + 1:
-    case SWITCH_TOUCH + 1:
-    case SWITCH_DRAGON + 1:
-    case SWITCH_SHOOTABLE_1 + 1:
-    case SWITCH_4+1:
-    case SWITCH_5+1:
-    case SWITCH_6+1:
-    case EXIT_SWITCH+1:
+    case SWITCH_SKULL_ON:
+    case SWITCH_LEVER_ON:
+    case SWITCH_LIGHT_ON:
+    case SWITCH_1_ON:
+    case SWITCH_3_ON:
+    case SWITCH_FLIP_ON:
+    case SWITCH_RED_CHAIN_ON:
+    case SWITCH_GREEN_CHAIN_ON:
+    case SWITCH_TOUCH_ON:
+    case SWITCH_DRAGON_ON:
+    case SWITCH_SHOOTABLE_1_ON:
+    case SWITCH_4_ON:
+    case SWITCH_5_ON:
+    case SWITCH_6_ON:
+    case EXIT_SWITCH_ON:
 
         // dont toggle - return the current state
         if (tgt_value == 999)
@@ -1109,11 +1084,11 @@ void DoSoundSpotMatch(short match, short sound_num, short sound_type)
 
             if (TEST_BOOL7(actor))
             {
-                PLAYER* pp = GlobPlayerP;
+                DSWPlayer* pp = GlobPlayerP;
 
                 if (pp)
                 {
-                    if (pp == Player+myconnectindex)
+                    if (pp == getPlayer(myconnectindex))
                         PlayerSound(snd2play, v3df_dontpan|v3df_follow,pp);
                 }
             }
@@ -1175,7 +1150,7 @@ bool TestKillSectorObject(SECTOR_OBJECT* sop)
     {
         KillMatchingCrackSprites(sop->match_event);
         // get new sectnums
-        CollapseSectorObject(sop, sop->pmid);
+        CollapseSectorObject(sop, sop->pmid.XY());
         DoSpawnSpotsForKill(sop->match_event);
         KillSectorObjectSprites(sop);
         return true;
@@ -1294,13 +1269,13 @@ void ShootableSwitch(DSWActor* actor)
     case SWITCH_SHOOTABLE_1:
         //actor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
         OperateSprite(actor, false);
-        actor->spr.picnum = SWITCH_SHOOTABLE_1 + 1;
+        actor->spr.picnum = SWITCH_SHOOTABLE_1_ON;
         break;
     case SWITCH_FUSE:
-    case SWITCH_FUSE + 1:
+    case SWITCH_FUSE_ANI:
         actor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
         OperateSprite(actor, false);
-        actor->spr.picnum = SWITCH_FUSE + 2;
+        actor->spr.picnum = SWITCH_FUSE_ON;
         break;
     }
 }
@@ -1340,7 +1315,7 @@ void DoDeleteSpriteMatch(short match)
             if (actor->spr.lotag == match)
             {
                 found = actor;
-                del = actor->spr.pos;
+                del = actor->spr.pos.XY();
                 break;
             }
         }
@@ -1353,7 +1328,7 @@ void DoDeleteSpriteMatch(short match)
             it.Reset(StatList[stat]);
             while (auto actor = it.Next())
             {
-                if (del == actor->spr.pos)
+                if (del == actor->spr.pos.XY())
                 {
                     // special case lighting delete of Fade On/off after fades
                     if (StatList[stat] == STAT_LIGHTING)
@@ -1438,9 +1413,9 @@ void DoChangorMatch(short match)
 //
 //---------------------------------------------------------------------------
 
-void DoMatchEverything(PLAYER* pp, short match, short state)
+void DoMatchEverything(DSWPlayer* pp, short match, short state)
 {
-    PLAYER* bak;
+    DSWPlayer* bak;
 
     bak = GlobPlayerP;
     GlobPlayerP = pp;
@@ -1525,7 +1500,7 @@ bool ComboSwitchTest(short combo_type, short match)
 
 int OperateSprite(DSWActor* actor, short player_is_operating)
 {
-    PLAYER* pp = nullptr;
+    DSWPlayer* pp = nullptr;
     short state;
     short key_num=0;
     extern STATE s_Pachinko1Operate[];
@@ -1543,7 +1518,7 @@ int OperateSprite(DSWActor* actor, short player_is_operating)
     {
         pp = GlobPlayerP;
 
-        if (!FAFcansee(pp->actor->getPosWithOffsetZ(), pp->cursector, actor->spr.pos.plusZ(ActorSizeZ(actor) * -0.5), actor->sector()))
+        if (!FAFcansee(pp->GetActor()->getPosWithOffsetZ(), pp->cursector, actor->spr.pos.plusZ(ActorSizeZ(actor) * -0.5), actor->sector()))
             return false;
     }
 
@@ -1561,7 +1536,7 @@ int OperateSprite(DSWActor* actor, short player_is_operating)
         actor->user.FlagOwner = 1;
         actor->user.WaitTics = SEC(4);
 
-        if (pp != Player+myconnectindex) return true;
+        if (pp != getPlayer(myconnectindex)) return true;
 
         choose_snd = StdRandomRange(1000);
         if (actor->spr.lotag == CARGIRL_R0)
@@ -1928,16 +1903,16 @@ int DoTrapMatch(short match)
 //
 //---------------------------------------------------------------------------
 
-void TriggerSecret(sectortype* sectp, PLAYER* pp)
+void TriggerSecret(sectortype* sectp, DSWPlayer* pp)
 {
-    if (pp == Player + myconnectindex)
+    if (pp == getPlayer(myconnectindex))
         PlayerSound(DIGI_ANCIENTSECRET, v3df_dontpan | v3df_doppler | v3df_follow, pp);
 
     SECRET_Trigger(sectindex(pp->cursector));
 
     PutStringInfo(pp, GStrings("TXTS_SECRET"));
     // always give to the first player
-    Player->SecretsFound++;
+    Level.addSecret(myconnectindex);
     sectp->lotag = 0;
 }
 
@@ -1947,7 +1922,7 @@ void TriggerSecret(sectortype* sectp, PLAYER* pp)
 //
 //---------------------------------------------------------------------------
 
-void OperateTripTrigger(PLAYER* pp)
+void OperateTripTrigger(DSWPlayer* pp)
 {
     if (Prediction)
         return;
@@ -2021,9 +1996,9 @@ void OperateTripTrigger(PLAYER* pp)
         {
             if (actor->user.Flags & (SPR_WAIT_FOR_TRIGGER))
             {
-                if ((actor->spr.pos.XY() - pp->actor->spr.pos.XY()).Length() < dist)
+                if ((actor->spr.pos.XY() - pp->GetActor()->spr.pos.XY()).Length() < dist)
                 {
-                    actor->user.targetActor = pp->actor;
+                    actor->user.targetActor = pp->GetActor();
                     actor->user.Flags &= ~(SPR_WAIT_FOR_TRIGGER);
                 }
             }
@@ -2073,7 +2048,7 @@ void OperateTripTrigger(PLAYER* pp)
 //
 //---------------------------------------------------------------------------
 
-void OperateContinuousTrigger(PLAYER* pp)
+void OperateContinuousTrigger(DSWPlayer* pp)
 {
     if (Prediction)
         return;
@@ -2098,10 +2073,10 @@ void OperateContinuousTrigger(PLAYER* pp)
 //
 //---------------------------------------------------------------------------
 
-short PlayerTakeSectorDamage(PLAYER* pp)
+short PlayerTakeSectorDamage(DSWPlayer* pp)
 {
     auto sectu = pp->cursector;
-    DSWActor* actor = pp->actor;
+    DSWActor* actor = pp->GetActor();
 
     // the calling routine must make sure sectu exists
     if ((actor->user.DamageTics -= synctics) < 0)
@@ -2122,19 +2097,19 @@ short PlayerTakeSectorDamage(PLAYER* pp)
 //---------------------------------------------------------------------------
 
 enum { PLAYER_SOUNDEVENT_TAG = 900 };
-bool NearThings(PLAYER* pp)
+bool NearThings(DSWPlayer* pp)
 {
     HitInfo near;
 
     // Check player's current sector for triggered sound
     if (pp->cursector->hitag == PLAYER_SOUNDEVENT_TAG)
     {
-        if (pp == Player+myconnectindex)
+        if (pp == getPlayer(myconnectindex))
             PlayerSound(pp->cursector->lotag, v3df_follow|v3df_dontpan,pp);
         return false;
     }
 
-    neartag(pp->actor->getPosWithOffsetZ(), pp->cursector, pp->actor->spr.Angles.Yaw, near, 64., NT_Lotag | NT_Hitag);
+    neartag(pp->GetActor()->getPosWithOffsetZ(), pp->cursector, pp->GetActor()->spr.Angles.Yaw, near, 64., NT_Lotag | NT_Hitag);
 
 
     // hit a sprite? Check to see if it has sound info in it!
@@ -2146,7 +2121,7 @@ bool NearThings(PLAYER* pp)
         // Go through list of cases
         if (actor->spr.hitag == PLAYER_SOUNDEVENT_TAG)
         {
-            if (pp == Player+myconnectindex)
+            if (pp == getPlayer(myconnectindex))
                 PlayerSound(actor->spr.lotag, v3df_follow|v3df_dontpan,pp);
         }
         return false;   // Return false so he doesn't grunt
@@ -2157,7 +2132,7 @@ bool NearThings(PLAYER* pp)
         // Check player's current sector for triggered sound
         if (near.hitWall->hitag == PLAYER_SOUNDEVENT_TAG)
         {
-            if (pp == Player+myconnectindex)
+            if (pp == getPlayer(myconnectindex))
                 PlayerSound(near.hitWall->lotag, v3df_follow|v3df_dontpan,pp);
             return false;   // We are playing a sound so don't return true
         }
@@ -2167,12 +2142,12 @@ bool NearThings(PLAYER* pp)
     {
         HitInfo hit{};
 
-        FAFhitscan(pp->actor->getPosWithOffsetZ().plusZ(-30), pp->cursector, DVector3(pp->actor->spr.Angles.Yaw.ToVector() * 1024, 0), hit, CLIPMASK_MISSILE);
+        FAFhitscan(pp->GetActor()->getPosWithOffsetZ().plusZ(-30), pp->cursector, DVector3(pp->GetActor()->spr.Angles.Yaw.ToVector() * 1024, 0), hit, CLIPMASK_MISSILE);
 
         if (hit.hitSector == nullptr)
             return false;
 
-        if ((hit.hitpos.XY() - pp->actor->spr.pos.XY()).Length() > 93.75)
+        if ((hit.hitpos.XY() - pp->GetActor()->spr.pos.XY()).Length() > 93.75)
             return false;
 
         // hit a sprite?
@@ -2185,7 +2160,7 @@ bool NearThings(PLAYER* pp)
         if (hit.hitWall != nullptr)
         {
             // Near a plain old vanilla wall.  Can't do anything but grunt.
-            if (!(hit.hitWall->extra & WALLFX_DONT_STICK) && pp == Player+myconnectindex)
+            if (!(hit.hitWall->extra & WALLFX_DONT_STICK) && pp == getPlayer(myconnectindex))
             {
                 if (StdRandomRange(1000) > 970)
                     PlayerSound(DIGI_HITTINGWALLS, v3df_follow|v3df_dontpan,pp);
@@ -2209,13 +2184,13 @@ bool NearThings(PLAYER* pp)
 
 static int nti_cnt;
 
-void NearTagList(NEAR_TAG_INFO* ntip, PLAYER* pp, double z, double dist, int type, int count)
+void NearTagList(NEAR_TAG_INFO* ntip, DSWPlayer* pp, double z, double dist, int type, int count)
 {
     short save_lotag, save_hitag;
     HitInfo near;
 
 
-    neartag(DVector3(pp->actor->spr.pos.XY(), z), pp->cursector, pp->actor->spr.Angles.Yaw, near, dist, type);
+    neartag(DVector3(pp->GetActor()->spr.pos.XY(), z), pp->cursector, pp->GetActor()->spr.Angles.Yaw, near, dist, type);
 
     if (near.hitSector != nullptr)
     {
@@ -2317,7 +2292,7 @@ void NearTagList(NEAR_TAG_INFO* ntip, PLAYER* pp, double z, double dist, int typ
 //
 //---------------------------------------------------------------------------
 
-void BuildNearTagList(NEAR_TAG_INFO* ntip, int size, PLAYER* pp, double z, double dist, int type, int count)
+void BuildNearTagList(NEAR_TAG_INFO* ntip, int size, DSWPlayer* pp, double z, double dist, int type, int count)
 {
     memset(ntip, -1, size);
     nti_cnt = 0;
@@ -2330,7 +2305,7 @@ void BuildNearTagList(NEAR_TAG_INFO* ntip, int size, PLAYER* pp, double z, doubl
 //
 //---------------------------------------------------------------------------
 
-int DoPlayerGrabStar(PLAYER* pp)
+int DoPlayerGrabStar(DSWPlayer* pp)
 {
     int i;
 
@@ -2340,7 +2315,7 @@ int DoPlayerGrabStar(PLAYER* pp)
         auto actor = StarQueue[i];
         if (actor != nullptr)
         {
-            if ((actor->spr.pos - pp->actor->getPosWithOffsetZ()).plusZ(12).Length() < 31.25)
+            if ((actor->spr.pos - pp->GetActor()->getPosWithOffsetZ()).plusZ(12).Length() < 31.25)
             {
                 break;
             }
@@ -2370,18 +2345,18 @@ int DoPlayerGrabStar(PLAYER* pp)
 //
 //---------------------------------------------------------------------------
 
-void PlayerOperateEnv(PLAYER* pp)
+void PlayerOperateEnv(DSWPlayer* pp)
 {
     bool found;
 
-    if (Prediction || !pp->actor)
+    if (Prediction || !pp->GetActor())
         return;
 
     //
     // Switch & door activations
     //
 
-    if (pp->input.actions & SB_OPEN)
+    if (pp->cmd.ucmd.actions & SB_OPEN)
     {
         if (pp->KeyPressBits & SB_OPEN)
         {
@@ -2398,7 +2373,7 @@ void PlayerOperateEnv(PLAYER* pp)
                 NearThings(pp); // Check for player sound specified in a level sprite
             }
 
-            BuildNearTagList(nti, sizeof(nti), pp, pp->actor->getOffsetZ(), 128, NT_Lotag | NT_Hitag, 8);
+            BuildNearTagList(nti, sizeof(nti), pp, pp->GetActor()->getOffsetZ(), 128, NT_Lotag | NT_Hitag, 8);
 
             found = false;
 
@@ -2419,7 +2394,7 @@ void PlayerOperateEnv(PLAYER* pp)
             if (!found)
             {
                 double z[3];
-                DSWActor* plActor = pp->actor;
+                DSWActor* plActor = pp->GetActor();
 
                 z[0] = plActor->spr.pos.Z - ActorSizeZ(plActor) - 10;
                 z[1] = plActor->spr.pos.Z;
@@ -2509,14 +2484,14 @@ void PlayerOperateEnv(PLAYER* pp)
         {
             PlayerTakeSectorDamage(pp);
         }
-        else if ((ActorZOfBottom(pp->actor) >= sectp->floorz) && !(pp->Flags & PF_DIVING))
+        else if ((ActorZOfBottom(pp->GetActor()) >= sectp->floorz) && !(pp->Flags & PF_DIVING))
         {
             PlayerTakeSectorDamage(pp);
         }
     }
     else
     {
-        pp->actor->user.DamageTics = 0;
+        pp->GetActor()->user.DamageTics = 0;
     }
 
 
@@ -2905,7 +2880,7 @@ void DoSector(void)
     bool riding;
     int sync_flag;
     short pnum;
-    PLAYER* pp;
+    DSWPlayer* pp;
 
     for (sop = SectorObject; sop < &SectorObject[MAX_SECTOR_OBJECTS]; sop++)
     {
@@ -2919,7 +2894,7 @@ void DoSector(void)
 
         TRAVERSE_CONNECT(pnum)
         {
-            pp = &Player[pnum];
+            pp = getPlayer(pnum);
 
             if (pp->sop_riding == sop)
             {
@@ -2929,7 +2904,7 @@ void DoSector(void)
             }
             else
             {
-				double dist = (pp->actor->spr.pos.XY() - sop->pmid.XY()).Length();
+				double dist = (pp->GetActor()->spr.pos.XY() - sop->pmid.XY()).Length();
                 if (dist < min_dist)
                     min_dist = dist;
             }

@@ -317,7 +317,6 @@ class DukeActor : CoreActor native
 	native ActorMove curMove;
 	native Name curAI;
 	native int16 actioncounter;
-	//native uint8 killit_flag;
 
 	// flags are implemented natively to avoid the prefixes.
 	
@@ -363,7 +362,6 @@ class DukeActor : CoreActor native
 	virtual native void Tick();
 
 	
-	virtual void BeginPlay() {}
 	virtual void StaticSetup() {}
 	virtual void onHit(DukeActor hitter) { checkhitdefault(hitter); }
 	virtual void onHurt(DukePlayer p) {}

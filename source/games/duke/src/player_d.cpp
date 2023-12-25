@@ -40,8 +40,8 @@ source as it is released.
 
 BEGIN_DUKE_NS 
 
-void fireweapon_ww(int snum);
-void operateweapon_ww(int snum, ESyncBits actions);
+void fireweapon_ww(DDukePlayer* const p);
+void operateweapon_ww(DDukePlayer* const p, ESyncBits actions);
 
 //---------------------------------------------------------------------------
 //
@@ -49,13 +49,14 @@ void operateweapon_ww(int snum, ESyncBits actions);
 //
 //---------------------------------------------------------------------------
 
-void incur_damage_d(player_struct* p)
+static void incur_damage(DDukePlayer* p)
 {
-	int  damage = 0L, shield_damage = 0L;
+	const auto pact = p->GetActor();
+	int damage = 0L, shield_damage = 0L;
 
-	p->GetActor()->spr.extra -= p->extra_extra8 >> 8;
+	pact->spr.extra -= p->extra_extra8 >> 8;
 
-	damage = p->GetActor()->spr.extra - p->last_extra;
+	damage = pact->spr.extra - p->last_extra;
 
 	if (damage < 0)
 	{
@@ -75,7 +76,7 @@ void incur_damage_d(player_struct* p)
 			}
 		}
 
-		p->GetActor()->spr.extra = p->last_extra + damage;
+		pact->spr.extra = p->last_extra + damage;
 	}
 }
 
@@ -86,11 +87,11 @@ void incur_damage_d(player_struct* p)
 //
 //---------------------------------------------------------------------------
 
-void selectweapon_d(int snum, int weap) // playernum, weaponnum
+void selectweapon_d(DDukePlayer* const p, int weap) // playernum, weaponnum
 {
+	const auto pact = p->GetActor();
 	int i, j, k;
-	auto p = &ps[snum];
-	if (p->last_pissed_time <= (26 * 218) && p->show_empty_weapon == 0 && p->kickback_pic == 0 && p->quick_kick == 0 && p->GetActor()->spr.scale.X > 0.5  && p->access_incs == 0 && p->knee_incs == 0)
+	if (p->last_pissed_time <= (26 * 218) && p->show_empty_weapon == 0 && p->kickback_pic == 0 && p->quick_kick == 0 && pact->spr.scale.X > 0.5  && p->access_incs == 0 && p->knee_incs == 0)
 	{
 		if ((p->weapon_pos == 0 || (p->holster_weapon && p->weapon_pos == -9)))
 		{
@@ -220,7 +221,7 @@ void selectweapon_d(int snum, int weap) // playernum, weaponnum
 				DukeStatIterator it(STAT_ACTOR);
 				while (auto act = it.Next())
 				{
-					if (act->GetClass() == DukePipeBombClass && act->GetOwner() == p->GetActor())
+					if (act->GetClass() == DukePipeBombClass && act->GetOwner() == pact)
 					{
 						p->gotweapon[HANDBOMB_WEAPON] = true;
 						j = HANDREMOTE_WEAPON;
@@ -284,7 +285,7 @@ void selectweapon_d(int snum, int weap) // playernum, weaponnum
 
 			if (p->holster_weapon)
 			{
-				PlayerSetInput(snum, SB_HOLSTER);
+				p->cmd.ucmd.actions |= SB_HOLSTER;
 				p->oweapon_pos = p->weapon_pos = -9;
 			}
 			else if (j >= MIN_WEAPON && p->gotweapon[j] && p->curr_weapon != j) switch (j)
@@ -337,12 +338,9 @@ void selectweapon_d(int snum, int weap) // playernum, weaponnum
 //
 //---------------------------------------------------------------------------
 
-int doincrements_d(player_struct* p)
+int doincrements_d(DDukePlayer* p)
 {
-	int snum;
-
 	auto pact = p->GetActor();
-	snum = pact->PlayerIndex();
 
 	p->player_par++;
 
@@ -362,7 +360,7 @@ int doincrements_d(player_struct* p)
 		if (p->last_pissed_time == (26 * 219))
 		{
 			S_PlayActorSound(FLUSH_TOILET, pact);
-			if (snum == screenpeek || ud.coop == 1)
+			if (p->pnum == screenpeek || ud.coop == 1)
 				S_PlayActorSound(DUKE_PISSRELIEF, pact);
 		}
 
@@ -389,7 +387,7 @@ int doincrements_d(player_struct* p)
 		if (p->steroids_amount == 0)
 			checkavailinven(p);
 		if (!(p->steroids_amount & 7))
-			if (snum == screenpeek || ud.coop == 1)
+			if (p->pnum == screenpeek || ud.coop == 1)
 				S_PlayActorSound(DUKE_HARTBEAT, pact);
 	}
 
@@ -428,27 +426,27 @@ int doincrements_d(player_struct* p)
 		}
 	}
 
-	if (p->quick_kick > 0 && p->GetActor()->spr.pal != 1)
+	if (p->quick_kick > 0 && pact->spr.pal != 1)
 	{
 		p->last_quick_kick = p->quick_kick + 1;
 		p->quick_kick--;
 		if (p->quick_kick == 8)
-			shoot(p->GetActor(), DukeMeleeAttackClass);
+			shoot(pact, DukeMeleeAttackClass);
 	}
 	else if (p->last_quick_kick > 0)
 		p->last_quick_kick--;
 
-	if (p->access_incs && p->GetActor()->spr.pal != 1)
+	if (p->access_incs && pact->spr.pal != 1)
 	{
 		p->oaccess_incs = p->access_incs;
 		p->access_incs++;
-		if (p->GetActor()->spr.extra <= 0)
+		if (pact->spr.extra <= 0)
 			p->access_incs = 12;
 		if (p->access_incs == 12)
 		{
 			if (p->access_spritenum != nullptr)
 			{
-				checkhitswitch(snum, nullptr, p->access_spritenum);
+				checkhitswitch(p, nullptr, p->access_spritenum);
 				switch (p->access_spritenum->spr.pal)
 				{
 				case 0:p->got_access &= (0xffff - 0x1); break;
@@ -459,7 +457,7 @@ int doincrements_d(player_struct* p)
 			}
 			else
 			{
-				checkhitswitch(snum, p->access_wall, nullptr);
+				checkhitswitch(p, p->access_wall, nullptr);
 				switch (p->access_wall->pal)
 				{
 				case 0:p->got_access &= (0xffff - 0x1); break;
@@ -513,7 +511,7 @@ int doincrements_d(player_struct* p)
 		if (p->knuckle_incs == 10 && !isWW2GI())
 		{
 			if (PlayClock > 1024)
-				if (snum == screenpeek || ud.coop == 1)
+				if (p->pnum == screenpeek || ud.coop == 1)
 				{
 					if (rand() & 1)
 						S_PlayActorSound(DUKE_CRACK, pact);
@@ -521,7 +519,7 @@ int doincrements_d(player_struct* p)
 				}
 			S_PlayActorSound(DUKE_CRACK_FIRST, pact);
 		}
-		else if (p->knuckle_incs == 22 || PlayerInput(snum, SB_FIRE))
+		else if (p->knuckle_incs == 22 || !!(p->cmd.ucmd.actions & SB_FIRE))
 			p->knuckle_incs = 0;
 
 		return 1;
@@ -536,7 +534,7 @@ int doincrements_d(player_struct* p)
 //
 //---------------------------------------------------------------------------
 
-void checkweapons_d(player_struct* p)
+void checkweapons_d(DDukePlayer* p)
 {
 	static PClassActor* const * const weapon_sprites[MAX_WEAPONS] = { &DukeMeleeAttackClass, &DukeFirstgunSpriteClass, &DukeShotgunSpriteClass,
 			&DukeChaingunSpriteClass, &DukeRPGSpriteClass, &DukePipeBombClass, &DukeShrinkerSpriteClass, &DukeDevastatorSpriteClass,
@@ -546,8 +544,7 @@ void checkweapons_d(player_struct* p)
 
 	if (isWW2GI())
 	{
-		int snum = p->GetActor()->PlayerIndex();
-		cw = aplWeaponWorksLike(p->curr_weapon, snum);
+		cw = aplWeaponWorksLike(p->curr_weapon, p);
 	}
 	else 
 		cw = p->curr_weapon;
@@ -557,13 +554,15 @@ void checkweapons_d(player_struct* p)
 
 	if (cw)
 	{
+		const auto pact = p->GetActor();
+
 		if (krand() & 1)
-			spawn(p->GetActor(), *weapon_sprites[cw]);
+			spawn(pact, *weapon_sprites[cw]);
 		else switch (cw)
 		{
 		case RPG_WEAPON:
 		case HANDBOMB_WEAPON:
-			spawn(p->GetActor(), DukeExplosion2Class);
+			spawn(pact, DukeExplosion2Class);
 			break;
 		}
 	}
@@ -575,13 +574,12 @@ void checkweapons_d(player_struct* p)
 //
 //---------------------------------------------------------------------------
 
-static void operateJetpack(int snum, ESyncBits actions, int psectlotag, double floorz, double ceilingz, int shrunk)
+static void operateJetpack(DDukePlayer* const p, ESyncBits actions, int psectlotag, double floorz, double ceilingz, int shrunk)
 {
-	const auto p = &ps[snum];
 	const auto pact = p->GetActor();
 	const auto kbdDir = !!(actions & SB_JUMP) - !!(actions & SB_CROUCH);
 	const double dist = shrunk ? 2 : 8;
-	const double velZ = clamp(dist * kbdDir + dist * p->sync.uvel, -dist, dist);
+	const double velZ = clamp(dist * kbdDir + dist * p->cmd.ucmd.vel.Z, -dist, dist);
 
 	p->on_ground = 0;
 	p->jumping_counter = 0;
@@ -604,9 +602,9 @@ static void operateJetpack(int snum, ESyncBits actions, int psectlotag, double f
 	if (velZ > 0) //A (soar high)
 	{
 		// jump
-		SetGameVarID(g_iReturnVarID, 0, pact, snum);
-		OnEvent(EVENT_SOARUP, snum, pact, -1);
-		if (GetGameVarID(g_iReturnVarID, pact, snum).value() == 0)
+		SetGameVarID(g_iReturnVarID, 0, pact, p->pnum);
+		OnEvent(EVENT_SOARUP, p->pnum, pact, -1);
+		if (GetGameVarID(g_iReturnVarID, pact, p->pnum).value() == 0)
 		{
 			pact->spr.pos.Z -= velZ;
 			p->crack_time = CRACK_TIME;
@@ -616,9 +614,9 @@ static void operateJetpack(int snum, ESyncBits actions, int psectlotag, double f
 	if (velZ < 0) //Z (soar low)
 	{
 		// crouch
-		SetGameVarID(g_iReturnVarID, 0, pact, snum);
-		OnEvent(EVENT_SOARDOWN, snum, pact, -1);
-		if (GetGameVarID(g_iReturnVarID, pact, snum).value() == 0)
+		SetGameVarID(g_iReturnVarID, 0, pact, p->pnum);
+		OnEvent(EVENT_SOARDOWN, p->pnum, pact, -1);
+		if (GetGameVarID(g_iReturnVarID, pact, p->pnum).value() == 0)
 		{
 			pact->spr.pos.Z -= velZ;
 			p->crack_time = CRACK_TIME;
@@ -643,10 +641,9 @@ static void operateJetpack(int snum, ESyncBits actions, int psectlotag, double f
 //
 //---------------------------------------------------------------------------
 
-static void movement(int snum, ESyncBits actions, sectortype* psect, double floorz, double ceilingz, int shrunk, double truefdist, int psectlotag)
+static void movement(DDukePlayer* const p, ESyncBits actions, sectortype* psect, double floorz, double ceilingz, int shrunk, double truefdist, int psectlotag)
 {
 	int j;
-	auto p = &ps[snum];
 	auto pact = p->GetActor();
 
 	if (p->airleft != 15 * 26)
@@ -684,7 +681,7 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, double floo
 	}
 	else
 	{
-		footprints(snum);
+		footprints(p);
 	}
 
 	if (pact->getOffsetZ() < floorz - i) //falling
@@ -708,9 +705,9 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, double floo
 			if (pact->getOffsetZ() + p->vel.Z  >= floorz - i) // hit the ground
 			{
 				S_StopSound(DUKE_SCREAM, pact);
-				if (!p->insector() || p->cursector->lotag != 1)
+				if (!p->insector() || p->cursector->lotag != ST_1_ABOVE_WATER)
 				{
-					if (p->falling_counter > 62) quickkill(p);
+					if (p->falling_counter > 62 && !ud.god) quickkill(p);
 
 					else if (p->falling_counter > 9)
 					{
@@ -766,9 +763,9 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, double floo
 
 		p->on_warping_sector = 0;
 
-		if ((actions & SB_CROUCH) || p->sync.uvel < 0)
+		if ((actions & SB_CROUCH) || p->cmd.ucmd.vel.Z < 0)
 		{
-			playerCrouch(snum);
+			playerCrouch(p);
 		}
 
 		// jumping
@@ -777,7 +774,7 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, double floo
 
 		else if ((actions & SB_JUMP))
 		{
-			playerJump(snum, floorz, ceilingz);
+			playerJump(p, floorz, ceilingz);
 		}
 
 		if (p->jumping_counter && (actions & SB_JUMP) == 0)
@@ -828,14 +825,14 @@ static void movement(int snum, ESyncBits actions, sectortype* psect, double floo
 //
 //---------------------------------------------------------------------------
 
-int operateTripbomb(int snum)
+int operateTripbomb(DDukePlayer* const p)
 {
-	auto p = &ps[snum];
+	const auto pact = p->GetActor();
 	HitInfo hit{};
 	double vel = 1024, zvel = 0;
-	setFreeAimVelocity(vel, zvel, p->Angles.getPitchWithView(), 16.);
+	setFreeAimVelocity(vel, zvel, p->getPitchWithView(), 16.);
 
-	hitscan(p->GetActor()->getPosWithOffsetZ(), p->cursector, DVector3(p->GetActor()->spr.Angles.Yaw.ToVector() * vel, zvel), hit, CLIPMASK1);
+	hitscan(pact->getPosWithOffsetZ(), p->cursector, DVector3(pact->spr.Angles.Yaw.ToVector() * vel, zvel), hit, CLIPMASK1);
 
 	if (hit.hitSector == nullptr || hit.actor())
 		return 0;
@@ -862,10 +859,10 @@ int operateTripbomb(int snum)
 	if (act == nullptr && hit.hitWall != nullptr && (hit.hitWall->cstat & CSTAT_WALL_MASKED) == 0)
 		if ((hit.hitWall->twoSided() && hit.hitWall->nextSector()->lotag <= 2) || (!hit.hitWall->twoSided() && hit.hitSector->lotag <= 2))
 		{
-			auto delta = hit.hitpos.XY() - p->GetActor()->spr.pos.XY();
+			auto delta = hit.hitpos.XY() - pact->spr.pos.XY();
 			if (delta.LengthSquared() < (18.125 * 18.125))
 			{
-				p->GetActor()->restorez();
+				pact->restorez();
 				p->vel.Z = 0;
 				return 1;
 			}
@@ -880,9 +877,8 @@ int operateTripbomb(int snum)
 //
 //---------------------------------------------------------------------------
 
-static void fireweapon(int snum)
+static void fireweapon(DDukePlayer* const p)
 {
-	auto p = &ps[snum];
 	auto pact = p->GetActor();
 
 	p->crack_time = CRACK_TIME;
@@ -929,7 +925,7 @@ static void fireweapon(int snum)
 	case TRIPBOMB_WEAPON:
 		if (p->ammo_amount[TRIPBOMB_WEAPON] > 0)
 		{
-			if (operateTripbomb(snum))
+			if (operateTripbomb(p))
 				p->kickback_pic = 1;
 		}
 		break;
@@ -998,9 +994,8 @@ static void fireweapon(int snum)
 //
 //---------------------------------------------------------------------------
 
-static void operateweapon(int snum, ESyncBits actions)
+static void operateweapon(DDukePlayer* const p, ESyncBits actions)
 {
-	auto p = &ps[snum];
 	auto pact = p->GetActor();
 
 	// already firing...
@@ -1023,17 +1018,17 @@ static void operateweapon(int snum, ESyncBits actions)
 			if (p->on_ground && (actions & SB_CROUCH))
 			{
 				vel = 15/16.;
-				zvel = p->Angles.getPitchWithView().Sin() * 10.;
+				zvel = p->getPitchWithView().Sin() * 10.;
 			}
 			else
 			{
 				vel = 140/16.;
-				setFreeAimVelocity(vel, zvel, p->Angles.getPitchWithView(), 10.);
+				setFreeAimVelocity(vel, zvel, p->getPitchWithView(), 10.);
 				zvel -= 4;
 			}
 
-			auto spawned = CreateActor(p->cursector, p->GetActor()->getPosWithOffsetZ() + p->GetActor()->spr.Angles.Yaw.ToVector() * 16, DukePipeBombClass, -16, DVector2(0.140625, 0.140625),
-				p->GetActor()->spr.Angles.Yaw, vel + p->hbomb_hold_delay * 2, zvel, pact, STAT_ACTOR);
+			auto spawned = CreateActor(p->cursector, pact->getPosWithOffsetZ() + pact->spr.Angles.Yaw.ToVector() * 16, DukePipeBombClass, -16, DVector2(0.140625, 0.140625),
+				pact->spr.Angles.Yaw, vel + p->hbomb_hold_delay * 2, zvel, pact, STAT_ACTOR);
 
 			if (isNam())
 			{
@@ -1401,7 +1396,7 @@ static void operateweapon(int snum, ESyncBits actions)
 	case TRIPBOMB_WEAPON:	// Claymore in NAM
 		if (p->kickback_pic < 4)
 		{
-			p->GetActor()->restorez();
+			pact->restorez();
 			p->vel.Z = 0;
 			if (p->kickback_pic == 3)
 				shoot(pact, DukeHandHoldingLaserClass);
@@ -1451,9 +1446,8 @@ static void operateweapon(int snum, ESyncBits actions)
 //
 //---------------------------------------------------------------------------
 
-static void processweapon(int snum, ESyncBits actions)
+static void processweapon(DDukePlayer* const p, ESyncBits actions)
 {
-	auto p = &ps[snum];
 	auto pact = p->GetActor();
 	int shrunk = (pact->spr.scale.Y < 0.5);
 
@@ -1461,22 +1455,22 @@ static void processweapon(int snum, ESyncBits actions)
 	{
 		if (isWW2GI())
 		{
-			SetGameVarID(g_iReturnVarID, 0, p->GetActor(), snum);
-			SetGameVarID(g_iWeaponVarID, p->curr_weapon, p->GetActor(), snum);
-			SetGameVarID(g_iWorksLikeVarID, aplWeaponWorksLike(p->curr_weapon, snum), p->GetActor(), snum);
-			OnEvent(EVENT_HOLSTER, snum, p->GetActor(), -1);
-			if (GetGameVarID(g_iReturnVarID, p->GetActor(), snum).value() == 0)
+			SetGameVarID(g_iReturnVarID, 0, pact, p->pnum);
+			SetGameVarID(g_iWeaponVarID, p->curr_weapon, pact, p->pnum);
+			SetGameVarID(g_iWorksLikeVarID, aplWeaponWorksLike(p->curr_weapon, p), pact, p->pnum);
+			OnEvent(EVENT_HOLSTER, p->pnum, pact, -1);
+			if (GetGameVarID(g_iReturnVarID, pact, p->pnum).value() == 0)
 			{
 				// now it uses the game definitions...
-				if (aplWeaponFlags(p->curr_weapon, snum) & WEAPON_FLAG_HOLSTER_CLEARS_CLIP)
+				if (aplWeaponFlags(p->curr_weapon, p) & WEAPON_FLAG_HOLSTER_CLEARS_CLIP)
 				{
-					if (p->ammo_amount[p->curr_weapon] > aplWeaponClip(p->curr_weapon, snum)
-						&& (p->ammo_amount[p->curr_weapon] % aplWeaponClip(p->curr_weapon, snum)) != 0)
+					if (p->ammo_amount[p->curr_weapon] > aplWeaponClip(p->curr_weapon, p)
+						&& (p->ammo_amount[p->curr_weapon] % aplWeaponClip(p->curr_weapon, p)) != 0)
 					{
 						// throw away the remaining clip
 						p->ammo_amount[p->curr_weapon] -=
-							p->ammo_amount[p->curr_weapon] % aplWeaponClip(p->curr_weapon, snum);
-						p->kickback_pic = aplWeaponTotalTime(p->curr_weapon, snum) + 1;	// animate, but don't shoot...
+							p->ammo_amount[p->curr_weapon] % aplWeaponClip(p->curr_weapon, p);
+						p->kickback_pic = aplWeaponTotalTime(p->curr_weapon, p) + 1;	// animate, but don't shoot...
 						actions &= ~SB_FIRE; // not firing...
 					}
 					return;
@@ -1497,7 +1491,7 @@ static void processweapon(int snum, ESyncBits actions)
 	}
 
 
-	if (isWW2GI() && (aplWeaponFlags(p->curr_weapon, snum) & WEAPON_FLAG_GLOWS))
+	if (isWW2GI() && (aplWeaponFlags(p->curr_weapon, p) & WEAPON_FLAG_GLOWS))
 		p->random_club_frame += 64; // Glowing
 
 	if (!isWW2GI() && (p->curr_weapon == SHRINKER_WEAPON || p->curr_weapon == GROW_WEAPON))
@@ -1514,13 +1508,13 @@ static void processweapon(int snum, ESyncBits actions)
 	else if (shrunk == 0 && (actions & SB_FIRE) && p->kickback_pic == 0 && p->fist_incs == 0 &&
 		p->last_weapon == -1 && (p->weapon_pos == 0 || p->holster_weapon == 1))
 	{
-		if (!isWW2GI()) fireweapon(snum);
-		else fireweapon_ww(snum);
+		if (!isWW2GI()) fireweapon(p);
+		else fireweapon_ww(p);
 	}
 	else if (p->kickback_pic)
 	{
-		if (!isWW2GI()) operateweapon(snum, actions);
-		else operateweapon_ww(snum, actions);
+		if (!isWW2GI()) operateweapon(p, actions);
+		else operateweapon_ww(p, actions);
 	}
 }
 //---------------------------------------------------------------------------
@@ -1529,27 +1523,22 @@ static void processweapon(int snum, ESyncBits actions)
 //
 //---------------------------------------------------------------------------
 
-void processinput_d(int snum)
+void processinput_d(DDukePlayer* const p)
 {
 	int k, doubvel;
 	double floorz, ceilingz, truefdist;
 	Collision chz, clz;
 	bool shrunk;
 	int psectlotag;
-	player_struct* p;
 
-	p = &ps[snum];
 	auto pact = p->GetActor();
 
-	ESyncBits& actions = p->sync.actions;
+	ESyncBits& actions = p->cmd.ucmd.actions;
 
 	// Get strafe value before it's rotated by the angle.
-	const auto strafeVel = PlayerInputSideVel(snum);
-	constexpr auto maxVel = (117351124. / 10884538.);
+	const auto strafeVel = p->cmd.ucmd.vel.Y;
 
-	processinputvel(snum);
-	auto sb_fvel = PlayerInputForwardVel(snum);
-	auto sb_svel = PlayerInputSideVel(snum);
+	rotateInputVel(p);
 
 	auto psectp = p->cursector;
 	if (psectp == nullptr)
@@ -1566,21 +1555,21 @@ void processinput_d(int snum)
 	p->spritebridge = 0;
 
 	shrunk = (pact->spr.scale.Y < 0.5);
-	getzrange(p->GetActor()->getPosWithOffsetZ(), psectp, &ceilingz, chz, &floorz, clz, 10.1875, CLIPMASK0);
+	getzrange(pact->getPosWithOffsetZ(), psectp, &ceilingz, chz, &floorz, clz, 10.1875, CLIPMASK0);
 
 	setPlayerActorViewZOffset(pact);
 
-	p->truefz = getflorzofslopeptr(psectp, p->GetActor()->getPosWithOffsetZ());
-	p->truecz = getceilzofslopeptr(psectp, p->GetActor()->getPosWithOffsetZ());
+	p->truefz = getflorzofslopeptr(psectp, pact->getPosWithOffsetZ());
+	p->truecz = getceilzofslopeptr(psectp, pact->getPosWithOffsetZ());
 
-	truefdist = abs(p->GetActor()->getOffsetZ() - p->truefz);
+	truefdist = abs(pact->getOffsetZ() - p->truefz);
 	if (clz.type == kHitSector && psectlotag == 1 && truefdist > gs.playerheight + 16)
 		psectlotag = 0;
 
 	pact->floorz = floorz;
 	pact->ceilingz = ceilingz;
 
-	doslopetilting(p);
+	p->doViewPitch();
 
 	if (chz.type == kHitSprite)
 	{
@@ -1601,14 +1590,14 @@ void processinput_d(int snum)
 		}
 		else if (badguy(clz.actor()) && clz.actor()->spr.scale.X > 0.375 && abs(pact->spr.pos.Z - clz.actor()->spr.pos.Z) < 84)
 		{
-			auto ang = (clz.actor()->spr.pos.XY() - p->GetActor()->spr.pos.XY()).Angle();
+			auto ang = (clz.actor()->spr.pos.XY() - pact->spr.pos.XY()).Angle();
 			p->vel.XY() -= ang.ToVector();
 		}
 		CallStandingOn(clz.actor(), p);
 	}
 
 
-	if (pact->spr.extra > 0) fi.incur_damage(p);
+	if (pact->spr.extra > 0) incur_damage(p);
 	else
 	{
 		pact->spr.extra = 0;
@@ -1629,25 +1618,25 @@ void processinput_d(int snum)
 
 	if (p->fist_incs)
 	{
-		if (endoflevel(snum)) return;
+		if (endoflevel(p)) return;
 	}
 
 	if (p->timebeforeexit > 1 && p->last_extra > 0)
 	{
-		if (timedexit(snum))
+		if (timedexit(p))
 			return;
 	}
 
 	if (pact->spr.extra <= 0 && !ud.god)
 	{
-		playerisdead(snum, psectlotag, floorz, ceilingz);
+		playerisdead(p, psectlotag, floorz, ceilingz);
 		return;
 	}
 
-	if (p->GetActor()->spr.scale.X < 0.625 && p->jetpack_on == 0)
+	if (pact->spr.scale.X < 0.625 && p->jetpack_on == 0)
 	{
 		p->ofistsign = p->fistsign;
-		p->fistsign += int(p->GetActor()->vel.X * 16);
+		p->fistsign += int(pact->vel.X * 16);
 	}
 
 	if (p->transporter_hold > 0)
@@ -1661,34 +1650,34 @@ void processinput_d(int snum)
 
 	if (p->newOwner != nullptr)
 	{
-		setForcedSyncInput(snum);
+		gameInput.ForceInputSync(p->pnum);
 		p->vel.X = p->vel.Y = 0;
 		pact->vel.X = 0;
 
 		fi.doincrements(p);
 
-		if (isWW2GI() && aplWeaponWorksLike(p->curr_weapon, snum) == HANDREMOTE_WEAPON) processweapon(snum, actions);
-		if (!isWW2GI() && p->curr_weapon == HANDREMOTE_WEAPON) processweapon(snum, actions);
+		if (isWW2GI() && aplWeaponWorksLike(p->curr_weapon, p) == HANDREMOTE_WEAPON) processweapon(p, actions);
+		if (!isWW2GI() && p->curr_weapon == HANDREMOTE_WEAPON) processweapon(p, actions);
 		return;
 	}
 
 	doubvel = TICSPERFRAME;
 
-	checklook(snum,actions);
-	p->Angles.doViewYaw(&p->sync);
+	checklook(p, actions);
+	p->doViewYaw();
 
-	p->updatecentering(snum);
+	p->updatecentering();
 
 	if (p->on_crane != nullptr)
 	{
-		setForcedSyncInput(snum);
+		gameInput.ForceInputSync(p->pnum);
 		goto HORIZONLY;
 	}
 
 	p->playerweaponsway(pact->vel.X);
 
-	pact->vel.X = clamp((p->GetActor()->spr.pos.XY() - p->bobpos).Length(), 0., 32.);
-	if (p->on_ground) p->bobcounter += int(p->GetActor()->vel.X * 8);
+	pact->vel.X = (pact->spr.pos.XY() - p->bobpos).Length();
+	if (p->on_ground) p->bobcounter += int(pact->vel.X * 8);
 
 	p->backuppos(ud.clipping == 0 && ((p->insector() && p->cursector->floortexture == mirrortex) || !p->insector()));
 
@@ -1696,15 +1685,15 @@ void processinput_d(int snum)
 
 	if (psectlotag == ST_2_UNDERWATER)
 	{
-		underwater(snum, actions, floorz, ceilingz);
+		underwater(p, actions, floorz, ceilingz);
 	}
 	else if (p->jetpack_on)
 	{
-		operateJetpack(snum, actions, psectlotag, floorz, ceilingz, shrunk);
+		operateJetpack(p, actions, psectlotag, floorz, ceilingz, shrunk);
 	}
 	else if (psectlotag != ST_2_UNDERWATER)
 	{
-		movement(snum, actions, psectp, floorz, ceilingz, shrunk, truefdist, psectlotag);
+		movement(p, actions, psectp, floorz, ceilingz, shrunk, truefdist, psectlotag);
 	}
 
 	p->psectlotag = psectlotag;
@@ -1714,15 +1703,11 @@ void processinput_d(int snum)
 		doubvel = 0;
 		p->vel.X = 0;
 		p->vel.Y = 0;
-		p->sync.avel = 0;
-		setForcedSyncInput(snum);
-	}
-	else
-	{
-		p->sync.avel = p->adjustavel(PlayerInputAngVel(snum));
+		p->cmd.ucmd.ang.Yaw = nullAngle;
+		gameInput.ForceInputSync(p->pnum);
 	}
 
-	p->Angles.doYawInput(&p->sync);
+	p->doYawInput();
 
 	purplelavacheck(p);
 
@@ -1735,7 +1720,7 @@ void processinput_d(int snum)
 		{
 			int surface = tilesurface(sect->floortexture);
 			int whichsound = surface == TSURF_ELECTRIC? 0 : surface == TSURF_SLIME? 1 : surface == TSURF_PLASMA? 2 : -1;
-			k = makepainsounds(snum, whichsound);
+			k = makepainsounds(p, whichsound);
 		}
 
 		if (k)
@@ -1747,7 +1732,7 @@ void processinput_d(int snum)
 		}
 	}
 
-	if (p->vel.X || p->vel.Y || sb_fvel || sb_svel)
+	if (p->vel.X || p->vel.Y || !p->cmd.ucmd.vel.XY().isZero())
 	{
 		p->crack_time = CRACK_TIME;
 
@@ -1787,47 +1772,46 @@ void processinput_d(int snum)
 		if (p->jetpack_on == 0 && p->steroids_amount > 0 && p->steroids_amount < 400)
 			doubvel <<= 1;
 
-		p->vel.X += sb_fvel * doubvel * (5. / 16.);
-		p->vel.Y += sb_svel * doubvel * (5. / 16.);
-		p->Angles.StrafeVel += strafeVel * doubvel * (5. / 16.);
+		p->vel.XY() += p->cmd.ucmd.vel.XY() * doubvel * (5. / 16.);
+		p->StrafeVel += strafeVel * doubvel * (5. / 16.);
 
 		bool check;
 
 		if (!isWW2GI()) check = ((p->curr_weapon == KNEE_WEAPON && p->kickback_pic > 10 && p->on_ground) || (p->on_ground && (actions & SB_CROUCH)));
-		else check = ((aplWeaponWorksLike(p->curr_weapon, snum) == KNEE_WEAPON && p->kickback_pic > 10 && p->on_ground) || (p->on_ground && (actions & SB_CROUCH)));
+		else check = ((aplWeaponWorksLike(p->curr_weapon, p) == KNEE_WEAPON && p->kickback_pic > 10 && p->on_ground) || (p->on_ground && (actions & SB_CROUCH)));
 		if (check)
 		{
 			p->vel.XY() *= gs.playerfriction - 0.125;
-			p->Angles.StrafeVel *= gs.playerfriction - 0.125;
+			p->StrafeVel *= gs.playerfriction - 0.125;
 		}
 		else
 		{
 			if (psectlotag == ST_2_UNDERWATER)
 			{
 				p->vel.XY() *= gs.playerfriction - FixedToFloat(0x1400);
-				p->Angles.StrafeVel *= gs.playerfriction - FixedToFloat(0x1400);
+				p->StrafeVel *= gs.playerfriction - FixedToFloat(0x1400);
 			}
 			else
 			{
 				p->vel.XY() *= gs.playerfriction;
-				p->Angles.StrafeVel *= gs.playerfriction;
+				p->StrafeVel *= gs.playerfriction;
 			}
 		}
 
 		if (abs(p->vel.X) < 1/128. && abs(p->vel.Y) < 1 / 128.)
 		{
 			p->vel.X = p->vel.Y = 0;
-			p->Angles.StrafeVel = 0;
+			p->StrafeVel = 0;
 		}
 
 		if (shrunk)
 		{
 			p->vel.XY() *= gs.playerfriction * 0.75;
-			p->Angles.StrafeVel *= gs.playerfriction * 0.75;
+			p->StrafeVel *= gs.playerfriction * 0.75;
 		}
 	}
 
-	p->Angles.doRollInput(&p->sync, p->vel.XY(), maxVel, (psectlotag == 1) || (psectlotag == 2));
+	p->doRollInput((psectlotag == 1) || (psectlotag == 2));
 
 HORIZONLY:
 
@@ -1839,15 +1823,15 @@ HORIZONLY:
 	Collision clip{};
 	if (ud.clipping)
 	{
-		p->GetActor()->spr.pos.XY() += p->vel.XY() ;
-		updatesector(p->GetActor()->getPosWithOffsetZ(), &p->cursector);
+		pact->spr.pos.XY() += p->vel.XY() ;
+		updatesector(pact->getPosWithOffsetZ(), &p->cursector);
 		ChangeActorSect(pact, p->cursector);
 	}
 	else
-		clipmove(p->GetActor()->spr.pos.XY(), p->GetActor()->getOffsetZ(), &p->cursector, p->vel, 10.25, 4., iif, CLIPMASK0, clip);
+		clipmove(pact->spr.pos.XY(), pact->getOffsetZ(), &p->cursector, p->vel.XY(), 10.25, 4., iif, CLIPMASK0, clip);
 
 	if (p->jetpack_on == 0 && psectlotag != 2 && psectlotag != 1 && shrunk)
-		p->GetActor()->spr.pos.Z += 32;
+		pact->spr.pos.Z += 32;
 
 	if (clip.type != kHitNone)
 		checkplayerhurt_d(p, clip);
@@ -1892,12 +1876,12 @@ HORIZONLY:
 	if (p->cursector != pact->sector())
 		ChangeActorSect(pact, p->cursector);
 
-	auto oldpos = p->GetActor()->opos;
+	auto oldpos = pact->opos;
 	int retry = 0;
 	while (ud.clipping == 0)
 	{
 		int blocked;
-		blocked = (pushmove(p->GetActor()->spr.pos.XY(), p->GetActor()->getOffsetZ(), &p->cursector, 10.25, 4, 4, CLIPMASK0) < 0 && furthestangle(p->GetActor(), 8) < DAngle90);
+		blocked = (pushmove(pact->spr.pos.XY(), pact->getOffsetZ(), &p->cursector, 10.25, 4, 4, CLIPMASK0) < 0 && furthestangle(pact, 8) < DAngle90);
 
 		if (fabs(pact->floorz - pact->ceilingz) < 48 || blocked)
 		{
@@ -1908,8 +1892,8 @@ HORIZONLY:
 			{
 				if (!retry++)
 				{
-					p->GetActor()->spr.pos = oldpos;
-					p->GetActor()->backuppos();
+					pact->spr.pos = oldpos;
+					pact->backuppos();
 					continue;
 				}
 				quickkill(p);
@@ -1924,26 +1908,26 @@ HORIZONLY:
 	// center_view
 	if (actions & SB_CENTERVIEW || (p->hard_landing && (cl_dukepitchmode & kDukePitchLandingRecenter)))
 	{
-		playerCenterView(snum);
+		playerCenterView(p);
 	}
 	else if ((actions & SB_LOOK_UP) == SB_LOOK_UP)
 	{
-		playerLookUp(snum, actions);
+		playerLookUp(p, actions);
 	}
 	else if ((actions & SB_LOOK_DOWN) == SB_LOOK_DOWN)
 	{
-		playerLookDown(snum, actions);
+		playerLookDown(p, actions);
 	}
 	else if ((actions & SB_LOOK_UP) == SB_AIM_UP)
 	{
-		playerAimUp(snum, actions);
+		playerAimUp(p, actions);
 	}
 	else if ((actions & SB_LOOK_DOWN) == SB_AIM_DOWN)
 	{	// aim_down
-		playerAimDown(snum, actions);
+		playerAimDown(p, actions);
 	}
 
-	p->Angles.doPitchInput(&p->sync);
+	p->doPitchInput();
 
 	p->checkhardlanding();
 
@@ -1952,7 +1936,7 @@ HORIZONLY:
 	if (p->show_empty_weapon > 0)
 	{
 		p->show_empty_weapon--;
-		if (p->show_empty_weapon == 0 && (WeaponSwitch(p - ps) & 2))
+		if (p->show_empty_weapon == 0 && (WeaponSwitch(p->pnum) & 2))
 		{
 			if (p->last_full_weapon == GROW_WEAPON)
 				p->subweapon |= (1 << GROW_WEAPON);
@@ -1963,7 +1947,7 @@ HORIZONLY:
 		}
 	}
 
-	dokneeattack(snum);
+	dokneeattack(p);
 
 	if (fi.doincrements(p)) return;
 
@@ -1984,7 +1968,7 @@ HORIZONLY:
 	}
 
 	// HACKS
-	processweapon(snum, actions);
+	processweapon(p, actions);
 }
 
 END_DUKE_NS

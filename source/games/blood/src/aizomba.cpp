@@ -121,7 +121,7 @@ static void zombaThinkChase(DBloodActor* actor)
 		aiNewState(actor, &zombieASearch);
 		return;
 	}
-	if (target->IsPlayerActor() && (powerupCheck(&gPlayer[target->spr.type - kDudePlayer1], kPwUpShadowCloak) > 0 || powerupCheck(&gPlayer[target->spr.type - kDudePlayer1], kPwUpDeathMaskUseless) > 0))
+	if (target->IsPlayerActor() && (powerupCheck(getPlayer(target->spr.type - kDudePlayer1), kPwUpShadowCloak) > 0 || powerupCheck(getPlayer(target->spr.type - kDudePlayer1), kPwUpDeathMaskUseless) > 0))
 	{
 		aiNewState(actor, &zombieAGoto);
 		return;
@@ -172,7 +172,7 @@ static void zombaThinkPonder(DBloodActor* actor)
 		aiNewState(actor, &zombieASearch);
 		return;
 	}
-	if (target->IsPlayerActor() && (powerupCheck(&gPlayer[target->spr.type - kDudePlayer1], kPwUpShadowCloak) > 0 || powerupCheck(&gPlayer[target->spr.type - kDudePlayer1], kPwUpDeathMaskUseless) > 0))
+	if (target->IsPlayerActor() && (powerupCheck(getPlayer(target->spr.type - kDudePlayer1), kPwUpShadowCloak) > 0 || powerupCheck(getPlayer(target->spr.type - kDudePlayer1), kPwUpDeathMaskUseless) > 0))
 	{
 		aiNewState(actor, &zombieAGoto);
 		return;
@@ -209,13 +209,13 @@ static void myThinkTarget(DBloodActor* actor)
 	DUDEINFO* pDudeInfo = getDudeInfo(actor->spr.type);
 	for (int p = connecthead; p >= 0; p = connectpoint2[p])
 	{
-		PLAYER* pPlayer = &gPlayer[p];
+		DBloodPlayer* pPlayer = getPlayer(p);
 		auto owneractor = actor->GetOwner();
-		if (owneractor == nullptr || owneractor == pPlayer->actor || pPlayer->actor->xspr.health == 0 || powerupCheck(pPlayer, kPwUpShadowCloak) > 0)
+		if (owneractor == nullptr || owneractor == pPlayer->GetActor() || pPlayer->GetActor()->xspr.health == 0 || powerupCheck(pPlayer, kPwUpShadowCloak) > 0)
 			continue;
-		auto ppos = pPlayer->actor->spr.pos;
+		auto ppos = pPlayer->GetActor()->spr.pos;
 		auto dvect = ppos.XY() - actor->spr.pos;
-		auto pSector = pPlayer->actor->sector();
+		auto pSector = pPlayer->GetActor()->sector();
 		double nDist = dvect.Length();
 		if (nDist > pDudeInfo->SeeDist() && nDist > pDudeInfo->HearDist())
 			continue;
@@ -225,7 +225,7 @@ static void myThinkTarget(DBloodActor* actor)
 		DAngle nDeltaAngle = absangle(actor->spr.Angles.Yaw, dvect.Angle());
 		if (nDist < pDudeInfo->SeeDist() && abs(nDeltaAngle) <= pDudeInfo->Periphery())
 		{
-			aiSetTarget(actor, pPlayer->actor);
+			aiSetTarget(actor, pPlayer->GetActor());
 			aiActivateDude(actor);
 		}
 		else if (nDist < pDudeInfo->HearDist())

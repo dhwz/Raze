@@ -30,16 +30,10 @@ class DukeExplosion2 : DukeActor
 		+FULLBRIGHT;
 		+FORCERUNCON;
 		+TRIGGER_IFHITSECTOR;
+		+FLASHFRAME0;
 		Strength 1;
 	}
 	
-	override bool animate(tspritetype t)
-	{
-		Duke.GetViewPlayer().visibility = -127;
-		Duke.setlastvisinc(32);
-		return false;
-	}
-
 	override void Initialize(DukeActor spawner)
 	{
 		if (spawner && spawner != self)
@@ -71,8 +65,8 @@ class DukeExplosion2Bot : DukeExplosion2
 	{
 		pic "EXPLOSION2BOT";
 		-TRIGGER_IFHITSECTOR;
+		-FLASHFRAME0;
 	}
-	
 }
 
 //---------------------------------------------------------------------------
@@ -81,7 +75,7 @@ class DukeExplosion2Bot : DukeExplosion2
 //
 //---------------------------------------------------------------------------
 
-class RedneckExplosion3 : DukeExplosion2
+class RedneckExplosion3 : DukeExplosion2Bot
 {
 	default
 	{
@@ -92,11 +86,6 @@ class RedneckExplosion3 : DukeExplosion2
 	{
 		Super.Initialize(spawner);
 		self.scale = (2, 2);
-	}
-	
-	override bool animate(tspritetype t)
-	{
-		return false;
 	}
 
 }

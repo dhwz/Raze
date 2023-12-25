@@ -39,6 +39,7 @@
 #include "raze_sound.h"
 #include "texturemanager.h"
 #include "texinfo.h"
+#include "coreplayer.h"
 
 #include "buildtiles.h"
 
@@ -126,11 +127,11 @@ DEFINE_ACTION_FUNCTION_NATIVE(_Raze, SoundEnabled, SoundEnabled)
 	ACTION_RETURN_INT(SoundEnabled());
 }
 
-DEFINE_ACTION_FUNCTION_NATIVE(_Raze, SetReverb, FX_SetReverb)
+DEFINE_ACTION_FUNCTION_NATIVE(_Raze, SetReverb, S_SetReverb)
 {
 	PARAM_PROLOGUE;
 	PARAM_INT(i);
-	FX_SetReverb(i);
+	S_SetReverb(i);
 	return 0;
 }
 
@@ -799,7 +800,7 @@ void tspritetype_setSpritePic(tspritetype* targ, DCoreActor* self, unsigned z)
 	{
 		targ->setspritetexture(spriteset[z]);
 	}
-	else if (z == ~0)
+	else if ((signed)z == ~0)
 	{
 		targ->setspritetexture(self->dispictex);
 	}
@@ -815,6 +816,8 @@ DEFINE_ACTION_FUNCTION_NATIVE(_tspritetype, setSpritePic, tspritetype_setSpriteP
 }
 
 //=============================================================================
+
+DEFINE_FIELD(DCorePlayer, pnum)
 
 DEFINE_FIELD_NAMED(DCoreActor, spr.sectp, sector)
 DEFINE_FIELD_NAMED(DCoreActor, spr.cstat, cstat)
@@ -1025,8 +1028,6 @@ DEFINE_ACTION_FUNCTION_NATIVE(DCoreActor, spritetexture, CoreActor_spritetexture
 
 
 
-DEFINE_FIELD_X(Collision, CollisionBase, type)
-DEFINE_FIELD_X(Collision, CollisionBase, exbits)
 
 walltype* collision_getwall(CollisionBase* coll)
 {

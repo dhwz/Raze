@@ -727,6 +727,13 @@ int SetupSerp(DSWActor* actor)
     return 0;
 }
 
+DEFINE_ACTION_FUNCTION(DSWSerpent, Initialize)
+{
+    PARAM_SELF_PROLOGUE(DSWActor);
+    SetupSerp(self);
+    return 0;
+}
+
 int NullSerp(DSWActor* actor)
 {
     if (actor->user.Flags & (SPR_SLIDING))
@@ -783,7 +790,7 @@ int DoDeathSpecial(DSWActor* actor)
     if (!SW_SHAREWARE)
     {
         // Resume the regular music - in a hack-free fashion.
-        PlaySong(currentLevel->music, currentLevel->cdSongId);
+        PlaySong(currentLevel->music.GetChars(), currentLevel->cdSongId);
     }
 
     BossSpriteNum[0] = nullptr;

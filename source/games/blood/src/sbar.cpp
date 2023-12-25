@@ -73,28 +73,19 @@ static void UpdateFrame(void)
 //
 //---------------------------------------------------------------------------
 
-void UpdateStatusBar(PLAYER* pPlayer)
+void UpdateStatusBar(DBloodPlayer* pPlayer)
 {
 	if (automapMode == am_off && hud_size <= Hud_Stbar)
 	{
 		UpdateFrame();
 	}
 	SummaryInfo sum;
+	Level.fillSummary(sum);
 	if (gGameOptions.nGameType == 3)
 	{
 		sum.kills = pPlayer ? pPlayer->fragCount : 0;
 		sum.maxkills = -3;
 	}
-	else
-	{
-		sum.kills = gKillMgr.Kills;
-		sum.maxkills = gKillMgr.TotalKills;
-	}
-	sum.secrets = gSecretMgr.Founds;
-	sum.supersecrets = gSecretMgr.Super;
-	sum.maxsecrets = max(gSecretMgr.Founds, gSecretMgr.Total); // If we found more than there are, increase the total. Some levels have a bugged counter.
-	sum.time = Scale(PlayClock, 1000, 120);
-	sum.totaltime = STAT_GetTotalTime();
 	UpdateStatusBar(&sum);
 }
 

@@ -144,11 +144,10 @@ struct Duke native
 		SB_LOOK_UP = SB_AIM_UP|SB_CENTERVIEW,
 		SB_LOOK_DOWN = SB_AIM_DOWN|SB_CENTERVIEW,
 		SB_CROUCH = 1 << 25,
-		SB_CROUCH_LOCK = 1 << 26,
-		SB_RUN = 1 << 27,
-		SB_JUMP = 1 << 28,
-		SB_FIRE = 1 << 29,
-		SB_ALTFIRE = 1 << 30,
+		SB_RUN = 1 << 26,
+		SB_JUMP = 1 << 27,
+		SB_FIRE = 1 << 28,
+		SB_ALTFIRE = 1 << 29,
 
 		SB_WEAPONMASK_BITS = (15u * SB_FIRST_WEAPON_BIT), // Weapons take up 4 bits
 		SB_ITEMUSE_BITS = (127u * SB_ITEM_BIT_1),
@@ -177,7 +176,6 @@ struct Duke native
 	native static bool StartCommentary(int tag, DukeActor act);
 	native static void StopCommentary();
 	static native int getPlayerIndex(DukePlayer p);
-	static native void setlastvisinc(int amount);
 	static native bool isaccessswitch(TextureID tex);
 	static native bool isshootableswitch(TextureID tex);
 	static native bool CheckSprite(class<DukeActor> tex);
@@ -228,8 +226,9 @@ struct Duke native
 
 }
 
-struct DukePlayer native
+class DukePlayer : CorePlayer native
 {
+    native readonly DukeActor actor;
 	/*
 	// player's horizon and angle structs.
 	PlayerHorizon horizon;
@@ -284,12 +283,12 @@ struct DukePlayer native
 	native int16 cheat_phase;
 	native int16 extra_extra8, quick_kick, last_quick_kick;
 	native int16 heat_amount, timebeforeexit, customexitsound;
-	native DukeActor actor, actorsqu, wackedbyactor, on_crane, somethingonplayer, access_spritenum, dummyplayersprite, newOwner, holoduke_on;
+	native DukeActor actorsqu, wackedbyactor, on_crane, somethingonplayer, access_spritenum, dummyplayersprite, newOwner, holoduke_on;
 	native sectortype cursector;
 
 	native uint interface_toggle_flag;
 
-	native int16 dead_flag, show_empty_weapon;	// JBF 20031220: added orotscrnang
+	native int16 dead_flag, show_empty_weapon;
 	native int16 scuba_amount, jetpack_amount, steroids_amount, shield_amount;
 	native int16 pycount, frag_ps;
 	native int16 transporter_hold, last_full_weapon, footprintshade, boot_amount;
@@ -309,8 +308,6 @@ struct DukePlayer native
 	native uint8 toggle_key_flag, knuckle_incs; // ,select_dir;
 	native uint8 walking_snd_toggle, palookup;
 	native bool quick_kick_msg;
-
-	native int max_secret_rooms, secret_rooms;
 
 	// Redneck Rampage additions. Those which did not have names in the reconstructed source got one from either RedneckGDX or RedNukem.
 	// Items were reordered by size.

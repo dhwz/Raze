@@ -50,9 +50,9 @@ inline static void hud_drawpal(double x, double y, const char* tilenum, int shad
 //
 //---------------------------------------------------------------------------
 
-void displaymasks_r(int snum, int p, double interpfrac)
+void displaymasks_r(DDukePlayer* const p, int pal, double interpfrac)
 {
-	if (ps[snum].scuba_on)
+	if (p->scuba_on)
 	{
 		auto scuba0 = TexMan.CheckForTexture("SCUBAMASK0", ETextureType::Any);
 		auto scuba3 = TexMan.CheckForTexture("SCUBAMASK3", ETextureType::Any);
@@ -63,11 +63,11 @@ void displaymasks_r(int snum, int p, double interpfrac)
 		// to get the proper clock value with regards to interpolation we have add a interpfrac based offset to the value.
 		double interpclock = PlayClock + TICSPERFRAME * interpfrac;
 		int pin = RS_STRETCH;
-		hud_drawsprite((320 - (tex0->GetDisplayWidth() * 0.5) - 15), (200 - (tex0->GetDisplayHeight() * 0.5) + BobVal(interpclock) * 16), 0.75, 0, scuba0, 0, p, 2 + 16 + pin);
-		hud_drawsprite((320 - tex4->GetDisplayWidth()), (200 - tex4->GetDisplayHeight()), 1., 0, scuba4, 0, p, 2 + 16 + pin);
-		hud_drawsprite(tex4->GetDisplayWidth(), (200 - tex4->GetDisplayHeight()), 1., 0, scuba4, 0, p, 2 + 4 + 16 + pin);
-		hud_drawsprite(35, (-1), 1., 0, scuba3, 0, p, 2 + 16 + pin);
-		hud_drawsprite(285, 200, 1., -180, scuba3, 0, p, 2 + 16 + pin);
+		hud_drawsprite((320 - (tex0->GetDisplayWidth() * 0.5) - 15), (200 - (tex0->GetDisplayHeight() * 0.5) + BobVal(interpclock) * 16), 0.75, 0, scuba0, 0, pal, 2 + 16 + pin);
+		hud_drawsprite((320 - tex4->GetDisplayWidth()), (200 - tex4->GetDisplayHeight()), 1., 0, scuba4, 0, pal, 2 + 16 + pin);
+		hud_drawsprite(tex4->GetDisplayWidth(), (200 - tex4->GetDisplayHeight()), 1., 0, scuba4, 0, pal, 2 + 4 + 16 + pin);
+		hud_drawsprite(35, (-1), 1., 0, scuba3, 0, pal, 2 + 16 + pin);
+		hud_drawsprite(285, 200, 1., -180, scuba3, 0, pal, 2 + 16 + pin);
 	}
 }
 
@@ -208,15 +208,15 @@ void DrawBoat(int const kb, const DVector2& offsets, DAngle angle, int shade, in
 //
 //
 //---------------------------------------------------------------------------
-void animateshrunken(player_struct* p, double xoffset, double yoffset, int8_t shade, int o, double interpfrac);
+void animateshrunken(DDukePlayer* p, double xoffset, double yoffset, int8_t shade, int o, double interpfrac);
 
-void displayweapon_r(int snum, double interpfrac)
+void displayweapon_r(DDukePlayer* const p, double interpfrac)
 {
 	double weapon_sway, gun_pos, hard_landing;
 	DAngle TiltStatus;
 
-	auto p = &ps[snum];
 	auto kb = &p->kickback_pic;
+	const auto pact = p->GetActor();
 
 	int o = 0;
 
@@ -236,22 +236,22 @@ void displayweapon_r(int snum, double interpfrac)
 	}
 
 	hard_landing *= 8.;
-	gun_pos -= fabs(p->GetActor()->spr.scale.X < 0.125 ? BobVal(weapon_sway * 4.) * 32 : BobVal(weapon_sway * 0.5) * 16) + hard_landing;
+	gun_pos -= fabs(pact->spr.scale.X < 0.125 ? BobVal(weapon_sway * 4.) * 32 : BobVal(weapon_sway * 0.5) * 16) + hard_landing;
 
-	auto offpair = p->Angles.getWeaponOffsets(interpfrac);
+	auto offpair = p->getWeaponOffsets(interpfrac);
 	auto offsets = offpair.first;
 	auto angle = offpair.second;
 	auto weapon_xoffset = 160 - 90 - (BobVal(512 + weapon_sway * 0.5) * (16384. / 1536.)) - 58 - p->weapon_ang;
-	auto shade = min(p->insector() && p->cursector->shadedsector == 1 ? 16 : p->GetActor()->spr.shade, 24);
-	auto pal = !p->insector()? 0 : p->GetActor()->spr.pal == 1? 1 : p->cursector->floorpal;
+	auto shade = min(p->insector() && p->cursector->shadedsector == 1 ? 16 : pact->spr.shade, 24);
+	auto pal = !p->insector()? 0 : pact->spr.pal == 1? 1 : p->cursector->floorpal;
 	auto cw = p->last_weapon >= 0 ? p->last_weapon : p->curr_weapon;
 
-	if (p->newOwner != nullptr || ud.cameraactor != nullptr || p->over_shoulder_on > 0 || (p->GetActor()->spr.pal != 1 && p->GetActor()->spr.extra <= 0))
+	if (p->newOwner != nullptr || ud.cameraactor != nullptr || p->over_shoulder_on > 0 || (pact->spr.pal != 1 && pact->spr.extra <= 0))
 		return;
 
 	if ((14 - p->quick_kick) != 14)
 	{
-		pal = p->GetActor()->spr.pal == 1 ? 1 : p->palookup;
+		pal = pact->spr.pal == 1 ? 1 : p->palookup;
 	}
 
 	if (p->OnMotorcycle)
@@ -268,7 +268,7 @@ void displayweapon_r(int snum, double interpfrac)
 	offsets.X += weapon_xoffset;
 	offsets.Y -= gun_pos;
 
-	if (p->GetActor()->spr.scale.X < 0.125)
+	if (pact->spr.scale.X < 0.125)
 	{
 		animateshrunken(p, offsets.X, offsets.Y + gun_pos, shade, o, interpfrac);
 	}
@@ -420,7 +420,7 @@ void displayweapon_r(int snum, double interpfrac)
 					}
 					else if ((krand() & 15) == 5)
 					{
-						S_PlayActorSound(327, p->GetActor());
+						S_PlayActorSound(327, pact);
 						hud_drawpal(210 + offsets.X, 222 + offsets.Y, "CBOW2GUNATK7", shade, o |  pin, pal, angle, 36700);
 						chickenphase = 6;
 					}
@@ -556,7 +556,7 @@ void displayweapon_r(int snum, double interpfrac)
 			if (*kb > 0)
 				offsets.Y += BobVal((*kb) << 7) * 4;
 
-			if (*kb > 0 && p->GetActor()->spr.pal != 1) offsets.X += 1 - (rand() & 3);
+			if (*kb > 0 && pact->spr.pal != 1) offsets.X += 1 - (rand() & 3);
 
 			switch (*kb)
 			{
@@ -762,7 +762,7 @@ void displayweapon_r(int snum, double interpfrac)
 			}
 			else
 			{
-				if (p->GetActor()->spr.pal != 1)
+				if (pact->spr.pal != 1)
 				{
 					offsets.X += rand() & 3;
 					offsets.Y -= rand() & 3;

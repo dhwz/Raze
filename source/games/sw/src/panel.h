@@ -59,7 +59,7 @@ struct PANEL_STATE
 {
 	short picndx;                       // for pip stuff in conpic.h
 	int tics;
-	void (*Animator)(PANEL_SPRITE*);    // JBF: return type was long
+	void (*Animator)(DPanelSprite*);    // JBF: return type was long
 	PANEL_STATE* NextState;
 	uint32_t flags;
 	uint8_t xvel;
@@ -92,7 +92,7 @@ enum
 	PANF_DRAW_BEFORE_VIEW = (BIT(30)), // draw before drawrooms
 };
 
-typedef void (*PANEL_SPRITE_FUNCp)(PANEL_SPRITE*);
+typedef void (*PANEL_SPRITE_FUNCp)(DPanelSprite*);
 
 struct PANEL_SPRITE_OVERLAY
 {
@@ -104,12 +104,16 @@ struct PANEL_SPRITE_OVERLAY
 	short yoff; // from panel sprite center y
 };
 
-struct PANEL_SPRITE
+class DPanelSprite : public DObject
 {
-	PANEL_SPRITE* Next, * Prev;
-	PANEL_SPRITE* sibling;
+	DECLARE_CLASS(DPanelSprite, DObject)
+	HAS_OBJECT_POINTERS
+	void Serialize(FSerializer& arc) override;
+public:
+	DPanelSprite* Next, * Prev;
+	TObjPtr<DPanelSprite*> sibling;
 	PANEL_STATE* State, *RetractState, *PresentState, *ActionState, *RestState;
-	PLAYER* PlayerP;
+	TObjPtr<DSWPlayer*> PlayerP;
 	DVector2 pos, opos, bobpos;
 
 	PANEL_SPRITE_OVERLAY over[8];
@@ -167,39 +171,26 @@ enum BorderTypes
 enum
 {
 	MICRO_SIGHT_NUM = 0,
-	MICRO_SIGHT = 2075,
 	
 	MICRO_SHOT_NUM = 2,
-	MICRO_SHOT_20 = 2076,
-	MICRO_SHOT_1 = 2077,
 	
 	MICRO_HEAT_NUM = 1,
 	MICRO_HEAT = 2084,
 	
-	UZI_COPEN   = 2040,
-	UZI_CCLOSED = 2041,
-	UZI_CLIT    = 2042,
-	UZI_CRELOAD = 2043,
-	
-	HEAD_MODE1 = 2055,
-	HEAD_MODE2 = 2056,
-	HEAD_MODE3 = 2057,
-	
 	SHOTGUN_AUTO_NUM = 0,
-	SHOTGUN_AUTO = 2078,
 };
 
 
-PANEL_SPRITE* pSpawnSprite(PLAYER* pp, PANEL_STATE* state, uint8_t priority, double x, double y);
-void pSetSuicide(PANEL_SPRITE* psp);
-bool pKillScreenSpiteIDs(PLAYER* pp, short id);
+DPanelSprite* pSpawnSprite(DSWPlayer* pp, PANEL_STATE* state, uint8_t priority, double x, double y);
+void pSetSuicide(DPanelSprite* psp);
+bool pKillScreenSpiteIDs(DSWPlayer* pp, short id);
 void PreUpdatePanel(double interpfrac);
 void UpdatePanel(double interpfrac);
-void PlayerUpdateArmor(PLAYER* pp,short value);
+void PlayerUpdateArmor(DSWPlayer* pp,short value);
 void pToggleCrosshair(void);
-void pKillSprite(PANEL_SPRITE* psp);
-void InitChops(PLAYER* pp);
-void ChopsSetRetract(PLAYER* pp);
+void pKillSprite(DPanelSprite* psp);
+void InitChops(DSWPlayer* pp);
+void ChopsSetRetract(DSWPlayer* pp);
 
 END_SW_NS
 

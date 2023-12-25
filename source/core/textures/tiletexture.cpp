@@ -40,6 +40,7 @@
 #include "texturemanager.h"
 #include "filesystem.h"
 #include "printf.h"
+#include "m_swap.h"
 
 
 class FTileTexture : public FImageSource
@@ -51,8 +52,8 @@ public:
 		bTranslucent = false;
 	}
 	virtual uint8_t* GetRawData() = 0;
-	virtual PalettedPixels CreatePalettedPixels(int conversion);
-	virtual int CopyPixels(FBitmap* bmp, int conversion);			// This will always ignore 'luminance'.
+	virtual PalettedPixels CreatePalettedPixels(int conversion, int frame) override;
+	virtual int CopyPixels(FBitmap* bmp, int conversion, int frame) override;			// This will always ignore 'luminance'.
 };
 
 //==========================================================================
@@ -175,7 +176,7 @@ public:
 //
 //==========================================================================
 
-int FTileTexture::CopyPixels(FBitmap* bmp, int conversion)
+int FTileTexture::CopyPixels(FBitmap* bmp, int conversion, int)
 {
 	TArray<uint8_t> buffer;
 	auto ppix = GetRawData();
@@ -187,7 +188,7 @@ int FTileTexture::CopyPixels(FBitmap* bmp, int conversion)
 }
 
 // 'conversion' is meaningless here becazse we do not have to bother with a software renderer.
-PalettedPixels FTileTexture::CreatePalettedPixels(int conversion)
+PalettedPixels FTileTexture::CreatePalettedPixels(int conversion, int)
 {
 	if (GetRawData())
 	{
@@ -436,10 +437,11 @@ int CountTiles(const char* fn, const uint8_t* RawData)
 
 static void AddArtFile(const FString& filename)
 {
-	FileReader fr = fileSystem.OpenFileReader(filename);
+	FileReader fr = fileSystem.OpenFileReader(filename.GetChars());
 	if (fr.isOpen())
 	{
-		auto artdata = fr.Read();
+		TArray<uint8_t> artdata(fr.GetLength(), true);
+		fr.Read(artdata.Data(), artdata.Size());
 		if (artdata.Size() > 16)
 		{
 			if (memcmp(artdata.Data(), "BUILDART", 8) == 0)
@@ -447,7 +449,7 @@ static void AddArtFile(const FString& filename)
 				artdata.Delete(0, 8);
 			}
 			// Only load the data if the header is present
-			if (CountTiles(filename, artdata.Data()) > 0)
+			if (CountTiles(filename.GetChars(), artdata.Data()) > 0)
 			{
 				// The texture manager already has a store for Build ART files, so let's use it. :)
 				auto& store = TexMan.GetNewBuildTileData();

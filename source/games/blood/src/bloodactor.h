@@ -140,6 +140,208 @@ public:
 			return true;
 		}
 	}
+
+	void ChangeType(PClass* newtype)
+	{
+		if (newtype->IsDescendantOf(RUNTIME_CLASS(DBloodActor)) && newtype->Size == RUNTIME_CLASS(DBloodActor)->Size && GetClass()->Size == RUNTIME_CLASS(DBloodActor)->Size)
+		{
+			// It sucks having to do this but the game heavily depends on being able to swap out the class type and often uses this to manage actor state.
+			// We'll allow this only for classes that do not add their own data, though.
+			SetClass(newtype);
+			//spr.setspritetexture(GetDefaultByType(newtype)->spr.spritetexture());
+		}
+	}
+
+	int GetType() const
+	{
+		return spr.type;
+	}
+
+};
+
+class DBloodPlayer final : public DCorePlayer
+{
+	DECLARE_CLASS(DBloodPlayer, DCorePlayer)
+	HAS_OBJECT_POINTERS
+	DBloodPlayer() = default;
+public:
+	DBloodPlayer(uint8_t p) : DCorePlayer(p) {}
+	void Serialize(FSerializer& arc) override;
+	void Clear()
+	{
+		Super::Clear();
+		// Quick'n dirty clear
+		memset(&startOfMem, 0, sizeof(DBloodPlayer) - myoffsetof(DBloodPlayer, startOfMem));
+	}
+
+	uint8_t				startOfMem; // only for Clear
+	uint8_t             newWeapon;
+	bool                isRunning;
+
+	DUDEINFO* pDudeInfo;
+	int                 weaponQav;
+	int                 qavCallback;
+	int                 posture;   // stand, crouch, swim
+	int                 sceneQav;  // by NoOne: used to keep qav id
+	double              bobPhase;
+	int                 bobAmp;
+	double              bobHeight;
+	double              bobWidth;
+	double              obobHeight;
+	double              obobWidth;
+	int                 swayAmp;
+	double              swayHeight;
+	double              swayWidth;
+	double              oswayHeight;
+	double              oswayWidth;
+	int                 lifeMode;
+	double              zView;
+	double              ozView;
+	double              zViewVel;
+	double              zWeapon;
+	double              ozWeapon;
+	double              zWeaponVel;
+	double              slope;
+	bool                isUnderwater;
+	bool                hasKey[8];
+	int8_t              hasFlag;
+	TObjPtr<DBloodActor*>        ctfFlagState[2];
+	int                 damageControl[7];
+	int8_t              curWeapon;
+	int8_t              nextWeapon;
+	int                 weaponTimer;
+	int                 weaponState;
+	int                 weaponAmmo;  //rename
+	bool                hasWeapon[kWeapMax];
+	int                 weaponMode[kWeapMax];
+	int                 weaponOrder[2][kWeapMax];
+	//int               at149[14];
+	int                 ammoCount[12];
+	bool                qavLoop;
+	int                 qavLastTick;
+	int                 qavTimer;
+	int                 fuseTime;
+	int                 throwTime;
+	double              throwPower;
+	DVector3            aim;  // world
+	DVector3            relAim;  // relative
+	TObjPtr<DBloodActor*>        aimTarget;  // aim target sprite
+	int                 aimTargetsCount;
+	TObjPtr<DBloodActor*>        aimTargets[16];
+	int                 deathTime;
+	int                 pwUpTime[kMaxPowerUps];
+	int                 fragCount;
+	int                 fragInfo[8];
+	int                 teamId;
+	TObjPtr<DBloodActor*>        fragger;
+	int                 underwaterTime;
+	int                 bubbleTime;
+	int                 restTime;
+	int                 kickPower;
+	int                 laughCount;
+	bool                godMode;
+	bool                fallScream;
+	bool                cantJump;
+	int                 packItemTime;  // pack timer
+	int                 packItemId;    // pack id 1: diving suit, 2: crystal ball, 3: beast vision 4: jump boots
+	PACKINFO            packSlots[5];  // at325 [1]: diving suit, [2]: crystal ball, [3]: beast vision [4]: jump boots
+	int                 armor[3];      // armor
+	//int               at342;
+	//int               at346;
+	TObjPtr<DBloodActor*>        voodooTarget;
+	int                 voodooTargets;  // --> useless
+	int                 voodooVar1;     // --> useless
+	int                 vodooVar2;      // --> useless
+	int                 flickerEffect;
+	int                 tiltEffect;
+	int                 visibility;
+	int                 painEffect;
+	int                 blindEffect;
+	int                 chokeEffect;
+	int                 handTime;
+	bool                hand;  // if true, there is hand start choking the player
+	int                 pickupEffect;
+	bool                flashEffect;  // if true, reduce pPlayer->visibility counter
+	int                 quakeEffect;
+	int                 player_par;
+	int                 nWaterPal;
+	POSTURE             pPosture[kModeMax][kPostureMax];
+
+	inline DBloodActor* GetActor() override
+	{
+		return static_cast<DBloodActor*>(actor);
+	}
+
+	double GetMaxInputVel() const override
+	{
+		return (36211. / 3000.);
+	}
+
+	bool canSlopeTilt() const override
+	{
+		const auto pActor = static_cast<DBloodActor*>(actor);
+		const int florhit = pActor->hit.florhit.type;
+		return pActor->xspr.height < 16 && (florhit == kHitSector || florhit == 0);
+	}
+
+	unsigned getCrouchFlags() const override
+	{
+		const bool swimming = posture == kPostureSwim;
+		return (CS_CANCROUCH * !swimming) | (CS_DISABLETOGGLE * swimming);
+	}
+};
+
+inline DBloodPlayer* getPlayer(int index)
+{
+	return static_cast<DBloodPlayer*>(PlayerArray[index]);
+}
+
+inline DBloodPlayer* getPlayer(DBloodActor* ac)
+{
+	return static_cast<DBloodPlayer*>(PlayerArray[ac->spr.type - kDudePlayer1]);
+}
+
+struct PlayerSave
+{
+	int weaponQav;
+	int8_t curWeapon;
+	int weaponState;
+	int weaponAmmo;
+	int qavCallback;
+	bool qavLoop;
+	int weaponTimer;
+	int8_t nextWeapon;
+	int qavLastTick;
+	int qavTimer;
+
+	void CopyFromPlayer(DBloodPlayer* p)
+	{
+		weaponQav = p->weaponQav;
+		curWeapon = p->curWeapon;
+		weaponState = p->weaponState;
+		weaponAmmo = p->weaponAmmo;
+		qavCallback = p->qavCallback;
+		qavLoop = p->qavLoop;
+		weaponTimer = p->weaponTimer;
+		nextWeapon = p->nextWeapon;
+		qavLastTick = p->qavLastTick;
+		qavTimer = p->qavTimer;
+
+	}
+
+	void CopyToPlayer(DBloodPlayer* p)
+	{
+		p->weaponQav = weaponQav;
+		p->curWeapon = curWeapon;
+		p->weaponState = weaponState;
+		p->weaponAmmo = weaponAmmo;
+		p->qavCallback = qavCallback;
+		p->qavLoop = qavLoop;
+		p->weaponTimer = weaponTimer;
+		p->nextWeapon = nextWeapon;
+		p->qavLastTick = qavLastTick;
+		p->qavTimer = qavTimer;
+	}
 };
 
 // subclassed to add a game specific actor() method
@@ -167,7 +369,7 @@ inline bool IsTargetTeammate(DBloodActor* pSource, DBloodActor* pTarget)
 {
 	if (!pSource->IsPlayerActor())
 		return false;
-	PLAYER* pSourcePlayer = &gPlayer[pSource->spr.type - kDudePlayer1];
+	DBloodPlayer* pSourcePlayer = getPlayer(pSource->spr.type - kDudePlayer1);
 	return IsTargetTeammate(pSourcePlayer, pTarget);
 }
 

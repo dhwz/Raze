@@ -87,8 +87,8 @@ int SetupPachinko4(DSWActor*);
 int SetupGirlNinja(DSWActor*);
 int DoSlidorInstantClose(DSWActor*);
 
-void InitWeaponRocket(PLAYER*);
-void InitWeaponUzi(PLAYER*);
+void InitWeaponRocket(DSWPlayer*);
+void InitWeaponUzi(DSWPlayer*);
 
 int MoveSkip4, MoveSkip2, MoveSkip8;
 int MinEnemySkill;
@@ -547,7 +547,7 @@ void KillActor(DSWActor* actor)
 
     if (actor->hasU())
     {
-        PLAYER* pp;
+        DSWPlayer* pp;
         int pnum;
 
         // doing a MissileSetPos - don't allow killing
@@ -597,7 +597,7 @@ void KillActor(DSWActor* actor)
         // reset it.
         TRAVERSE_CONNECT(pnum)
         {
-            pp = Player + pnum;
+            pp = getPlayer(pnum);
 
             if (pp->KillerActor != nullptr)
             {
@@ -774,7 +774,7 @@ void SpawnUser(DSWActor* actor, short id, STATE* state)
     actor->user.WpnGoalActor = nullptr;
     actor->user.attachActor = nullptr;
     actor->user.track = -1;
-    actor->user.targetActor = Player[0].actor;
+    actor->user.targetActor = getPlayer(0)->GetActor();
     actor->user.Radius = 220;
     actor->user.Sibling = -1;
     actor->user.WaitTics = 0;
@@ -912,7 +912,7 @@ bool ActorTestSpawn(DSWActor* actor)
             actor->spr.picnum == SAILORGIRL_R0) && (g_gameType & GAMEFLAG_ADDON)) return true;
 
         // spawn Bouncing Betty (mine) in TD map 09 Warehouse 
-        if (actor->spr.picnum == 817 && (currentLevel->gameflags & LEVEL_SW_SPAWNMINES))
+        if (actor->spr.picnum == BETTY_R0 && (currentLevel->gameflags & LEVEL_SW_SPAWNMINES))
             return true;
 
         return false;
@@ -1280,7 +1280,7 @@ bool ActorSpawn(DSWActor* actor)
         break;
     }
 
-    case 623:   // Pachinko win light
+    case PACHINKOWINLIGHT:   // Pachinko win light
     {
         actor->spr.cstat2 |= CSTAT2_SPRITE_NOANIMATE;
         SetupPachinkoLight(actor);
@@ -1476,6 +1476,1101 @@ void SpriteSetupPost(void)
     }
 }
 
+void SetupST1(DSWActor* actor)
+{
+    sectortype* sectp = actor->sector();
+    short tag;
+    short bit;
+
+    // get rid of defaults
+    if (SP_TAG3(actor) == 32)
+        SP_TAG3(actor) = 0;
+
+    tag = actor->spr.hitag;
+
+    actor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
+    actor->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
+
+    // for bounding sector objects
+    if ((tag >= 500 && tag < 600) || tag == SECT_SO_CENTER)
+    {
+        // NOTE: These will get deleted by the sector object
+        // setup code
+        change_actor_stat(actor, STAT_ST1);
+        return;
+    }
+
+    if (tag < 16)
+    {
+        bit = 1 << (tag);
+
+        actor->sector()->extra |= (bit);
+
+        if (bit & (SECTFX_SINK))
+        {
+            sectp->u_defined = true;
+            sectp->depth_fixed = IntToFixed(actor->spr.lotag);
+            KillActor(actor);
+        }
+        else if (bit & (SECTFX_OPERATIONAL))
+        {
+            KillActor(actor);
+        }
+        else if (bit & (SECTFX_CURRENT))
+        {
+            sectp->u_defined = true;
+            sectp->speed = actor->spr.lotag;
+            sectp->angle = actor->spr.Angles.Yaw;
+            KillActor(actor);
+        }
+        else if (bit & (SECTFX_NO_RIDE))
+        {
+            change_actor_stat(actor, STAT_NO_RIDE);
+        }
+        else if (bit & (SECTFX_DIVE_AREA))
+        {
+            sectp->u_defined = true;
+            sectp->number = actor->spr.lotag;
+            change_actor_stat(actor, STAT_DIVE_AREA);
+        }
+        else if (bit & (SECTFX_UNDERWATER))
+        {
+            sectp->u_defined = true;
+            sectp->number = actor->spr.lotag;
+            change_actor_stat(actor, STAT_UNDERWATER);
+        }
+        else if (bit & (SECTFX_UNDERWATER2))
+        {
+            sectp->u_defined = true;
+            sectp->number = actor->spr.lotag;
+            if (actor->spr.clipdist == 1) // notreallyclipdist
+                sectp->flags |= (SECTFU_CANT_SURFACE);
+            change_actor_stat(actor, STAT_UNDERWATER2);
+        }
+    }
+    else
+    {
+        switch (tag)
+        {
+#if 0
+        case MULTI_PLAYER_START:
+            change_actor_stat(actor, STAT_MULTI_START + actor->spr.lotag);
+            break;
+        case MULTI_COOPERATIVE_START:
+            change_actor_stat(actor, STAT_CO_OP_START + actor->spr.lotag);
+            break;
+#endif
+
+        case SECT_MATCH:
+            sectp->u_defined = true;
+            sectp->number = actor->spr.lotag;
+
+            KillActor(actor);
+            break;
+
+        case SLIDE_SECTOR:
+            sectp->u_defined = true;
+            sectp->flags |= (SECTFU_SLIDE_SECTOR);
+            sectp->speed = SP_TAG2(actor);
+            KillActor(actor);
+            break;
+
+        case SECT_DAMAGE:
+        {
+            sectp->u_defined = true;
+            if (TEST_BOOL1(actor))
+                sectp->flags |= (SECTFU_DAMAGE_ABOVE_SECTOR);
+            sectp->damage = actor->spr.lotag;
+            KillActor(actor);
+            break;
+        }
+
+        case PARALLAX_LEVEL:
+        {
+            parallaxyscale_override = 8192;
+            pskybits_override = actor->spr.lotag;
+            if (SP_TAG4(actor) > 2048)
+                parallaxyscale_override = SP_TAG4(actor);
+            defineSky(nullptr, pskybits_override, nullptr, 0, parallaxyscale_override / 8192.f);
+            KillActor(actor);
+            break;
+        }
+
+        case BREAKABLE:
+            // used for wall info
+            if (SP_TAG5(actor) >= 0 && !actor->texparam.isValid()) actor->texparam = tileGetTextureID(SP_TAG5(actor));
+
+            change_actor_stat(actor, STAT_BREAKABLE);
+            break;
+
+        case SECT_DONT_COPY_PALETTE:
+        {
+            sectp->u_defined = true;
+            sectp->flags |= (SECTFU_DONT_COPY_PALETTE);
+            KillActor(actor);
+            break;
+        }
+
+        case SECT_FLOOR_PAN:
+        {
+            // if moves with SO
+            if (TEST_BOOL1(actor))
+                actor->vel.X = 0;
+            else
+                actor->vel.X = actor->spr.lotag * maptoworld;
+
+            StartInterpolation(actor->sector(), Interp_Sect_FloorPanX);
+            StartInterpolation(actor->sector(), Interp_Sect_FloorPanY);
+            change_actor_stat(actor, STAT_FLOOR_PAN);
+            break;
+        }
+
+        case SECT_CEILING_PAN:
+        {
+            // if moves with SO
+            if (TEST_BOOL1(actor))
+                actor->vel.X = 0;
+            else
+                actor->vel.X = actor->spr.lotag * maptoworld;
+            StartInterpolation(actor->sector(), Interp_Sect_CeilingPanX);
+            StartInterpolation(actor->sector(), Interp_Sect_CeilingPanY);
+            change_actor_stat(actor, STAT_CEILING_PAN);
+            break;
+        }
+
+        case SECT_WALL_PAN_SPEED:
+        {
+            HitInfo hit{};
+            hitscan(actor->spr.pos.plusZ(-8), actor->sector(), DVector3(actor->spr.Angles.Yaw.ToVector() * 1024, 0), hit, CLIPMASK_MISSILE);
+
+            if (hit.hitWall == nullptr)
+            {
+                KillActor(actor);
+                break;
+            }
+
+            actor->tempwall = hit.hitWall;
+            // if moves with SO
+            if (TEST_BOOL1(actor))
+                actor->vel.X = 0;
+            else
+                actor->vel.X = actor->spr.lotag * maptoworld;
+            actor->spr.Angles.Yaw = mapangle(SP_TAG6(actor));
+            // attach to the sector that contains the wall
+            ChangeActorSect(actor, hit.hitSector);
+            StartInterpolation(hit.hitWall, Interp_Wall_PanX);
+            StartInterpolation(hit.hitWall, Interp_Wall_PanY);
+            change_actor_stat(actor, STAT_WALL_PAN);
+            break;
+        }
+
+        case WALL_DONT_STICK:
+        {
+            HitInfo hit{};
+            hitscan(actor->spr.pos.plusZ(-8), actor->sector(), DVector3(actor->spr.Angles.Yaw.ToVector() * 1024, 0), hit, CLIPMASK_MISSILE);
+
+            if (hit.hitWall == nullptr)
+            {
+                KillActor(actor);
+                break;
+            }
+
+            hit.hitWall->extra |= WALLFX_DONT_STICK;
+            KillActor(actor);
+            break;
+        }
+
+        case TRIGGER_SECTOR:
+        {
+            actor->sector()->extra |= (SECTFX_TRIGGER);
+            change_actor_stat(actor, STAT_TRIGGER);
+            break;
+        }
+
+        case DELETE_SPRITE:
+        {
+            change_actor_stat(actor, STAT_DELETE_SPRITE);
+            break;
+        }
+
+        case SPAWN_ITEMS:
+        {
+            if ((actor->spr.extra & SPRX_MULTI_ITEM))
+            {
+                if (numplayers <= 1 || gNet.MultiGameType == MULTI_GAME_COOPERATIVE)
+                {
+                    KillActor(actor);
+                    break;
+                }
+            }
+
+
+            change_actor_stat(actor, STAT_SPAWN_ITEMS);
+            break;
+        }
+
+        case CEILING_FLOOR_PIC_OVERRIDE:
+        {
+            // block hitscans depending on translucency
+            if (SP_TAG7(actor) == 0 || SP_TAG7(actor) == 1)
+            {
+                if (SP_TAG3(actor) == 0)
+                    actor->sector()->ceilingstat |= (CSTAT_SECTOR_FAF_BLOCK_HITSCAN);
+                else
+                    actor->sector()->floorstat |= (CSTAT_SECTOR_FAF_BLOCK_HITSCAN);
+            }
+            else if (TEST_BOOL1(actor))
+            {
+                if (SP_TAG3(actor) == 0)
+                    actor->sector()->ceilingstat |= (CSTAT_SECTOR_FAF_BLOCK_HITSCAN);
+                else
+                    actor->sector()->floorstat |= (CSTAT_SECTOR_FAF_BLOCK_HITSCAN);
+            }
+
+            // copy tag 7 to tag 6 and pre-shift it
+            SP_TAG6(actor) = SP_TAG7(actor);
+            SP_TAG6(actor) <<= 7;
+            if (SP_TAG2(actor) >= 0 && !actor->texparam.isValid()) actor->texparam = tileGetTextureID(SP_TAG2(actor));
+            change_actor_stat(actor, STAT_CEILING_FLOOR_PIC_OVERRIDE);
+            break;
+        }
+
+        case QUAKE_SPOT:
+        {
+            change_actor_stat(actor, STAT_QUAKE_SPOT);
+            SET_SP_TAG13(actor, ((SP_TAG6(actor) * 10) * 120));
+            break;
+        }
+
+        case SECT_CHANGOR:
+        {
+            if (SP_TAG4(actor) >= 0 && !actor->texparam.isValid()) actor->texparam = tileGetTextureID(SP_TAG4(actor));
+            change_actor_stat(actor, STAT_CHANGOR);
+            break;
+        }
+
+
+        case SECT_VATOR:
+        {
+            short speed, vel, time, type, start_on, floor_vator;
+            SpawnUser(actor, 0, nullptr);
+
+            // vator already set - ceiling AND floor vator
+            if ((sectp->extra & SECTFX_VATOR))
+            {
+                sectp->u_defined = true;
+                sectp->flags |= (SECTFU_VATOR_BOTH);
+            }
+            sectp->extra |= (SECTFX_VATOR);
+            SetSectorWallBits(actor->sector(), WALLFX_DONT_STICK, true, true);
+            actor->sector()->extra |= (SECTFX_DYNAMIC_AREA);
+
+            // don't step on toes of other sector settings
+            if (sectp->lotag == 0 && sectp->hitag == 0)
+                sectp->lotag = TAG_VATOR;
+
+            type = SP_TAG3(actor);
+            speed = SP_TAG4(actor);
+            vel = SP_TAG5(actor);
+            time = SP_TAG9(actor);
+            start_on = !!TEST_BOOL1(actor);
+            floor_vator = true;
+            if (actor->spr.cstat & (CSTAT_SPRITE_YFLIP))
+                floor_vator = false;
+
+            actor->user.jump_speed = actor->user.vel_tgt = speed;
+            actor->user.vel_rate = vel;
+            actor->user.WaitTics = time * 15; // 1/8 of a sec
+            actor->user.Tics = 0;
+
+            actor->user.Flags |= (SPR_ACTIVE);
+
+            switch (type)
+            {
+            case 0:
+                actor->user.Flags &= ~(SPR_ACTIVE);
+                actor->user.ActorActionFunc = AF(DoVator);
+                break;
+            case 1:
+                actor->user.Flags &= ~(SPR_ACTIVE);
+                actor->user.ActorActionFunc = AF(DoVator);
+                break;
+            case 2:
+                actor->user.ActorActionFunc = AF(DoVatorAuto);
+                break;
+            case 3:
+                actor->user.Flags &= ~(SPR_ACTIVE);
+                actor->user.ActorActionFunc = AF(DoVatorAuto);
+                break;
+            }
+
+            if (floor_vator)
+            {
+                // start off
+                actor->user.pos.Z = sectp->floorz;
+                actor->user.z_tgt = actor->spr.pos.Z;
+                if (start_on)
+                {
+                    double amt = actor->spr.pos.Z - sectp->floorz;
+
+                    // start in the on position
+                    sectp->setfloorz(actor->spr.pos.Z);
+                    actor->user.z_tgt = actor->user.pos.Z;
+
+                    MoveSpritesWithSector(actor->sector(), amt, false); // floor
+                }
+
+                // set orig z
+                actor->opos.Z = sectp->floorz;
+                actor->user.oz = actor->opos.Z;
+            }
+            else
+            {
+                // start off
+                actor->user.pos.Z = sectp->ceilingz;
+                actor->user.z_tgt = actor->spr.pos.Z;
+                if (start_on)
+                {
+                    double amt = actor->spr.pos.Z - sectp->ceilingz;
+
+                    // starting in the on position
+                    sectp->setceilingz(actor->spr.pos.Z);
+                    actor->user.z_tgt = actor->user.pos.Z;
+
+                    MoveSpritesWithSector(actor->sector(), amt, true); // ceiling
+                }
+
+                // set orig z
+                actor->opos.Z = sectp->ceilingz;
+                actor->user.oz = actor->opos.Z;
+            }
+
+
+            change_actor_stat(actor, STAT_VATOR);
+            break;
+        }
+
+        case SECT_ROTATOR_PIVOT:
+        {
+            change_actor_stat(actor, STAT_ROTATOR_PIVOT);
+            break;
+        }
+
+        case SECT_ROTATOR:
+        {
+            short time, type;
+            short wallcount, startwall, endwall, w;
+            SpawnUser(actor, 0, nullptr);
+
+            SetSectorWallBits(actor->sector(), WALLFX_DONT_STICK, true, true);
+
+            // need something for this
+            sectp->lotag = TAG_ROTATOR;
+            sectp->hitag = actor->spr.lotag;
+
+            type = SP_TAG3(actor);
+            time = SP_TAG9(actor);
+
+            actor->user.WaitTics = time * 15; // 1/8 of a sec
+            actor->user.Tics = 0;
+
+            actor->user.rotator.Alloc();
+            actor->user.rotator->open_dest = SP_TAG5(actor);
+            actor->user.rotator->speed = SP_TAG7(actor);
+            actor->user.rotator->vel = SP_TAG8(actor);
+            actor->user.rotator->pos = 0; // closed
+            actor->user.rotator->tgt = actor->user.rotator->open_dest; // closed
+            actor->user.rotator->SetNumWalls(actor->sector()->walls.Size());
+
+            actor->user.rotator->orig_speed = actor->user.rotator->speed;
+
+            wallcount = 0;
+            for (auto& wal : actor->sector()->walls)
+            {
+                actor->user.rotator->orig[wallcount] = wal.pos;
+                wallcount++;
+            }
+
+            actor->user.Flags |= (SPR_ACTIVE);
+
+            switch (type)
+            {
+            case 0:
+                actor->user.Flags &= ~(SPR_ACTIVE);
+                actor->user.ActorActionFunc = AF(DoRotator);
+                break;
+            case 1:
+                actor->user.Flags &= ~(SPR_ACTIVE);
+                actor->user.ActorActionFunc = AF(DoRotator);
+                break;
+            }
+
+            change_actor_stat(actor, STAT_ROTATOR);
+            break;
+        }
+
+        case SECT_SLIDOR:
+        {
+            short time, type;
+
+            SpawnUser(actor, 0, nullptr);
+
+            SetSectorWallBits(actor->sector(), WALLFX_DONT_STICK, true, true);
+
+            // need something for this
+            sectp->lotag = TAG_SLIDOR;
+            sectp->hitag = actor->spr.lotag;
+
+            type = SP_TAG3(actor);
+            time = SP_TAG9(actor);
+
+            actor->user.WaitTics = time * 15; // 1/8 of a sec
+            actor->user.Tics = 0;
+
+            actor->user.rotator.Alloc();
+            actor->user.rotator->open_dest = SP_TAG5(actor);
+            actor->user.rotator->speed = SP_TAG7(actor);
+            actor->user.rotator->vel = SP_TAG8(actor);
+            actor->user.rotator->pos = 0; // closed
+            actor->user.rotator->tgt = actor->user.rotator->open_dest; // closed
+            actor->user.rotator->ClearWalls();
+            actor->user.rotator->orig_speed = actor->user.rotator->speed;
+
+            actor->user.Flags |= (SPR_ACTIVE);
+
+            switch (type)
+            {
+            case 0:
+                actor->user.Flags &= ~(SPR_ACTIVE);
+                actor->user.ActorActionFunc = AF(DoSlidor);
+                break;
+            case 1:
+                actor->user.Flags &= ~(SPR_ACTIVE);
+                actor->user.ActorActionFunc = AF(DoSlidor);
+                break;
+            }
+
+
+            if (TEST_BOOL5(actor))
+            {
+                DoSlidorInstantClose(actor);
+            }
+
+            change_actor_stat(actor, STAT_SLIDOR);
+            break;
+        }
+
+        case SECT_SPIKE:
+        {
+            short speed, vel, time, type, start_on, floor_vator;
+            double florz, ceilz;
+            Collision trash;
+            SpawnUser(actor, 0, nullptr);
+
+            SetSectorWallBits(actor->sector(), WALLFX_DONT_STICK, false, true);
+            actor->sector()->extra |= (SECTFX_DYNAMIC_AREA);
+
+            type = SP_TAG3(actor);
+            speed = SP_TAG4(actor);
+            vel = SP_TAG5(actor);
+            time = SP_TAG9(actor);
+            start_on = !!TEST_BOOL1(actor);
+            floor_vator = true;
+            if (actor->spr.cstat & (CSTAT_SPRITE_YFLIP))
+                floor_vator = false;
+
+            actor->user.jump_speed = actor->user.vel_tgt = speed;
+            actor->user.vel_rate = vel;
+            actor->user.WaitTics = time * 15; // 1/8 of a sec
+            actor->user.Tics = 0;
+
+            actor->user.Flags |= (SPR_ACTIVE);
+
+            switch (type)
+            {
+            case 0:
+                actor->user.Flags &= ~(SPR_ACTIVE);
+                actor->user.ActorActionFunc = AF(DoSpike);
+                break;
+            case 1:
+                actor->user.Flags &= ~(SPR_ACTIVE);
+                actor->user.ActorActionFunc = AF(DoSpike);
+                break;
+            case 2:
+                actor->user.ActorActionFunc = AF(DoSpikeAuto);
+                break;
+            case 3:
+                actor->user.Flags &= ~(SPR_ACTIVE);
+                actor->user.ActorActionFunc = AF(DoSpikeAuto);
+                break;
+            }
+
+            getzrangepoint(actor->spr.pos, actor->sector(), &ceilz, &trash, &florz, &trash);
+
+            if (floor_vator)
+            {
+                actor->user.zclip = florz;
+
+                // start off
+                actor->user.pos.Z = actor->user.zclip;
+                actor->user.z_tgt = actor->spr.pos.Z;
+                if (start_on)
+                {
+                    // start in the on position
+                    actor->user.zclip = actor->spr.pos.Z;
+                    actor->user.z_tgt = actor->user.pos.Z;
+                    SpikeAlign(actor);
+                }
+
+                // set orig z
+                actor->user.oz = actor->user.zclip;
+                actor->opos.Z = actor->user.oz;
+            }
+            else
+            {
+                actor->user.zclip = ceilz;
+
+                // start off
+                actor->user.pos.Z = actor->user.zclip;
+                actor->user.z_tgt = actor->spr.pos.Z;
+                if (start_on)
+                {
+                    // starting in the on position
+                    actor->user.zclip = actor->spr.pos.Z;
+                    actor->user.z_tgt = actor->user.pos.Z;
+                    SpikeAlign(actor);
+                }
+
+                // set orig z
+                actor->user.oz = actor->user.zclip;
+                actor->opos.Z = actor->user.oz;
+            }
+
+            change_actor_stat(actor, STAT_SPIKE);
+            break;
+        }
+
+        case LIGHTING:
+        {
+            int wallcount = 0;
+            int8_t* wall_shade;
+
+            LIGHT_Tics(actor) = 0;
+
+            if (LIGHT_ShadeInc(actor) == 0)
+                LIGHT_ShadeInc(actor) = 1;
+
+            // save off original floor and ceil shades
+            LIGHT_FloorShade(actor) = actor->sector()->floorshade;
+            LIGHT_CeilingShade(actor) = actor->sector()->ceilingshade;
+
+            // count walls of sector
+            for (auto& wal : actor->sector()->walls)
+            {
+                wallcount++;
+                if (TEST_BOOL5(actor))
+                {
+                    if (wal.twoSided())
+                        wallcount++;
+                }
+            }
+
+            SpawnUser(actor, 0, nullptr);
+            actor->user.WallShade.Resize(wallcount);
+            wallcount = 0;
+            wall_shade = actor->user.WallShade.Data();
+
+            // save off original wall shades
+            for (auto& wal : actor->sector()->walls)
+            {
+                wall_shade[wallcount] = wal.shade;
+                wallcount++;
+                if (TEST_BOOL5(actor))
+                {
+                    if (wal.twoSided())
+                    {
+                        wall_shade[wallcount] = wal.nextWall()->shade;
+                        wallcount++;
+                    }
+                }
+            }
+
+            actor->user.spal = actor->spr.pal;
+
+            // DON'T USE COVER function
+            change_actor_stat(actor, STAT_LIGHTING, true);
+            break;
+        }
+
+        case LIGHTING_DIFFUSE:
+        {
+            int wallcount = 0;
+            int8_t* wall_shade;
+
+            LIGHT_Tics(actor) = 0;
+
+            // save off original floor and ceil shades
+            LIGHT_FloorShade(actor) = actor->sector()->floorshade;
+            LIGHT_CeilingShade(actor) = actor->sector()->ceilingshade;
+
+            // count walls of sector
+            for (auto& wal : actor->sector()->walls)
+            {
+                wallcount++;
+                if (TEST_BOOL5(actor))
+                {
+                    if (wal.twoSided())
+                        wallcount++;
+                }
+            }
+
+            // !LIGHT
+            // make an wall_shade array and put it in User
+            SpawnUser(actor, 0, nullptr);
+            actor->user.WallShade.Resize(wallcount);
+            wallcount = 0;
+            wall_shade = actor->user.WallShade.Data();
+
+            // save off original wall shades
+            for (auto& wal : actor->sector()->walls)
+            {
+                wall_shade[wallcount] = wal.shade;
+                wallcount++;
+                if (TEST_BOOL5(actor))
+                {
+                    if (wal.twoSided())
+                    {
+                        wall_shade[wallcount] = wal.nextWall()->shade;
+                        wallcount++;
+                    }
+                }
+            }
+
+            // DON'T USE COVER function
+            change_actor_stat(actor, STAT_LIGHTING_DIFFUSE, true);
+            break;
+        }
+
+        case SECT_VATOR_DEST:
+            change_actor_stat(actor, STAT_VATOR);
+            break;
+
+        case SO_WALL_DONT_MOVE_UPPER:
+            change_actor_stat(actor, STAT_WALL_DONT_MOVE_UPPER);
+            break;
+
+        case SO_WALL_DONT_MOVE_LOWER:
+            change_actor_stat(actor, STAT_WALL_DONT_MOVE_LOWER);
+            break;
+
+        case FLOOR_SLOPE_DONT_DRAW:
+            change_actor_stat(actor, STAT_FLOOR_SLOPE_DONT_DRAW);
+            break;
+
+        case DEMO_CAMERA:
+            actor->vel.Z = 100 / 256.; //attempt horiz control
+            change_actor_stat(actor, STAT_DEMO_CAMERA);
+            break;
+
+        case LAVA_ERUPT:
+        {
+
+            SpawnUser(actor, ST1, nullptr);
+
+            change_actor_stat(actor, STAT_NO_STATE);
+            actor->user.ActorActionFunc = AF(DoLavaErupt);
+
+            // interval between erupts
+            if (SP_TAG10(actor) == 0)
+                SP_TAG10(actor) = 20;
+
+            // interval in seconds
+            actor->user.WaitTics = RandomRange(SP_TAG10(actor)) * 120;
+
+            // time to erupt
+            if (SP_TAG9(actor) == 0)
+                SP_TAG9(actor) = 10;
+
+            actor->spr.pos.Z += 30;
+
+            break;
+        }
+
+
+        case SECT_EXPLODING_CEIL_FLOOR:
+        {
+            SetSectorWallBits(actor->sector(), WALLFX_DONT_STICK, false, true);
+
+            if ((sectp->floorstat & CSTAT_SECTOR_SLOPE))
+            {
+                SP_TAG5(actor) = sectp->floorheinum;
+                sectp->setfloorslope(0);
+            }
+
+            if ((sectp->ceilingstat & CSTAT_SECTOR_SLOPE))
+            {
+                SP_TAG6(actor) = sectp->ceilingheinum;
+                sectp->setceilingslope(0);
+            }
+
+            SP_TAG4(actor) = int(fabs(sectp->ceilingz - sectp->floorz));
+
+            sectp->setceilingz(sectp->floorz);
+
+            change_actor_stat(actor, STAT_EXPLODING_CEIL_FLOOR);
+            break;
+        }
+
+        case SECT_COPY_SOURCE:
+            change_actor_stat(actor, STAT_COPY_SOURCE);
+            break;
+
+        case SECT_COPY_DEST:
+        {
+            SetSectorWallBits(actor->sector(), WALLFX_DONT_STICK, false, true);
+            change_actor_stat(actor, STAT_COPY_DEST);
+            break;
+        }
+
+
+        case SECT_WALL_MOVE:
+            // this type considers tilenum 0 invalid.
+            if (SP_TAG5(actor) > 0 && !actor->texparam.isValid()) actor->texparam = tileGetTextureID(SP_TAG5(actor));
+            if (SP_TAG6(actor) > 0 && !actor->texparam.isValid()) actor->texparam2 = tileGetTextureID(SP_TAG6(actor));
+            change_actor_stat(actor, STAT_WALL_MOVE);
+            break;
+        case SECT_WALL_MOVE_CANSEE:
+            change_actor_stat(actor, STAT_WALL_MOVE_CANSEE);
+            break;
+
+        case SPRI_CLIMB_MARKER:
+        {
+            // setup climb marker
+            change_actor_stat(actor, STAT_CLIMB_MARKER);
+
+            // make a QUICK_LADDER sprite automatically
+            auto actorNew = insertActor(actor->sector(), STAT_QUICK_LADDER);
+
+            actorNew->spr.cstat = 0;
+            actorNew->spr.extra = 0;
+            actorNew->spr.pos = actor->spr.pos;
+            actorNew->spr.Angles.Yaw += DAngle180;
+            actorNew->spr.picnum = actor->spr.picnum;
+
+            actorNew->spr.pos += actor->spr.Angles.Yaw.ToVector() * 24;
+
+            break;
+        }
+
+        case SO_AUTO_TURRET:
+#if 0
+            switch (gNet.MultiGameType)
+            {
+            case MULTI_GAME_NONE:
+                change_actor_stat(actor, STAT_ST1);
+                break;
+            case MULTI_GAME_COMMBAT:
+                KillActor(actor);
+                break;
+            case MULTI_GAME_COOPERATIVE:
+                change_actor_stat(actor, STAT_ST1);
+                break;
+            }
+#else
+            change_actor_stat(actor, STAT_ST1);
+#endif
+            break;
+
+        case SO_DRIVABLE_ATTRIB:
+        case SO_SCALE_XY_MULT:
+        case SO_SCALE_INFO:
+        case SO_SCALE_POINT_INFO:
+        case SO_TORNADO:
+        case SO_FLOOR_MORPH:
+        case SO_AMOEBA:
+        case SO_SET_SPEED:
+        case SO_ANGLE:
+        case SO_SPIN:
+        case SO_SPIN_REVERSE:
+        case SO_BOB_START:
+        case SO_BOB_SPEED:
+        case SO_TURN_SPEED:
+        case SO_SYNC1:
+        case SO_SYNC2:
+        case SO_LIMIT_TURN:
+        case SO_MATCH_EVENT:
+        case SO_MAX_DAMAGE:
+        case SO_RAM_DAMAGE:
+        case SO_SLIDE:
+        case SO_KILLABLE:
+        case SECT_SO_SPRITE_OBJ:
+        case SECT_SO_DONT_ROTATE:
+        case SECT_SO_CLIP_DIST:
+        {
+            // NOTE: These will get deleted by the sector
+            // object
+            // setup code
+
+            change_actor_stat(actor, STAT_ST1);
+            break;
+        }
+
+        case SOUND_SPOT:
+            SET_SP_TAG13(actor, SP_TAG4(actor));
+            change_actor_stat(actor, STAT_SOUND_SPOT);
+            break;
+
+        case STOP_SOUND_SPOT:
+            change_actor_stat(actor, STAT_STOP_SOUND_SPOT);
+            break;
+
+        case SPAWN_SPOT:
+            if (!actor->hasU())
+                SpawnUser(actor, ST1, nullptr);
+
+            if (actor->spr.scale.X == 1 && actor->spr.scale.Y == 1) // clear default scale.
+                actor->spr.scale = DVector2(0, 0);
+
+            change_actor_stat(actor, STAT_SPAWN_SPOT);
+            break;
+
+        case VIEW_THRU_CEILING:
+        case VIEW_THRU_FLOOR:
+        {
+            // make sure there is only one set per level of these
+            SWStatIterator it2(STAT_FAF);
+            while (auto itActor = it2.Next())
+            {
+                if (itActor->spr.hitag == actor->spr.hitag && itActor->spr.lotag == actor->spr.lotag)
+                {
+                    I_Error("Two VIEW_THRU_ tags with same match found on level\n1: x %d, y %d \n2: x %d, y %d", int(actor->spr.pos.X), int(actor->spr.pos.Y), int(itActor->spr.pos.X), int(itActor->spr.pos.Y));
+                }
+            }
+            change_actor_stat(actor, STAT_FAF);
+            break;
+        }
+
+        case VIEW_LEVEL1:
+        case VIEW_LEVEL2:
+        case VIEW_LEVEL3:
+        case VIEW_LEVEL4:
+        case VIEW_LEVEL5:
+        case VIEW_LEVEL6:
+        {
+            change_actor_stat(actor, STAT_FAF);
+            break;
+        }
+
+        case PLAX_GLOB_Z_ADJUST:
+        {
+            actor->sector()->extra |= (SECTFX_Z_ADJUST);
+            PlaxCeilGlobZadjust = SP_TAG2(actor) * zmaptoworld;
+            PlaxFloorGlobZadjust = SP_TAG3(actor) * zmaptoworld;
+            KillActor(actor);
+            break;
+        }
+
+        case CEILING_Z_ADJUST:
+        {
+            actor->sector()->extra |= (SECTFX_Z_ADJUST);
+            change_actor_stat(actor, STAT_ST1);
+            break;
+        }
+
+        case FLOOR_Z_ADJUST:
+        {
+            actor->sector()->extra |= (SECTFX_Z_ADJUST);
+            change_actor_stat(actor, STAT_ST1);
+            break;
+        }
+
+        case WARP_TELEPORTER:
+        {
+            actor->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
+            actor->sector()->extra |= (SECTFX_WARP_SECTOR);
+            change_actor_stat(actor, STAT_WARP);
+
+            // if just a destination teleporter
+            // don't set up flags
+            if (SP_TAG10(actor) == 1)
+                break;
+
+            // move the the next wall
+            auto start_wall = actor->sector()->walls.Data();
+            auto wall_num = start_wall;
+
+            // Travel all the way around loop setting wall bits
+            do
+            {
+                // DO NOT TAG WHITE WALLS!
+                if (wall_num->twoSided())
+                {
+                    wall_num->cstat |= (CSTAT_WALL_WARP_HITSCAN);
+                }
+
+                wall_num = wall_num->point2Wall();
+            } while (wall_num != start_wall);
+
+            break;
+        }
+
+        case WARP_CEILING_PLANE:
+        case WARP_FLOOR_PLANE:
+        {
+            actor->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
+            actor->sector()->extra |= (SECTFX_WARP_SECTOR);
+            change_actor_stat(actor, STAT_WARP);
+            break;
+        }
+
+        case WARP_COPY_SPRITE1:
+            actor->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
+            actor->sector()->extra |= (SECTFX_WARP_SECTOR);
+            change_actor_stat(actor, STAT_WARP_COPY_SPRITE1);
+            break;
+        case WARP_COPY_SPRITE2:
+            actor->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
+            actor->sector()->extra |= (SECTFX_WARP_SECTOR);
+            change_actor_stat(actor, STAT_WARP_COPY_SPRITE2);
+            break;
+
+        case FIREBALL_TRAP:
+        case BOLT_TRAP:
+        case SPEAR_TRAP:
+        {
+            SpawnUser(actor, 0, nullptr);
+            ClearOwner(actor);
+            change_actor_stat(actor, STAT_TRAP);
+            break;
+        }
+
+        case SECT_SO_DONT_BOB:
+        {
+            sectp->u_defined = true;
+            sectp->flags |= (SECTFU_SO_DONT_BOB);
+            KillActor(actor);
+            break;
+        }
+
+        case SECT_LOCK_DOOR:
+        {
+            sectp->u_defined = true;
+            sectp->number = actor->spr.lotag;
+            sectp->stag = SECT_LOCK_DOOR;
+            KillActor(actor);
+            break;
+        }
+
+        case SECT_SO_SINK_DEST:
+        {
+            sectp->u_defined = true;
+            sectp->flags |= (SECTFU_SO_SINK_DEST);
+            sectp->number = actor->spr.lotag;  // acually the offset Z
+            // value
+            KillActor(actor);
+            break;
+        }
+
+        case SECT_SO_DONT_SINK:
+        {
+            sectp->u_defined = true;
+            sectp->flags |= (SECTFU_SO_DONT_SINK);
+            KillActor(actor);
+            break;
+        }
+
+        case SO_SLOPE_FLOOR_TO_POINT:
+        {
+            sectp->u_defined = true;
+            sectp->flags |= (SECTFU_SO_SLOPE_FLOOR_TO_POINT);
+            sectp->extra |= (SECTFX_DYNAMIC_AREA);
+            KillActor(actor);
+            break;
+        }
+
+        case SO_SLOPE_CEILING_TO_POINT:
+        {
+            sectp->u_defined = true;
+            sectp->flags |= (SECTFU_SO_SLOPE_CEILING_TO_POINT);
+            sectp->extra |= (SECTFX_DYNAMIC_AREA);
+            KillActor(actor);
+            break;
+        }
+        case SECT_SO_FORM_WHIRLPOOL:
+        {
+            sectp->u_defined = true;
+            sectp->stag = SECT_SO_FORM_WHIRLPOOL;
+            sectp->height = actor->spr.lotag;
+            KillActor(actor);
+            break;
+        }
+
+        case SECT_ACTOR_BLOCK:
+        {
+            // move the the next wall
+            auto start_wall = actor->sector()->walls.Data();
+            auto wall_num = start_wall;
+
+            // Travel all the way around loop setting wall bits
+            do
+            {
+                wall_num->cstat |= (CSTAT_WALL_BLOCK_ACTOR);
+                if (wall_num->twoSided())
+                    wall_num->nextWall()->cstat |= CSTAT_WALL_BLOCK_ACTOR;
+                wall_num = wall_num->point2Wall();
+            } while (wall_num != start_wall);
+
+            KillActor(actor);
+            break;
+        }
+        }
+    }
+}
+
+DEFINE_ACTION_FUNCTION(DSWTrigger1, Initialize)
+{
+    PARAM_SELF_PROLOGUE(DSWActor);
+    SetupST1(self);
+    return 0;
+}
+
+
+void SetupKey(DSWActor* actor, int num)
+{
+
+    if (gNet.MultiGameType == MULTI_GAME_COMMBAT || gNet.MultiGameType == MULTI_GAME_AI_BOTS)
+    {
+        KillActor(actor);
+        return;
+    }
+
+    SpawnUser(actor, 0, nullptr);
+
+    actor->spr.picnum = actor->user.ID = actor->spr.picnum;
+
+    actor->user.spal = actor->spr.pal; // Set the palette from build
+
+    //actor->spr.cstat |= (CSTAT_SPRITE_ALIGNMENT_WALL);
+
+    ChangeState(actor, s_Key[num]);
+
+    change_actor_stat(actor, STAT_ITEM);
+    actor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN | CSTAT_SPRITE_ONE_SIDE);
+    actor->spr.cstat2 |= CSTAT2_SPRITE_NOANIMATE;
+    actor->user.Radius = 500;
+    actor->spr.hitag = LUMINOUS; //Set so keys over ride colored lighting
+
+    DoActorZrange(actor);
+}  
+
+DEFINE_ACTION_FUNCTION(DSWKey, Initialize)
+{
+    PARAM_SELF_PROLOGUE(DSWActor);
+    SetupKey(self, self->IntVar("keynum"));
+    return 0;
+}
+
+
 //---------------------------------------------------------------------------
 //
 //
@@ -1579,7 +2674,7 @@ void SpriteSetup(void)
 
 
             // crack sprite
-            if (actor->spr.picnum == 80)
+            if (actor->spr.picnum == CRACK)
             {
                 actor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK);
                 actor->spr.cstat |= (CSTAT_SPRITE_BLOCK_HITSCAN|CSTAT_SPRITE_BLOCK_MISSILE);;
@@ -1649,1055 +2744,7 @@ void SpriteSetup(void)
 
         case ST1:
         {
-            sectortype* sectp = actor->sector();
-            short tag;
-            short bit;
-
-            // get rid of defaults
-            if (SP_TAG3(actor) == 32)
-                SP_TAG3(actor) = 0;
-
-            tag = actor->spr.hitag;
-
-            actor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
-            actor->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
-
-            // for bounding sector objects
-            if ((tag >= 500 && tag < 600) || tag == SECT_SO_CENTER)
-            {
-                // NOTE: These will get deleted by the sector object
-                // setup code
-                change_actor_stat(actor, STAT_ST1);
-                break;
-            }
-
-            if (tag < 16)
-            {
-                bit = 1 << (tag);
-
-                actor->sector()->extra |= (bit);
-
-                if (bit & (SECTFX_SINK))
-                {
-                    sectp->u_defined = true;
-                    sectp->depth_fixed = IntToFixed(actor->spr.lotag);
-                    KillActor(actor);
-                }
-                else if (bit & (SECTFX_OPERATIONAL))
-                {
-                    KillActor(actor);
-                }
-                else if (bit & (SECTFX_CURRENT))
-                {
-                    sectp->u_defined = true;
-                    sectp->speed = actor->spr.lotag;
-                    sectp->angle = actor->spr.Angles.Yaw;
-                    KillActor(actor);
-                }
-                else if (bit & (SECTFX_NO_RIDE))
-                {
-                    change_actor_stat(actor, STAT_NO_RIDE);
-                }
-                else if (bit & (SECTFX_DIVE_AREA))
-                {
-                    sectp->u_defined = true;
-                    sectp->number = actor->spr.lotag;
-                    change_actor_stat(actor, STAT_DIVE_AREA);
-                }
-                else if (bit & (SECTFX_UNDERWATER))
-                {
-                    sectp->u_defined = true;
-                    sectp->number = actor->spr.lotag;
-                    change_actor_stat(actor, STAT_UNDERWATER);
-                }
-                else if (bit & (SECTFX_UNDERWATER2))
-                {
-                    sectp->u_defined = true;
-                    sectp->number = actor->spr.lotag;
-					if (actor->spr.clipdist == 1) // notreallyclipdist
-                        sectp->flags |= (SECTFU_CANT_SURFACE);
-                    change_actor_stat(actor, STAT_UNDERWATER2);
-                }
-            }
-            else
-            {
-                switch (tag)
-                {
-#if 0
-                case MULTI_PLAYER_START:
-                    change_actor_stat(actor, STAT_MULTI_START + actor->spr.lotag);
-                    break;
-                case MULTI_COOPERATIVE_START:
-                    change_actor_stat(actor, STAT_CO_OP_START + actor->spr.lotag);
-                    break;
-#endif
-
-                case SECT_MATCH:
-                    sectp->u_defined = true;
-                    sectp->number = actor->spr.lotag;
-
-                    KillActor(actor);
-                    break;
-
-                case SLIDE_SECTOR:
-                    sectp->u_defined = true;
-                    sectp->flags |= (SECTFU_SLIDE_SECTOR);
-                    sectp->speed = SP_TAG2(actor);
-                    KillActor(actor);
-                    break;
-
-                case SECT_DAMAGE:
-                {
-                    sectp->u_defined = true;
-                    if (TEST_BOOL1(actor))
-                        sectp->flags |= (SECTFU_DAMAGE_ABOVE_SECTOR);
-                    sectp->damage = actor->spr.lotag;
-                    KillActor(actor);
-                    break;
-                }
-
-                case PARALLAX_LEVEL:
-                {
-                    parallaxyscale_override = 8192;
-                    pskybits_override = actor->spr.lotag;
-                    if (SP_TAG4(actor) > 2048)
-                        parallaxyscale_override = SP_TAG4(actor);
-                    defineSky(nullptr, pskybits_override, nullptr, 0, parallaxyscale_override / 8192.f);
-                    KillActor(actor);
-                    break;
-                }
-
-                case BREAKABLE:
-                    // used for wall info
-                    if (SP_TAG5(actor) >= 0 && !actor->texparam.isValid()) actor->texparam = tileGetTextureID(SP_TAG5(actor));
-
-                    change_actor_stat(actor, STAT_BREAKABLE);
-                    break;
-
-                case SECT_DONT_COPY_PALETTE:
-                {
-                    sectp->u_defined = true;
-                    sectp->flags |= (SECTFU_DONT_COPY_PALETTE);
-                    KillActor(actor);
-                    break;
-                }
-
-                case SECT_FLOOR_PAN:
-                {
-                    // if moves with SO
-                    if (TEST_BOOL1(actor))
-                        actor->vel.X = 0;
-                    else
-                        actor->vel.X = actor->spr.lotag * maptoworld;
-
-                    StartInterpolation(actor->sector(), Interp_Sect_FloorPanX);
-                    StartInterpolation(actor->sector(), Interp_Sect_FloorPanY);
-                    change_actor_stat(actor, STAT_FLOOR_PAN);
-                    break;
-                }
-
-                case SECT_CEILING_PAN:
-                {
-                    // if moves with SO
-                    if (TEST_BOOL1(actor))
-                        actor->vel.X = 0;
-                    else
-                        actor->vel.X = actor->spr.lotag * maptoworld;
-                    StartInterpolation(actor->sector(), Interp_Sect_CeilingPanX);
-                    StartInterpolation(actor->sector(), Interp_Sect_CeilingPanY);
-                    change_actor_stat(actor, STAT_CEILING_PAN);
-                    break;
-                }
-
-                case SECT_WALL_PAN_SPEED:
-                {
-                    HitInfo hit{};
-                    hitscan(actor->spr.pos.plusZ(-8), actor->sector(), DVector3(actor->spr.Angles.Yaw.ToVector() * 1024, 0), hit, CLIPMASK_MISSILE);
-
-                    if (hit.hitWall == nullptr)
-                    {
-                        KillActor(actor);
-                        break;
-                    }
-
-                    actor->tempwall = hit.hitWall;
-                    // if moves with SO
-                    if (TEST_BOOL1(actor))
-                        actor->vel.X = 0;
-                    else
-						actor->vel.X = actor->spr.lotag * maptoworld;
-                    actor->spr.Angles.Yaw = mapangle(SP_TAG6(actor));
-                    // attach to the sector that contains the wall
-                    ChangeActorSect(actor, hit.hitSector);
-                    StartInterpolation(hit.hitWall, Interp_Wall_PanX);
-                    StartInterpolation(hit.hitWall, Interp_Wall_PanY);
-                    change_actor_stat(actor, STAT_WALL_PAN);
-                    break;
-                }
-
-                case WALL_DONT_STICK:
-                {
-					HitInfo hit{};
-					hitscan(actor->spr.pos.plusZ(-8), actor->sector(), DVector3(actor->spr.Angles.Yaw.ToVector() * 1024, 0), hit, CLIPMASK_MISSILE);
-
-                    if (hit.hitWall == nullptr)
-                    {
-                        KillActor(actor);
-                        break;
-                    }
-
-                    hit.hitWall->extra |= WALLFX_DONT_STICK;
-                    KillActor(actor);
-                    break;
-                }
-
-                case TRIGGER_SECTOR:
-                {
-                    actor->sector()->extra |= (SECTFX_TRIGGER);
-                    change_actor_stat(actor, STAT_TRIGGER);
-                    break;
-                }
-
-                case DELETE_SPRITE:
-                {
-                    change_actor_stat(actor, STAT_DELETE_SPRITE);
-                    break;
-                }
-
-                case SPAWN_ITEMS:
-                {
-                    if ((actor->spr.extra & SPRX_MULTI_ITEM))
-                    {
-                        if (numplayers <= 1 || gNet.MultiGameType == MULTI_GAME_COOPERATIVE)
-                        {
-                            KillActor(actor);
-                            break;
-                        }
-                    }
-
-
-                    change_actor_stat(actor, STAT_SPAWN_ITEMS);
-                    break;
-                }
-
-                case CEILING_FLOOR_PIC_OVERRIDE:
-                {
-                    // block hitscans depending on translucency
-                    if (SP_TAG7(actor) == 0 || SP_TAG7(actor) == 1)
-                    {
-                        if (SP_TAG3(actor) == 0)
-                            actor->sector()->ceilingstat |= (CSTAT_SECTOR_FAF_BLOCK_HITSCAN);
-                        else
-                            actor->sector()->floorstat |= (CSTAT_SECTOR_FAF_BLOCK_HITSCAN);
-                    }
-                    else if (TEST_BOOL1(actor))
-                    {
-                        if (SP_TAG3(actor) == 0)
-                            actor->sector()->ceilingstat |= (CSTAT_SECTOR_FAF_BLOCK_HITSCAN);
-                        else
-                            actor->sector()->floorstat |= (CSTAT_SECTOR_FAF_BLOCK_HITSCAN);
-                    }
-
-                    // copy tag 7 to tag 6 and pre-shift it
-                    SP_TAG6(actor) = SP_TAG7(actor);
-                    SP_TAG6(actor) <<= 7;
-                    if (SP_TAG2(actor) >= 0 && !actor->texparam.isValid()) actor->texparam = tileGetTextureID(SP_TAG2(actor));
-                    change_actor_stat(actor, STAT_CEILING_FLOOR_PIC_OVERRIDE);
-                    break;
-                }
-
-                case QUAKE_SPOT:
-                {
-                    change_actor_stat(actor, STAT_QUAKE_SPOT);
-                    SET_SP_TAG13(actor, ((SP_TAG6(actor)*10) * 120));
-                    break;
-                }
-
-                case SECT_CHANGOR:
-                {
-                    if (SP_TAG4(actor) >= 0 && !actor->texparam.isValid()) actor->texparam = tileGetTextureID(SP_TAG4(actor));
-                    change_actor_stat(actor, STAT_CHANGOR);
-                    break;
-                }
-
-
-                case SECT_VATOR:
-                {
-                    short speed,vel,time,type,start_on,floor_vator;
-                    SpawnUser(actor, 0, nullptr);
-
-                    // vator already set - ceiling AND floor vator
-                    if ((sectp->extra & SECTFX_VATOR))
-                    {
-                        sectp->u_defined = true;
-                        sectp->flags |= (SECTFU_VATOR_BOTH);
-                    }
-                    sectp->extra |= (SECTFX_VATOR);
-                    SetSectorWallBits(actor->sector(), WALLFX_DONT_STICK, true, true);
-                    actor->sector()->extra |= (SECTFX_DYNAMIC_AREA);
-
-                    // don't step on toes of other sector settings
-                    if (sectp->lotag == 0 && sectp->hitag == 0)
-                        sectp->lotag = TAG_VATOR;
-
-                    type = SP_TAG3(actor);
-                    speed = SP_TAG4(actor);
-                    vel = SP_TAG5(actor);
-                    time = SP_TAG9(actor);
-                    start_on = !!TEST_BOOL1(actor);
-                    floor_vator = true;
-                    if (actor->spr.cstat & (CSTAT_SPRITE_YFLIP))
-                        floor_vator = false;
-
-                    actor->user.jump_speed = actor->user.vel_tgt = speed;
-                    actor->user.vel_rate = vel;
-                    actor->user.WaitTics = time*15; // 1/8 of a sec
-                    actor->user.Tics = 0;
-
-                    actor->user.Flags |= (SPR_ACTIVE);
-
-                    switch (type)
-                    {
-                    case 0:
-                        actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = AF(DoVator);
-                        break;
-                    case 1:
-                        actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = AF(DoVator);
-                        break;
-                    case 2:
-                        actor->user.ActorActionFunc = AF(DoVatorAuto);
-                        break;
-                    case 3:
-                        actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = AF(DoVatorAuto);
-                        break;
-                    }
-
-                    if (floor_vator)
-                    {
-                        // start off
-                        actor->user.pos.Z = sectp->floorz;
-                        actor->user.z_tgt = actor->spr.pos.Z;
-                        if (start_on)
-                        {
-                            double amt = actor->spr.pos.Z - sectp->floorz;
-
-                            // start in the on position
-                            sectp->setfloorz(actor->spr.pos.Z);
-                            actor->user.z_tgt = actor->user.pos.Z;
-
-                            MoveSpritesWithSector(actor->sector(), amt, false); // floor
-                        }
-
-                        // set orig z
-                        actor->opos.Z = sectp->floorz;
-                        actor->user.oz = actor->opos.Z;
-                    }
-                    else
-                    {
-                        // start off
-                        actor->user.pos.Z = sectp->ceilingz;
-                        actor->user.z_tgt = actor->spr.pos.Z;
-                        if (start_on)
-                        {
-                            double amt = actor->spr.pos.Z - sectp->ceilingz;
-
-                            // starting in the on position
-                            sectp->setceilingz(actor->spr.pos.Z);
-                            actor->user.z_tgt = actor->user.pos.Z;
-
-                            MoveSpritesWithSector(actor->sector(), amt, true); // ceiling
-                        }
-
-                        // set orig z
-                        actor->opos.Z = sectp->ceilingz;
-                        actor->user.oz = actor->opos.Z;
-                    }
-
-
-                    change_actor_stat(actor, STAT_VATOR);
-                    break;
-                }
-
-                case SECT_ROTATOR_PIVOT:
-                {
-                    change_actor_stat(actor, STAT_ROTATOR_PIVOT);
-                    break;
-                }
-
-                case SECT_ROTATOR:
-                {
-                    short time,type;
-                    short wallcount,startwall,endwall,w;
-                    SpawnUser(actor, 0, nullptr);
-
-                    SetSectorWallBits(actor->sector(), WALLFX_DONT_STICK, true, true);
-
-                    // need something for this
-                    sectp->lotag = TAG_ROTATOR;
-                    sectp->hitag = actor->spr.lotag;
-
-                    type = SP_TAG3(actor);
-                    time = SP_TAG9(actor);
-
-                    actor->user.WaitTics = time*15; // 1/8 of a sec
-                    actor->user.Tics = 0;
-
-                    actor->user.rotator.Alloc();
-                    actor->user.rotator->open_dest = SP_TAG5(actor);
-                    actor->user.rotator->speed = SP_TAG7(actor);
-                    actor->user.rotator->vel = SP_TAG8(actor);
-                    actor->user.rotator->pos = 0; // closed
-                    actor->user.rotator->tgt = actor->user.rotator->open_dest; // closed
-                    actor->user.rotator->SetNumWalls(actor->sector()->walls.Size());
-
-                    actor->user.rotator->orig_speed = actor->user.rotator->speed;
-
-                    wallcount = 0;
-                    for(auto& wal : actor->sector()->walls)
-                    {
-                        actor->user.rotator->orig[wallcount] = wal.pos;
-                        wallcount++;
-                    }
-
-                    actor->user.Flags |= (SPR_ACTIVE);
-
-                    switch (type)
-                    {
-                    case 0:
-                        actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = AF(DoRotator);
-                        break;
-                    case 1:
-                        actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = AF(DoRotator);
-                        break;
-                    }
-
-                    change_actor_stat(actor, STAT_ROTATOR);
-                    break;
-                }
-
-                case SECT_SLIDOR:
-                {
-                    short time,type;
-
-                    SpawnUser(actor, 0, nullptr);
-
-                    SetSectorWallBits(actor->sector(), WALLFX_DONT_STICK, true, true);
-
-                    // need something for this
-                    sectp->lotag = TAG_SLIDOR;
-                    sectp->hitag = actor->spr.lotag;
-
-                    type = SP_TAG3(actor);
-                    time = SP_TAG9(actor);
-
-                    actor->user.WaitTics = time*15; // 1/8 of a sec
-                    actor->user.Tics = 0;
-
-                    actor->user.rotator.Alloc();
-                    actor->user.rotator->open_dest = SP_TAG5(actor);
-                    actor->user.rotator->speed = SP_TAG7(actor);
-                    actor->user.rotator->vel = SP_TAG8(actor);
-                    actor->user.rotator->pos = 0; // closed
-                    actor->user.rotator->tgt = actor->user.rotator->open_dest; // closed
-                    actor->user.rotator->ClearWalls();
-                    actor->user.rotator->orig_speed = actor->user.rotator->speed;
-
-                    actor->user.Flags |= (SPR_ACTIVE);
-
-                    switch (type)
-                    {
-                    case 0:
-                        actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = AF(DoSlidor);
-                        break;
-                    case 1:
-                        actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = AF(DoSlidor);
-                        break;
-                    }
-
-
-                    if (TEST_BOOL5(actor))
-                    {
-                        DoSlidorInstantClose(actor);
-                    }
-
-                    change_actor_stat(actor, STAT_SLIDOR);
-                    break;
-                }
-
-                case SECT_SPIKE:
-                {
-                    short speed,vel,time,type,start_on,floor_vator;
-                    double florz,ceilz;
-                    Collision trash;
-                    SpawnUser(actor, 0, nullptr);
-
-                    SetSectorWallBits(actor->sector(), WALLFX_DONT_STICK, false, true);
-                    actor->sector()->extra |= (SECTFX_DYNAMIC_AREA);
-
-                    type = SP_TAG3(actor);
-                    speed = SP_TAG4(actor);
-                    vel = SP_TAG5(actor);
-                    time = SP_TAG9(actor);
-                    start_on = !!TEST_BOOL1(actor);
-                    floor_vator = true;
-                    if (actor->spr.cstat & (CSTAT_SPRITE_YFLIP))
-                        floor_vator = false;
-
-                    actor->user.jump_speed = actor->user.vel_tgt = speed;
-                    actor->user.vel_rate = vel;
-                    actor->user.WaitTics = time*15; // 1/8 of a sec
-                    actor->user.Tics = 0;
-
-                    actor->user.Flags |= (SPR_ACTIVE);
-
-                    switch (type)
-                    {
-                    case 0:
-                        actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = AF(DoSpike);
-                        break;
-                    case 1:
-                        actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = AF(DoSpike);
-                        break;
-                    case 2:
-                        actor->user.ActorActionFunc = AF(DoSpikeAuto);
-                        break;
-                    case 3:
-                        actor->user.Flags &= ~(SPR_ACTIVE);
-                        actor->user.ActorActionFunc = AF(DoSpikeAuto);
-                        break;
-                    }
-
-                    getzrangepoint(actor->spr.pos, actor->sector(), &ceilz, &trash, &florz, &trash);
-
-                    if (floor_vator)
-                    {
-                        actor->user.zclip = florz;
-
-                        // start off
-                        actor->user.pos.Z = actor->user.zclip;
-                        actor->user.z_tgt = actor->spr.pos.Z;
-                        if (start_on)
-                        {
-                            // start in the on position
-                            actor->user.zclip = actor->spr.pos.Z;
-                            actor->user.z_tgt = actor->user.pos.Z;
-                            SpikeAlign(actor);
-                        }
-
-                        // set orig z
-                        actor->user.oz = actor->user.zclip;
-                        actor->opos.Z = actor->user.oz;
-                    }
-                    else
-                    {
-                        actor->user.zclip = ceilz;
-
-                        // start off
-                        actor->user.pos.Z = actor->user.zclip;
-                        actor->user.z_tgt = actor->spr.pos.Z;
-                        if (start_on)
-                        {
-                            // starting in the on position
-                            actor->user.zclip = actor->spr.pos.Z;
-                            actor->user.z_tgt = actor->user.pos.Z;
-                            SpikeAlign(actor);
-                        }
-
-                        // set orig z
-                        actor->user.oz = actor->user.zclip;
-                        actor->opos.Z = actor->user.oz;
-                    }
-
-                    change_actor_stat(actor, STAT_SPIKE);
-                    break;
-                }
-
-                case LIGHTING:
-                {
-                    int wallcount = 0;
-                    int8_t* wall_shade;
-
-                    LIGHT_Tics(actor) = 0;
-
-                    if (LIGHT_ShadeInc(actor) == 0)
-                        LIGHT_ShadeInc(actor) = 1;
-
-                    // save off original floor and ceil shades
-                    LIGHT_FloorShade(actor) = actor->sector()->floorshade;
-                    LIGHT_CeilingShade(actor) = actor->sector()->ceilingshade;
-
-                    // count walls of sector
-                    for(auto& wal : actor->sector()->walls)
-                    {
-                        wallcount++;
-                        if (TEST_BOOL5(actor))
-                        {
-                            if (wal.twoSided())
-                                wallcount++;
-                        }
-                    }
-
-                    SpawnUser(actor, 0, nullptr);
-                    actor->user.WallShade.Resize(wallcount);
-                    wallcount = 0;
-                    wall_shade = actor->user.WallShade.Data();
-
-                    // save off original wall shades
-                    for(auto& wal : actor->sector()->walls)
-                    {
-                        wall_shade[wallcount] =  wal.shade;
-                        wallcount++;
-                        if (TEST_BOOL5(actor))
-                        {
-                            if (wal.twoSided())
-                            {
-                                wall_shade[wallcount] = wal.nextWall()->shade;
-                                wallcount++;
-                            }
-                        }
-                    }
-
-                    actor->user.spal = actor->spr.pal;
-
-                    // DON'T USE COVER function
-                    change_actor_stat(actor, STAT_LIGHTING, true);
-                    break;
-                }
-
-                case LIGHTING_DIFFUSE:
-                {
-                    int wallcount = 0;
-                    int8_t* wall_shade;
-
-                    LIGHT_Tics(actor) = 0;
-
-                    // save off original floor and ceil shades
-                    LIGHT_FloorShade(actor) = actor->sector()->floorshade;
-                    LIGHT_CeilingShade(actor) = actor->sector()->ceilingshade;
-
-                    // count walls of sector
-                    for (auto& wal : actor->sector()->walls)
-                    {
-                        wallcount++;
-                        if (TEST_BOOL5(actor))
-                        {
-                            if (wal.twoSided())
-                                wallcount++;
-                        }
-                    }
-
-                    // !LIGHT
-                    // make an wall_shade array and put it in User
-                    SpawnUser(actor, 0, nullptr);
-                    actor->user.WallShade.Resize(wallcount);
-                    wallcount = 0;
-                    wall_shade = actor->user.WallShade.Data();
-
-                    // save off original wall shades
-                    for (auto& wal : actor->sector()->walls)
-                    {
-                        wall_shade[wallcount] = wal.shade;
-                        wallcount++;
-                        if (TEST_BOOL5(actor))
-                        {
-                            if (wal.twoSided())
-                            {
-                                wall_shade[wallcount] = wal.nextWall()->shade;
-                                wallcount++;
-                            }
-                        }
-                    }
-
-                    // DON'T USE COVER function
-                    change_actor_stat(actor, STAT_LIGHTING_DIFFUSE, true);
-                    break;
-                }
-
-                case SECT_VATOR_DEST:
-                    change_actor_stat(actor, STAT_VATOR);
-                    break;
-
-                case SO_WALL_DONT_MOVE_UPPER:
-                    change_actor_stat(actor, STAT_WALL_DONT_MOVE_UPPER);
-                    break;
-
-                case SO_WALL_DONT_MOVE_LOWER:
-                    change_actor_stat(actor, STAT_WALL_DONT_MOVE_LOWER);
-                    break;
-
-                case FLOOR_SLOPE_DONT_DRAW:
-                    change_actor_stat(actor, STAT_FLOOR_SLOPE_DONT_DRAW);
-                    break;
-
-                case DEMO_CAMERA:
-                    actor->vel.Z = 100 / 256.; //attempt horiz control
-                    change_actor_stat(actor, STAT_DEMO_CAMERA);
-                    break;
-
-                case LAVA_ERUPT:
-                {
-
-                    SpawnUser(actor, ST1, nullptr);
-
-                    change_actor_stat(actor, STAT_NO_STATE);
-                    actor->user.ActorActionFunc = AF(DoLavaErupt);
-
-                    // interval between erupts
-                    if (SP_TAG10(actor) == 0)
-                        SP_TAG10(actor) = 20;
-
-                    // interval in seconds
-                    actor->user.WaitTics = RandomRange(SP_TAG10(actor)) * 120;
-
-                    // time to erupt
-                    if (SP_TAG9(actor) == 0)
-                        SP_TAG9(actor) = 10;
-
-                    actor->spr.pos.Z += 30;
-
-                    break;
-                }
-
-
-                case SECT_EXPLODING_CEIL_FLOOR:
-                {
-                    SetSectorWallBits(actor->sector(), WALLFX_DONT_STICK, false, true);
-
-                    if ((sectp->floorstat & CSTAT_SECTOR_SLOPE))
-                    {
-                        SP_TAG5(actor) = sectp->floorheinum;
-                        sectp->setfloorslope(0);
-                    }
-
-                    if ((sectp->ceilingstat & CSTAT_SECTOR_SLOPE))
-                    {
-                        SP_TAG6(actor) = sectp->ceilingheinum;
-                        sectp->setceilingslope(0);
-                    }
-
-                    SP_TAG4(actor) = int(fabs(sectp->ceilingz - sectp->floorz));
-
-                    sectp->setceilingz(sectp->floorz);
-
-                    change_actor_stat(actor, STAT_EXPLODING_CEIL_FLOOR);
-                    break;
-                }
-
-                case SECT_COPY_SOURCE:
-                    change_actor_stat(actor, STAT_COPY_SOURCE);
-                    break;
-
-                case SECT_COPY_DEST:
-                {
-                    SetSectorWallBits(actor->sector(), WALLFX_DONT_STICK, false, true);
-                    change_actor_stat(actor, STAT_COPY_DEST);
-                    break;
-                }
-
-
-                case SECT_WALL_MOVE:
-                    // this type considers tilenum 0 invalid.
-                    if (SP_TAG5(actor) > 0 && !actor->texparam.isValid()) actor->texparam = tileGetTextureID(SP_TAG5(actor));
-                    if (SP_TAG6(actor) > 0 && !actor->texparam.isValid()) actor->texparam2 = tileGetTextureID(SP_TAG6(actor));
-                    change_actor_stat(actor, STAT_WALL_MOVE);
-                    break;
-                case SECT_WALL_MOVE_CANSEE:
-                    change_actor_stat(actor, STAT_WALL_MOVE_CANSEE);
-                    break;
-
-                case SPRI_CLIMB_MARKER:
-                {
-                    // setup climb marker
-                    change_actor_stat(actor, STAT_CLIMB_MARKER);
-
-                    // make a QUICK_LADDER sprite automatically
-                    auto actorNew = insertActor(actor->sector(), STAT_QUICK_LADDER);
-
-                    actorNew->spr.cstat = 0;
-                    actorNew->spr.extra = 0;
-                    actorNew->spr.pos = actor->spr.pos;
-                    actorNew->spr.Angles.Yaw += DAngle180;
-                    actorNew->spr.picnum = actor->spr.picnum;
-
-                    actorNew->spr.pos += actor->spr.Angles.Yaw.ToVector() * 24;
-
-                    break;
-                }
-
-                case SO_AUTO_TURRET:
-#if 0
-                    switch (gNet.MultiGameType)
-                    {
-                    case MULTI_GAME_NONE:
-                        change_actor_stat(actor, STAT_ST1);
-                        break;
-                    case MULTI_GAME_COMMBAT:
-                        KillActor(actor);
-                        break;
-                    case MULTI_GAME_COOPERATIVE:
-                        change_actor_stat(actor, STAT_ST1);
-                        break;
-                    }
-#else
-                    change_actor_stat(actor, STAT_ST1);
-#endif
-                    break;
-
-                case SO_DRIVABLE_ATTRIB:
-                case SO_SCALE_XY_MULT:
-                case SO_SCALE_INFO:
-                case SO_SCALE_POINT_INFO:
-                case SO_TORNADO:
-                case SO_FLOOR_MORPH:
-                case SO_AMOEBA:
-                case SO_SET_SPEED:
-                case SO_ANGLE:
-                case SO_SPIN:
-                case SO_SPIN_REVERSE:
-                case SO_BOB_START:
-                case SO_BOB_SPEED:
-                case SO_TURN_SPEED:
-                case SO_SYNC1:
-                case SO_SYNC2:
-                case SO_LIMIT_TURN:
-                case SO_MATCH_EVENT:
-                case SO_MAX_DAMAGE:
-                case SO_RAM_DAMAGE:
-                case SO_SLIDE:
-                case SO_KILLABLE:
-                case SECT_SO_SPRITE_OBJ:
-                case SECT_SO_DONT_ROTATE:
-                case SECT_SO_CLIP_DIST:
-                {
-                    // NOTE: These will get deleted by the sector
-                    // object
-                    // setup code
-
-                    change_actor_stat(actor, STAT_ST1);
-                    break;
-                }
-
-                case SOUND_SPOT:
-                    SET_SP_TAG13(actor, SP_TAG4(actor));
-                    change_actor_stat(actor, STAT_SOUND_SPOT);
-                    break;
-
-                case STOP_SOUND_SPOT:
-                    change_actor_stat(actor, STAT_STOP_SOUND_SPOT);
-                    break;
-
-                case SPAWN_SPOT:
-                    if (!actor->hasU())
-                        SpawnUser(actor, ST1, nullptr);
-
-                    if (actor->spr.scale.X == 1 && actor->spr.scale.Y == 1) // clear default scale.
-                        actor->spr.scale = DVector2(0, 0);
-
-                    change_actor_stat(actor, STAT_SPAWN_SPOT);
-                    break;
-
-                case VIEW_THRU_CEILING:
-                case VIEW_THRU_FLOOR:
-                {
-                    // make sure there is only one set per level of these
-                    SWStatIterator it2(STAT_FAF);
-                    while (auto itActor = it2.Next())
-                    {
-                        if (itActor->spr.hitag == actor->spr.hitag && itActor->spr.lotag == actor->spr.lotag)
-                        {
-                            I_Error("Two VIEW_THRU_ tags with same match found on level\n1: x %d, y %d \n2: x %d, y %d", int(actor->spr.pos.X), int(actor->spr.pos.Y), int(itActor->spr.pos.X), int(itActor->spr.pos.Y));
-                        }
-                    }
-                    change_actor_stat(actor, STAT_FAF);
-                    break;
-                }
-
-                case VIEW_LEVEL1:
-                case VIEW_LEVEL2:
-                case VIEW_LEVEL3:
-                case VIEW_LEVEL4:
-                case VIEW_LEVEL5:
-                case VIEW_LEVEL6:
-                {
-                    change_actor_stat(actor, STAT_FAF);
-                    break;
-                }
-
-                case PLAX_GLOB_Z_ADJUST:
-                {
-                    actor->sector()->extra |= (SECTFX_Z_ADJUST);
-                    PlaxCeilGlobZadjust = SP_TAG2(actor) * zmaptoworld;
-                    PlaxFloorGlobZadjust = SP_TAG3(actor) * zmaptoworld;
-                    KillActor(actor);
-                    break;
-                }
-
-                case CEILING_Z_ADJUST:
-                {
-                    actor->sector()->extra |= (SECTFX_Z_ADJUST);
-                    change_actor_stat(actor, STAT_ST1);
-                    break;
-                }
-
-                case FLOOR_Z_ADJUST:
-                {
-                    actor->sector()->extra |= (SECTFX_Z_ADJUST);
-                    change_actor_stat(actor, STAT_ST1);
-                    break;
-                }
-
-                case WARP_TELEPORTER:
-                {
-                    actor->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
-                    actor->sector()->extra |= (SECTFX_WARP_SECTOR);
-                    change_actor_stat(actor, STAT_WARP);
-
-                    // if just a destination teleporter
-                    // don't set up flags
-                    if (SP_TAG10(actor) == 1)
-                        break;
-
-                    // move the the next wall
-                    auto start_wall = actor->sector()->walls.Data();
-                    auto wall_num = start_wall;
-
-                    // Travel all the way around loop setting wall bits
-                    do
-                    {
-                        // DO NOT TAG WHITE WALLS!
-                        if (wall_num->twoSided())
-                        {
-                            wall_num->cstat |= (CSTAT_WALL_WARP_HITSCAN);
-                        }
-
-                        wall_num = wall_num->point2Wall();
-                    }
-                    while (wall_num != start_wall);
-
-                    break;
-                }
-
-                case WARP_CEILING_PLANE:
-                case WARP_FLOOR_PLANE:
-                {
-                    actor->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
-                    actor->sector()->extra |= (SECTFX_WARP_SECTOR);
-                    change_actor_stat(actor, STAT_WARP);
-                    break;
-                }
-
-                case WARP_COPY_SPRITE1:
-                    actor->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
-                    actor->sector()->extra |= (SECTFX_WARP_SECTOR);
-                    change_actor_stat(actor, STAT_WARP_COPY_SPRITE1);
-                    break;
-                case WARP_COPY_SPRITE2:
-                    actor->spr.cstat |= (CSTAT_SPRITE_INVISIBLE);
-                    actor->sector()->extra |= (SECTFX_WARP_SECTOR);
-                    change_actor_stat(actor, STAT_WARP_COPY_SPRITE2);
-                    break;
-
-                case FIREBALL_TRAP:
-                case BOLT_TRAP:
-                case SPEAR_TRAP:
-                {
-                    SpawnUser(actor, 0, nullptr);
-                    ClearOwner(actor);
-                    change_actor_stat(actor, STAT_TRAP);
-                    break;
-                }
-
-                case SECT_SO_DONT_BOB:
-                {
-                    sectp->u_defined = true;
-                    sectp->flags |= (SECTFU_SO_DONT_BOB);
-                    KillActor(actor);
-                    break;
-                }
-
-                case SECT_LOCK_DOOR:
-                {
-                    sectp->u_defined = true;
-                    sectp->number = actor->spr.lotag;
-                    sectp->stag = SECT_LOCK_DOOR;
-                    KillActor(actor);
-                    break;
-                }
-
-                case SECT_SO_SINK_DEST:
-                {
-                    sectp->u_defined = true;
-                    sectp->flags |= (SECTFU_SO_SINK_DEST);
-                    sectp->number = actor->spr.lotag;  // acually the offset Z
-                    // value
-                    KillActor(actor);
-                    break;
-                }
-
-                case SECT_SO_DONT_SINK:
-                {
-                    sectp->u_defined = true;
-                    sectp->flags |= (SECTFU_SO_DONT_SINK);
-                    KillActor(actor);
-                    break;
-                }
-
-                case SO_SLOPE_FLOOR_TO_POINT:
-                {
-                    sectp->u_defined = true;
-                    sectp->flags |= (SECTFU_SO_SLOPE_FLOOR_TO_POINT);
-                    sectp->extra |= (SECTFX_DYNAMIC_AREA);
-                    KillActor(actor);
-                    break;
-                }
-
-                case SO_SLOPE_CEILING_TO_POINT:
-                {
-                    sectp->u_defined = true;
-                    sectp->flags |= (SECTFU_SO_SLOPE_CEILING_TO_POINT);
-                    sectp->extra |= (SECTFX_DYNAMIC_AREA);
-                    KillActor(actor);
-                    break;
-                }
-                case SECT_SO_FORM_WHIRLPOOL:
-                {
-                    sectp->u_defined = true;
-                    sectp->stag = SECT_SO_FORM_WHIRLPOOL;
-                    sectp->height = actor->spr.lotag;
-                    KillActor(actor);
-                    break;
-                }
-
-                case SECT_ACTOR_BLOCK:
-                {
-                    // move the the next wall
-                    auto start_wall = actor->sector()->walls.Data();
-                    auto wall_num = start_wall;
-
-                    // Travel all the way around loop setting wall bits
-                    do
-                    {
-                        wall_num->cstat |= (CSTAT_WALL_BLOCK_ACTOR);
-                        if (wall_num->twoSided())
-                            wall_num->nextWall()->cstat |= CSTAT_WALL_BLOCK_ACTOR;
-                        wall_num = wall_num->point2Wall();
-                    }
-                    while (wall_num != start_wall);
-
-                    KillActor(actor);
-                    break;
-                }
-                }
-            }
+            SetupST1(actor);
         }
         break;
 
@@ -2736,42 +2783,16 @@ void SpriteSetup(void)
             goto KeyMain;
         case RED_SKELKEY:
             num = 11;
-KeyMain:
-            {
-
-                if (gNet.MultiGameType == MULTI_GAME_COMMBAT || gNet.MultiGameType == MULTI_GAME_AI_BOTS)
-                {
-                    KillActor(actor);
-                    break;
-                }
-
-                SpawnUser(actor, 0, nullptr);
-
-                actor->spr.picnum = actor->user.ID = actor->spr.picnum;
-
-                actor->user.spal = actor->spr.pal; // Set the palette from build
-
-                //actor->spr.cstat |= (CSTAT_SPRITE_ALIGNMENT_WALL);
-
-                ChangeState(actor, s_Key[num]);
-
-                change_actor_stat(actor, STAT_ITEM);
-                actor->spr.cstat &= ~(CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN | CSTAT_SPRITE_ONE_SIDE);
-                actor->spr.cstat2 |= CSTAT2_SPRITE_NOANIMATE;
-                actor->user.Radius = 500;
-                actor->spr.hitag = LUMINOUS; //Set so keys over ride colored lighting
-
-                DoActorZrange(actor);
-            }
-
+        KeyMain:
+            SetupKey(actor, num);
             break;
 
 
         // Used for multiplayer locks
-        case 1846:
-        case 1850:
-        case 1852:
-        case 2470:
+        case SKEL_LOCKED:
+        case RAMCARD_LOCKED:
+        case CARD_LOCKED:
+        case EXIT_SWITCH:
 
             if ((actor->spr.extra & SPRX_MULTI_ITEM))
                 if (numplayers <= 1 || gNet.MultiGameType == MULTI_GAME_COOPERATIVE)
@@ -3270,17 +3291,8 @@ NUKE_REPLACEMENT:
             actor->spr.cstat2 |= CSTAT2_SPRITE_NOANIMATE;
             break;
 
-#if 0
-        case 380:
-        case 396:
-        case 430:
-        case 512:
-        case 521:
-        case 541:
-        case 2720:
-#endif
-        case 3143:
-        case 3157:
+        case FFIRE1:
+        case FFIRE2:
         {
             SpawnUser(actor, actor->spr.picnum, nullptr);
 
@@ -3301,7 +3313,7 @@ NUKE_REPLACEMENT:
         case BLADE1:
         case BLADE2:
         case BLADE3:
-        case 5011:
+        case BLADE4:
         {
             SpawnUser(actor, actor->spr.picnum, nullptr);
 
@@ -3332,39 +3344,40 @@ NUKE_REPLACEMENT:
             break;
 
         // switches
-        case 581:
-        case 582:
-        case 558:
-        case 559:
-        case 560:
-        case 561:
-        case 562:
-        case 563:
-        case 564:
-        case 565:
-        case 566:
-        case 567:
-        case 568:
-        case 569:
-        case 570:
-        case 571:
-        case 572:
-        case 573:
-        case 574:
+        case SWITCH_LEVER:
+        case SWITCH_LEVER_ON:
+        case SWITCH_FUSE:
+        case SWITCH_FUSE_ON:
+        case SWITCH_FUSE_ANI:
+        case SWITCH_FLIP:
+        case SWITCH_FLIP_ON:
+        case SWITCH_RED_CHAIN:
+        case SWITCH_RED_CHAIN_ON:
+        case SWITCH_GREEN_CHAIN:
+        case SWITCH_GREEN_CHAIN_ON:
+        case SWITCH_TOUCH:
+        case SWITCH_TOUCH_ON:
+        case SWITCH_DRAGON:
+        case SWITCH_DRAGON_ON:
+        case SWITCH_4:
+        case SWITCH_4_ON:
+        case SWITCH_5:
+        case SWITCH_5_ON:
 
-        case 551:
-        case 552:
-        case 575:
-        case 576:
-        case 577:
-        case 578:
-        case 579:
-        case 589:
-        case 583:
-        case 584:
+        case SWITCH_LIGHT:
+        case SWITCH_LIGHT_ON:
+        case SWITCH_1:
+        case SWITCH_1_ON:
+        case SWITCH_SHOOTABLE_1:
+        case SWITCH_SHOOTABLE_1_ON:
+        case SWITCH_3:
+        case SWITCH_3_ON:
+        case 589: // ???
+        case SWITCH_6:
+        case SWITCH_6_ON:
 
-        case 553:
-        case 554:
+        case SWITCH_SKULL:
+        case SWITCH_SKULL_ON:
         {
             if ((actor->spr.extra & SPRX_MULTI_ITEM))
             {
@@ -4874,11 +4887,11 @@ int DoSpawnItemTeleporterEffect(DSWActor* actor)
 //
 //---------------------------------------------------------------------------
 
-void ChoosePlayerGetSound(PLAYER* pp)
+void ChoosePlayerGetSound(DSWPlayer* pp)
 {
     int choose_snd=0;
 
-    if (pp != Player+myconnectindex) return;
+    if (pp != getPlayer(myconnectindex)) return;
 
     choose_snd = StdRandomRange((MAX_GETSOUNDS-1)<<8)>>8;
 
@@ -4891,7 +4904,7 @@ void ChoosePlayerGetSound(PLAYER* pp)
 //
 //---------------------------------------------------------------------------
 
-bool CanGetWeapon(PLAYER* pp, DSWActor* actor, int WPN)
+bool CanGetWeapon(DSWPlayer* pp, DSWActor* actor, int WPN)
 {
     switch (gNet.MultiGameType)
     {
@@ -4951,7 +4964,7 @@ enum
 };
 int DoGet(DSWActor* actor)
 {
-    PLAYER* pp;
+    DSWPlayer* pp;
     short pnum, key_num;
     bool can_see;
 
@@ -4985,27 +4998,27 @@ int DoGet(DSWActor* actor)
 
     TRAVERSE_CONNECT(pnum)
     {
-        pp = &Player[pnum];
-        DSWActor* plActor = pp->actor;
+        pp = getPlayer(pnum);
+        DSWActor* plActor = pp->GetActor();
         int weaponswitch = WeaponSwitch(pnum);
 
         if (pp->Flags & (PF_DEAD))
             continue;
 
-        double dist = (pp->actor->spr.pos.XY() - actor->spr.pos).Length();
+        double dist = (pp->GetActor()->spr.pos.XY() - actor->spr.pos).Length();
         if ((unsigned)dist > (plActor->user.fRadius() + actor->user.fRadius()))
         {
             continue;
         }
 
-        if (!SpriteOverlap(actor, pp->actor))
+        if (!SpriteOverlap(actor, pp->GetActor()))
         {
             continue;
         }
 
         auto cstat_bak = actor->spr.cstat;
         actor->spr.cstat |= (CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
-        can_see = FAFcansee(actor->spr.pos, actor->sector(), pp->actor->getPosWithOffsetZ(), pp->cursector);
+        can_see = FAFcansee(actor->spr.pos, actor->sector(), pp->GetActor()->getPosWithOffsetZ(), pp->cursector);
         actor->spr.cstat = cstat_bak;
 
         if (!can_see)
@@ -5050,11 +5063,11 @@ KeyMain:
             if (pp->HasKey[key_num])
                 break;
 
-            PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_KEYMSG + key_num));
+            PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_KEYMSG + key_num));
 
             pp->HasKey[key_num] = true;
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_KEY, actor, v3df_dontpan);
 
             // don't kill keys in coop
@@ -5070,20 +5083,20 @@ KeyMain:
                 if (actor->user.spal == PALETTE_PLAYER3)
                 {
                     PlayerUpdateArmor(pp, 1000+InventoryDecls[InvDecl_Kevlar].amount);
-                    PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_Kevlar));
+                    PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_Kevlar));
                 }
                 else
                 {
                     if (pp->Armor < InventoryDecls[InvDecl_Armor].amount)
                     {
                         PlayerUpdateArmor(pp, 1000+InventoryDecls[InvDecl_Armor].amount);
-                        PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_Armor));
+                        PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_Armor));
                     }
                     else
                         break;
                 }
                 SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-                if (pp == Player+myconnectindex)
+                if (pp->pnum == myconnectindex)
                     PlaySound(DIGI_BIGITEM, actor, v3df_dontpan);
 
                 // override for respawn mode
@@ -5106,7 +5119,7 @@ KeyMain:
             {
                 bool putbackmax=false;
 
-                PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_SmMedkit));
+                PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_SmMedkit));
 
                 if (pp->MaxHealth == 200)
                 {
@@ -5118,7 +5131,7 @@ KeyMain:
                 if (putbackmax) pp->MaxHealth = 200;
 
                 SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-                if (pp == Player+myconnectindex)
+                if (pp->pnum == myconnectindex)
                     PlaySound(DIGI_ITEM, actor, v3df_dontpan);
 
                 // override for respawn mode
@@ -5136,11 +5149,11 @@ KeyMain:
             pp->MaxHealth = 200;
             if (plActor->user.Health < 200)
             {
-                PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_Booster));
+                PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_Booster));
                 PlayerUpdateHealth(pp, InventoryDecls[InvDecl_Booster].amount);       // This is for health
                 // over 100%
                 // Say something witty
-                if (pp == Player+myconnectindex)
+                if (pp->pnum == myconnectindex)
                 {
                     int cookie = StdRandomRange(MAX_FORTUNES);
                     // print to the console, and the user quote display.
@@ -5148,14 +5161,14 @@ KeyMain:
                     Printf(PRINT_NONOTIFY, TEXTCOLOR_SAPPHIRE "%s\n", msg.GetChars());
                     if (hud_messages)
                     {
-                        strncpy(pp->cookieQuote, msg, 255);
+                        strncpy(pp->cookieQuote, msg.GetChars(), 255);
                         pp->cookieQuote[255] = 0;
                         pp->cookieTime = 540;
                     }
                 }
 
                 SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-                if (pp == Player+myconnectindex)
+                if (pp->pnum == myconnectindex)
                     PlaySound(DIGI_BIGITEM, actor, v3df_dontpan);
 
                 // override for respawn mode
@@ -5176,12 +5189,12 @@ KeyMain:
 
             if (!pp->InventoryAmount[INVENTORY_MEDKIT] || pp->InventoryPercent[INVENTORY_MEDKIT] < InventoryDecls[InvDecl_Medkit].amount)
             {
-                PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_Medkit));
+                PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_Medkit));
                 pp->InventoryPercent[INVENTORY_MEDKIT] = InventoryDecls[InvDecl_Medkit].amount;
                 pp->InventoryAmount[INVENTORY_MEDKIT] = 1;
                 PlayerUpdateInventory(pp, INVENTORY_MEDKIT);
                 SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-                if (pp == Player+myconnectindex)
+                if (pp->pnum == myconnectindex)
                     PlaySound(DIGI_ITEM, actor, v3df_dontpan);
 
                 // override for respawn mode
@@ -5199,12 +5212,12 @@ KeyMain:
 
             if (pp->InventoryAmount[INVENTORY_CHEMBOMB] < InventoryDecls[InvDecl_ChemBomb].amount)
             {
-                PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_ChemBomb));
+                PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_ChemBomb));
                 pp->InventoryPercent[INVENTORY_CHEMBOMB] = 0;
                 pp->InventoryAmount[INVENTORY_CHEMBOMB]++;
                 PlayerUpdateInventory(pp, INVENTORY_CHEMBOMB);
                 SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-                if (pp == Player+myconnectindex)
+                if (pp->pnum == myconnectindex)
                     PlaySound(DIGI_ITEM, actor, v3df_dontpan);
                 KillGet(actor);
             }
@@ -5214,12 +5227,12 @@ KeyMain:
 
             if (pp->InventoryAmount[INVENTORY_FLASHBOMB] < InventoryDecls[InvDecl_FlashBomb].amount)
             {
-                PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_FlashBomb));
+                PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_FlashBomb));
                 pp->InventoryPercent[INVENTORY_FLASHBOMB] = 0;
                 pp->InventoryAmount[INVENTORY_FLASHBOMB]++;
                 PlayerUpdateInventory(pp, INVENTORY_FLASHBOMB);
                 SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-                if (pp == Player+myconnectindex)
+                if (pp->pnum == myconnectindex)
                     PlaySound(DIGI_ITEM, actor, v3df_dontpan);
                 KillGet(actor);
             }
@@ -5229,14 +5242,14 @@ KeyMain:
 
             if (pp->InventoryAmount[INVENTORY_CALTROPS] < InventoryDecls[InvDecl_Caltrops].amount)
             {
-                PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_Caltrops));
+                PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_Caltrops));
                 pp->InventoryPercent[INVENTORY_CALTROPS] = 0;
                 pp->InventoryAmount[INVENTORY_CALTROPS]+=3;
                 if (pp->InventoryAmount[INVENTORY_CALTROPS] > InventoryDecls[InvDecl_Caltrops].amount)
                     pp->InventoryAmount[INVENTORY_CALTROPS] = InventoryDecls[InvDecl_Caltrops].amount;
                 PlayerUpdateInventory(pp, INVENTORY_CALTROPS);
                 SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-                if (pp == Player+myconnectindex)
+                if (pp->pnum == myconnectindex)
                     PlaySound(DIGI_ITEM, actor, v3df_dontpan);
                 KillGet(actor);
             }
@@ -5245,12 +5258,12 @@ KeyMain:
         case ICON_NIGHT_VISION:
             if (!pp->InventoryAmount[INVENTORY_NIGHT_VISION] || pp->InventoryPercent[INVENTORY_NIGHT_VISION] < InventoryDecls[InvDecl_NightVision].amount)
             {
-                PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_NightVision));
+                PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_NightVision));
                 pp->InventoryPercent[INVENTORY_NIGHT_VISION] = InventoryDecls[InvDecl_NightVision].amount;
                 pp->InventoryAmount[INVENTORY_NIGHT_VISION] = 1;
                 PlayerUpdateInventory(pp, INVENTORY_NIGHT_VISION);
                 SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-                if (pp == Player+myconnectindex)
+                if (pp->pnum == myconnectindex)
                     PlaySound(DIGI_ITEM, actor, v3df_dontpan);
                 KillGet(actor);
             }
@@ -5258,12 +5271,12 @@ KeyMain:
         case ICON_REPAIR_KIT:
             if (!pp->InventoryAmount[INVENTORY_REPAIR_KIT] || pp->InventoryPercent[INVENTORY_REPAIR_KIT] < InventoryDecls[InvDecl_RepairKit].amount)
             {
-                PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_RepairKit));
+                PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_RepairKit));
                 pp->InventoryPercent[INVENTORY_REPAIR_KIT] = InventoryDecls[InvDecl_RepairKit].amount;
                 pp->InventoryAmount[INVENTORY_REPAIR_KIT] = 1;
                 PlayerUpdateInventory(pp, INVENTORY_REPAIR_KIT);
                 SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-                if (pp == Player+myconnectindex)
+                if (pp->pnum == myconnectindex)
                     PlaySound(DIGI_ITEM, actor, v3df_dontpan);
 
                 // don't kill repair kit in coop
@@ -5289,12 +5302,12 @@ KeyMain:
         case ICON_CLOAK:
             if (!pp->InventoryAmount[INVENTORY_CLOAK] || pp->InventoryPercent[INVENTORY_CLOAK] < InventoryDecls[InvDecl_Cloak].amount)
             {
-                PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_Cloak));
+                PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_INVENTORY + InvDecl_Cloak));
                 pp->InventoryPercent[INVENTORY_CLOAK] = InventoryDecls[InvDecl_Cloak].amount;
                 pp->InventoryAmount[INVENTORY_CLOAK] = 1;
                 PlayerUpdateInventory(pp, INVENTORY_CLOAK);
                 SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-                if (pp == Player+myconnectindex)
+                if (pp->pnum == myconnectindex)
                     PlaySound(DIGI_ITEM, actor, v3df_dontpan);
                 KillGet(actor);
             }
@@ -5312,10 +5325,10 @@ KeyMain:
             if (pp->WpnAmmo[WPN_STAR] >= DamageData[WPN_STAR].max_ammo)
                 break;
 
-            PutStringInfo(Player+pnum, sw_darts? GStrings("TXTS_DARTS") : quoteMgr.GetQuote(QUOTE_WPNSHURIKEN));
+            PutStringInfo(pp, sw_darts? GStrings("TXTS_DARTS") : quoteMgr.GetQuote(QUOTE_WPNSHURIKEN));
             PlayerUpdateAmmo(pp, WPN_STAR, DamageData[WPN_STAR].weapon_pickup);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_ITEM, actor, v3df_dontpan);
             KillGetWeapon(actor);
             if (pp->WpnFlags & (BIT(WPN_STAR)))
@@ -5338,11 +5351,11 @@ KeyMain:
 
             if (pp->WpnAmmo[WPN_MINE] >= DamageData[WPN_MINE].max_ammo)
                 break;
-            //sprintf(ds,"Sticky Bombs");
-            PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_WPNSTICKY));
+            //snprintf(ds, sizeof(ds),"Sticky Bombs");
+            PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_WPNSTICKY));
             PlayerUpdateAmmo(pp, WPN_MINE, DamageData[WPN_MINE].weapon_pickup);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_ITEM, actor, v3df_dontpan);
             ChoosePlayerGetSound(pp);
             KillGetWeapon(actor);
@@ -5367,12 +5380,12 @@ KeyMain:
 
             if (pp->Flags & (PF_TWO_UZI) && pp->WpnAmmo[WPN_UZI] >= DamageData[WPN_UZI].max_ammo)
                 break;
-            //sprintf(ds,"UZI Submachine Gun");
-            PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_WPNUZI));
+            //snprintf(ds, sizeof(ds),"UZI Submachine Gun");
+            PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_WPNUZI));
 //            pp->WpnAmmo[WPN_UZI] += 50;
             PlayerUpdateAmmo(pp, WPN_UZI, DamageData[WPN_UZI].weapon_pickup);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_ITEM, actor, v3df_dontpan);
             KillGetWeapon(actor);
 
@@ -5384,7 +5397,7 @@ KeyMain:
             {
                 pp->Flags |= (PF_TWO_UZI);
                 pp->WpnUziType = 0; // Let it come up
-                if (pp == Player+myconnectindex)
+                if (pp->pnum == myconnectindex)
                     PlayerSound(DIGI_DOUBLEUZI, v3df_dontpan|v3df_follow, pp);
             }
             else
@@ -5405,11 +5418,11 @@ KeyMain:
         case ICON_LG_UZI_AMMO:
             if (pp->WpnAmmo[WPN_UZI] >= DamageData[WPN_UZI].max_ammo)
                 break;
-            //sprintf(ds,"UZI Clip");
-            PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_AMMOUZI));
+            //snprintf(ds, sizeof(ds),"UZI Clip");
+            PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_AMMOUZI));
             PlayerUpdateAmmo(pp, WPN_UZI, DamageData[WPN_UZI].ammo_pickup);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_ITEM, actor, v3df_dontpan);
             KillGetAmmo(actor);
             break;
@@ -5423,12 +5436,12 @@ KeyMain:
 
             if (pp->WpnFlags & (BIT(WPN_MICRO)) && pp->WpnAmmo[WPN_MICRO] >= DamageData[WPN_MICRO].max_ammo)
                 break;
-            //sprintf(ds,"Missile Launcher");
-            PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_WPNLAUNCH));
+            //snprintf(ds, sizeof(ds),"Missile Launcher");
+            PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_WPNLAUNCH));
 //            pp->WpnAmmo[WPN_MICRO] += 5;
             PlayerUpdateAmmo(pp, WPN_MICRO, DamageData[WPN_MICRO].weapon_pickup);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_ITEM, actor, v3df_dontpan);
             ChoosePlayerGetSound(pp);
             KillGetWeapon(actor);
@@ -5446,11 +5459,11 @@ KeyMain:
         case ICON_MICRO_BATTERY:
             if (pp->WpnAmmo[WPN_MICRO] >= DamageData[WPN_MICRO].max_ammo)
                 break;
-            //sprintf(ds,"Missiles");
-            PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_AMMOLAUNCH));
+            //snprintf(ds, sizeof(ds),"Missiles");
+            PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_AMMOLAUNCH));
             PlayerUpdateAmmo(pp, WPN_MICRO, DamageData[WPN_MICRO].ammo_pickup);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_ITEM, actor, v3df_dontpan);
             KillGetAmmo(actor);
             break;
@@ -5458,13 +5471,13 @@ KeyMain:
         case ICON_NUKE:
             if (pp->WpnRocketNuke != 1)
             {
-                //sprintf(ds,"Nuclear Warhead");
-                PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_WPNNUKE));
+                //snprintf(ds, sizeof(ds),"Nuclear Warhead");
+                PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_WPNNUKE));
                 pp->WpnRocketNuke =uint8_t(DamageData[DMG_NUCLEAR_EXP].weapon_pickup);
                 SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-                if (pp == Player+myconnectindex)
+                if (pp->pnum == myconnectindex)
                     PlaySound(DIGI_ITEM, actor, v3df_dontpan);
-                if (StdRandomRange(1000) > 800 && pp == Player+myconnectindex)
+                if (StdRandomRange(1000) > 800 && pp->pnum == myconnectindex)
                     PlayerSound(DIGI_ILIKENUKES, v3df_dontpan|v3df_doppler|v3df_follow,pp);
                 if (pp->CurWpn == pp->Wpn[WPN_MICRO])
                 {
@@ -5490,15 +5503,15 @@ KeyMain:
 
             if (pp->WpnFlags & (BIT(WPN_GRENADE)) && pp->WpnAmmo[WPN_GRENADE] >= DamageData[WPN_GRENADE].max_ammo)
                 break;
-            //sprintf(ds,"Grenade Launcher");
-            PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_WPNGRENADE));
+            //snprintf(ds, sizeof(ds),"Grenade Launcher");
+            PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_WPNGRENADE));
 //            pp->WpnAmmo[WPN_GRENADE] += 6;
             PlayerUpdateAmmo(pp, WPN_GRENADE, DamageData[WPN_GRENADE].weapon_pickup);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_ITEM, actor, v3df_dontpan);
             //ChoosePlayerGetSound(pp);
-            if (StdRandomRange(1000) > 800 && pp == Player+myconnectindex)
+            if (StdRandomRange(1000) > 800 && pp->pnum == myconnectindex)
                 PlayerSound(DIGI_LIKEBIGWEAPONS, v3df_dontpan|v3df_doppler|v3df_follow,pp);
             KillGetWeapon(actor);
             if (pp->WpnFlags & (BIT(WPN_GRENADE)))
@@ -5515,11 +5528,11 @@ KeyMain:
         case ICON_LG_GRENADE:
             if (pp->WpnAmmo[WPN_GRENADE] >= DamageData[WPN_GRENADE].max_ammo)
                 break;
-            //sprintf(ds,"Grenade Shells");
-            PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_AMMOGRENADE));
+            //snprintf(ds, sizeof(ds),"Grenade Shells");
+            PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_AMMOGRENADE));
             PlayerUpdateAmmo(pp, WPN_GRENADE, DamageData[WPN_GRENADE].ammo_pickup);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_ITEM, actor, v3df_dontpan);
             KillGetAmmo(actor);
             break;
@@ -5540,7 +5553,7 @@ KeyMain:
             break;
 
         case ICON_LG_ROCKET:
-            sprintf(ds,"20 Missiles");
+            snprintf(ds, sizeof(ds),"20 Missiles");
             PutStringInfo(Player+pnum, ds);
             PlayerUpdateAmmo(pp, WPN_ROCKET, 20);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
@@ -5560,13 +5573,13 @@ KeyMain:
 
             if (pp->WpnFlags & (BIT(WPN_RAIL)) && pp->WpnAmmo[WPN_RAIL] >= DamageData[WPN_RAIL].max_ammo)
                 break;
-            //sprintf(ds,"Rail Gun");
-            PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_WPNRAILGUN));
+            //snprintf(ds, sizeof(ds),"Rail Gun");
+            PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_WPNRAILGUN));
             PlayerUpdateAmmo(pp, WPN_RAIL, DamageData[WPN_RAIL].weapon_pickup);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_ITEM, actor, v3df_dontpan);
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
             {
                 if (StdRandomRange(1000) > 700)
                     PlayerSound(DIGI_LIKEBIGWEAPONS, v3df_dontpan|v3df_doppler|v3df_follow,pp);
@@ -5591,11 +5604,11 @@ KeyMain:
 
             if (pp->WpnAmmo[WPN_RAIL] >= DamageData[WPN_RAIL].max_ammo)
                 break;
-            //sprintf(ds,"Rail Gun Rods");
-            PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_AMMORAILGUN));
+            //snprintf(ds, sizeof(ds),"Rail Gun Rods");
+            PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_AMMORAILGUN));
             PlayerUpdateAmmo(pp, WPN_RAIL, DamageData[WPN_RAIL].ammo_pickup);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_ITEM, actor, v3df_dontpan);
             KillGetAmmo(actor);
             break;
@@ -5608,12 +5621,12 @@ KeyMain:
 
             if (pp->WpnFlags & (BIT(WPN_SHOTGUN)) && pp->WpnAmmo[WPN_SHOTGUN] >= DamageData[WPN_SHOTGUN].max_ammo)
                 break;
-            //sprintf(ds,"Riot Gun");
-            PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_WPNRIOT));
+            //snprintf(ds, sizeof(ds),"Riot Gun");
+            PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_WPNRIOT));
 //            pp->WpnAmmo[WPN_SHOTGUN] += 10;
             PlayerUpdateAmmo(pp, WPN_SHOTGUN, DamageData[WPN_SHOTGUN].weapon_pickup);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_ITEM, actor, v3df_dontpan);
             ChoosePlayerGetSound(pp);
             KillGetWeapon(actor);
@@ -5631,11 +5644,11 @@ KeyMain:
         case ICON_LG_SHOTSHELL:
             if (pp->WpnAmmo[WPN_SHOTGUN] >= DamageData[WPN_SHOTGUN].max_ammo)
                 break;
-            //sprintf(ds,"Shotshells");
-            PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_AMMORIOT));
+            //snprintf(ds, sizeof(ds),"Shotshells");
+            PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_AMMORIOT));
             PlayerUpdateAmmo(pp, WPN_SHOTGUN, DamageData[WPN_SHOTGUN].ammo_pickup);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_ITEM, actor, v3df_dontpan);
             KillGetAmmo(actor);
             break;
@@ -5644,7 +5657,7 @@ KeyMain:
         case ICON_AUTORIOT:
             if (pp->WpnShotgunAuto != 50)
             {
-                sprintf(ds,"Riot Gun TurboDrive, +50 12-Gauge Slugs");
+                snprintf(ds, sizeof(ds),"Riot Gun TurboDrive, +50 12-Gauge Slugs");
                 PutStringInfo(Player+pnum, ds);
                 pp->WpnShotgunAuto = 50;
                 SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
@@ -5675,14 +5688,14 @@ KeyMain:
 
             if (pp->WpnFlags & (BIT(WPN_HOTHEAD)) && pp->WpnAmmo[WPN_HOTHEAD] >= DamageData[WPN_HOTHEAD].max_ammo)
                 break;
-            //sprintf(ds,"Guardian Head");
-            PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_WPNHEAD));
+            //snprintf(ds, sizeof(ds),"Guardian Head");
+            PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_WPNHEAD));
             PlayerUpdateAmmo(pp, WPN_HOTHEAD, DamageData[WPN_HOTHEAD].weapon_pickup);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_ITEM, actor, v3df_dontpan);
             //ChoosePlayerGetSound(pp);
-            if (StdRandomRange(1000) > 800 && pp == Player+myconnectindex)
+            if (StdRandomRange(1000) > 800 && pp->pnum == myconnectindex)
                 PlayerSound(DIGI_LIKEBIGWEAPONS, v3df_dontpan|v3df_doppler|v3df_follow,pp);
             KillGetWeapon(actor);
             if (pp->WpnFlags & (BIT(WPN_HOTHEAD)))
@@ -5701,11 +5714,11 @@ KeyMain:
 
             if (pp->WpnAmmo[WPN_HOTHEAD] >= DamageData[WPN_HOTHEAD].max_ammo)
                 break;
-            //sprintf(ds,"Firebursts");
-            PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_AMMOHEAD));
+            //snprintf(ds, sizeof(ds),"Firebursts");
+            PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_AMMOHEAD));
             PlayerUpdateAmmo(pp, WPN_HOTHEAD, DamageData[WPN_HOTHEAD].ammo_pickup);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_ITEM, actor, v3df_dontpan);
             KillGetAmmo(actor);
             break;
@@ -5720,14 +5733,14 @@ KeyMain:
 
             if (pp->WpnFlags & (BIT(WPN_HEART)) && pp->WpnAmmo[WPN_HEART] >= DamageData[WPN_HEART].max_ammo)
                 break;
-            //sprintf(ds,"Ripper Heart");
-            PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_WPNRIPPER));
+            //snprintf(ds, sizeof(ds),"Ripper Heart");
+            PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_WPNRIPPER));
             PlayerUpdateAmmo(pp, WPN_HEART, DamageData[WPN_HEART].weapon_pickup);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_ITEM, actor, v3df_dontpan);
             //ChoosePlayerGetSound(pp);
-            if (StdRandomRange(1000) > 800 && pp == Player+myconnectindex)
+            if (StdRandomRange(1000) > 800 && pp->pnum == myconnectindex)
                 PlayerSound(DIGI_LIKEBIGWEAPONS, v3df_dontpan|v3df_doppler|v3df_follow,pp);
             KillGetWeapon(actor);
             if (pp->WpnFlags & (BIT(WPN_HEART)))
@@ -5748,11 +5761,11 @@ KeyMain:
 
             if (pp->WpnAmmo[WPN_HEART] >= DamageData[WPN_HEART].max_ammo)
                 break;
-            //sprintf(ds,"Deathcoils");
-            PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_AMMORIPPER));
+            //snprintf(ds, sizeof(ds),"Deathcoils");
+            PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_AMMORIPPER));
             PlayerUpdateAmmo(pp, WPN_HEART, DamageData[WPN_HEART].ammo_pickup);
             SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-            if (pp == Player+myconnectindex)
+            if (pp->pnum == myconnectindex)
                 PlaySound(DIGI_ITEM, actor, v3df_dontpan);
             KillGetAmmo(actor);
             break;
@@ -5760,11 +5773,11 @@ KeyMain:
         case ICON_HEAT_CARD:
             if (pp->WpnRocketHeat != 5)
             {
-                //sprintf(ds,"Heat Seeker Card");
-                PutStringInfo(Player+pnum, quoteMgr.GetQuote(QUOTE_AMMONUKE));
+                //snprintf(ds, sizeof(ds),"Heat Seeker Card");
+                PutStringInfo(pp, quoteMgr.GetQuote(QUOTE_AMMONUKE));
                 pp->WpnRocketHeat = uint8_t(DamageData[DMG_NUCLEAR_EXP].ammo_pickup);
                 SetFadeAmt(pp,ITEMFLASHAMT,ITEMFLASHCLR);  // Flash blue on item pickup
-                if (pp == Player+myconnectindex)
+                if (pp->pnum == myconnectindex)
                     PlaySound(DIGI_ITEM, actor, v3df_dontpan);
                 KillGet(actor);
 
@@ -5787,7 +5800,7 @@ KeyMain:
 
         case ICON_FLAG:
         {
-            if (actor->spr.pal == pp->actor->spr.pal) break; // Can't pick up your own flag!
+            if (actor->spr.pal == pp->GetActor()->spr.pal) break; // Can't pick up your own flag!
 
             PlaySound(DIGI_ITEM, actor, v3df_dontpan);
 
@@ -5803,11 +5816,11 @@ KeyMain:
             actorNew->user.Counter = 0;
             actorNew->spr.cstat &= ~(CSTAT_SPRITE_BLOCK|CSTAT_SPRITE_BLOCK_HITSCAN);
             actorNew->spr.cstat |= (CSTAT_SPRITE_ALIGNMENT_WALL);
-            SetAttach(pp->actor, actorNew);
-            actorNew->user.pos.Z = ActorZOfMiddle(pp->actor);  // Set mid way up who it hit
+            SetAttach(pp->GetActor(), actorNew);
+            actorNew->user.pos.Z = ActorZOfMiddle(pp->GetActor());  // Set mid way up who it hit
             actorNew->user.spal = actorNew->spr.pal = actor->spr.pal;   // Set the palette of the flag
 
-            SetOwner(pp->actor, actorNew);  // Player now owns the flag
+            SetOwner(pp->GetActor(), actorNew);  // Player now owns the flag
             actorNew->user.flagOwnerActor = actor;       // Tell carried flag who owns it
             KillGet(actor);  // Set up for flag respawning
             break;
@@ -5852,9 +5865,9 @@ void ProcessActiveVars(DSWActor* actor)
 //
 //---------------------------------------------------------------------------
 
-void AdjustActiveRange(PLAYER* pp, DSWActor* actor, double dist)
+void AdjustActiveRange(DSWPlayer* pp, DSWActor* actor, double dist)
 {
-    DSWActor* plActor = pp->actor;
+    DSWActor* plActor = pp->GetActor();
 
     // do no FAFcansee before it is time
     if (actor->user.wait_active_check < ACTIVE_CHECK_TIME)
@@ -5998,7 +6011,7 @@ void SpriteControl(void)
 {
     int32_t stat;
     short pnum, CloseToPlayer;
-    PLAYER* pp;
+    DSWPlayer* pp;
     short StateTics;
 
     SWStatIterator it(STAT_MISC);
@@ -6034,10 +6047,10 @@ void SpriteControl(void)
 
             TRAVERSE_CONNECT(pnum)
             {
-                pp = &Player[pnum];
+                pp = getPlayer(pnum);
 
                 // Only update the ones closest
-				double dist = (pp->actor->spr.pos.XY() - actor->spr.pos.XY()).Length();
+				double dist = (pp->GetActor()->spr.pos.XY() - actor->spr.pos.XY()).Length();
 
                 AdjustActiveRange(pp, actor, dist);
 
@@ -6219,7 +6232,7 @@ Collision move_sprite(DSWActor* actor, const DVector3& change, double ceildist, 
     }
 
 
-    clipmove(clip_pos, &dasect, change * numtics * 0.125, actor->clipdist, ceildist, flordist, cliptype, retval, 1);
+    clipmove(clip_pos, &dasect, change.XY() * numtics * 0.125, actor->clipdist, ceildist, flordist, cliptype, retval, 1);
 
 
     actor->spr.pos.XY() = clip_pos.XY();
@@ -6438,7 +6451,7 @@ Collision move_missile(DSWActor* actor, const DVector3& change, double ceil_dist
     }
 
 
-    clipmove(clip_pos, &dasect, change * numtics * 0.125, actor->clipdist, ceil_dist, flor_dist, cliptype, retval, 1);
+    clipmove(clip_pos, &dasect, change.XY() * numtics * 0.125, actor->clipdist, ceil_dist, flor_dist, cliptype, retval, 1);
     actor->spr.pos.XY() = clip_pos.XY();
 
     if (dasect == nullptr)

@@ -48,7 +48,7 @@ BEGIN_DUKE_NS
 
 void prelevel_d(int g, TArray<DDukeActor*>& actors)
 {
-	int j, lotaglist;
+	unsigned j;
 	TArray<short> lotags;
 
 	prelevel_common(g);
@@ -60,7 +60,7 @@ void prelevel_d(int g, TArray<DDukeActor*>& actors)
 
 		if (ac->spr.lotag == -1 && (ac->spr.cstat & CSTAT_SPRITE_ALIGNMENT_WALL))
 		{
-			ps[0].Exit = ac->spr.pos.XY();
+			getPlayer(0)->Exit = ac->spr.pos.XY();
 		}
 		else
 			premapcontroller(ac);
@@ -85,7 +85,6 @@ void prelevel_d(int g, TArray<DDukeActor*>& actors)
 				spriteinit(actor, actors);
 		}
 	}
-	lotaglist = 0;
 
 	it.Reset(STAT_DEFAULT);
 	while (auto actor = it.Next())

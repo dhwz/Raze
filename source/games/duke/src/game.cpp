@@ -68,6 +68,27 @@ IMPLEMENT_POINTER(temp_actor)
 IMPLEMENT_POINTER(seek_actor)
 IMPLEMENT_POINTERS_END
 
+IMPLEMENT_CLASS(DDukePlayer, false, true)
+IMPLEMENT_POINTERS_START(DDukePlayer)
+IMPLEMENT_POINTER(actorsqu)
+IMPLEMENT_POINTER(wackedbyactor)
+IMPLEMENT_POINTER(on_crane)
+IMPLEMENT_POINTER(holoduke_on)
+IMPLEMENT_POINTER(somethingonplayer)
+IMPLEMENT_POINTER(access_spritenum)
+IMPLEMENT_POINTER(dummyplayersprite)
+IMPLEMENT_POINTER(newOwner)
+IMPLEMENT_POINTERS_END
+
+size_t DDukePlayer::PropagateMark()
+{
+	for (auto& var : uservars)
+	{
+		var.Mark();
+	}
+	return Super::PropagateMark();
+}
+
 size_t DDukeActor::PropagateMark()
 {
 	for (auto& var : uservars)
@@ -83,22 +104,6 @@ static void markgcroots()
 	GC::MarkArray(spriteq, 1024);
 	GC::Mark(currentCommentarySprite);
 	GC::Mark(ud.cameraactor);
-	for (auto& pl : ps)
-	{
-		GC::Mark(pl.actor);
-		GC::Mark(pl.actorsqu);
-		GC::Mark(pl.wackedbyactor);
-		GC::Mark(pl.on_crane);
-		GC::Mark(pl.holoduke_on);
-		GC::Mark(pl.somethingonplayer);
-		GC::Mark(pl.access_spritenum);
-		GC::Mark(pl.dummyplayersprite);
-		GC::Mark(pl.newOwner);
-		for (auto& var : pl.uservars)
-		{
-			var.Mark();
-		}
-	}
 }
 
 //---------------------------------------------------------------------------
@@ -386,6 +391,13 @@ void initactorflags()
 
 void GameInterface::app_init()
 {
+	// Initialise player array.
+	for (unsigned i = 0; i < MAXPLAYERS; i++)
+	{
+		PlayerArray[i] = Create<DDukePlayer>(i);
+		GC::WriteBarrier(PlayerArray[i]);
+	}
+
 	RegisterClasses();
 	GC::AddMarkerFunc(markgcroots);
 
@@ -408,7 +420,7 @@ void GameInterface::app_init()
 	ud.wchoice[0][9] = 1;
 	ud.multimode = 1;
 	ud.m_monsters_off = userConfig.nomonsters;
-	ps[0].aim_mode = 1;
+	getPlayer(0)->aim_mode = 1;
 	ud.cameraactor = nullptr;
 
 	if (fileSystem.FileExists("DUKESW.BIN"))
@@ -492,10 +504,11 @@ void GameInterface::FinalizeSetup()
 				{
 					auto def = static_cast<DDukeActor*>(GetDefaultByType(cls));
 					auto fb = (SFLAG_BADGUY | SFLAG_KILLCOUNT | SFLAG_BADGUYSTAYPUT);
-					auto check = (def->flags1 & (SFLAG_BADGUY | SFLAG_KILLCOUNT));
+					auto check = (def->flags1 & (SFLAG_INTERNAL_BADGUY | SFLAG_BADGUY | SFLAG_KILLCOUNT));
 					// do not enable KILLCOUNT if it the base is a non-counting badguy. This is needed for RR's animals.
-					if (check == EDukeFlags1::FromInt(SFLAG_BADGUY)) fb &= ~SFLAG_KILLCOUNT; 
+					if ((check & (SFLAG_BADGUY | SFLAG_INTERNAL_BADGUY)) && !(check & SFLAG_KILLCOUNT)) fb &= ~SFLAG_KILLCOUNT;
 					def->flags1 = (def->flags1 & ~fb) | (actinf.enemyflags & fb);
+					if (def->flags1 & SFLAG_KILLCOUNT) def->flags1 |= SFLAG_SKILLFILTER;
 				}
 
 			}
@@ -633,7 +646,7 @@ void checkhitsprite(DDukeActor* actor, DDukeActor* hitter)
 	}
 }
 
-void CallOnHurt(DDukeActor* actor, player_struct* hitter)
+void CallOnHurt(DDukeActor* actor, DDukePlayer* hitter)
 {
 	IFVIRTUALPTR(actor, DDukeActor, onHurt)
 	{
@@ -642,7 +655,7 @@ void CallOnHurt(DDukeActor* actor, player_struct* hitter)
 	}
 }
 
-void CallOnTouch(DDukeActor* actor, player_struct* hitter)
+void CallOnTouch(DDukeActor* actor, DDukePlayer* hitter)
 {
 	IFVIRTUALPTR(actor, DDukeActor, onTouch)
 	{
@@ -652,7 +665,7 @@ void CallOnTouch(DDukeActor* actor, player_struct* hitter)
 }
 
 
-bool CallOnUse(DDukeActor* actor, player_struct* user)
+bool CallOnUse(DDukeActor* actor, DDukePlayer* user)
 {
 	int nval = false;
 	IFVIRTUALPTR(actor, DDukeActor, onUse)
@@ -664,7 +677,7 @@ bool CallOnUse(DDukeActor* actor, player_struct* user)
 	return nval;
 }
 
-void CallOnMotoSmash(DDukeActor* actor, player_struct* hitter)
+void CallOnMotoSmash(DDukeActor* actor, DDukePlayer* hitter)
 {
 	IFVIRTUALPTR(actor, DDukeActor, onMotoSmash)
 	{
@@ -710,7 +723,7 @@ bool CallShootThis(DDukeActor* clsdef, DDukeActor* actor, int pn, const DVector3
 	VMReturn ret(&rv);
 	IFVIRTUALPTR(clsdef, DDukeActor, ShootThis)
 	{
-		VMValue val[] = {clsdef, actor, pn >= 0? &ps[pn] : nullptr, spos.X, spos.Y, spos.Z, sang.Degrees()};
+		VMValue val[] = {clsdef, actor, pn >= 0? getPlayer(pn) : nullptr, spos.X, spos.Y, spos.Z, sang.Degrees()};
 		VMCall(func, val, 7, &ret, 1);
 	}
 	return rv;
@@ -725,7 +738,7 @@ void CallPlayFTASound(DDukeActor* actor, int mode)
 	}
 }
 
-void CallStandingOn(DDukeActor* actor, player_struct* p)
+void CallStandingOn(DDukeActor* actor, DDukePlayer* p)
 {
 	IFVIRTUALPTR(actor, DDukeActor, StandingOn)
 	{
@@ -734,7 +747,7 @@ void CallStandingOn(DDukeActor* actor, player_struct* p)
 	}
 }
 
-int CallTriggerSwitch(DDukeActor* actor, player_struct* p)
+int CallTriggerSwitch(DDukeActor* actor, DDukePlayer* p)
 {
 	int nval = false;
 	IFVIRTUALPTR(actor, DDukeActor, TriggerSwitch)
@@ -904,7 +917,9 @@ CCMD(changewalltexture)
 	FTextureID tile = TexMan.CheckForTexture(argv[1], ETextureType::Any);
 	if (!tile.isValid()) tile = tileGetTextureID((int)strtol(argv[1], nullptr, 10));
 	HitInfoBase hit;
-	hitscan(ps[0].actor->spr.pos, ps[0].cursector, DVector3(ps[0].actor->spr.Angles.Yaw.ToVector(), 0) * 1024, hit, CLIPMASK1);
+	const auto p = getPlayer(0);
+	const auto pact = p->GetActor();
+	hitscan(pact->spr.pos, p->cursector, DVector3(pact->spr.Angles.Yaw.ToVector(), 0) * 1024, hit, CLIPMASK1);
 	if (hit.hitWall)
 	{
 		hit.hitWall->setwalltexture(tile);

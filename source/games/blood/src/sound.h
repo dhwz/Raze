@@ -1,25 +1,3 @@
-//-------------------------------------------------------------------------
-/*
-Copyright (C) 2010-2019 EDuke32 developers and contributors
-Copyright (C) 2019 Nuke.YKT
-
-This file is part of NBlood.
-
-NBlood is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License version 2
-as published by the Free Software Foundation.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
-See the GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-*/
-//-------------------------------------------------------------------------
 #pragma once
 
 #include "misc.h"
@@ -52,13 +30,13 @@ void sndInit(void);
 
 void sfxPlay3DSound(const DVector3& pos, int soundId, sectortype* pSector);
 void sfxPlay3DSound(DBloodActor* pSprite, int soundId, int a3 = -1, int a4 = 0);
-void sfxPlay3DSoundCP(DBloodActor* pSprite, int soundId, int a3 = -1, int a4 = 0, int pitch = 0, int volume = 0);
+void sfxPlay3DSoundVolume(DBloodActor* pSprite, int soundId, int a3 = -1, int a4 = 0, int pitch = 0, int volume = 0);
 void sfxKill3DSound(DBloodActor* pSprite, int a2 = -1, int a3 = -1);
 void sfxKillAllSounds(void);
 void sfxSetReverb(bool toggle);
 void sfxSetReverb2(bool toggle);
 
-void ambProcess(PLAYER* pPlayer);
+void ambProcess(DBloodPlayer* pPlayer);
 void ambKillAll(void);
 void ambInit(void);
 

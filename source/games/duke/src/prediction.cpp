@@ -51,16 +51,18 @@ short myangbak[MOVEFIFOSIZ];
 
 void resetmys()
 {
-	mypos = omypos = ps[myconnectindex].GetActor()->getPosWithOffsetZ();
+	const auto p = getPlayer(myconnectindex);
+	const auto pact = p->GetActor();
+	mypos = omypos = pact->getPosWithOffsetZ();
 	myxvel = myyvel = myzvel = 0;
-	myang = ps[myconnectindex].GetActor()->spr.Angles.Yaw;
-	myhoriz = omyhoriz = ps[myconnectindex].GetActor()->spr.Angles.Pitch;
-	myhorizoff = omyhorizoff = ps[myconnectindex].Angles.ViewAngles.Pitch;
-	mycursectnum = sectindex(ps[myconnectindex].cursector);
-	myjumpingcounter = ps[myconnectindex].jumping_counter;
-	myjumpingtoggle = ps[myconnectindex].jumping_toggle;
-	myonground = ps[myconnectindex].on_ground;
-	myhardlanding = ps[myconnectindex].hard_landing;
+	myang = pact->spr.Angles.Yaw;
+	myhoriz = omyhoriz = pact->spr.Angles.Pitch;
+	myhorizoff = omyhorizoff = p->ViewAngles.Pitch;
+	mycursectnum = sectindex(p->cursector);
+	myjumpingcounter = p->jumping_counter;
+	myjumpingtoggle = p->jumping_toggle;
+	myonground = p->on_ground;
+	myhardlanding = p->hard_landing;
 }
 
 #if 0 // todo: fix this when networking works again
@@ -107,13 +109,14 @@ void fakedomovethings(void)
 		int psect, psectlotag, tempsect, backcstat;
 		uint8_t shrunk, spritebridge;
 		ESyncBits actions;
+		const auto pact = p->GetActor();
 
 		syn = (input *)&inputfifo[fakemovefifoplc&(MOVEFIFOSIZ-1)][myconnectindex];
 
 		p = &ps[myconnectindex];
 
-		backcstat = p->GetActor()->s.cstat;
-		p->GetActor()->s.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
+		backcstat = pact->s.cstat;
+		pact->s.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
 
 		actions = syn->actions;
 
@@ -121,7 +124,7 @@ void fakedomovethings(void)
 		psectlotag = psect->lotag;
 		spritebridge = 0;
 
-		shrunk = (p->GetActor()->s.y_repeat < (isRR()? 8 : 32));
+		shrunk = (pact->s.y_repeat < (isRR()? 8 : 32));
 
 		if( ud.clipping == 0 && ( psect->floortexture == mirrortex || psect == nullptr) )
 		{
@@ -178,7 +181,7 @@ void fakedomovethings(void)
 						psectlotag = 0;
 						spritebridge = 1;
 				 }
-				 if(badguy(chz.actor) && chz.actor()->s.ScaleX() > 0.375 && abs(p->GetActor()->s.z- chz.actor()->s.z) < (84<<8) )
+				 if(badguy(chz.actor) && chz.actor()->s.ScaleX() > 0.375 && abs(pact->s.z- chz.actor()->s.z) < (84<<8) )
 				 {
 					j = g etangle(chz.actor()->s.x-myx, chz.actor()->s.y-myy);
 					myxvel -= b cos(j, 4);
@@ -186,7 +189,7 @@ void fakedomovethings(void)
 				}
 		}
 
-		if( p->GetActor()->s.extra <= 0 )
+		if( pact->s.extra <= 0 )
 		{
 				 if( psectlotag == 2 )
 				 {
@@ -522,7 +525,7 @@ ENDFAKEPROCESSINPUT:
 		myhorizbak[fakemovefifoplc&(MOVEFIFOSIZ-1)] = myhoriz;
 		fakemovefifoplc++;
 
-		p->GetActor()->s.cstat = backcstat;
+		pact->s.cstat = backcstat;
 }
 #endif
 

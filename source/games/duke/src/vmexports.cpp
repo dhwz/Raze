@@ -1,3 +1,23 @@
+//-------------------------------------------------------------------------
+/*
+Copyright (C) 2020-2023 - Christoph Oelckers
+
+This file is part of Raze
+
+This is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+
+See the GNU General Public License for more details.
+
+*/
+//-------------------------------------------------------------------------
+
 #include "vm.h"
 #include "ns.h"
 #include "buildtiles.h"
@@ -13,9 +33,9 @@ void resetswitch(int tag);
 //
 //---------------------------------------------------------------------------
 
-player_struct* duke_getviewplayer()
+DDukePlayer* duke_getviewplayer()
 {
-	return &ps[screenpeek];
+	return getPlayer(screenpeek);
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_Duke, getviewplayer, duke_getviewplayer)
@@ -24,9 +44,9 @@ DEFINE_ACTION_FUNCTION_NATIVE(_Duke, getviewplayer, duke_getviewplayer)
 	ACTION_RETURN_POINTER(duke_getviewplayer());
 }
 
-player_struct* duke_getlocalplayer()
+DDukePlayer* duke_getlocalplayer()
 {
-	return &ps[myconnectindex];
+	return getPlayer(myconnectindex);
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_Duke, getlocalplayer, duke_getlocalplayer)
@@ -97,11 +117,11 @@ DEFINE_ACTION_FUNCTION_NATIVE(_Duke, CheckSoundPlaying, duke_CheckSoundPlaying)
 	ACTION_RETURN_INT(duke_CheckSoundPlaying(snd));
 }
 
-player_struct* duke_checkcursectnums(sectortype* sector)
+DDukePlayer* duke_checkcursectnums(sectortype* sector)
 {
 	if (!sector) return nullptr;
 	int pp = checkcursectnums(sector);
-	return pp >= 0 ? &ps[pp] : nullptr;
+	return pp >= 0 ? getPlayer(pp) : nullptr;
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_Duke, checkcursectnums, duke_checkcursectnums)
@@ -176,30 +196,17 @@ DEFINE_ACTION_FUNCTION_NATIVE(_Duke, StopCommentary, StopCommentary)
 	return 0;
 }
 
-int getPlayerIndex(player_struct* p)
+int getPlayerIndex(DDukePlayer* p)
 {
 	if (!p) return -1;
-	return int(p - ps);
+	return p->pnum;
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_Duke, getPlayerIndex, getPlayerIndex)
 {
 	PARAM_PROLOGUE;
-	PARAM_POINTER(p, player_struct);
+	PARAM_POINTER(p, DDukePlayer);
 	ACTION_RETURN_INT(getPlayerIndex(p));
-}
-
-void setlastvisinc(int v)
-{
-	lastvisinc = PlayClock + v;
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(_Duke, setlastvisinc, setlastvisinc)
-{
-	PARAM_PROLOGUE;
-	PARAM_INT(v);
-	setlastvisinc(v);
-	return 0;
 }
 
 int Duke_isaccessswitch(int texint)
@@ -301,7 +308,6 @@ DEFINE_FIELD(DDukeActor, curAction)
 DEFINE_FIELD(DDukeActor, curMove)
 DEFINE_FIELD(DDukeActor, curAI)
 DEFINE_FIELD(DDukeActor, actioncounter)
-//DEFINE_FIELD(DDukeActor, killit_flag)
 
 void TickActor(DDukeActor*);
 DEFINE_ACTION_FUNCTION(DDukeActor, Tick)
@@ -349,10 +355,10 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, getglobalz, getglobalz)
 	return 0;
 }
 
-player_struct* DukeActor_findplayer(DDukeActor* self, double* dist)
+DDukePlayer* DukeActor_findplayer(DDukeActor* self, double* dist)
 {
 	double a;
-	return &ps[findplayer(self, dist? dist : &a)];
+	return getPlayer(findplayer(self, dist? dist : &a));
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, findplayer, DukeActor_findplayer)
@@ -365,9 +371,9 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, findplayer, DukeActor_findplayer)
 	return min(numret, 2);
 }
 
-player_struct* DukeActor_getplayer(DDukeActor* self)
+DDukePlayer* DukeActor_getplayer(DDukeActor* self)
 {
-	return self->isPlayer() ? &ps[self->PlayerIndex()] : nullptr;
+	return self->isPlayer() ? getPlayer(self->PlayerIndex()) : nullptr;
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, getplayer, DukeActor_getplayer)
@@ -707,7 +713,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, restoreloc, DukeActor_restoreloc)
 DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, fakebubbaspawn, fakebubbaspawn)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_POINTER(p, player_struct);
+	PARAM_POINTER(p, DDukePlayer);
 	fakebubbaspawn(self, p);
 	return 0;
 }
@@ -784,7 +790,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, SetAI, Duke_SetAI)
 DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, checkp, checkp)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_POINTER(p, player_struct);
+	PARAM_POINTER(p, DDukePlayer);
 	PARAM_INT(n);
 	ACTION_RETURN_INT(checkp(self, p, n));
 }
@@ -792,7 +798,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, checkp, checkp)
 DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, cansee, ifcansee)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_POINTER(p, player_struct);
+	PARAM_POINTER(p, DDukePlayer);
 	PARAM_INT(n);
 	ACTION_RETURN_INT(ifcansee(self, p));
 }
@@ -807,7 +813,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, actoroperate, actoroperate)
 DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, ifsquished, ifsquished)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_POINTER(p, player_struct);
+	PARAM_POINTER(p, DDukePlayer);
 	ACTION_RETURN_INT(ifcansee(self, p));
 }
 
@@ -824,7 +830,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, ChangeType, Duke_ChangeType)
 	return 0;
 }
 
-void Duke_fall(DDukeActor* self, player_struct* p)
+void Duke_fall(DDukeActor* self, DDukePlayer* p)
 {
 	fall(self, p->GetPlayerNum());
 }
@@ -832,7 +838,7 @@ void Duke_fall(DDukeActor* self, player_struct* p)
 DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, fall, Duke_fall)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_POINTER(p, player_struct);
+	PARAM_POINTER(p, DDukePlayer);
 	Duke_fall(self, p);
 	return 0;
 }
@@ -852,14 +858,14 @@ DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, dodge, dodge)
 	ACTION_RETURN_INT(dodge(self));
 }
 
-int Duke_ifcanshoottarget(DDukeActor* self, player_struct* p, double dist)
+int Duke_ifcanshoottarget(DDukeActor* self, DDukePlayer* p, double dist)
 {
 	return ifcanshoottarget(self, p->GetPlayerNum(), int(dist * worldtoint));
 }
 DEFINE_ACTION_FUNCTION_NATIVE(DDukeActor, ifcanshoottarget, Duke_ifcanshoottarget)
 {
 	PARAM_SELF_PROLOGUE(DDukeActor);
-	PARAM_POINTER(p, player_struct);
+	PARAM_POINTER(p, DDukePlayer);
 	PARAM_FLOAT(x);
 	ACTION_RETURN_INT(Duke_ifcanshoottarget(self, p, x));
 }
@@ -966,210 +972,208 @@ DEFINE_ACTION_FUNCTION(DDukeActor, killit)
 //
 //---------------------------------------------------------------------------
 
-DEFINE_FIELD_X(DukePlayer, player_struct, gotweapon)
-DEFINE_FIELD_X(DukePlayer, player_struct, pals)
-DEFINE_FIELD_X(DukePlayer, player_struct, weapon_sway)
-DEFINE_FIELD_X(DukePlayer, player_struct, oweapon_sway)
-DEFINE_FIELD_X(DukePlayer, player_struct, weapon_pos)
-DEFINE_FIELD_X(DukePlayer, player_struct, kickback_pic)
-DEFINE_FIELD_X(DukePlayer, player_struct, random_club_frame)
-DEFINE_FIELD_X(DukePlayer, player_struct, oweapon_pos)
-DEFINE_FIELD_X(DukePlayer, player_struct, okickback_pic)
-DEFINE_FIELD_X(DukePlayer, player_struct, orandom_club_frame)
-DEFINE_FIELD_X(DukePlayer, player_struct, hard_landing)
-DEFINE_FIELD_X(DukePlayer, player_struct, ohard_landing)
-DEFINE_FIELD_X(DukePlayer, player_struct, psectlotag)
-//DEFINE_FIELD_X(DukePlayer, player_struct, exitx)
-//DEFINE_FIELD_X(DukePlayer, player_struct, exity)
-DEFINE_FIELD_UNSIZED(DukePlayer, player_struct, loogie)
-DEFINE_FIELD_X(DukePlayer, player_struct, numloogs)
-DEFINE_FIELD_X(DukePlayer, player_struct, loogcnt)
-DEFINE_FIELD_X(DukePlayer, player_struct, invdisptime)
-//DEFINE_FIELD_X(DukePlayer, player_struct, bobposx)
-//DEFINE_FIELD_X(DukePlayer, player_struct, bobposy)
-DEFINE_FIELD_X(DukePlayer, player_struct, pyoff)
-DEFINE_FIELD_X(DukePlayer, player_struct, opyoff)
-DEFINE_FIELD_X(DukePlayer, player_struct, vel)
-DEFINE_FIELD_X(DukePlayer, player_struct, last_pissed_time)
-DEFINE_FIELD_X(DukePlayer, player_struct, truefz)
-DEFINE_FIELD_X(DukePlayer, player_struct, truecz)
-DEFINE_FIELD_X(DukePlayer, player_struct, player_par)
-DEFINE_FIELD_X(DukePlayer, player_struct, visibility)
-DEFINE_FIELD_X(DukePlayer, player_struct, bobcounter)
-DEFINE_FIELD_X(DukePlayer, player_struct, randomflamex)
-DEFINE_FIELD_X(DukePlayer, player_struct, crack_time)
-DEFINE_FIELD_X(DukePlayer, player_struct, aim_mode)
-DEFINE_FIELD_X(DukePlayer, player_struct, ftt)
-DEFINE_FIELD_X(DukePlayer, player_struct, cursector)
-DEFINE_FIELD_X(DukePlayer, player_struct, last_extra)
-DEFINE_FIELD_X(DukePlayer, player_struct, subweapon)
-DEFINE_FIELD_X(DukePlayer, player_struct, ammo_amount)
-DEFINE_FIELD_X(DukePlayer, player_struct, frag)
-DEFINE_FIELD_X(DukePlayer, player_struct, fraggedself)
-DEFINE_FIELD_X(DukePlayer, player_struct, curr_weapon)
-DEFINE_FIELD_X(DukePlayer, player_struct, last_weapon)
-DEFINE_FIELD_X(DukePlayer, player_struct, tipincs)
-DEFINE_FIELD_X(DukePlayer, player_struct, wantweaponfire)
-DEFINE_FIELD_X(DukePlayer, player_struct, holoduke_amount)
-DEFINE_FIELD_X(DukePlayer, player_struct, hurt_delay)
-DEFINE_FIELD_X(DukePlayer, player_struct, hbomb_hold_delay)
-DEFINE_FIELD_X(DukePlayer, player_struct, jumping_counter)
-DEFINE_FIELD_X(DukePlayer, player_struct, airleft)
-DEFINE_FIELD_X(DukePlayer, player_struct, knee_incs)
-DEFINE_FIELD_X(DukePlayer, player_struct, access_incs)
-DEFINE_FIELD_X(DukePlayer, player_struct, ftq)
-DEFINE_FIELD_X(DukePlayer, player_struct, access_wall)
-DEFINE_FIELD_X(DukePlayer, player_struct, got_access)
-DEFINE_FIELD_X(DukePlayer, player_struct, weapon_ang)
-DEFINE_FIELD_X(DukePlayer, player_struct, firstaid_amount)
-DEFINE_FIELD_X(DukePlayer, player_struct, actor)
-DEFINE_FIELD_X(DukePlayer, player_struct, one_parallax_sectnum)
-DEFINE_FIELD_X(DukePlayer, player_struct, over_shoulder_on)
-DEFINE_FIELD_X(DukePlayer, player_struct, fist_incs)
-DEFINE_FIELD_X(DukePlayer, player_struct, cheat_phase)
-DEFINE_FIELD_X(DukePlayer, player_struct, extra_extra8)
-DEFINE_FIELD_X(DukePlayer, player_struct, quick_kick)
-DEFINE_FIELD_X(DukePlayer, player_struct, last_quick_kick)
-DEFINE_FIELD_X(DukePlayer, player_struct, heat_amount)
-DEFINE_FIELD_X(DukePlayer, player_struct, timebeforeexit)
-DEFINE_FIELD_X(DukePlayer, player_struct, customexitsound)
-DEFINE_FIELD_X(DukePlayer, player_struct, interface_toggle_flag)
-DEFINE_FIELD_X(DukePlayer, player_struct, dead_flag)
-DEFINE_FIELD_X(DukePlayer, player_struct, show_empty_weapon)
-DEFINE_FIELD_X(DukePlayer, player_struct, scuba_amount)
-DEFINE_FIELD_X(DukePlayer, player_struct, jetpack_amount)
-DEFINE_FIELD_X(DukePlayer, player_struct, steroids_amount)
-DEFINE_FIELD_X(DukePlayer, player_struct, shield_amount)
-DEFINE_FIELD_X(DukePlayer, player_struct, pycount)
-DEFINE_FIELD_X(DukePlayer, player_struct, frag_ps)
-DEFINE_FIELD_X(DukePlayer, player_struct, transporter_hold)
-DEFINE_FIELD_X(DukePlayer, player_struct, last_full_weapon)
-DEFINE_FIELD_X(DukePlayer, player_struct, footprintshade)
-DEFINE_FIELD_X(DukePlayer, player_struct, boot_amount)
-DEFINE_FIELD_X(DukePlayer, player_struct, on_warping_sector)
-DEFINE_FIELD_X(DukePlayer, player_struct, footprintcount)
-DEFINE_FIELD_X(DukePlayer, player_struct, hbomb_on)
-DEFINE_FIELD_X(DukePlayer, player_struct, jumping_toggle)
-DEFINE_FIELD_X(DukePlayer, player_struct, rapid_fire_hold)
-DEFINE_FIELD_X(DukePlayer, player_struct, on_ground)
-DEFINE_FIELD_X(DukePlayer, player_struct, inven_icon)
-DEFINE_FIELD_X(DukePlayer, player_struct, buttonpalette)
-DEFINE_FIELD_X(DukePlayer, player_struct, jetpack_on)
-DEFINE_FIELD_X(DukePlayer, player_struct, spritebridge)
-DEFINE_FIELD_X(DukePlayer, player_struct, lastrandomspot)
-DEFINE_FIELD_X(DukePlayer, player_struct, scuba_on)
-DEFINE_FIELD_X(DukePlayer, player_struct, footprintpal)
-DEFINE_FIELD_X(DukePlayer, player_struct, heat_on)
-DEFINE_FIELD_X(DukePlayer, player_struct, holster_weapon)
-DEFINE_FIELD_X(DukePlayer, player_struct, falling_counter)
-DEFINE_FIELD_X(DukePlayer, player_struct, refresh_inventory)
-DEFINE_FIELD_X(DukePlayer, player_struct, toggle_key_flag)
-DEFINE_FIELD_X(DukePlayer, player_struct, knuckle_incs)
-DEFINE_FIELD_X(DukePlayer, player_struct, walking_snd_toggle)
-DEFINE_FIELD_X(DukePlayer, player_struct, palookup)
-DEFINE_FIELD_X(DukePlayer, player_struct, quick_kick_msg)
-DEFINE_FIELD_X(DukePlayer, player_struct, max_secret_rooms)
-DEFINE_FIELD_X(DukePlayer, player_struct, secret_rooms)
-DEFINE_FIELD_X(DukePlayer, player_struct, stairs)
-DEFINE_FIELD_X(DukePlayer, player_struct, detonate_count)
-//DEFINE_FIELD_X(DukePlayer, player_struct, noise.X)
-//DEFINE_FIELD_X(DukePlayer, player_struct, noise.Y)
-DEFINE_FIELD_X(DukePlayer, player_struct, noise_radius)
-DEFINE_FIELD_X(DukePlayer, player_struct, drink_timer)
-DEFINE_FIELD_X(DukePlayer, player_struct, eat_timer)
-DEFINE_FIELD_X(DukePlayer, player_struct, SlotWin)
-DEFINE_FIELD_X(DukePlayer, player_struct, recoil)
-DEFINE_FIELD_X(DukePlayer, player_struct, detonate_time)
-DEFINE_FIELD_X(DukePlayer, player_struct, yehaa_timer)
-DEFINE_FIELD_X(DukePlayer, player_struct, drink_amt)
-DEFINE_FIELD_X(DukePlayer, player_struct, eat)
-DEFINE_FIELD_X(DukePlayer, player_struct, drunkang)
-DEFINE_FIELD_X(DukePlayer, player_struct, eatang)
-DEFINE_FIELD_X(DukePlayer, player_struct, shotgun_state)
-DEFINE_FIELD_X(DukePlayer, player_struct, donoise)
-DEFINE_FIELD_X(DukePlayer, player_struct, keys)
-DEFINE_FIELD_X(DukePlayer, player_struct, drug_aspect)
-DEFINE_FIELD_X(DukePlayer, player_struct, drug_timer)
-DEFINE_FIELD_X(DukePlayer, player_struct, SeaSick)
-DEFINE_FIELD_X(DukePlayer, player_struct, MamaEnd)
-DEFINE_FIELD_X(DukePlayer, player_struct, moto_drink)
-DEFINE_FIELD_X(DukePlayer, player_struct, TiltStatus)
-DEFINE_FIELD_X(DukePlayer, player_struct, oTiltStatus)
-DEFINE_FIELD_X(DukePlayer, player_struct, VBumpNow)
-DEFINE_FIELD_X(DukePlayer, player_struct, VBumpTarget)
-DEFINE_FIELD_X(DukePlayer, player_struct, TurbCount)
-DEFINE_FIELD_X(DukePlayer, player_struct, drug_stat)
-DEFINE_FIELD_X(DukePlayer, player_struct, DrugMode)
-DEFINE_FIELD_X(DukePlayer, player_struct, lotag800kill)
-DEFINE_FIELD_X(DukePlayer, player_struct, sea_sick_stat)
-DEFINE_FIELD_X(DukePlayer, player_struct, hurt_delay2)
-DEFINE_FIELD_X(DukePlayer, player_struct, nocheat)
-DEFINE_FIELD_X(DukePlayer, player_struct, OnMotorcycle)
-DEFINE_FIELD_X(DukePlayer, player_struct, OnBoat)
-DEFINE_FIELD_X(DukePlayer, player_struct, moto_underwater)
-DEFINE_FIELD_X(DukePlayer, player_struct, NotOnWater)
-DEFINE_FIELD_X(DukePlayer, player_struct, MotoOnGround)
-DEFINE_FIELD_X(DukePlayer, player_struct, moto_do_bump)
-DEFINE_FIELD_X(DukePlayer, player_struct, moto_bump_fast)
-DEFINE_FIELD_X(DukePlayer, player_struct, moto_on_oil)
-DEFINE_FIELD_X(DukePlayer, player_struct, moto_on_mud)
-DEFINE_FIELD_X(DukePlayer, player_struct, MotoSpeed)
-DEFINE_FIELD_X(DukePlayer, player_struct, holoduke_on)
-DEFINE_FIELD_X(DukePlayer, player_struct, actorsqu)
-DEFINE_FIELD_X(DukePlayer, player_struct, wackedbyactor)
-DEFINE_FIELD_X(DukePlayer, player_struct, on_crane)
-DEFINE_FIELD_X(DukePlayer, player_struct, somethingonplayer)
-DEFINE_FIELD_X(DukePlayer, player_struct, access_spritenum)
-DEFINE_FIELD_X(DukePlayer, player_struct, dummyplayersprite)
-DEFINE_FIELD_X(DukePlayer, player_struct, newOwner)
-DEFINE_FIELD_X(DukePlayer, player_struct, fric)
+DEFINE_FIELD(DDukePlayer, actor)
+DEFINE_FIELD(DDukePlayer, gotweapon)
+DEFINE_FIELD(DDukePlayer, pals)
+DEFINE_FIELD(DDukePlayer, weapon_sway)
+DEFINE_FIELD(DDukePlayer, oweapon_sway)
+DEFINE_FIELD(DDukePlayer, weapon_pos)
+DEFINE_FIELD(DDukePlayer, kickback_pic)
+DEFINE_FIELD(DDukePlayer, random_club_frame)
+DEFINE_FIELD(DDukePlayer, oweapon_pos)
+DEFINE_FIELD(DDukePlayer, okickback_pic)
+DEFINE_FIELD(DDukePlayer, orandom_club_frame)
+DEFINE_FIELD(DDukePlayer, hard_landing)
+DEFINE_FIELD(DDukePlayer, ohard_landing)
+DEFINE_FIELD(DDukePlayer, psectlotag)
+DEFINE_FIELD(DDukePlayer, loogie)
+DEFINE_FIELD(DDukePlayer, numloogs)
+DEFINE_FIELD(DDukePlayer, loogcnt)
+DEFINE_FIELD(DDukePlayer, invdisptime)
+//DEFINE_FIELD(DukePlayer, exitx)
+//DEFINE_FIELD(DukePlayer, exity)
+//DEFINE_FIELD(DukePlayer, bobposx)
+//DEFINE_FIELD(DukePlayer, bobposy)
+DEFINE_FIELD(DDukePlayer, pyoff)
+DEFINE_FIELD(DDukePlayer, opyoff)
+DEFINE_FIELD(DDukePlayer, vel)
+DEFINE_FIELD(DDukePlayer, last_pissed_time)
+DEFINE_FIELD(DDukePlayer, truefz)
+DEFINE_FIELD(DDukePlayer, truecz)
+DEFINE_FIELD(DDukePlayer, player_par)
+DEFINE_FIELD(DDukePlayer, visibility)
+DEFINE_FIELD(DDukePlayer, bobcounter)
+DEFINE_FIELD(DDukePlayer, randomflamex)
+DEFINE_FIELD(DDukePlayer, crack_time)
+DEFINE_FIELD(DDukePlayer, aim_mode)
+DEFINE_FIELD(DDukePlayer, ftt)
+DEFINE_FIELD(DDukePlayer, cursector)
+DEFINE_FIELD(DDukePlayer, last_extra)
+DEFINE_FIELD(DDukePlayer, subweapon)
+DEFINE_FIELD(DDukePlayer, ammo_amount)
+DEFINE_FIELD(DDukePlayer, frag)
+DEFINE_FIELD(DDukePlayer, fraggedself)
+DEFINE_FIELD(DDukePlayer, curr_weapon)
+DEFINE_FIELD(DDukePlayer, last_weapon)
+DEFINE_FIELD(DDukePlayer, tipincs)
+DEFINE_FIELD(DDukePlayer, wantweaponfire)
+DEFINE_FIELD(DDukePlayer, holoduke_amount)
+DEFINE_FIELD(DDukePlayer, hurt_delay)
+DEFINE_FIELD(DDukePlayer, hbomb_hold_delay)
+DEFINE_FIELD(DDukePlayer, jumping_counter)
+DEFINE_FIELD(DDukePlayer, airleft)
+DEFINE_FIELD(DDukePlayer, knee_incs)
+DEFINE_FIELD(DDukePlayer, access_incs)
+DEFINE_FIELD(DDukePlayer, ftq)
+DEFINE_FIELD(DDukePlayer, access_wall)
+DEFINE_FIELD(DDukePlayer, got_access)
+DEFINE_FIELD(DDukePlayer, weapon_ang)
+DEFINE_FIELD(DDukePlayer, firstaid_amount)
+DEFINE_FIELD(DDukePlayer, one_parallax_sectnum)
+DEFINE_FIELD(DDukePlayer, over_shoulder_on)
+DEFINE_FIELD(DDukePlayer, fist_incs)
+DEFINE_FIELD(DDukePlayer, cheat_phase)
+DEFINE_FIELD(DDukePlayer, extra_extra8)
+DEFINE_FIELD(DDukePlayer, quick_kick)
+DEFINE_FIELD(DDukePlayer, last_quick_kick)
+DEFINE_FIELD(DDukePlayer, heat_amount)
+DEFINE_FIELD(DDukePlayer, timebeforeexit)
+DEFINE_FIELD(DDukePlayer, customexitsound)
+DEFINE_FIELD(DDukePlayer, interface_toggle_flag)
+DEFINE_FIELD(DDukePlayer, dead_flag)
+DEFINE_FIELD(DDukePlayer, show_empty_weapon)
+DEFINE_FIELD(DDukePlayer, scuba_amount)
+DEFINE_FIELD(DDukePlayer, jetpack_amount)
+DEFINE_FIELD(DDukePlayer, steroids_amount)
+DEFINE_FIELD(DDukePlayer, shield_amount)
+DEFINE_FIELD(DDukePlayer, pycount)
+DEFINE_FIELD(DDukePlayer, frag_ps)
+DEFINE_FIELD(DDukePlayer, transporter_hold)
+DEFINE_FIELD(DDukePlayer, last_full_weapon)
+DEFINE_FIELD(DDukePlayer, footprintshade)
+DEFINE_FIELD(DDukePlayer, boot_amount)
+DEFINE_FIELD(DDukePlayer, on_warping_sector)
+DEFINE_FIELD(DDukePlayer, footprintcount)
+DEFINE_FIELD(DDukePlayer, hbomb_on)
+DEFINE_FIELD(DDukePlayer, jumping_toggle)
+DEFINE_FIELD(DDukePlayer, rapid_fire_hold)
+DEFINE_FIELD(DDukePlayer, on_ground)
+DEFINE_FIELD(DDukePlayer, inven_icon)
+DEFINE_FIELD(DDukePlayer, buttonpalette)
+DEFINE_FIELD(DDukePlayer, jetpack_on)
+DEFINE_FIELD(DDukePlayer, spritebridge)
+DEFINE_FIELD(DDukePlayer, lastrandomspot)
+DEFINE_FIELD(DDukePlayer, scuba_on)
+DEFINE_FIELD(DDukePlayer, footprintpal)
+DEFINE_FIELD(DDukePlayer, heat_on)
+DEFINE_FIELD(DDukePlayer, holster_weapon)
+DEFINE_FIELD(DDukePlayer, falling_counter)
+DEFINE_FIELD(DDukePlayer, refresh_inventory)
+DEFINE_FIELD(DDukePlayer, toggle_key_flag)
+DEFINE_FIELD(DDukePlayer, knuckle_incs)
+DEFINE_FIELD(DDukePlayer, walking_snd_toggle)
+DEFINE_FIELD(DDukePlayer, palookup)
+DEFINE_FIELD(DDukePlayer, quick_kick_msg)
+DEFINE_FIELD(DDukePlayer, stairs)
+DEFINE_FIELD(DDukePlayer, detonate_count)
+//DEFINE_FIELD(DukePlayer, noise.X)
+//DEFINE_FIELD(DukePlayer, noise.Y)
+DEFINE_FIELD(DDukePlayer, noise_radius)
+DEFINE_FIELD(DDukePlayer, drink_timer)
+DEFINE_FIELD(DDukePlayer, eat_timer)
+DEFINE_FIELD(DDukePlayer, SlotWin)
+DEFINE_FIELD(DDukePlayer, recoil)
+DEFINE_FIELD(DDukePlayer, detonate_time)
+DEFINE_FIELD(DDukePlayer, yehaa_timer)
+DEFINE_FIELD(DDukePlayer, drink_amt)
+DEFINE_FIELD(DDukePlayer, eat)
+DEFINE_FIELD(DDukePlayer, drunkang)
+DEFINE_FIELD(DDukePlayer, eatang)
+DEFINE_FIELD(DDukePlayer, shotgun_state)
+DEFINE_FIELD(DDukePlayer, donoise)
+DEFINE_FIELD(DDukePlayer, keys)
+DEFINE_FIELD(DDukePlayer, drug_aspect)
+DEFINE_FIELD(DDukePlayer, drug_timer)
+DEFINE_FIELD(DDukePlayer, SeaSick)
+DEFINE_FIELD(DDukePlayer, MamaEnd)
+DEFINE_FIELD(DDukePlayer, moto_drink)
+DEFINE_FIELD(DDukePlayer, TiltStatus)
+DEFINE_FIELD(DDukePlayer, oTiltStatus)
+DEFINE_FIELD(DDukePlayer, VBumpNow)
+DEFINE_FIELD(DDukePlayer, VBumpTarget)
+DEFINE_FIELD(DDukePlayer, TurbCount)
+DEFINE_FIELD(DDukePlayer, drug_stat)
+DEFINE_FIELD(DDukePlayer, DrugMode)
+DEFINE_FIELD(DDukePlayer, lotag800kill)
+DEFINE_FIELD(DDukePlayer, sea_sick_stat)
+DEFINE_FIELD(DDukePlayer, hurt_delay2)
+DEFINE_FIELD(DDukePlayer, nocheat)
+DEFINE_FIELD(DDukePlayer, OnMotorcycle)
+DEFINE_FIELD(DDukePlayer, OnBoat)
+DEFINE_FIELD(DDukePlayer, moto_underwater)
+DEFINE_FIELD(DDukePlayer, NotOnWater)
+DEFINE_FIELD(DDukePlayer, MotoOnGround)
+DEFINE_FIELD(DDukePlayer, moto_do_bump)
+DEFINE_FIELD(DDukePlayer, moto_bump_fast)
+DEFINE_FIELD(DDukePlayer, moto_on_oil)
+DEFINE_FIELD(DDukePlayer, moto_on_mud)
+DEFINE_FIELD(DDukePlayer, MotoSpeed)
+DEFINE_FIELD(DDukePlayer, holoduke_on)
+DEFINE_FIELD(DDukePlayer, actorsqu)
+DEFINE_FIELD(DDukePlayer, wackedbyactor)
+DEFINE_FIELD(DDukePlayer, on_crane)
+DEFINE_FIELD(DDukePlayer, somethingonplayer)
+DEFINE_FIELD(DDukePlayer, access_spritenum)
+DEFINE_FIELD(DDukePlayer, dummyplayersprite)
+DEFINE_FIELD(DDukePlayer, newOwner)
+DEFINE_FIELD(DDukePlayer, fric)
 
 DEFINE_ACTION_FUNCTION(_DukePlayer, IsFrozen)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	ACTION_RETURN_BOOL(self->GetActor()->spr.pal == 1 && self->last_extra < 2);
 }
 
 DEFINE_ACTION_FUNCTION(_DukePlayer, GetGameVar)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_STRING(name);
 	PARAM_INT(def);
-	ACTION_RETURN_INT(GetGameVar(name, def, self->GetActor(), self->GetPlayerNum()).safeValue());
+	ACTION_RETURN_INT(GetGameVar(name.GetChars(), def, self->GetActor(), self->GetPlayerNum()).safeValue());
 }
 
-void dukeplayer_backuppos(player_struct* self)
+void dukeplayer_backuppos(DDukePlayer* self)
 {
 	self->backuppos();
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, backuppos, dukeplayer_backuppos)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	dukeplayer_backuppos(self);
 	return 0;
 }
 
-void dukeplayer_backupxyz(player_struct* self)
+void dukeplayer_backupxyz(DDukePlayer* self)
 {
 	self->GetActor()->backuppos();
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, backupxyz, dukeplayer_backupxyz)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	dukeplayer_backupxyz(self);
 	return 0;
 }
 
-void dukeplayer_setpos(player_struct* self, double x, double y, double z)
+void dukeplayer_setpos(DDukePlayer* self, double x, double y, double z)
 {
 	self->GetActor()->spr.pos = { x, y, z + self->GetActor()->viewzoffset };
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, setpos, dukeplayer_setpos)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_FLOAT(x);
 	PARAM_FLOAT(y);
 	PARAM_FLOAT(z);
@@ -1177,14 +1181,14 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, setpos, dukeplayer_setpos)
 	return 0;
 }
 
-void dukeplayer_addpos(player_struct* self, double x, double y, double z)
+void dukeplayer_addpos(DDukePlayer* self, double x, double y, double z)
 {
 	self->GetActor()->spr.pos += { x, y, z };
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, addpos, dukeplayer_addpos)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_FLOAT(x);
 	PARAM_FLOAT(y);
 	PARAM_FLOAT(z);
@@ -1192,31 +1196,31 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, addpos, dukeplayer_addpos)
 	return 0;
 }
 
-void dukeplayer_centerview(player_struct* self)
+void dukeplayer_centerview(DDukePlayer* self)
 {
-	self->sync.actions |= SB_CENTERVIEW;
+	self->cmd.ucmd.actions |= SB_CENTERVIEW;
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, centerview, dukeplayer_centerview)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
-	self->sync.actions |= SB_CENTERVIEW;
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
+	self->cmd.ucmd.actions |= SB_CENTERVIEW;
 	return 0;
 }
 
-inline int DukePlayer_PlayerInput(player_struct* pl, int bit)
+inline int DukePlayer_PlayerInput(DDukePlayer* pl, int bit)
 {
-	return (!!((pl->sync.actions) & ESyncBits::FromInt(bit)));
+	return (!!((pl->cmd.ucmd.actions) & ESyncBits::FromInt(bit)));
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playerinput, DukePlayer_PlayerInput)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_INT(bit);
 	ACTION_RETURN_INT(DukePlayer_PlayerInput(self, bit));
 }
 
-void dukeplayer_settargetangle(player_struct* self, double a, int backup)
+void dukeplayer_settargetangle(DDukePlayer* self, double a, int backup)
 {
 	self->GetActor()->spr.Angles.Yaw = DAngle::fromDeg(a);
 	if (backup) self->GetActor()->PrevAngles.Yaw = self->GetActor()->spr.Angles.Yaw;
@@ -1224,32 +1228,32 @@ void dukeplayer_settargetangle(player_struct* self, double a, int backup)
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, settargetangle, dukeplayer_settargetangle)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_FLOAT(a);
 	PARAM_BOOL(bak);
 	dukeplayer_settargetangle(self, a, bak);
 	return 0;
 }
 
-double dukeplayer_angle(player_struct* self)
+double dukeplayer_angle(DDukePlayer* self)
 {
 	return self->GetActor()->spr.Angles.Yaw.Degrees();
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, angle, dukeplayer_angle)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	ACTION_RETURN_FLOAT(dukeplayer_angle(self));
 }
 
-void dukeplayer_addpitch(player_struct* self, double a)
+void dukeplayer_addpitch(DDukePlayer* self, double a)
 {
 	self->GetActor()->spr.Angles.Pitch += DAngle::fromDeg(a);
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, addpitch, dukeplayer_addpitch)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_FLOAT(a);
 	dukeplayer_addpitch(self, a);
 	return 0;
@@ -1257,27 +1261,27 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, addpitch, dukeplayer_addpitch)
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, clearcameras, clearcameras)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	clearcameras(self);
 	return 0;
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, quickkill, quickkill)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	quickkill(self);
 	return 0;
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, CheckWeapRec, CheckWeapRec)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_POINTER(ac, DDukeActor);
 	PARAM_BOOL(test);
 	ACTION_RETURN_INT(CheckWeapRec(self, ac, test));
 }
 
-void DukePlayer_addammo(player_struct* p, int ammo, int amount)
+void DukePlayer_addammo(DDukePlayer* p, int ammo, int amount)
 {
 	if ((unsigned)ammo >= MAX_WEAPONS) ThrowAbortException(X_ARRAY_OUT_OF_BOUNDS, "Ammo number out of range");
 	addammo(ammo, p, amount);
@@ -1285,14 +1289,14 @@ void DukePlayer_addammo(player_struct* p, int ammo, int amount)
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, addammo, DukePlayer_addammo)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_INT(type);
 	PARAM_INT(amount);
 	DukePlayer_addammo(self, type, amount);
 	return 0;
 }
 
-void DukePlayer_addweapon(player_struct* p, int wpn, int switchit)
+void DukePlayer_addweapon(DDukePlayer* p, int wpn, int switchit)
 {
 	if ((unsigned)wpn >= MAX_WEAPONS) ThrowAbortException(X_ARRAY_OUT_OF_BOUNDS, "Weapon number out of range");
 	fi.addweapon(p, wpn, switchit);
@@ -1300,7 +1304,7 @@ void DukePlayer_addweapon(player_struct* p, int wpn, int switchit)
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, addweapon, DukePlayer_addweapon)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_INT(type);
 	PARAM_INT(switchit);
 	DukePlayer_addweapon(self, type, switchit);
@@ -1310,57 +1314,57 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, addweapon, DukePlayer_addweapon)
 
 DEFINE_ACTION_FUNCTION(_DukePlayer, hitablockingwall)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	walltype* pwal;
 	hitawall(self, &pwal);
 	ACTION_RETURN_BOOL(pwal && pwal->overtexture.isValid());
 }
 
-inline double DukePlayer_GetPitchwithView(player_struct* pl)
+inline double DukePlayer_GetPitchwithView(DDukePlayer* pl)
 {
-	return pl->Angles.getPitchWithView().Degrees();
+	return pl->getPitchWithView().Degrees();
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, GetPitchwithView, DukePlayer_GetPitchwithView)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	ACTION_RETURN_FLOAT(DukePlayer_GetPitchwithView(self));
 }
 
-inline void DukePlayer_setbobpos(player_struct* pl)
+inline void DukePlayer_setbobpos(DDukePlayer* pl)
 {
 	return pl->setbobpos();
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, setbobpos, DukePlayer_setbobpos)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	self->setbobpos();
 	return 0;
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, StartMotorcycle, OnMotorcycle)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	OnMotorcycle(self);
 	return 0;
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, StartBoat, OnBoat)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	OnBoat(self);
 	return 0;
 }
 
-void pl_checkhitswitch(player_struct* p, walltype* wal, DDukeActor* act)
+void pl_checkhitswitch(DDukePlayer* p, walltype* wal, DDukeActor* act)
 {
-	checkhitswitch(p->GetPlayerNum(), wal, act);
+	checkhitswitch(p, wal, act);
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, checkhitswitch, pl_checkhitswitch)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_POINTER(wal, walltype);
 	PARAM_POINTER(act, DDukeActor);
 	pl_checkhitswitch(self, wal, act);
@@ -1369,7 +1373,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, checkhitswitch, pl_checkhitswitch)
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playerkick, playerkick)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_POINTER(act, DDukeActor);
 	playerkick(self, act);
 	return 0;
@@ -1377,7 +1381,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playerkick, playerkick)
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playerstomp, playerstomp)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_POINTER(act, DDukeActor);
 	playerstomp(self, act);
 	return 0;
@@ -1385,7 +1389,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playerstomp, playerstomp)
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playerreset, playerreset)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_POINTER(act, DDukeActor);
 	playerreset(self, act);
 	return 0;
@@ -1393,7 +1397,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playerreset, playerreset)
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, addphealth, addphealth)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_INT(amt);
 	PARAM_INT(big);
 	addphealth(self, amt, big);
@@ -1402,30 +1406,30 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, addphealth, addphealth)
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, wackplayer, wackplayer)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	wackplayer(self);
 	return 0;
 }
 
-static void duke_checkweapons(player_struct* p)
+static void duke_checkweapons(DDukePlayer* p)
 {
 	fi.checkweapons(p);
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, checkweapons, duke_checkweapons)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	duke_checkweapons(self);
 	return 0;
 }
 
-static void msg(player_struct* p, int num)
+static void msg(DDukePlayer* p, int num)
 {
 	FTA(num, p);
 }
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, FTA, msg)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_INT(num);
 	FTA(num, self);
 	return 0;
@@ -1433,7 +1437,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, FTA, msg)
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playercheckinventory, playercheckinventory)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_POINTER(act, DDukeActor);
 	PARAM_INT(num);
 	PARAM_INT(amt);
@@ -1442,7 +1446,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playercheckinventory, playercheckinve
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playeraddinventory, playeraddinventory)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_POINTER(act, DDukeActor);
 	PARAM_INT(num);
 	PARAM_INT(amt);
@@ -1452,7 +1456,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playeraddinventory, playeraddinventor
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playeraddweapon, playeraddweapon)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_INT(num);
 	PARAM_INT(amt);
 	ACTION_RETURN_BOOL(playeraddweapon(self, num, amt));
@@ -1460,7 +1464,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playeraddweapon, playeraddweapon)
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playeraddammo, playeraddammo)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_INT(num);
 	PARAM_INT(amt);
 	ACTION_RETURN_BOOL(playeraddammo(self, num, amt));
@@ -1468,14 +1472,14 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playeraddammo, playeraddammo)
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, forceplayerangle, forceplayerangle)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	forceplayerangle(self);
 	return 0;
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playereat, playereat)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_INT(amt);
 	PARAM_BOOL(big);
 	ACTION_RETURN_BOOL(playereat(self, amt, big));
@@ -1483,7 +1487,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playereat, playereat)
 
 DEFINE_ACTION_FUNCTION_NATIVE(_DukePlayer, playerdrink, playerdrink)
 {
-	PARAM_SELF_STRUCT_PROLOGUE(player_struct);
+	PARAM_SELF_STRUCT_PROLOGUE(DDukePlayer);
 	PARAM_INT(amt);
 	playerdrink(self, amt);
 	return 0;
@@ -1605,7 +1609,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(_DukeLevel, operateactivators, operateactivators)
 {
 	PARAM_PROLOGUE;
 	PARAM_INT(lotag);
-	PARAM_POINTER(p, player_struct);
+	PARAM_POINTER(p, DDukePlayer);
 	operateactivators(lotag, p);
 	return 0;
 }

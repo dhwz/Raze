@@ -87,6 +87,7 @@ void DrawLogo()
 //
 //
 //---------------------------------------------------------------------------
+static FRandom rnd_plasma;
 
 void menu_DoPlasma()
 {
@@ -101,15 +102,14 @@ void menu_DoPlasma()
     static int plasma_A[5];
     static int plasma_B[5];
     static int plasma_C[5];
-    static FRandom rnd_plasma;
 
     if (!nPlasmaTile)
     {
         nPlasmaTile = TexMan.GetGameTexture(aTexIds[kTexPlasmaTile1]);
         nPlasmaTileAlt = TexMan.GetGameTexture(aTexIds[kTexPlasmaTile2]);
-        plasma_A[5] = {};
-        plasma_B[5] = {};
-        plasma_C[5] = {};
+        memset(plasma_A, 0, sizeof(plasma_A));
+        memset(plasma_B, 0, sizeof(plasma_B));
+        memset(plasma_C, 0, sizeof(plasma_C));
     }
 
     const auto nLogoTexid = GameLogo();
@@ -304,7 +304,7 @@ void TextOverlay::Create(const FString& text, int pal)
 {
     lastclock = 0;
     FString ttext = GStrings(text);
-    font = PickSmallFont(ttext);
+    font = PickSmallFont(ttext.GetChars());
     screentext = ttext.Split("\n");
     ComputeCinemaText();
 }
@@ -343,7 +343,7 @@ void TextOverlay::DisplayText()
         while (i < screentext.Size() && y <= 199)
         {
             if (y >= -10)
-                DrawText(twod, font, CR_NATIVEPAL, nLeft[i], y, screentext[i], DTA_FullscreenScale, FSMode_Fit320x200, DTA_TranslationIndex, TRANSLATION(Translation_BasePalettes, currentCinemaPalette), TAG_DONE);
+                DrawText(twod, font, CR_NATIVEPAL, nLeft[i], y, screentext[i].GetChars(), DTA_FullscreenScale, FSMode_Fit320x200, DTA_TranslationIndex, TRANSLATION(Translation_BasePalettes, currentCinemaPalette), TAG_DONE);
 
             i++;
             y += 10;

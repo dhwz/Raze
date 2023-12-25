@@ -108,7 +108,7 @@ short SoundDist(const DVector3& pos, double basedist)
     double sqrdist;
     extern short screenpeek;
 
-    double distance = (Player[screenpeek].actor->getPosWithOffsetZ() - pos).Length() * 16;
+    double distance = (getPlayer(screenpeek)->GetActor()->getPosWithOffsetZ() - pos).Length() * 16;
 
     if (basedist < 0) // if basedist is negative
     {
@@ -198,8 +198,8 @@ void InitAmbient(int num, DSWActor* actor)
     {
         if (num != -1) // skip message for -1 to allow using it for silencing buggy ambient sound sprites (there is one in SW level 9.)
         {
-            sprintf(ds, "Invalid or out of range ambient sound number %d\n", num);
-            PutStringInfo(Player + screenpeek, ds);
+            snprintf(ds, sizeof(ds), "Invalid or out of range ambient sound number %d\n", num);
+            PutStringInfo(getPlayer(screenpeek), ds);
         }
         return;
     }
@@ -324,8 +324,8 @@ static void UpdateAmbients()
 
         if (sdist < 255 && sfx->ResourceId == DIGI_WHIPME)
         {
-            PLAYER* pp = Player + screenpeek;
-            if (!FAFcansee(spot->spr.pos, spot->sector(), pp->actor->getPosWithOffsetZ(), pp->cursector))
+            DSWPlayer* pp = getPlayer(screenpeek);
+            if (!FAFcansee(spot->spr.pos, spot->sector(), pp->GetActor()->getPosWithOffsetZ(), pp->cursector))
             {
                 sdist = 255;
             }
@@ -363,7 +363,6 @@ class SWSoundEngine : public RazeSoundEngine
 {
     // client specific parts of the sound engine go in this class.
     void CalcPosVel(int type, const void* source, const float pt[3], int channum, int chanflags, FSoundID chanSound, FVector3* pos, FVector3* vel, FSoundChan* chan) override;
-    TArray<uint8_t> ReadSound(int lumpnum) override;
 
 public:
     SWSoundEngine()
@@ -380,7 +379,7 @@ public:
 
     int SoundSourceIndex(FSoundChan* chan) override
     {
-        if (chan->SourceType == SOURCE_Player) return int((PLAYER*)(chan->Source) - Player);
+        if (chan->SourceType == SOURCE_Player) return int(((DSWPlayer*)(chan->Source))->pnum);
         return 0;
     }
 
@@ -389,7 +388,7 @@ public:
         if (chan->SourceType == SOURCE_Player)
         {
             if (index < 0 || index >= MAX_SW_PLAYERS_REG) index = 0;
-            chan->Source = &Player[index];
+            chan->Source = getPlayer(index);
         }
         else chan->Source = nullptr;
     }
@@ -405,18 +404,6 @@ public:
     }
 
 };
-
-//==========================================================================
-//
-//
-// 
-//==========================================================================
-
-TArray<uint8_t> SWSoundEngine::ReadSound(int lumpnum)
-{
-    auto wlump = fileSystem.OpenFileReader(lumpnum);
-    return wlump.Read();
-}
 
 //==========================================================================
 //
@@ -438,8 +425,8 @@ void SWSoundEngine::CalcPosVel(int type, const void* source, const float pt[3], 
 {
     if (pos != nullptr)
     {
-        PLAYER* pp = Player + screenpeek;
-        FVector3 campos = GetSoundPos(pp->actor ? pp->actor->getPosWithOffsetZ() : DVector3());
+        DSWPlayer* pp = getPlayer(screenpeek);
+        FVector3 campos = GetSoundPos(pp->GetActor() ? pp->GetActor()->getPosWithOffsetZ() : DVector3());
         DVector3 vPos = {};
         bool pancheck = false;
 
@@ -459,10 +446,10 @@ void SWSoundEngine::CalcPosVel(int type, const void* source, const float pt[3], 
             }
             else
             {
-                auto act = ((PLAYER*)source)->actor;
+                auto act = ((DSWPlayer*)source)->GetActor();
                 if (act) vPos = act->getPosWithOffsetZ();
-                else if (pp->actor)
-                    vPos = pp->actor->getPosWithOffsetZ();
+                else if (pp->GetActor())
+                    vPos = pp->GetActor()->getPosWithOffsetZ();
             }
             pancheck = true;
             FVector3 npos = GetSoundPos(vPos);
@@ -492,7 +479,7 @@ void SWSoundEngine::CalcPosVel(int type, const void* source, const float pt[3], 
             // Can the ambient sound see the player?  If not, tone it down some.
             if ((chanflags & CHANF_LOOP))
             {
-                if (!FAFcansee(vPos, spot->sector(), pp->actor->getPosWithOffsetZ(), pp->cursector))
+                if (!FAFcansee(vPos, spot->sector(), pp->GetActor()->getPosWithOffsetZ(), pp->cursector))
                 {
                     auto distvec = npos - campos;
                     npos = campos + distvec * 1.75f;  // Play more quietly
@@ -526,7 +513,7 @@ void SWSoundEngine::CalcPosVel(int type, const void* source, const float pt[3], 
 
 void GameInterface::UpdateSounds(void)
 {
-    PLAYER* pp = Player + screenpeek;
+    DSWPlayer* pp = getPlayer(screenpeek);
     SoundListener listener;
 
     DAngle tang;
@@ -536,13 +523,13 @@ void GameInterface::UpdateSounds(void)
         if (rsp && TEST_BOOL1(rsp))
             tang = rsp->spr.Angles.Yaw;
         else
-            tang = (pp->sop_remote->pmid.XY() - pp->actor->spr.pos.XY()).Angle();
+            tang = (pp->sop_remote->pmid.XY() - pp->GetActor()->spr.pos.XY()).Angle();
     }
-    else tang = pp->actor ? pp->actor->spr.Angles.Yaw : nullAngle;
+    else tang = pp->GetActor() ? pp->GetActor()->spr.Angles.Yaw : nullAngle;
 
     listener.angle = float(-tang.Radians());
     listener.velocity.Zero();
-    listener.position = GetSoundPos(pp->actor ? pp->actor->getPosWithOffsetZ() : DVector3());
+    listener.position = GetSoundPos(pp->GetActor() ? pp->GetActor()->getPosWithOffsetZ() : DVector3());
     listener.underwater = false;
     // This should probably use a real environment instead of the pitch hacking in S_PlaySound3D.
     // listenactor->waterlevel == 3;
@@ -562,7 +549,7 @@ void GameInterface::UpdateSounds(void)
 //
 //==========================================================================
 
-int _PlaySound(const FSoundID sndid, DSWActor* actor, PLAYER* pp, const DVector3* const ppos, int flags, int channel, EChanFlags cflags)
+int _PlaySound(const FSoundID sndid, DSWActor* actor, DSWPlayer* pp, const DVector3* const ppos, int flags, int channel, EChanFlags cflags)
 {
     if (Prediction || !SoundEnabled() || !soundEngine->isValidSoundId(sndid))
         return -1;
@@ -586,7 +573,7 @@ int _PlaySound(const FSoundID sndid, DSWActor* actor, PLAYER* pp, const DVector3
         }
         else if (pp && !ppos)
         {
-            pos = pp->actor->getPosWithOffsetZ();
+            pos = pp->GetActor()->getPosWithOffsetZ();
             pp = nullptr;
             sourcetype = SOURCE_Unattached;
         }
@@ -644,7 +631,7 @@ void PlaySoundRTS(int rts_num)
 
 void COVER_SetReverb(int amt)
 {
-    FX_SetReverb(amt);
+    S_SetReverb(amt);
 }
 
 //==========================================================================
@@ -718,7 +705,7 @@ void Terminate3DSounds(void)
 
 void PlaySpriteSound(DSWActor* actor, int attrib_ndx, int flags)
 {
-    if (actor->hasU())
+    if (actor->hasU() && attrib_ndx > attr_none && attrib_ndx < MAXATTRIBSNDS)
         PlaySound(actor->user.__legacyState.Attrib->Sounds[attrib_ndx - 1], actor, flags);
 }
 
@@ -728,17 +715,12 @@ void PlaySpriteSound(DSWActor* actor, int attrib_ndx, int flags)
 //
 //==========================================================================
 
-int _PlayerSound(int num, PLAYER* pp)
+int _PlayerSound(int num, DSWPlayer* pp)
 {
     int handle;
 
     if (Prediction)
         return 0;
-
-    if (pp < Player || pp >= Player + MAX_SW_PLAYERS)
-    {
-        return 0;
-    }
 
     auto sndid = soundEngine->FindSoundByResID(num);
     if (!soundEngine->isValidSoundId(sndid) || !SoundEnabled())
@@ -772,7 +754,7 @@ int _PlayerSound(int num, PLAYER* pp)
     return 0;
 }
 
-void StopPlayerSound(PLAYER* pp, int which)
+void StopPlayerSound(DSWPlayer* pp, int which)
 {
     soundEngine->StopSound(SOURCE_Player, pp, CHAN_VOICE, soundEngine->FindSoundByResID(which));
 }
@@ -876,10 +858,10 @@ bool PlaySong(const char* song_file_name, int cdaudio_track, bool isThemeTrack) 
     if (cdaudio_track >= 0 && (mus_redbook || !song_file_name || *song_file_name == 0))
     {
         FStringf trackname("shadow%02d.ogg", cdaudio_track);
-        if (!Mus_Play(trackname, true))
+        if (!Mus_Play(trackname.GetChars(), true))
         {
             trackname.Format("track%02d.ogg", cdaudio_track);
-            if (!Mus_Play(trackname, true))
+            if (!Mus_Play(trackname.GetChars(), true))
             {
                 Printf("Can't find CD track %i!\n", cdaudio_track);
             }
@@ -894,10 +876,10 @@ bool PlaySong(const char* song_file_name, int cdaudio_track, bool isThemeTrack) 
     {
         // try the CD track anyway if no MIDI could be found (the original game doesn't have any MIDI, it was CD Audio only, this avoids no music playing if mus_redbook is off.)
         FStringf trackname("shadow%02d.ogg", cdaudio_track);
-        if (!Mus_Play(trackname, true))
+        if (!Mus_Play(trackname.GetChars(), true))
         {
             trackname.Format("track%02d.ogg", cdaudio_track);
-            if (!Mus_Play(trackname, true)) return false;
+            if (!Mus_Play(trackname.GetChars(), true)) return false;
         }
     }
     return true;
@@ -946,7 +928,7 @@ DEFINE_ACTION_FUNCTION(_SW, PlaySong)
 {
     PARAM_PROLOGUE;
     PARAM_INT(song);
-    PlaySong(ThemeSongs[song], ThemeTrack[song], true);
+    PlaySong(ThemeSongs[song].GetChars(), ThemeTrack[song], true);
     return 0;
 }
 

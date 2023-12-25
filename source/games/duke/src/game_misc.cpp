@@ -51,19 +51,6 @@ BEGIN_DUKE_NS
 
 //---------------------------------------------------------------------------
 //
-// debug output
-//
-//---------------------------------------------------------------------------
-
-GameStats GameInterface::getStats()
-{
-	player_struct* p = &ps[myconnectindex];
-	return { p->actors_killed, p->max_actors_killed, p->secret_rooms, p->max_secret_rooms, p->player_par / REALGAMETICSPERSEC, p->frag };
-}
-
-
-//---------------------------------------------------------------------------
-//
 //
 //
 //---------------------------------------------------------------------------
@@ -109,7 +96,7 @@ void GameInterface::ExitFromMenu()
 //
 //---------------------------------------------------------------------------
 
-void FTA(int q, player_struct* p)
+void FTA(int q, DDukePlayer* p)
 {
 	if (q < 0 || gamestate != GS_LEVEL)
 		return;
@@ -118,7 +105,7 @@ void FTA(int q, player_struct* p)
 	{
 		p->ftq = q;
 		auto qu = quoteMgr.GetQuote(q);
-		if (p == &ps[screenpeek] && qu[0] != '\0')
+		if (p->pnum == screenpeek && qu[0] != '\0')
 		{
 #if 0
 			if (q >= 70 && q <= 72)
@@ -204,14 +191,14 @@ void V_AddBlend (float r, float g, float b, float a, float v_blend[4])
 
  void drawweapon(double interpfrac)
  {
-	 auto pp = &ps[screenpeek];
+	 auto pp = getPlayer(screenpeek);
 	 if (!isRR() && pp->newOwner != nullptr)
 		 cameratext(pp->newOwner);
 	 else
 	 {
-		 fi.displayweapon(screenpeek, interpfrac);
+		 fi.displayweapon(pp, interpfrac);
 		 if (pp->over_shoulder_on == 0)
-			 fi.displaymasks(screenpeek, pp->GetActor()->spr.pal == 1 || !pp->insector() ? 1 : pp->cursector->floorpal, interpfrac);
+			 fi.displaymasks(pp, pp->GetActor()->spr.pal == 1 || !pp->insector() ? 1 : pp->cursector->floorpal, interpfrac);
 	 }
 
  }
@@ -224,11 +211,7 @@ void V_AddBlend (float r, float g, float b, float a, float v_blend[4])
 
 void drawoverlays(double interpfrac)
 {
-	player_struct* pp;
-	DVector2 cposxy;
-	DAngle cang;
-
-	pp = &ps[screenpeek];
+	const auto pp = getPlayer(screenpeek);
 	// set palette here, in case the 3D view is off.
 	setgamepalette(setpal(pp));
 
@@ -256,6 +239,10 @@ void drawoverlays(double interpfrac)
 	{
 		if (automapMode != am_off)
 		{
+			const auto pact = pp->GetActor();
+			DVector2 cposxy;
+			DAngle cang;
+
 			DoInterpolations(interpfrac);
 
 			if (pp->newOwner == nullptr && playrunning())
@@ -263,30 +250,32 @@ void drawoverlays(double interpfrac)
 				if (screenpeek == myconnectindex && numplayers > 1)
 				{
 					cposxy = interpolatedvalue(omypos, mypos, interpfrac).XY();
-					cang = !SyncInput() ? myang : interpolatedvalue(omyang, myang, interpfrac);
+					cang = interpolatedvalue(omyang, myang, interpfrac);
 				}
 				else
 				{
-					cposxy = pp->GetActor()->interpolatedpos(interpfrac).XY();
-					cang = pp->Angles.getRenderAngles(interpfrac).Yaw;
+					cposxy = pact->interpolatedpos(interpfrac).XY();
+					cang = pp->getRenderAngles(interpfrac).Yaw;
 				}
 			}
 			else
 			{
-				cposxy = pp->GetActor()->opos.XY();
-				cang = pp->GetActor()->PrevAngles.Yaw;
+				cposxy = pact->opos.XY();
+				cang = pact->PrevAngles.Yaw;
 			}
+
 			DrawOverheadMap(cposxy, cang, interpfrac);
 			RestoreInterpolations();
 		}
 	}
 
 	DrawStatusBar();
+	const auto spp = getPlayer(myconnectindex);
 
-	if (ps[myconnectindex].newOwner == nullptr && ud.cameraactor == nullptr)
+	if (spp->newOwner == nullptr && ud.cameraactor == nullptr)
 	{
-		auto offsets = pp->Angles.getCrosshairOffsets(interpfrac);
-		DrawCrosshair(ps[screenpeek].last_extra, offsets.first.X, offsets.first.Y + (pp->over_shoulder_on ? 2.5 : 0), isRR() ? 0.5 : 1, offsets.second);
+		auto offsets = pp->getCrosshairOffsets(interpfrac);
+		DrawCrosshair(pp->last_extra, offsets.first.X, offsets.first.Y + (pp->over_shoulder_on ? 2.5 : 0), isRR() ? 0.5 : 1, offsets.second);
 	}
 
 	if (paused == 2)
@@ -384,13 +373,15 @@ bool GameInterface::DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos,
 	// Draw sprites
 	if (gFullMap)
 	{
+		const auto spact = getPlayer(screenpeek)->GetActor();
+
 		for (unsigned ii = 0; ii < sector.Size(); ii++)
 		{
 			if (show2dsector[ii]) continue;
 			DukeSectIterator it(ii);
 			while (auto act = it.Next())
 			{
-				if (act == ps[screenpeek].actor || (act->spr.cstat & CSTAT_SPRITE_INVISIBLE) || act->spr.cstat == CSTAT_SPRITE_BLOCK_ALL || act->spr.scale.X == 0) continue;
+				if (act == spact || (act->spr.cstat & CSTAT_SPRITE_INVISIBLE) || act->spr.cstat == CSTAT_SPRITE_BLOCK_ALL || act->spr.scale.X == 0) continue;
 
 				if ((act->spr.cstat & CSTAT_SPRITE_BLOCK_ALL) != 0)
 				{
@@ -423,16 +414,16 @@ bool GameInterface::DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos,
 	{
 		if (p == screenpeek || ud.coop == 1)
 		{
-			auto& pp = ps[p];
-			auto act = pp.GetActor();
+			auto pp = getPlayer(p);
+			auto act = pp->GetActor();
 
-			basetex = basetex + (act->vel.X > 1 && pp.on_ground ? (PlayClock >> 4) & 3 : 0);
-			double j = clamp(czoom * act->spr.scale.Y + abs(pp.truefz - act->getOffsetZ()) * REPEAT_SCALE, (1. / 3.), 2.);
+			basetex = basetex + (act->vel.X > 1 && pp->on_ground ? (PlayClock >> 4) & 3 : 0);
+			double j = clamp(czoom * act->spr.scale.Y + abs(pp->truefz - act->getOffsetZ()) * REPEAT_SCALE, (1. / 3.), 2.);
 
 			auto const vec = OutAutomapVector(mxy - cpos, cangvect, czoom, xydim);
-			auto const daang = -(pp.Angles.getCameraAngles().Yaw - cang).Normalized360().Degrees();
+			auto const daang = -(pp->CameraAngles.Yaw - cang).Normalized360().Degrees();
 
-			DrawTexture(twod, basetex, false, vec.X, vec.Y, DTA_TranslationIndex, TRANSLATION(Translation_Remap + setpal(&pp), act->spr.pal), DTA_CenterOffset, true,
+			DrawTexture(twod, basetex, false, vec.X, vec.Y, DTA_TranslationIndex, TRANSLATION(Translation_Remap + setpal(pp), act->spr.pal), DTA_CenterOffset, true,
 				DTA_Rotate, daang, DTA_Color, shadeToLight(act->spr.shade), DTA_ScaleX, j, DTA_ScaleY, j, TAG_DONE);
 		}
 	}

@@ -313,6 +313,13 @@ int SetupHornet(DSWActor* actor)
     return 0;
 }
 
+DEFINE_ACTION_FUNCTION(DSWHornet, Initialize)
+{
+    PARAM_SELF_PROLOGUE(DSWActor);
+    SetupHornet(self);
+    return 0;
+}
+
 //---------------------------------------------------------------------------
 //
 // 
@@ -518,7 +525,7 @@ int DoHornetDeath(DSWActor* actor)
         DoActorSlide(actor);
 
     // slide while falling
-	auto vec = actor->spr.Angles.Yaw.ToVector() * actor->vel.X;
+    auto vec = actor->spr.Angles.Yaw.ToVector() * actor->vel.X;
 
     actor->user.coll = move_sprite(actor, DVector3(vec, 0), actor->user.ceiling_dist, actor->user.floor_dist, 1, ACTORMOVETICS);
 
@@ -544,7 +551,7 @@ int DoHornetDeath(DSWActor* actor)
 int DoCheckSwarm(DSWActor* actor)
 {
     double dist, pdist;
-    PLAYER* pp;
+    DSWPlayer* pp;
 
     if (!MoveSkip8) return 0;     // Don't over check
 
@@ -556,7 +563,7 @@ int DoCheckSwarm(DSWActor* actor)
     if (actor->user.targetActor->user.PlayerP)
     {
         pp = actor->user.targetActor->user.PlayerP;
-        pdist = (actor->spr.pos.XY() - pp->actor->spr.pos.XY()).LengthSquared();
+        pdist = (actor->spr.pos.XY() - pp->GetActor()->spr.pos.XY()).LengthSquared();
     }
     else
         return 0;

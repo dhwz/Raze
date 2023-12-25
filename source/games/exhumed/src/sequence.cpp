@@ -36,7 +36,7 @@ static FTextureID nShadowPic;
 static int16_t nShadowWidth = 1;
 int16_t nFlameHeight = 1;
 
-constexpr const char *SeqNames[] =
+static constexpr const char *SeqNames[] =
 {
   "rothands",
   "sword",
@@ -126,35 +126,9 @@ static TMap<FName, TArray<Seq>> FileSeqMap;
 //
 //---------------------------------------------------------------------------
 
-const TArray<Seq>* const getFileSeqs(const FName nSeqFile)
+TArray<Seq>* getFileSeqs(const FName nSeqFile)
 {
     return FileSeqMap.CheckKey(nSeqFile);
-}
-
-//---------------------------------------------------------------------------
-//
-//
-//
-//---------------------------------------------------------------------------
-
-static void fixSeqs()
-{
-    // Seq file "skulstrt" has one sprite face with 20 frames instead of 24.
-    if (const auto skulstrt = FileSeqMap.CheckKey("skulstrt"))
-    {
-        // Get 5th sequence with missing frames.
-        if (const auto seq = skulstrt->Data(4))
-        {
-            // Store last frame.
-            const auto lastframe = seq->frames.Last();
-
-            // Repeat last frame another four times.
-            for (unsigned i = 20; i < 24; i++)
-            {
-                seq->frames.Push(lastframe);
-            }
-        }
-    }
 }
 
 //---------------------------------------------------------------------------
@@ -166,7 +140,7 @@ static void fixSeqs()
 static int addSeq(const char *seqName)
 {
     const FStringf seqfilename("%s.seq", seqName);
-    const auto hFile = fileSystem.ReopenFileReader(fileSystem.FindFile(seqfilename), true);
+    const auto hFile = fileSystem.ReopenFileReader(fileSystem.FindFile(seqfilename.GetChars()), true);
 
     if (!hFile.isOpen())
     {
@@ -328,16 +302,13 @@ static int addSeq(const char *seqName)
 
 void seq_LoadSequences()
 {
-    for (unsigned i = 0; i < countof(SeqNames); i++)
+    for (const auto& seq : SeqNames)
     {
-        if (addSeq(SeqNames[i]) == 0)
+        if (addSeq(seq) == 0)
         {
-            Printf("Error loading '%s'\n", SeqNames[i]);
+            Printf("Error loading '%s'\n", seq);
         }
     }
-
-    // Perform sequence post-processing for where original assets are malformed.
-    fixSeqs();
 
     nShadowPic = getSequence("shadow")->getFirstFrameTexture();
     nShadowWidth = (int16_t)TexMan.GetGameTexture(nShadowPic)->GetDisplayWidth();
@@ -409,7 +380,7 @@ void seq_PlotArrowSequence(const int nSprite, const FName seqFile, const int16_t
 {
     tspritetype* pTSprite = mytspriteArray->get(nSprite);
 
-    const DAngle nAngle = (nCamerapos.XY() - pTSprite->pos.XY()).Angle();
+    const DAngle nAngle = (getPlayer(nLocalPlayer)->CameraPos.XY() - pTSprite->pos.XY()).Angle();
     const int seqOffset = (((pTSprite->Angles.Yaw + DAngle90 + DAngle22_5 - nAngle).Buildang()) & kAngleMask) >> 8;
 
     const auto& seqFrame = getSequence(seqFile, seqIndex + seqOffset)->frames[frameIndex];
@@ -450,20 +421,25 @@ void seq_PlotArrowSequence(const int nSprite, const FName seqFile, const int16_t
 //
 //---------------------------------------------------------------------------
 
-void seq_PlotSequence(const int nSprite, const FName seqFile, const int16_t seqIndex, const int16_t frameIndex, const int16_t nFlags)
+void seq_PlotSequence(const int nSprite, const FName seqFile, const int seqIndex, int frameIndex, const int nFlags)
 {
     tspritetype* pTSprite = mytspriteArray->get(nSprite);
+    const auto pPlayer = getPlayer(nLocalPlayer);
 
     int seqOffset = 0;
 
     if (!(nFlags & 1))
     {
-        const DAngle nAngle = (nCamerapos.XY() - pTSprite->pos.XY()).Angle();
+        const DAngle nAngle = (pPlayer->CameraPos.XY() - pTSprite->pos.XY()).Angle();
         seqOffset = (((pTSprite->Angles.Yaw + DAngle22_5 - nAngle).Buildang()) & kAngleMask) >> 8;
     }
 
     const auto fileSeqs = getFileSeqs(seqFile);
-    const auto& seqFrame = fileSeqs->Data(seqIndex + seqOffset)->frames[frameIndex];
+    if (seqIndex + seqOffset > fileSeqs->SSize()) return;
+    const auto& sequence = fileSeqs->Data(seqIndex + seqOffset);
+    if (sequence->frames.SSize() <= frameIndex) frameIndex = sequence->frames.SSize() - 1;
+
+    const auto& seqFrame = sequence->frames[frameIndex];
     const auto chunkCount = seqFrame.chunks.Size();
 
     const auto nShade = pTSprite->shade - (100 * !!(fileSeqs->Data(seqIndex)->frames[frameIndex].flags & 4));
@@ -508,7 +484,7 @@ void seq_PlotSequence(const int nSprite, const FName seqFile, const int16_t seqI
         const auto pSector = pTSprite->sectp;
         const double nFloorZ = pSector->floorz;
 
-        if (nFloorZ <= PlayerList[nLocalPlayer].pActor->viewzoffset + PlayerList[nLocalPlayer].pActor->spr.pos.Z)
+        if (nFloorZ <= pPlayer->GetActor()->getOffsetZ())
         {
             pTSprite->ownerActor = nullptr;
         }
@@ -552,7 +528,7 @@ DEFINE_FIELD_X(Seq, Seq, flags);
 DEFINE_ACTION_FUNCTION(_SeqFrame, playSound)
 {
     PARAM_SELF_STRUCT_PROLOGUE(SeqFrame);
-    self->playSound(PlayerList[nLocalPlayer].pActor);
+    self->playSound(getPlayer(nLocalPlayer)->GetActor());
     return 0;
 }
 

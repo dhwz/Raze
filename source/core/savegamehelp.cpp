@@ -64,24 +64,43 @@
 #include "serialize_obj.h"
 #include "games/blood/src/mapstructs.h"
 #include "texinfo.h"
-#include <zlib.h>
+#include "coreplayer.h"
+#include <miniz.h>
 
 #include "buildtiles.h"
+#include "fs_findfile.h"
+#include "resourcefile.h"
 
 
 
 void WriteSavePic(FileWriter* file, int width, int height);
-bool WriteZip(const char* filename, TArray<FString>& filenames, TArray<FCompressedBuffer>& content);
+extern bool crouch_toggle;
 extern FString savename;
 extern FString BackupSaveGame;
 int SaveVersion;
 
 void SerializeMap(FSerializer &arc);
+bool WriteZip(const char* filename, const FileSys::FCompressedBuffer* content, size_t contentcount);
 
 BEGIN_BLD_NS
 FSerializer& Serialize(FSerializer& arc, const char* keyname, XWALL& w, XWALL* def);
 FSerializer& Serialize(FSerializer& arc, const char* keyname, XSECTOR& w, XSECTOR* def);
 END_BLD_NS
+
+//=============================================================================
+//
+//
+//
+//=============================================================================
+
+static void SerializeGlobals(FSerializer& arc)
+{
+	if (arc.BeginObject("globals"))
+	{
+		arc("crouch_toggle", crouch_toggle)
+		.EndObject();
+	}
+}
 
 //=============================================================================
 //
@@ -103,6 +122,7 @@ static void SerializeSession(FSerializer& arc)
 	S_SerializeSounds(arc);
 	SerializeAutomap(arc);
 	SerializeHud(arc);
+	SerializeGlobals(arc);
 	gi->SerializeGameState(arc);
 }
 
@@ -114,17 +134,17 @@ static void SerializeSession(FSerializer& arc)
 
 bool ReadSavegame(const char* name)
 {
-	auto savereader = FResourceFile::OpenResourceFile(name, true, true);
+	auto savereader = FileSys::FResourceFile::OpenResourceFile(name, true);
 
 	if (savereader != nullptr)
 	{
-		auto lump = savereader->FindLump("info.json");
-		if (!lump)
+		auto lump = savereader->FindEntry("info.json");
+		if (lump < 0)
 		{
 			delete savereader;
 			return false;
 		}
-		auto file = lump->NewReader();
+		auto file = savereader->GetEntryReader(lump);
 		if (G_ValidateSavegame(file, nullptr, false) <= 0)
 		{
 			delete savereader;
@@ -132,29 +152,33 @@ bool ReadSavegame(const char* name)
 		}
 		file.Close();
 
-		FResourceLump* info = savereader->FindLump("session.json");
-		if (info == nullptr)
+		auto info = savereader->FindEntry("session.json");
+		if (info < 0)
 		{
 			delete savereader;
 			return false;
 		}
 
-		void* data = info->Lock();
+		auto data = savereader->Read(info);
 		FRazeSerializer arc;
-		if (!arc.OpenReader((const char*)data, info->LumpSize))
+		if (!arc.OpenReader(data.string(), data.size()))
 		{
-			info->Unlock();
 			delete savereader;
 			return false;
 		}
 
 		// Load the savegame.
-		loadMapBackup(currentLevel->fileName);
+		loadMapBackup(currentLevel->fileName.GetChars());
 		SerializeSession(arc);
 		g_nextskill = gi->GetCurrentSkill();
 		arc.Close();
-		info->Unlock();
 		delete savereader;
+
+		// this can only be done after the load is complete
+		for (auto pl : PlayerArray)
+		{
+			pl->resetCameraAngles();
+		}
 		ResetStatusBar();
 		return true;
 	}
@@ -178,8 +202,8 @@ bool WriteSavegame(const char* filename, const char *name)
 	char buf[100];
 	mysnprintf(buf, countof(buf), GAMENAME " %s", GetVersionString());
 	auto savesig = gi->GetSaveSig();
-	auto gs = gi->getStats();
-	FStringf timeStr("%02d:%02d", gs.timesecnd / 60, gs.timesecnd % 60);
+	auto gs = PlayClock / 120;
+	FStringf timeStr("%02d:%02d", gs / 60, gs % 60);
 	auto lev = currentLevel;
 
 	savegameinfo.OpenWriter(true);
@@ -190,11 +214,11 @@ bool WriteSavegame(const char* filename, const char *name)
 		.AddString("Map Name", lev->DisplayName())
 		.AddString("Creation Time", myasctime())
 		.AddString("Title", name)
-		.AddString("Map File", lev->fileName)
-		.AddString("Map Label", lev->labelName)
-		.AddString("Map Time", timeStr);
+		.AddString("Map File", lev->fileName.GetChars())
+		.AddString("Map Label", lev->labelName.GetChars())
+		.AddString("Map Time", timeStr.GetChars());
 
-	const char *fn = currentLevel->fileName;
+	const char *fn = lev->fileName.GetChars();
 	if (*fn == '/') fn++;
 	if (strncmp(fn, "file://", 7) != 0) // this only has meaning for non-usermaps
 	{
@@ -219,13 +243,13 @@ bool WriteSavegame(const char* filename, const char *name)
 	// put some basic info into the PNG so that this isn't lost when the image gets extracted.
 	M_AppendPNGText(&savepic, "Software", buf);
 	M_AppendPNGText(&savepic, "Title", name);
-	M_AppendPNGText(&savepic, "Current Map", lev->labelName);
+	M_AppendPNGText(&savepic, "Current Map", lev->labelName.GetChars());
 	M_FinishPNG(&savepic);
 
 	auto picdata = savepic.GetBuffer();
-	FCompressedBuffer bufpng = { picdata->Size(), picdata->Size(), METHOD_STORED, 0, static_cast<unsigned int>(crc32(0, &(*picdata)[0], picdata->Size())), (char*)&(*picdata)[0] };
+	FileSys::FCompressedBuffer bufpng = { picdata->size(), picdata->size(), FileSys::METHOD_STORED, static_cast<unsigned int>(crc32(0, &(*picdata)[0], picdata->size())), (char*)&(*picdata)[0] };
 
-	TArray<FCompressedBuffer> savegame_content;
+	TArray<FileSys::FCompressedBuffer> savegame_content;
 	TArray<FString> savegame_filenames;
 
 	savegame_content.Push(bufpng);
@@ -234,8 +258,10 @@ bool WriteSavegame(const char* filename, const char *name)
 	savegame_filenames.Push("info.json");
 	savegame_content.Push(savegamesession.GetCompressedOutput());
 	savegame_filenames.Push("session.json");
+	for (unsigned i = 0; i < savegame_content.Size(); i++)
+		savegame_content[i].filename = savegame_filenames[i].GetChars();
 
-	if (WriteZip(filename, savegame_filenames, savegame_content))
+	if (WriteZip(filename, savegame_content.Data(), savegame_content.Size()))
 	{
 		// Check whether the file is ok by trying to open it.
 		FResourceFile* test = FResourceFile::OpenResourceFile(filename, true);
@@ -318,7 +344,7 @@ int G_ValidateSavegame(FileReader &fr, FString *savetitle, bool formenu)
 {
 	auto data = fr.Read();
 	FSerializer arc;
-	if (!arc.OpenReader((const char*)data.Data(), data.Size()))
+	if (!arc.OpenReader((const char*)data.data(), data.size()))
 	{
 		return -2;
 	}
@@ -345,7 +371,7 @@ int G_ValidateSavegame(FileReader &fr, FString *savetitle, bool formenu)
 	}
 	SaveVersion = savesig.currentsavever;
 
-	MapRecord *curLevel = FindMapByName(label);
+	MapRecord *curLevel = FindMapByName(label.GetChars());
 
 	// If the map does not exist, check if it's a user map.
 	if (!curLevel)
@@ -354,7 +380,7 @@ int G_ValidateSavegame(FileReader &fr, FString *savetitle, bool formenu)
 		if (!formenu)
 		{
 			curLevel->name = "";
-			curLevel->SetFileName(filename);
+			curLevel->SetFileName(filename.GetChars());
 		}
 	}
 	if (!curLevel) return 0;
@@ -371,7 +397,7 @@ int G_ValidateSavegame(FileReader &fr, FString *savetitle, bool formenu)
 		auto ggfn = ExtractFileBase(fileSystem.GetResourceFileName(1), true);
 		if (gamegrp.CompareNoCase(ggfn) == 0)
 		{
-			return G_CheckSaveGameWads(gamegrp, mapgrp, false) ? 1 : -2;
+			return G_CheckSaveGameWads(gamegrp.GetChars(), mapgrp.GetChars(), false) ? 1 : -2;
 		}
 		else
 		{
@@ -394,17 +420,14 @@ FSerializer &Serialize(FSerializer &arc, const char *key, spritetype &c, spritet
 	def = &zsp; // always delta against 0
 	if (arc.BeginObject(key))
 	{
-		arc("x", c.pos.X, def->pos.X)
-			("y", c.pos.Y, def->pos.Y)
-			("z", c.pos.Z, def->pos.Z)
+		arc("pos", c.pos, def->pos)
 			("cstat", c.cstat, def->cstat)
 			("picnum", c.picnum, def->picnum)
 			("shade", c.shade, def->shade)
 			("pal", c.pal, def->pal)
 			("clipdist", c.clipdist, def->clipdist)
 			("blend", c.blend, def->blend)
-			("xrepeat", c.scale.X, def->scale.X)
-			("yrepeat", c.scale.Y, def->scale.Y)
+			("repeat", c.scale, def->scale)
 			("xoffset", c.xoffset, def->xoffset)
 			("yoffset", c.yoffset, def->yoffset)
 			("statnum", c.statnum)
@@ -546,8 +569,7 @@ FSerializer &Serialize(FSerializer &arc, const char *key, walltype &c, walltype 
 {
 	if (arc.BeginObject(key))
 	{
-		arc("x", c.pos.X, def->pos.X)
-			("y", c.pos.Y, def->pos.Y)
+		arc("pos", c.pos, def->pos)
 			("point2", c.point2, def->point2)
 			("nextwall", c.nextwall, def->nextwall)
 			("nextsector", c.nextsector, def->nextsector)
@@ -603,6 +625,24 @@ FSerializer& Serialize(FSerializer& arc, const char* key, ActorStatList& c, Acto
 	return arc;
 }
 
+void DCorePlayer::Serialize(FSerializer& arc)
+{
+	Super::Serialize(arc);
+	arc("pnum", pnum)
+		("actor", actor)
+		("actions", cmd.ucmd.actions)
+		("viewangles", ViewAngles)
+		("yawspin", YawSpin)
+		//("cmd", cmd)
+		//("lastcmd", lastcmd)
+		;
+
+	if (arc.isReading())
+	{
+		cmd.ucmd.actions &= SB_CENTERVIEW|SB_CROUCH; // these are the only bits we need to preserve.
+	}
+}
+
 void DCoreActor::Serialize(FSerializer& arc)
 {
 	Super::Serialize(arc);
@@ -617,9 +657,7 @@ void DCoreActor::Serialize(FSerializer& arc)
 		("time", time)
 		("spritesetindex", spritesetindex)
 		("spriteext", sprext)
-		("xvel", vel.X)
-		("yvel", vel.Y)
-		("zvel", vel.Z)
+		("vel", vel)
 		("viewzoffset", viewzoffset)
 		("dispicnum", dispictex);
 
@@ -630,12 +668,40 @@ void DCoreActor::Serialize(FSerializer& arc)
 	}
 }
 
+FSerializer& Serialize(FSerializer& arc, const char* key, StatRecord& c, StatRecord* def)
+{
+	if (arc.BeginObject(key))
+	{
+		arc("max", c.max)
+			("got", c.got)
+			.Array("player", c.player, MAXPLAYERS)
+			.EndObject();
+	}
+	return arc;
+}
+
+FSerializer& Serialize(FSerializer& arc, const char* key, MapLocals& c, MapLocals* def)
+{
+	if (arc.BeginObject(key))
+	{
+		arc("kills", c.kills)
+			("secrets", c.secrets)
+			("superSecrets", c.superSecrets)
+			.EndObject();
+	}
+	return arc;
+}
+
+
 
 void SerializeMap(FSerializer& arc)
 {
 	if (arc.BeginObject("engine"))
 	{
-		arc.Array("statlist", statList, MAXSTATUS)
+		arc("maplocals", Level)
+			// everything here should move into MapLocals as well later.
+			.Array("statlist", statList, MAXSTATUS)
+			.Array("players",PlayerArray, MAXPLAYERS)
 			("sectors", sector, sectorbackup)
 			("walls", wall, wallbackup)
 
@@ -717,7 +783,7 @@ void G_DoLoadGame()
 		gamestate = GS_HIDECONSOLE;
 	}
 
-	DoLoadGame(savename);
+	DoLoadGame(savename.GetChars());
 	BackupSaveGame = savename;
 }
 
@@ -766,7 +832,7 @@ void startSaveGame(int player, uint8_t** stream, bool skip)
 		{
 			// Paths sent over the network will be valid for the system that sent
 			// the save command. For other systems, the path needs to be changed.
-			savegamefile = G_BuildSaveName(ExtractFileBase(savegamefile, true));
+			savegamefile = G_BuildSaveName(ExtractFileBase(savegamefile.GetChars(), true).GetChars());
 		}
 		gameaction = ga_savegame;
 	}
@@ -813,11 +879,11 @@ void M_Autosave()
 	num.Int = nextautosave;
 	autosavenum->ForceSet(num, CVAR_Int);
 
-	auto Filename = G_BuildSaveName(FStringf("auto%04d", nextautosave));
+	auto Filename = G_BuildSaveName(FStringf("auto%04d", nextautosave).GetChars());
 	readableTime = myasctime();
 	FStringf SaveTitle("Autosave %s", readableTime);
 	nextautosave = (nextautosave + 1) % count;
-	G_DoSaveGame(false, false, Filename, SaveTitle);
+	G_DoSaveGame(false, false, Filename.GetChars(), SaveTitle.GetChars());
 }
 
 CCMD(autosave)
@@ -844,11 +910,11 @@ CCMD(rotatingquicksave)
 	quicksavenum->ForceSet(num, CVAR_Int);
 
 	FSaveGameNode sg;
-	auto Filename = G_BuildSaveName(FStringf("quick%04d", nextquicksave));
+	auto Filename = G_BuildSaveName(FStringf("quick%04d", nextquicksave).GetChars());
 	readableTime = myasctime();
 	FStringf SaveTitle("Quicksave %s", readableTime);
 	nextquicksave = (nextquicksave + 1) % count;
-	G_SaveGame(Filename, SaveTitle);
+	G_SaveGame(Filename.GetChars(), SaveTitle.GetChars());
 }
 
 
@@ -873,7 +939,7 @@ UNSAFE_CCMD(load)
 		return;
 	}
 	FString fname = G_BuildSaveName(argv[1]);
-	G_LoadGame(fname);
+	G_LoadGame(fname.GetChars());
 }
 
 //==========================================================================
@@ -892,7 +958,7 @@ UNSAFE_CCMD(save)
 		return;
 	}
 	FString fname = G_BuildSaveName(argv[1]);
-	G_SaveGame(fname, argv.argc() > 2 ? argv[2] : argv[1]);
+	G_SaveGame(fname.GetChars(), argv.argc() > 2 ? argv[2] : argv[1]);
 }
 
 

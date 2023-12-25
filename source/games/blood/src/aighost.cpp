@@ -174,12 +174,12 @@ static void ghostThinkTarget(DBloodActor* actor)
 	{
 		for (int p = connecthead; p >= 0; p = connectpoint2[p])
 		{
-			PLAYER* pPlayer = &gPlayer[p];
-			if (pPlayer->actor->xspr.health == 0 || powerupCheck(pPlayer, kPwUpShadowCloak) > 0)
+			DBloodPlayer* pPlayer = getPlayer(p);
+			if (pPlayer->GetActor()->xspr.health == 0 || powerupCheck(pPlayer, kPwUpShadowCloak) > 0)
 				continue;
-			auto ppos = pPlayer->actor->spr.pos;
+			auto ppos = pPlayer->GetActor()->spr.pos;
 			auto dvect = ppos.XY() - actor->spr.pos;
-			auto pSector = pPlayer->actor->sector();
+			auto pSector = pPlayer->GetActor()->sector();
 			double nDist = dvect.Length();
 			if (nDist > pDudeInfo->SeeDist() && nDist > pDudeInfo->HearDist())
 				continue;
@@ -190,7 +190,7 @@ static void ghostThinkTarget(DBloodActor* actor)
 			if (nDist < pDudeInfo->SeeDist() && nDeltaAngle <= pDudeInfo->Periphery())
 			{
 				pDudeExtraE->thinkTime = 0;
-				aiSetTarget(actor, pPlayer->actor);
+				aiSetTarget(actor, pPlayer->GetActor());
 				aiActivateDude(actor);
 				return;
 			}
@@ -291,7 +291,7 @@ static void ghostThinkChase(DBloodActor* actor)
 		aiNewState(actor, &ghostSearch);
 		return;
 	}
-	if (target->IsPlayerActor() && powerupCheck(&gPlayer[target->spr.type - kDudePlayer1], kPwUpShadowCloak) > 0)
+	if (target->IsPlayerActor() && powerupCheck(getPlayer(target->spr.type - kDudePlayer1), kPwUpShadowCloak) > 0)
 	{
 		aiNewState(actor, &ghostSearch);
 		return;

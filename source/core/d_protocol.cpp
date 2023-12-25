@@ -160,17 +160,17 @@ int UnpackUserCmd (InputPacket *ucmd, const InputPacket *basis, uint8_t **stream
 		if (flags & UCMDF_BUTTONS)
 			ucmd->actions = ESyncBits::FromInt(ReadLong(stream));
 		if (flags & UCMDF_PITCH)
-			ucmd->horz = ReadFloat(stream);
+			ucmd->ang.Pitch = DAngle::fromDeg(ReadFloat(stream));
 		if (flags & UCMDF_YAW)
-			ucmd->avel = ReadFloat(stream);
+			ucmd->ang.Yaw = DAngle::fromDeg(ReadFloat(stream));
 		if (flags & UCMDF_FORWARDMOVE)
-			ucmd->fvel = ReadFloat(stream);
+			ucmd->vel.X = ReadFloat(stream);
 		if (flags & UCMDF_SIDEMOVE)
-			ucmd->svel = ReadFloat(stream);
+			ucmd->vel.Y = ReadFloat(stream);
 		if (flags & UCMDF_UPMOVE)
-			ucmd->uvel = ReadFloat(stream);
+			ucmd->vel.Z = ReadFloat(stream);
 		if (flags & UCMDF_ROLL)
-			ucmd->roll = ReadFloat(stream);
+			ucmd->ang.Roll = DAngle::fromDeg(ReadFloat(stream));
 	}
 
 	return int(*stream - start);
@@ -197,35 +197,35 @@ int PackUserCmd (const InputPacket *ucmd, const InputPacket *basis, uint8_t **st
 		flags |= UCMDF_BUTTONS;
 		WriteLong(ucmd->actions, stream);
 	}
-	if (ucmd->horz != basis->horz)
+	if (ucmd->ang.Pitch != basis->ang.Pitch)
 	{
 		flags |= UCMDF_PITCH;
-		WriteFloat (ucmd->horz, stream);
+		WriteFloat ((float)ucmd->ang.Pitch.Degrees(), stream);
 	}
-	if (ucmd->avel != basis->avel)
+	if (ucmd->ang.Yaw != basis->ang.Yaw)
 	{
 		flags |= UCMDF_YAW;
-		WriteFloat (ucmd->avel, stream);
+		WriteFloat ((float)ucmd->ang.Yaw.Degrees(), stream);
 	}
-	if (ucmd->fvel != basis->fvel)
+	if (ucmd->vel.X != basis->vel.X)
 	{
 		flags |= UCMDF_FORWARDMOVE;
-		WriteFloat (ucmd->fvel, stream);
+		WriteFloat ((float)ucmd->vel.X, stream);
 	}
-	if (ucmd->svel != basis->svel)
+	if (ucmd->vel.Y != basis->vel.Y)
 	{
 		flags |= UCMDF_SIDEMOVE;
-		WriteFloat (ucmd->svel, stream);
+		WriteFloat ((float)ucmd->vel.Y, stream);
 	}
-	if (ucmd->uvel != basis->uvel)
+	if (ucmd->vel.Z != basis->vel.Z)
 	{
 		flags |= UCMDF_UPMOVE;
-		WriteFloat (ucmd->uvel, stream);
+		WriteFloat ((float)ucmd->vel.Z, stream);
 	}
-	if (ucmd->roll != basis->roll)
+	if (ucmd->ang.Roll != basis->ang.Roll)
 	{
 		flags |= UCMDF_ROLL;
-		WriteFloat (ucmd->roll, stream);
+		WriteFloat ((float)ucmd->ang.Roll.Degrees(), stream);
 	}
 
 	// Write the packing bits
@@ -250,12 +250,8 @@ FSerializer &Serialize(FSerializer &arc, const char *key, InputPacket &cmd, Inpu
 	if (arc.BeginObject(key))
 	{
 		arc("actions", cmd.actions)
-			("horz", cmd.horz)
-			("avel", cmd.avel)
-			("fvel", cmd.fvel)
-			("svel", cmd.svel)
-			("uvel", cmd.uvel)
-			("roll", cmd.roll)
+			("vel", cmd.vel)
+			("ang", cmd.ang)
 			.EndObject();
 	}
 	return arc;
@@ -265,26 +261,13 @@ int WriteUserCmdMessage (InputPacket *ucmd, const InputPacket *basis, uint8_t **
 {
 	if (basis == NULL)
 	{
-		if (ucmd->actions != 0 ||
-			ucmd->horz != 0 ||
-			ucmd->avel != 0 ||
-			ucmd->fvel != 0 ||
-			ucmd->svel != 0 ||
-			ucmd->uvel != 0 ||
-			ucmd->roll != 0)
+		if (ucmd->actions != 0 || !ucmd->vel.isZero() || !ucmd->ang.isZero())
 		{
 			WriteByte (DEM_USERCMD, stream);
 			return PackUserCmd (ucmd, basis, stream) + 1;
 		}
 	}
-	else
-	if (ucmd->actions != basis->actions ||
-		ucmd->horz != basis->horz ||
-		ucmd->avel != basis->avel ||
-		ucmd->fvel != basis->fvel ||
-		ucmd->svel != basis->svel ||
-		ucmd->uvel != basis->uvel ||
-		ucmd->roll != basis->roll)
+	else if (ucmd->actions != basis->actions || ucmd->vel != basis->vel || ucmd->ang != basis->ang)
 	{
 		WriteByte (DEM_USERCMD, stream);
 		return PackUserCmd (ucmd, basis, stream) + 1;

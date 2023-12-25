@@ -53,7 +53,7 @@ static DExhumedActor* BuildBubble(const DVector3& pos, sectortype* pSector, cons
         nSize -= 4;
 
     // Was inita global previously.
-    const auto nAngle = PlayerList[nPlayer].pActor->spr.Angles.Yaw;
+    const auto nAngle = getPlayer(nPlayer)->GetActor()->spr.Angles.Yaw;
     const auto pActor = insertActor(pSector, 402);
 
 	pActor->spr.pos = pos;
@@ -177,11 +177,11 @@ void BuildBubbleMachine(DExhumedActor* pActor)
 //
 //---------------------------------------------------------------------------
 
-void DoBubbles(int nPlayer)
+void DoBubbles(DExhumedPlayer* const pPlayer)
 {
     sectortype* pSector;
-    const auto pos = WheresMyMouth(nPlayer, &pSector);
-    const auto pActor = BuildBubble(pos, pSector, nPlayer);
-    pActor->spr.hitag = nPlayer;
+    const auto pos = WheresMyMouth(pPlayer, &pSector);
+    const auto pActor = BuildBubble(pos, pSector, pPlayer->pnum);
+    pActor->spr.hitag = pPlayer->pnum;
 }
 END_PS_NS

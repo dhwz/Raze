@@ -49,49 +49,51 @@ BEGIN_DUKE_NS
 //
 //---------------------------------------------------------------------------
 
-bool checkaccessswitch_r(int snum, int switchpal, DDukeActor* act, walltype* wwal)
+bool checkaccessswitch_r(DDukePlayer* const p, int switchpal, DDukeActor* act, walltype* wwal)
 {
-	if (ps[snum].access_incs == 0)
+	const auto pact = p->GetActor();
+
+	if (p->access_incs == 0)
 	{
 		if (switchpal == 0)
 		{
-			if (ps[snum].keys[1])
-				ps[snum].access_incs = 1;
+			if (p->keys[1])
+				p->access_incs = 1;
 			else
 			{
-				FTA(70, &ps[snum]);
-				if (isRRRA()) S_PlayActorSound(99, act ? act : ps[snum].GetActor());
+				FTA(70, p);
+				if (isRRRA()) S_PlayActorSound(99, act ? act : pact);
 			}
 		}
 
 		else if (switchpal == 21)
 		{
-			if (ps[snum].keys[2])
-				ps[snum].access_incs = 1;
+			if (p->keys[2])
+				p->access_incs = 1;
 			else
 			{
-				FTA(71, &ps[snum]);
-				if (isRRRA()) S_PlayActorSound(99, act ? act : ps[snum].GetActor());
+				FTA(71, p);
+				if (isRRRA()) S_PlayActorSound(99, act ? act : pact);
 			}
 		}
 
 		else if (switchpal == 23)
 		{
-			if (ps[snum].keys[3])
-				ps[snum].access_incs = 1;
+			if (p->keys[3])
+				p->access_incs = 1;
 			else
 			{
-				FTA(72, &ps[snum]);
-				if (isRRRA()) S_PlayActorSound(99, act ? act : ps[snum].GetActor());
+				FTA(72, p);
+				if (isRRRA()) S_PlayActorSound(99, act ? act : pact);
 			}
 		}
 
-		if (ps[snum].access_incs == 1)
+		if (p->access_incs == 1)
 		{
 			if (!act)
-				ps[snum].access_wall = wwal;
+				p->access_wall = wwal;
 			else
-				ps[snum].access_spritenum = act;
+				p->access_spritenum = act;
 		}
 		return 1;
 	}
@@ -127,7 +129,7 @@ void activatebysector_r(sectortype* sect, DDukeActor* activator)
 //
 //---------------------------------------------------------------------------
 
-void checkplayerhurt_r(player_struct* p, const Collision &coll)
+void checkplayerhurt_r(DDukePlayer* p, const Collision &coll)
 {
 	if (coll.type == kHitSprite)
 	{
@@ -145,8 +147,9 @@ void checkplayerhurt_r(player_struct* p, const Collision &coll)
 			int tf = tileflags(wal->overtexture);
 			if (tf & TFLAG_FORCEFIELD)
 			{
+				const auto pact = p->GetActor();
 				p->hurt_delay = 26;
-				checkhitwall(p->GetActor(), wal, p->GetActor()->getPosWithOffsetZ() + p->GetActor()->spr.Angles.Yaw.ToVector() * 2);
+				checkhitwall(pact, wal, pact->getPosWithOffsetZ() + pact->spr.Angles.Yaw.ToVector() * 2);
 			}
 		}
 	}
@@ -158,13 +161,11 @@ void checkplayerhurt_r(player_struct* p, const Collision &coll)
 //
 //---------------------------------------------------------------------------
 
-void checksectors_r(int snum)
+void checksectors_r(DDukePlayer* const p)
 {
-	player_struct* p;
 	walltype* hitscanwall;
 	HitInfo near;
 
-	p = &ps[snum];
 	auto pact = p->GetActor();
 
 	if (!p->insector()) return;
@@ -175,7 +176,7 @@ void checksectors_r(int snum)
 	case 32767:
 		p->cursector->lotag = 0;
 		FTA(9, p);
-		p->secret_rooms++;
+		Level.addSecret(p->pnum);
 		SECRET_Trigger(sectindex(p->cursector));
 		return;
 	case -1:
@@ -194,7 +195,7 @@ void checksectors_r(int snum)
 	default:
 		if (p->cursector->lotag >= 10000)
 		{
-			if (snum == screenpeek || ud.coop == 1)
+			if (p->pnum == screenpeek || ud.coop == 1)
 				S_PlayActorSound(p->cursector->lotag - 10000, pact);
 			p->cursector->lotag = 0;
 		}
@@ -204,13 +205,13 @@ void checksectors_r(int snum)
 
 	//After this point the the player effects the map with space
 
-	if (chatmodeon || p->GetActor()->spr.extra <= 0) return;
+	if (chatmodeon || pact->spr.extra <= 0) return;
 
-	if (ud.cashman && PlayerInput(snum, SB_OPEN))
-		lotsofstuff(p->GetActor(), 2, DukeMailClass);
+	if (ud.cashman && !!(p->cmd.ucmd.actions & SB_OPEN))
+		lotsofstuff(pact, 2, DukeMailClass);
 
 
-	if (!(PlayerInput(snum, SB_OPEN)))
+	if (!(p->cmd.ucmd.actions & SB_OPEN))
 		p->toggle_key_flag = 0;
 
 	else if (!p->toggle_key_flag)
@@ -225,7 +226,7 @@ void checksectors_r(int snum)
 		{
 			if (isRRRA())
 			{
-				if (hitscanwall->overtexture == mirrortex && snum == screenpeek)
+				if (hitscanwall->overtexture == mirrortex && p->pnum == screenpeek)
 					if (numplayers == 1)
 					{
 						if (S_CheckActorSoundPlaying(pact, 27) == 0 && S_CheckActorSoundPlaying(pact, 28) == 0 && S_CheckActorSoundPlaying(pact, 29) == 0
@@ -249,7 +250,7 @@ void checksectors_r(int snum)
 			else
 			{
 				if (hitscanwall->overtexture == mirrortex)
-					if (hitscanwall->lotag > 0 && S_CheckActorSoundPlaying(pact, hitscanwall->lotag) == 0 && snum == screenpeek)
+					if (hitscanwall->lotag > 0 && S_CheckActorSoundPlaying(pact, hitscanwall->lotag) == 0 && p->pnum == screenpeek)
 					{
 						S_PlayActorSound(hitscanwall->lotag, pact);
 						return;
@@ -281,21 +282,21 @@ void checksectors_r(int snum)
 				}
 				return;
 			}
-			neartag(p->GetActor()->getPosWithOffsetZ(), p->GetActor()->sector(), p->GetActor()->PrevAngles.Yaw, near , 80., NT_Lotag | NT_Hitag);
+			neartag(pact->getPosWithOffsetZ(), pact->sector(), pact->PrevAngles.Yaw, near , 80., NT_Lotag | NT_Hitag);
 		}
 
 		if (p->newOwner != nullptr)
-			neartag(p->GetActor()->getPrevPosWithOffsetZ(), p->GetActor()->sector(), p->GetActor()->PrevAngles.Yaw, near, 80., NT_Lotag);
+			neartag(pact->getPrevPosWithOffsetZ(), pact->sector(), pact->PrevAngles.Yaw, near, 80., NT_Lotag);
 		else
 		{
-			neartag(p->GetActor()->getPosWithOffsetZ(), p->GetActor()->sector(), p->GetActor()->PrevAngles.Yaw, near, 80., NT_Lotag);
+			neartag(pact->getPosWithOffsetZ(), pact->sector(), pact->PrevAngles.Yaw, near, 80., NT_Lotag);
 			if (near.actor() == nullptr && near.hitWall == nullptr && near.hitSector == nullptr)
-				neartag(p->GetActor()->getPosWithOffsetZ().plusZ(8), p->GetActor()->sector(), p->GetActor()->PrevAngles.Yaw, near, 80., NT_Lotag);
+				neartag(pact->getPosWithOffsetZ().plusZ(8), pact->sector(), pact->PrevAngles.Yaw, near, 80., NT_Lotag);
 			if (near.actor() == nullptr && near.hitWall == nullptr && near.hitSector == nullptr)
-				neartag(p->GetActor()->getPosWithOffsetZ().plusZ(16), p->GetActor()->sector(), p->GetActor()->PrevAngles.Yaw, near, 80., NT_Lotag);
+				neartag(pact->getPosWithOffsetZ().plusZ(16), pact->sector(), pact->PrevAngles.Yaw, near, 80., NT_Lotag);
 			if (near.actor() == nullptr && near.hitWall == nullptr && near.hitSector == nullptr)
 			{
-				neartag(p->GetActor()->getPosWithOffsetZ().plusZ(16), p->GetActor()->sector(), p->GetActor()->PrevAngles.Yaw, near, 80., NT_Lotag | NT_Hitag);
+				neartag(pact->getPosWithOffsetZ().plusZ(16), pact->sector(), pact->PrevAngles.Yaw, near, 80., NT_Lotag | NT_Hitag);
 				if (near.actor() != nullptr)
 				{
 					if (near.actor()->flags2 & SFLAG2_TRIGGERRESPAWN)
@@ -313,8 +314,8 @@ void checksectors_r(int snum)
 		}
 
 		if (p->newOwner == nullptr && near.actor() == nullptr && near.hitWall == nullptr && near.hitSector == nullptr)
-			if (isanunderoperator(p->GetActor()->sector()->lotag))
-				near.hitSector = p->GetActor()->sector();
+			if (isanunderoperator(pact->sector()->lotag))
+				near.hitSector = pact->sector();
 
 		if (near.hitSector && (near.hitSector->lotag & 16384))
 			return;
@@ -323,7 +324,7 @@ void checksectors_r(int snum)
 			if (p->cursector->lotag == ST_2_UNDERWATER)
 			{
 				DDukeActor* hit;
-				double dist = hitasprite(p->GetActor(), &hit);
+				double dist = hitasprite(pact, &hit);
 				if (hit) near.hitActor = hit;
 				if (dist > 80) near.hitActor = nullptr;
 			}
@@ -331,7 +332,7 @@ void checksectors_r(int snum)
 		auto const neartagsprite = near.actor();
 		if (neartagsprite != nullptr)
 		{
-			if (checkhitswitch(snum, nullptr, neartagsprite)) return;
+			if (checkhitswitch(p, nullptr, neartagsprite)) return;
 
 			if (neartagsprite->GetClass() != RUNTIME_CLASS(DDukeActor))
 			{
@@ -340,10 +341,10 @@ void checksectors_r(int snum)
 			}
 		}
 
-		if (!PlayerInput(snum, SB_OPEN)) return;
+		if (!(p->cmd.ucmd.actions & SB_OPEN)) return;
 
 		if (near.hitWall == nullptr && near.hitSector == nullptr && near.actor() == nullptr)
-			if (hits(p->GetActor()) < 32)
+			if (hits(pact) < 32)
 			{
 				if ((krand() & 255) < 16)
 					S_PlayActorSound(DUKE_SEARCH2, pact);
@@ -356,7 +357,7 @@ void checksectors_r(int snum)
 			if (near.hitWall->lotag > 0 && isadoorwall(near.hitWall->walltexture))
 			{
 				if (hitscanwall == near.hitWall || hitscanwall == nullptr)
-					checkhitswitch(snum, near.hitWall, nullptr);
+					checkhitswitch(p, near.hitWall, nullptr);
 				return;
 			}
 		}
@@ -369,8 +370,8 @@ void checksectors_r(int snum)
 				if (isactivator(act) || ismasterswitch(act))
 					return;
 			}
-			if (haslock(near.hitSector, snum))
-				operatesectors(near.hitSector, p->GetActor());
+			if (haslock(near.hitSector, p))
+				operatesectors(near.hitSector, pact);
 			else
 			{
 				if (neartagsprite && neartagsprite->spriteextra > 3)
@@ -380,18 +381,18 @@ void checksectors_r(int snum)
 				FTA(41, p);
 			}
 		}
-		else if ((p->GetActor()->sector()->lotag & 16384) == 0)
+		else if ((pact->sector()->lotag & 16384) == 0)
 		{
-			if (isanunderoperator(p->GetActor()->sector()->lotag))
+			if (isanunderoperator(pact->sector()->lotag))
 			{
-				DukeSectIterator it(p->GetActor()->sector());
+				DukeSectIterator it(pact->sector());
 				while (auto act = it.Next())
 				{
 					if (isactivator(act) || ismasterswitch(act))
 						return;
 				}
-				if (haslock(near.hitSector, snum))
-					operatesectors(p->GetActor()->sector(), p->GetActor());
+				if (haslock(near.hitSector, p))
+					operatesectors(pact->sector(), pact);
 				else
 				{
 					if (neartagsprite && neartagsprite->spriteextra > 3)
@@ -401,7 +402,7 @@ void checksectors_r(int snum)
 					FTA(41, p);
 				}
 			}
-			else checkhitswitch(snum, near.hitWall, nullptr);
+			else checkhitswitch(p, near.hitWall, nullptr);
 		}
 	}
 }
@@ -412,9 +413,10 @@ void checksectors_r(int snum)
 //
 //---------------------------------------------------------------------------
 
-void dofurniture(walltype* wlwal, sectortype* sectp, int snum)
+void dofurniture(DDukePlayer* const p, walltype* wlwal)
 {
 	assert(wlwal->twoSided());
+	auto sectp = p->cursector;
 	auto nextsect = wlwal->nextSector();
 
 	double movestep = min(sectp->hitag * maptoworld, 1.);
@@ -465,8 +467,10 @@ void dofurniture(walltype* wlwal, sectortype* sectp, int snum)
 
 	if (pos_ok)
 	{
-		if (S_CheckActorSoundPlaying(ps[snum].GetActor(), 389) == 0)
-			S_PlayActorSound(389, ps[snum].GetActor());
+		const auto pact = p->GetActor();
+
+		if (S_CheckActorSoundPlaying(pact, 389) == 0)
+			S_PlayActorSound(389, pact);
 		for(auto& wal : nextsect->walls)
 		{
 			auto vec = wal.pos;

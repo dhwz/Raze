@@ -61,7 +61,7 @@ void FHWModelRenderer::EndDrawModel(FRenderStyle style, FSpriteModelFrame *smf)
 	state.SetCulling(Cull_None);
 }
 
-void FHWModelRenderer::BeginDrawHUDModel(FRenderStyle style, const VSMatrix &objectToWorldMatrix, bool mirrored)
+void FHWModelRenderer::BeginDrawHUDModel(FRenderStyle style, const VSMatrix &objectToWorldMatrix, bool mirrored, FSpriteModelFrame*)
 {
 	state.SetDepthFunc(DF_LEqual);
 	state.SetCulling(mirrored ? Cull_CCW : Cull_CW);
@@ -69,7 +69,7 @@ void FHWModelRenderer::BeginDrawHUDModel(FRenderStyle style, const VSMatrix &obj
 	state.EnableModelMatrix(true);
 }
 
-void FHWModelRenderer::EndDrawHUDModel(FRenderStyle style)
+void FHWModelRenderer::EndDrawHUDModel(FRenderStyle style, FSpriteModelFrame*)
 {
 	state.EnableModelMatrix(false);
 
@@ -87,9 +87,9 @@ void FHWModelRenderer::SetInterpolation(double inter)
 	state.SetInterpolationFactor((float)inter);
 }
 
-void FHWModelRenderer::SetMaterial(FGameTexture *skin, bool clampNoFilter, int translation)
+void FHWModelRenderer::SetMaterial(FGameTexture *skin, bool clampNoFilter, FTranslationID translation)
 {
-	state.SetMaterial(skin, UF_Skin, 0, clampNoFilter ? CLAMP_NOFILTER : CLAMP_NONE, translation, -1);
+	state.SetMaterial(skin, UF_Skin, 0, clampNoFilter ? CLAMP_NOFILTER : CLAMP_NONE, translation.index(), -1);
 	state.SetLightIndex(modellightindex);
 }
 

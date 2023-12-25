@@ -47,6 +47,7 @@
 #include "filesystem.h"
 #include "findfile.h"
 #include "engineerrors.h"
+#include "fs_findfile.h"
 
 static const char* res_exts[] = { ".grp", ".zip", ".pk3", ".pk4", ".7z", ".pk7", ".rff"};
 
@@ -58,7 +59,7 @@ void AddSearchPath(TArray<FString>& searchpaths, const char* path)
 {
 	auto fpath = M_GetNormalizedPath(path);
 	if (fpath.Len() > 1 && fpath.Back() == '/') fpath.Truncate(fpath.Len() - 1);
-	if (DirExists(fpath))
+	if (DirExists(fpath.GetChars()))
 	{
 		if (searchpaths.Find(fpath) == searchpaths.Size())
 			searchpaths.Push(fpath);
@@ -161,14 +162,14 @@ void G_AddExternalSearchPaths(TArray<FString> &searchpaths)
 		if (I_QueryPathKey(entry.regPath, entry.regKey, buf))
 		{
 			FixPathSeperator(buf);
-			if (!entry.subpaths) AddSearchPath(searchpaths, buf);
+			if (!entry.subpaths) AddSearchPath(searchpaths, buf.GetChars());
 			else
 			{
 				FString path;
 				for (int i = 0; entry.subpaths[i]; i++)
 				{
 					path.Format("%s%s", buf.GetChars(), entry.subpaths[i]);
-					AddSearchPath(searchpaths, path);
+					AddSearchPath(searchpaths, path.GetChars());
 				}
 			}
 		}
@@ -186,26 +187,16 @@ void CollectSubdirectories(TArray<FString> &searchpath, const char *dirmatch)
 {
 	FString dirpath = MakeUTF8(dirmatch);	// convert into clean UTF-8
 	dirpath.Truncate(dirpath.Len() - 2);	// remove the '/*'
-	FString AbsPath = M_GetNormalizedPath(dirpath);
-	if (DirExists(AbsPath))
+	FString AbsPath = M_GetNormalizedPath(dirpath.GetChars());
+	if (DirExists(AbsPath.GetChars()))
 	{
-		findstate_t findstate;
-		void* handle;
-		if ((handle = I_FindFirst(AbsPath + "/*", &findstate)) != (void*)-1)
+		FileSys::FileList list;
+		if (FileSys::ScanDirectory(list, AbsPath.GetChars(), "*", true))
 		{
-			do
+			for (auto& entry : list)
 			{
-				if (I_FindAttr(&findstate) & FA_DIREC)
-				{
-					auto p = I_FindName(&findstate);
-					if (strcmp(p, ".") && strcmp(p, ".."))
-					{
-						FStringf fullpath("%s/%s", AbsPath.GetChars(), p);
-						searchpath.Push(fullpath);
-					}
-				}
-			} while (I_FindNext(handle, &findstate) == 0);
-			I_FindClose(handle);
+				if (entry.isDirectory) searchpath.Push(entry.FilePath.c_str());
+			}
 		}
 	}
 }
@@ -247,11 +238,11 @@ TArray<FString> CollectSearchPaths()
 					// A path ending with "/*" means to add all subdirectories.
 					if (nice[nice.Len()-2] == '/' && nice[nice.Len()-1] == '*')
 					{
-						CollectSubdirectories(searchpaths, nice);
+						CollectSubdirectories(searchpaths, nice.GetChars());
 					}
 					else
 					{
-						AddSearchPath(searchpaths, nice);
+						AddSearchPath(searchpaths, nice.GetChars());
 					}
 				}
 			}
@@ -301,7 +292,7 @@ TArray<FileEntry> CollectAllFilesInSearchPath()
 	{
 		// If the user specified a file on the command line, insert that first, if found.
 		FileReader fr;
-		if (fr.OpenFile(userConfig.gamegrp))
+		if (fr.OpenFile(userConfig.gamegrp.GetChars()))
 		{
 			FileEntry fe = { userConfig.gamegrp, (size_t)fr.GetLength(), 0, 0, index++ };
 			filelist.Push(fe);
@@ -311,25 +302,23 @@ TArray<FileEntry> CollectAllFilesInSearchPath()
 	auto paths = CollectSearchPaths();
 	for(auto &path : paths)
 	{
-		if (DirExists(path))
+		if (DirExists(path.GetChars()))
 		{
-			findstate_t findstate;
-			void* handle;
-			if ((handle = I_FindFirst(path + "/*.*", &findstate)) != (void*)-1)
+			FileSys::FileList list;
+			if (FileSys::ScanDirectory(list, path.GetChars(), "*", true))
 			{
-				do
+				for (auto& entry : list)
 				{
-					if (!(I_FindAttr(&findstate) & FA_DIREC))
+					if (!entry.isDirectory)
 					{
-						auto p = I_FindName(&findstate);
 						filelist.Reserve(1);
 						auto& flentry = filelist.Last();
-						flentry.FileName.Format("%s/%s", path.GetChars(), p);
-						GetFileInfo(flentry.FileName, &flentry.FileLength, &flentry.FileTime);
+						flentry.FileName = entry.FilePath.c_str();
+						GetFileInfo(flentry.FileName.GetChars(), &flentry.FileLength, &flentry.FileTime);
 						flentry.Index = index++; // to preserve order when working on the list.
+
 					}
-				} while (I_FindNext(handle, &findstate) == 0);
-				I_FindClose(handle);
+				}
 			}
 		}
 	}
@@ -350,7 +339,7 @@ static TArray<FileEntry> LoadCRCCache(void)
 
 	try
 	{
-		if (sc.OpenFile(cachepath))
+		if (sc.OpenFile(cachepath.GetChars()))
 		{
 			while (sc.GetString())
 			{
@@ -383,7 +372,7 @@ void SaveCRCs(TArray<FileEntry>& crclist)
 {
 	auto cachepath = M_GetAppDataPath(true) + "/grpcrccache.txt";
 
-	FileWriter* fw = FileWriter::Open(cachepath);
+	FileWriter* fw = FileWriter::Open(cachepath.GetChars());
 	if (fw)
 	{
 		for (auto& crc : crclist)
@@ -429,7 +418,7 @@ static TArray<GrpInfo> ParseGrpInfo(const char *fn, FileReader &fr, TMap<FString
 
 	FScanner sc;
 	auto mem = fr.Read();
-	sc.OpenMem(fn, (const char *)mem.Data(), mem.Size());
+	sc.OpenMem(fn, (const char *)mem.data(), (int)mem.size());
 
 	while (sc.GetToken())
 	{
@@ -586,11 +575,11 @@ static TArray<GrpInfo> ParseGrpInfo(const char *fn, FileReader &fr, TMap<FString
 				}
 				else if (sc.Compare("loadgrp"))
 				{
-				do
-				{
-					sc.MustGetToken(TK_StringConst);
-					grp.loadfiles.Push(sc.String);
-				} while (sc.CheckToken(','));
+					do
+					{
+						sc.MustGetToken(TK_StringConst);
+						grp.loadfiles.Push(sc.String);
+					} while (sc.CheckToken(','));
 				}
 				else if (sc.Compare("loadart"))
 				{
@@ -636,13 +625,13 @@ TArray<GrpInfo> ParseAllGrpInfos(TArray<FileEntry>& filelist)
 	// This opens the base resource only for reading the grpinfo from it which we need before setting up the game state.
 	std::unique_ptr<FResourceFile> engine_res;
 	const char* baseres = BaseFileSearch(ENGINERES_FILE, nullptr, true, GameConfig);
-	engine_res.reset(FResourceFile::OpenResourceFile(baseres, true, true));
+	engine_res.reset(FResourceFile::OpenResourceFile(baseres, true));
 	if (engine_res)
 	{
-		auto basegrp = engine_res->FindLump("engine/grpinfo.txt");
-		if (basegrp)
+		auto basegrp = engine_res->FindEntry("engine/grpinfo.txt");
+		if (basegrp >= 0)
 		{
-			auto fr = basegrp->NewReader();
+			auto fr = engine_res->GetEntryReader(basegrp, true);
 			if (fr.isOpen())
 			{
 				groups = ParseGrpInfo("engine/grpinfo.txt", fr, CRCMap);
@@ -659,9 +648,9 @@ TArray<GrpInfo> ParseAllGrpInfos(TArray<FileEntry>& filelist)
 			{
 				// parse it.
 				FileReader fr;
-				if (fr.OpenFile(entry.FileName))
+				if (fr.OpenFile(entry.FileName.GetChars()))
 				{
-					auto g = ParseGrpInfo(entry.FileName, fr, CRCMap);
+					auto g = ParseGrpInfo(entry.FileName.GetChars(), fr, CRCMap);
 					groups.Append(g);
 				}
 			}
@@ -688,7 +677,7 @@ void GetCRC(FileEntry *entry, TArray<FileEntry> &CRCCache)
 		}
 	}
 	FileReader f;
-	if (f.OpenFile(entry->FileName))
+	if (f.OpenFile(entry->FileName.GetChars()))
 	{
 		TArray<uint8_t> buffer(65536, 1);
 		uint32_t crcval = 0;
@@ -790,7 +779,7 @@ TArray<GrpEntry> GrpScan()
 			{
 				if (strcmp(ext, fn.GetChars() + fn.Len() - 4) == 0)
 				{
-					auto resf = FResourceFile::OpenResourceFile(fe->FileName, true, true);
+					auto resf = FResourceFile::OpenResourceFile(fe->FileName.GetChars(), true);
 					if (resf)
 					{
 						for (auto grp : contentGroupList)
@@ -798,7 +787,7 @@ TArray<GrpEntry> GrpScan()
 							bool ok = true;
 							for (auto &lump : grp->mustcontain)
 							{
-								if (!resf->FindLump(lump))
+								if (resf->FindEntry(lump.GetChars()) < 0)
 								{
 									ok = false;
 									break;
@@ -882,7 +871,7 @@ TArray<GrpEntry> GrpScan()
 			fg.FileName = entry->FileName;
 			for (auto addon : addonList)
 			{
-				if (CheckAddon(addon, grp, entry->FileName))
+				if (CheckAddon(addon, grp, entry->FileName.GetChars()))
 				{
 					foundGames.Reserve(1);
 					auto& fga = foundGames.Last();

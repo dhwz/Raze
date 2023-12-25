@@ -117,8 +117,7 @@ uint8_t LoadLevel(MapRecord* map)
     // init stuff
     {
         StopAllSounds();
-        nCreaturesKilled = 0;
-        nCreaturesTotal = 0;
+        Level.clearStats();
         nFreeze = 0;
         pSpiritSprite = nullptr;
         PlayClock = 0;
@@ -160,7 +159,7 @@ uint8_t LoadLevel(MapRecord* map)
     SpawnSpriteDef spawned;
     DVector3 initpos;
     int16_t mapang;
-    loadMap(currentLevel->fileName, 0, &initpos, &mapang, &initsect, spawned);
+    loadMap(currentLevel->fileName.GetChars(), 0, &initpos, &mapang, &initsect, spawned);
     auto actors = spawnactors(spawned);
 
     g_visibility = 1024;
@@ -171,9 +170,10 @@ uint8_t LoadLevel(MapRecord* map)
 
     for (int i = 0; i < nTotalPlayers; i++)
     {
-        SetSavePoint(i, initpos, initsect, DAngle::fromBuild(mapang));
-        RestartPlayer(i);
-        InitPlayerKeys(i);
+        const auto pPlayer = getPlayer(i);
+        SetSavePoint(pPlayer, initpos, initsect, DAngle::fromBuild(mapang));
+        RestartPlayer(pPlayer);
+        InitPlayerKeys(pPlayer);
     }
     return true;
 }
@@ -197,7 +197,7 @@ void InitLevel(MapRecord* map)
     totalmoves = 0;
     GrabPalette();
 
-    if (!mus_redbook && map->music.IsNotEmpty()) Mus_Play(map->music, true);    // Allow non-CD music if defined for the current level
+    if (!mus_redbook && map->music.IsNotEmpty()) Mus_Play(map->music.GetChars(), true);    // Allow non-CD music if defined for the current level
     playCDtrack(map->cdSongId, true);
 	setLevelStarted(currentLevel);
 }
@@ -220,7 +220,7 @@ void InitNewGame()
             I_Error("Can't create local player\n");
         }
 
-        InitPlayerInventory(nPlayer);
+        InitPlayerInventory(getPlayer(nPlayer));
     }
 }
 
@@ -773,9 +773,9 @@ void ExamineSprites(TArray<DExhumedActor*>& actors)
 
     if (nNetPlayerCount)
     {
-        auto pActor = insertActor(PlayerList[nLocalPlayer].pActor->sector(), 0);
+        auto pActor = insertActor(getPlayer(nLocalPlayer)->GetActor()->sector(), 0);
 
-        pActor->spr.pos = PlayerList[nLocalPlayer].pActor->spr.pos;
+        pActor->spr.pos = getPlayer(nLocalPlayer)->GetActor()->spr.pos;
         pActor->spr.cstat = CSTAT_SPRITE_INVISIBLE;
         nNetStartSprite[nNetStartSprites] = pActor;
         nNetStartSprites++;

@@ -80,7 +80,7 @@ class RedneckUfoBeam : DukeActor
 	}
 }
 
-class RedneckTikiLamp : DukeItemBase
+class RedneckTikiLamp : DukeActor
 {
 	default
 	{
@@ -105,7 +105,7 @@ class DukeMinecartKiller : DukeActor
 }
 
 
-class RedneckBustaWin4a : DukeItemBase
+class RedneckBustaWin4a : DukeActor
 {
 	default
 	{
@@ -114,7 +114,7 @@ class RedneckBustaWin4a : DukeItemBase
 	}
 }
 
-class RedneckBustaWin5a : DukeItemBase
+class RedneckBustaWin5a : DukeActor
 {
 	default
 	{
@@ -124,6 +124,7 @@ class RedneckBustaWin5a : DukeItemBase
 
 }
 
+/*
 class RedneckBarrel : DukeActor
 {
 	const POWDERKEGBLASTRADIUS = 3880;
@@ -141,6 +142,7 @@ class RedneckBarrel2 : RedneckBarrel
 		spriteset "BARREL2", "BARREL2BROKE";
 	}
 }
+*/
 
 
 class RedneckWaterSurface : DukeActor

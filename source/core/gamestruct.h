@@ -6,7 +6,6 @@ bool System_WantGuiCapture();	// During playing this tells us whether the game m
 #include "vectors.h"
 #include "engineerrors.h"
 #include "stats.h"
-#include "packet.h"
 #include "serializer.h"
 #include "inputstate.h"
 #include "maptypes.h"
@@ -15,9 +14,7 @@ class FSerializer;
 struct FRenderViewpoint;
 struct sectortype;
 struct tspritetype;
-class DCoreActor;
 struct MapRecord;
-struct PlayerAngles;
 
 struct GameStats
 {
@@ -46,8 +43,6 @@ enum EMenuSounds : int;
 struct MapRecord;
 struct TilesetBuildInfo;
 
-extern cycle_t drawtime, actortime, thinktime, gameupdatetime;
-
 struct GeoEffect
 {
 	sectortype** geosectorwarp;
@@ -72,9 +67,7 @@ struct GameInterface
 	virtual void SetupSpecialTextures(TilesetBuildInfo&) = 0;
 	virtual void loadPalette() = 0;
 	virtual void FreeLevelData();
-	virtual void FreeGameData() {}
 	virtual void PlayHudSound() {}
-	virtual GameStats getStats() { return {}; }
 	virtual void MenuOpened() {}
 	virtual void MenuClosed() {}
 	virtual void MenuSound(EMenuSounds snd) {}
@@ -101,7 +94,6 @@ struct GameInterface
 	virtual bool DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac) { return false; }
 	virtual DAngle playerPitchMin() { return DAngle::fromDeg(57.375); }
 	virtual DAngle playerPitchMax() { return DAngle::fromDeg(-57.375); }
-	virtual DCoreActor* getConsoleActor() = 0;
 	virtual void ToggleThirdPerson() = 0;
 	virtual void SwitchCoopView() { Printf("Unsupported command\n"); }
 	virtual void ToggleShowWeapon() { Printf("Unsupported command\n"); }
@@ -118,26 +110,7 @@ struct GameInterface
 	virtual void RemoveQAVInterpProps(const int res_id) { }
 	virtual bool WantEscape() { return false; }
 	virtual void StartSoundEngine() = 0;
-	virtual void reapplyInputBits(InputPacket* const input) = 0;
-	virtual void doPlayerMovement(const float scaleAdjust) = 0;
-
-	virtual FString statFPS()
-	{
-		FString output;
-
-		output.AppendFormat("Actor think time: %.3f ms\n", actortime.TimeMS());
-		output.AppendFormat("Total think time: %.3f ms\n", thinktime.TimeMS());
-		output.AppendFormat("Game Update: %.3f ms\n", gameupdatetime.TimeMS());
-		output.AppendFormat("Draw time: %.3f ms\n", drawtime.TimeMS());
-
-		return output;
-	}
-
-
+	virtual void doPlayerMovement();
 };
 
 extern GameInterface* gi;
-
-
-void ImGui_Begin_Frame();
-

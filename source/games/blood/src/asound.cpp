@@ -1,13 +1,12 @@
 //-------------------------------------------------------------------------
 /*
-Copyright (C) 2010-2019 EDuke32 developers and contributors
-Copyright (C) 2019 Nuke.YKT
+Copyright (C) 2020-2022 Christoph Oelckers
 
-This file is part of NBlood.
+This file is part of Raze
 
-NBlood is free software; you can redistribute it and/or
+Raze is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License version 2
-as published by the Free Software Foundation.
+of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -15,9 +14,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 //-------------------------------------------------------------------------
 
@@ -47,7 +43,7 @@ int nAmbChannels = 0;
 //
 //---------------------------------------------------------------------------
 
-void ambProcess(PLAYER* pPlayer)
+void ambProcess(DBloodPlayer* pPlayer)
 {
     if (!SoundEnabled())
         return;
@@ -60,7 +56,7 @@ void ambProcess(PLAYER* pPlayer)
         {
             if (actor->xspr.state)
             {
-                int nDist = (int)(actor->spr.pos - pPlayer->actor->spr.pos).Length();
+                int nDist = (int)(actor->spr.pos - pPlayer->GetActor()->spr.pos).Length();
                 int vs = min(MulScale(actor->xspr.data4, actor->xspr.busy, 16), 127);
                 ambChannels[actor->spr.intowner].distance += ClipRange(scale(nDist, actor->xspr.data1, actor->xspr.data2, vs, 0), 0, vs);
             }
@@ -128,18 +124,20 @@ void ambInit(void)
         for (i = 0; i < nAmbChannels; i++, pChannel++)
             if (actor->xspr.data3 == pChannel->check) break;
 
-        if (i == nAmbChannels) {
+        if (i == nAmbChannels) 
+        {
 
-            if (i >= kMaxAmbChannel) {
+            if (i >= kMaxAmbChannel) 
+            {
                 actor->spr.intowner = -1;
                 continue;
             }
 
             int nSFX = actor->xspr.data3;
             auto snd = soundEngine->FindSoundByResID(nSFX);
-            if (!snd.isvalid()) {
-                //I_Error("Missing sound #%d used in ambient sound generator %d\n", nSFX);
-                viewSetSystemMessage("Missing sound #%d used in ambient sound generator #%d\n", nSFX, actor->GetIndex());
+            if (!snd.isvalid()) 
+            {
+                Printf(PRINT_HIGH | PRINT_NOTIFY, "Missing sound #%d used in ambient sound generator #%d\n", nSFX, actor->GetIndex());
                 actPostSprite(actor, kStatDecoration);
                 continue;
             }

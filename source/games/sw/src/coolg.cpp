@@ -534,6 +534,14 @@ int SetupCoolg(DSWActor* actor)
     return 0;
 }
 
+DEFINE_ACTION_FUNCTION(DSWCoolg, Initialize)
+{
+    PARAM_SELF_PROLOGUE(DSWActor);
+    SetupCoolg(self);
+    return 0;
+}
+
+
 //---------------------------------------------------------------------------
 //
 //
@@ -556,7 +564,7 @@ int NewCoolg(DSWActor* actor)
     actorNew->user.__legacyState.Attrib = &CoolgAttrib;
 
     // special case
-    TotalKillable++;
+    Level.addKillCount();
     CoolgCommon(actorNew);
 
     return 0;
@@ -581,7 +589,7 @@ int DoCoolgBirth(DSWActor* actor)
 
     EnemyDefaults(actor, &CoolgActionSet, &CoolgPersonality);
     // special case
-    TotalKillable--;
+    Level.addKillCount(-1);
 
     actor->user.Flags |= (SPR_NO_SCAREDZ|SPR_XFLIP_TOGGLE);
     CoolgCommon(actor);
@@ -792,7 +800,7 @@ int DoCoolgDeath(DSWActor* actor)
         DoActorSlide(actor);
 
     // slide while falling
-	auto vec = actor->spr.Angles.Yaw.ToVector() * actor->vel.X;
+    auto vec = actor->spr.Angles.Yaw.ToVector() * actor->vel.X;
 
     actor->user.coll = move_sprite(actor, DVector3(vec, 0), actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, ACTORMOVETICS);
     DoFindGroundPoint(actor);

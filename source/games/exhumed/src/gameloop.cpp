@@ -78,9 +78,10 @@ void GameInterface::Render()
 
     if (nFreeze != 2) // Hide when Ramses is talking.
     {
+        const auto pPlayer = getPlayer(nLocalPlayer);
         DrawStatusBar();
-        auto offsets = PlayerList[nLocalPlayer].Angles.getCrosshairOffsets(interpfrac);
-        DrawCrosshair(PlayerList[nLocalPlayer].nHealth >> 3, offsets.first.X, offsets.first.Y, 1, offsets.second);
+        auto offsets = pPlayer->getCrosshairOffsets(interpfrac);
+        DrawCrosshair(pPlayer->nHealth >> 3, offsets.first.X, offsets.first.Y, 1, offsets.second);
 
         if (paused && !M_Active())
         {
@@ -127,8 +128,8 @@ void GameInterface::NextLevel(MapRecord *map, int skill)
 		nBestLevel = map->levelNumber - 1;
 	}
 
-	STAT_NewLevel(currentLevel->labelName);
-	TITLE_InformName(currentLevel->name);
+	STAT_NewLevel(currentLevel->labelName.GetChars());
+	TITLE_InformName(currentLevel->name.GetChars());
 }
 
 //---------------------------------------------------------------------------
@@ -183,7 +184,7 @@ void GameInterface::LevelCompleted(MapRecord *to_map, int skill)
     {
         if (to_map->levelNumber > nBestLevel) nBestLevel = to_map->levelNumber - 1;
 
-        if (to_map->gameflags & LEVEL_EX_COUNTDOWN) PlayerList[0].nLives = 0;
+        if (to_map->gameflags & LEVEL_EX_COUNTDOWN) getPlayer(0)->nLives = 0;
         if (to_map->gameflags & LEVEL_EX_TRAINING)
         {
             gameaction = ga_nextlevel;
@@ -191,10 +192,8 @@ void GameInterface::LevelCompleted(MapRecord *to_map, int skill)
         }
     }
     SummaryInfo info{};
-    info.kills = nCreaturesKilled;
-    info.maxkills = nCreaturesTotal;
-    info.supersecrets = nBestLevel;
-    info.time = PlayClock * GameTicRate / 120;
+    Level.fillSummary(info);
+    info.supersecrets = nBestLevel;// hacky override
     if (to_map) selectedlevelnew = to_map->levelNumber;
     ShowIntermission(currentLevel, to_map, &info, [=](bool)
         {

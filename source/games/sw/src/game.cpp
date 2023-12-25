@@ -97,15 +97,55 @@ IMPLEMENT_CLASS(DSWActor, false, true)
 IMPLEMENT_POINTERS_START(DSWActor)
 IMPLEMENT_POINTER(ownerActor)
 IMPLEMENT_POINTER(user.lowActor)
-IMPLEMENT_POINTER(user.lowActor)
 IMPLEMENT_POINTER(user.highActor)
 IMPLEMENT_POINTER(user.targetActor)
 IMPLEMENT_POINTER(user.flameActor)
 IMPLEMENT_POINTER(user.attachActor)
 IMPLEMENT_POINTER(user.WpnGoalActor)
+IMPLEMENT_POINTER(user.PlayerP)
 IMPLEMENT_POINTERS_END
 
+IMPLEMENT_CLASS(DSWPlayer, false, true)
+IMPLEMENT_POINTERS_START(DSWPlayer)
+IMPLEMENT_POINTER(remoteActor)
+IMPLEMENT_POINTER(lowActor)
+IMPLEMENT_POINTER(highActor)
+IMPLEMENT_POINTER(PlayerUnderActor)
+IMPLEMENT_POINTER(KillerActor)
+IMPLEMENT_POINTER(HitBy)
+IMPLEMENT_POINTER(last_camera_act)
+IMPLEMENT_POINTER(CurWpn)
+IMPLEMENT_POINTER(Chops)
+IMPLEMENT_POINTER(PanelSpriteList)
+IMPLEMENT_POINTER(Wpn[0])
+IMPLEMENT_POINTER(Wpn[1])
+IMPLEMENT_POINTER(Wpn[2])
+IMPLEMENT_POINTER(Wpn[3])
+IMPLEMENT_POINTER(Wpn[4])
+IMPLEMENT_POINTER(Wpn[5])
+IMPLEMENT_POINTER(Wpn[6])
+IMPLEMENT_POINTER(Wpn[7])
+IMPLEMENT_POINTER(Wpn[8])
+IMPLEMENT_POINTER(Wpn[9])
+IMPLEMENT_POINTER(Wpn[10])
+IMPLEMENT_POINTER(Wpn[11])
+IMPLEMENT_POINTER(Wpn[12])
+IMPLEMENT_POINTER(Wpn[13])
+IMPLEMENT_POINTERS_END
+
+static_assert(MAX_WEAPONS == 14);
+
+IMPLEMENT_CLASS(DPanelSprite, false, true)
+IMPLEMENT_POINTERS_START(DPanelSprite)
+IMPLEMENT_POINTER(Next)
+IMPLEMENT_POINTER(Prev)
+IMPLEMENT_POINTER(sibling)
+IMPLEMENT_POINTER(PlayerP)
+IMPLEMENT_POINTERS_END
+
+
 void MarkSOInterp();
+extern int FinishTimer;
 
 void markgcroots()
 {
@@ -117,17 +157,6 @@ void markgcroots()
     GC::MarkArray(GenericQueue, MAX_GENERIC_QUEUE);
     GC::MarkArray(LoWangsQueue, MAX_LOWANGS_QUEUE);
     GC::MarkArray(BossSpriteNum, 3);
-    for (auto& pl : Player)
-    {
-        GC::Mark(pl.actor);
-        GC::Mark(pl.lowActor);
-        GC::Mark(pl.highActor);
-        GC::Mark(pl.remoteActor);
-        GC::Mark(pl.PlayerUnderActor);
-        GC::Mark(pl.KillerActor);
-        GC::Mark(pl.HitBy);
-        GC::Mark(pl.last_camera_act);
-    }
     for (auto& so : SectorObject)
     {
        GC::Mark(so.controller);
@@ -147,7 +176,7 @@ void markgcroots()
 }
 
 
-void pClearSpriteList(PLAYER* pp);
+void pClearSpriteList(DSWPlayer* pp);
 
 int GameVersion = 20;
 
@@ -161,7 +190,6 @@ short screenpeek = 0;
 
 int GodMode = false;
 short Skill = 2;
-int TotalKillable;
 
 const GAME_SET gs_defaults =
 {
@@ -250,6 +278,13 @@ void GameInterface::SetupSpecialTextures(TilesetBuildInfo& info)
 
 void GameInterface::app_init()
 {
+    // Initialise player array.
+    for (unsigned i = 0; i < MAXPLAYERS; i++)
+    {
+        PlayerArray[i] = Create<DSWPlayer>(i);
+        GC::WriteBarrier(PlayerArray[i]);
+    }
+
     // these are frequently checked markers.
     FAFPlaceMirrorPic[0] = tileGetTextureID(FAF_PLACE_MIRROR_PIC);
     FAFPlaceMirrorPic[1] = tileGetTextureID(FAF_PLACE_MIRROR_PIC + 1);
@@ -265,7 +300,7 @@ void GameInterface::app_init()
     gs = gs_defaults;
 
     for (int i = 0; i < MAX_SW_PLAYERS; i++)
-        INITLIST(&Player[i].PanelSpriteList);
+        INITLIST(getPlayer(i)->PanelSpriteList);
 
     DebugOperate = true;
     enginecompatibility_mode = ENGINECOMPATIBILITY_19961112;
@@ -293,9 +328,8 @@ void GameInterface::app_init()
     defineSky(nullptr, 1, nullptr);
 
     memset(Track, 0, sizeof(Track));
-    memset(Player, 0, sizeof(Player));
     for (int i = 0; i < MAX_SW_PLAYERS; i++)
-        INITLIST(&Player[i].PanelSpriteList);
+        INITLIST(getPlayer(i)->PanelSpriteList);
 
     LoadCustomInfoFromScript("engine/swcustom.txt");	// load the internal definitions. These also apply to the shareware version.
     if (!SW_SHAREWARE)
@@ -336,6 +370,7 @@ void InitLevelGlobals(void)
     AnimCnt = 0;
     left_foot = false;
     screenpeek = myconnectindex;
+    FinishTimer = 0;
     ClearInterpolations();
 
     gNet.TimeLimitClock = gNet.TimeLimit;
@@ -354,7 +389,7 @@ void InitLevelGlobals(void)
 void InitLevelGlobals2(void)
 {
     InitTimingVars();
-    TotalKillable = 0;
+    Level.clearStats();
     Bunny_Count = 0;
     FinishAnim = false;
 }
@@ -412,12 +447,12 @@ void InitLevel(MapRecord *maprec)
         for (int i = 0; i < MAX_SW_PLAYERS; i++)
         {
             // don't jack with the playerreadyflag
-            int ready_bak = Player[i].playerreadyflag;
-            int ver_bak = Player[i].PlayerVersion;
-            memset(&Player[i], 0, sizeof(Player[i]));
-            Player[i].playerreadyflag = ready_bak;
-            Player[i].PlayerVersion = ver_bak;
-            INITLIST(&Player[i].PanelSpriteList);
+            int ready_bak = getPlayer(i)->playerreadyflag;
+            int ver_bak = getPlayer(i)->PlayerVersion;
+            getPlayer(i)->Clear();
+            getPlayer(i)->playerreadyflag = ready_bak;
+            getPlayer(i)->PlayerVersion = ver_bak;
+            INITLIST(getPlayer(i)->PanelSpriteList);
         }
 
         memset(puser, 0, sizeof(puser));
@@ -428,13 +463,13 @@ void InitLevel(MapRecord *maprec)
     sectortype* cursect;
     SpawnSpriteDef sprites;
     DVector3 ppos;
-    loadMap(maprec->fileName, SW_SHAREWARE ? 1 : 0, &ppos, &ang, &cursect, sprites);
+    loadMap(maprec->fileName.GetChars(), SW_SHAREWARE ? 1 : 0, &ppos, &ang, &cursect, sprites);
     spawnactors(sprites);
-    Player[0].cursector = cursect;
+    getPlayer(0)->cursector = cursect;
 
-    SECRET_SetMapName(currentLevel->DisplayName(), currentLevel->name);
-    STAT_NewLevel(currentLevel->fileName);
-    TITLE_InformName(currentLevel->name);
+    SECRET_SetMapName(currentLevel->DisplayName(), currentLevel->name.GetChars());
+    STAT_NewLevel(currentLevel->fileName.GetChars());
+    TITLE_InformName(currentLevel->name.GetChars());
 
     auto vissect = &sector[0]; // hack alert!
     if (vissect->extra != -1)
@@ -501,10 +536,10 @@ void InitRunLevel(void)
 
     if (currentLevel)
     {
-        PlaySong(currentLevel->music, currentLevel->cdSongId);
+        PlaySong(currentLevel->music.GetChars(), currentLevel->cdSongId);
     }
 
-    InitPrediction(&Player[myconnectindex]);
+    InitPrediction(getPlayer(myconnectindex));
 
     InitTimingVars();
 
@@ -572,7 +607,7 @@ void TerminateLevel(void)
 
     TRAVERSE_CONNECT(pnum)
     {
-        PLAYER* pp = &Player[pnum];
+        DSWPlayer* pp = getPlayer(pnum);
 
         if (pp->Flags & PF_DEAD)
             PlayerDeathReset(pp);
@@ -588,13 +623,11 @@ void TerminateLevel(void)
         pp->hi_sectp = pp->lo_sectp = nullptr;
         pp->cursector = pp->lastcursector = pp->lv_sector = nullptr;
         pp->sop_control = pp->sop_riding = nullptr;
-        pp->PanelSpriteList = {};
 
         memset(pp->cookieQuote, 0, sizeof(pp->cookieQuote));
         pp->DoPlayerAction = nullptr;
 
         pp->actor = nullptr;
-        pp->Angles = {};
 
         pp->PlayerUnderActor = nullptr;
 
@@ -608,7 +641,7 @@ void TerminateLevel(void)
 
         pp->KillerActor = nullptr;;
 
-        INITLIST(&pp->PanelSpriteList);
+        INITLIST(pp->PanelSpriteList);
     }
 }
 
@@ -635,25 +668,19 @@ void GameInterface::LevelCompleted(MapRecord* map, int skill)
 {
     //ResetPalette(mpp);
     COVER_SetReverb(0); // Reset reverb
-    Player[myconnectindex].Reverb = 0;
+    getPlayer(myconnectindex)->Reverb = 0;
     StopSound();
     STAT_Update(map == nullptr);
 
     SummaryInfo info{};
-
-    info.kills = Player[screenpeek].Kills;
-    info.maxkills = TotalKillable;
-    info.secrets = Player[screenpeek].SecretsFound;
-    info.maxsecrets = LevelSecrets;
-    info.time = PlayClock / 120;
-
+    Level.fillSummary(info);
 
     ShowIntermission(currentLevel, map, &info, [=](bool)
         {
             if (map == nullptr)
             {
                 FinishAnim = false;
-                PlaySong(ThemeSongs[0], ThemeTrack[0]);
+                PlaySong(ThemeSongs[0].GetChars(), ThemeTrack[0]);
                 if (isShareware())
                 {
                     PlayOrderSound();
@@ -725,7 +752,7 @@ void GameInterface::Render()
 {
     drawtime.Reset();
     drawtime.Clock();
-    drawscreen(Player + screenpeek, paused || !cl_interpolate || cl_capfps ? 1. : I_GetTimeFrac(), false);
+    drawscreen(getPlayer(screenpeek), paused || !cl_interpolate || cl_capfps ? 1. : I_GetTimeFrac(), false);
     drawtime.Unclock();
 }
 
@@ -818,12 +845,6 @@ int StdRandomRange(int range)
 ::GameInterface* CreateInterface()
 {
 	return new GameInterface;
-}
-
-GameStats GameInterface::getStats()
-{
-	PLAYER* pp = Player + myconnectindex;
-	return { pp->Kills, TotalKillable, pp->SecretsFound, LevelSecrets, PlayClock / 120, 0 };
 }
 
 void GameInterface::FreeLevelData()

@@ -327,15 +327,15 @@ enum dam
 // Forward declarations
 struct STATE;
 struct PANEL_STATE;
-struct PLAYER;
+class DSWPlayer;
 struct PERSONALITY;
 struct ATTRIBUTE;
 struct SECTOR_OBJECT;
-struct PANEL_SPRITE;
+class DPanelSprite;
 struct ANIM;
 class DSWActor;
 
-typedef void pANIMATOR (PANEL_SPRITE*);
+typedef void pANIMATOR (DPanelSprite*);
 typedef void (*soANIMATORp) (SECTOR_OBJECT*);
 
 // this needs to work with incomplete data, so avoid the asserting macros.
@@ -427,7 +427,7 @@ enum
 
 struct DAMAGE_DATA
 {
-    void (*Init)(PLAYER*);
+    void (*Init)(DSWPlayer*);
     int16_t damage_lo;
     int16_t damage_hi;
     unsigned int radius;
@@ -444,24 +444,24 @@ extern DAMAGE_DATA DamageData[];
 extern int WeaponHasNoAmmo, WeaponIsAmmo;
 
 
-void InitWeaponFist(PLAYER*);
-void InitWeaponStar(PLAYER*);
-void InitWeaponShotgun(PLAYER*);
-void InitWeaponRocket(PLAYER*);
-void InitWeaponRail(PLAYER*);
-void InitWeaponMicro(PLAYER*);
-void InitWeaponUzi(PLAYER*);
-void InitWeaponSword(PLAYER*);
-void InitWeaponHothead(PLAYER*);
-void InitWeaponElectro(PLAYER*);
-void InitWeaponHeart(PLAYER*);
-void InitWeaponGrenade(PLAYER*);
-void InitWeaponMine(PLAYER*);
+void InitWeaponFist(DSWPlayer*);
+void InitWeaponStar(DSWPlayer*);
+void InitWeaponShotgun(DSWPlayer*);
+void InitWeaponRocket(DSWPlayer*);
+void InitWeaponRail(DSWPlayer*);
+void InitWeaponMicro(DSWPlayer*);
+void InitWeaponUzi(DSWPlayer*);
+void InitWeaponSword(DSWPlayer*);
+void InitWeaponHothead(DSWPlayer*);
+void InitWeaponElectro(DSWPlayer*);
+void InitWeaponHeart(DSWPlayer*);
+void InitWeaponGrenade(DSWPlayer*);
+void InitWeaponMine(DSWPlayer*);
 
-void InitWeaponNapalm(PLAYER*);
-void InitWeaponRing(PLAYER*);
+void InitWeaponNapalm(DSWPlayer*);
+void InitWeaponRing(DSWPlayer*);
 
-extern void (*InitWeapon[MAX_WEAPONS]) (PLAYER*);
+extern void (*InitWeapon[MAX_WEAPONS]) (DSWPlayer*);
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -525,7 +525,7 @@ enum PlayerDeathTypes
     PLAYER_DEATH_FLIP, PLAYER_DEATH_CRUMBLE, PLAYER_DEATH_EXPLODE, PLAYER_DEATH_RIPPER, PLAYER_DEATH_SQUISH, PLAYER_DEATH_DROWN, MAX_PLAYER_DEATHS
 };
 
-typedef void (*PLAYER_ACTION_FUNCp)(PLAYER*);
+typedef void (*PLAYER_ACTION_FUNCp)(DSWPlayer*);
 
 #include "inv.h"
 
@@ -548,7 +548,6 @@ enum
     PF_DEAD                     = (BIT(1)),
     PF_JUMPING                  = (BIT(2)),
     PF_FALLING                  = (BIT(3)),
-    PF_LOCK_CRAWL               = (BIT(4)),
     PF_PLAYER_MOVED             = (BIT(7)),
     PF_PLAYER_RIDING            = (BIT(8)),
     PF_RECOIL                   = (BIT(10)),
@@ -756,7 +755,7 @@ struct USER
 
 
     // if a player's sprite points to player structure
-    PLAYER* PlayerP;
+    DSWPlayer* PlayerP;
     int16_t Sibling;
 
 
@@ -1414,10 +1413,10 @@ enum
 
 short SoundAngle(int x, int  y);
 //void PlaySound(int num, short angle, short vol);
-int _PlaySound(FSoundID num, DSWActor* sprite, PLAYER* player, const DVector3 *const pos, int flags, int channel, EChanFlags sndflags);
+int _PlaySound(FSoundID num, DSWActor* sprite, DSWPlayer* player, const DVector3 *const pos, int flags, int channel, EChanFlags sndflags);
 void InitAmbient(int num, DSWActor* actor);
 
-inline void PlaySound(int num, PLAYER* player, int flags, int channel = 8, EChanFlags sndflags = CHANF_NONE)
+inline void PlaySound(int num, DSWPlayer* player, int flags, int channel = 8, EChanFlags sndflags = CHANF_NONE)
 {
     _PlaySound(soundEngine->FindSoundByResID(num), nullptr, player, nullptr, flags | v3df_follow, channel, sndflags);
 }
@@ -1430,20 +1429,20 @@ inline void PlaySound(int num, const DVector3 &pos, int flags, int channel = 8, 
 	_PlaySound(soundEngine->FindSoundByResID(num), nullptr, nullptr, &pos, flags, channel, sndflags);
 }
 
-int _PlayerSound(int num, PLAYER* pp);
-inline int PlayerSound(int num, int flags, PLAYER* pp) { return _PlayerSound(num, pp); }
-void StopPlayerSound(PLAYER* pp, int which = -1);
+int _PlayerSound(int num, DSWPlayer* pp);
+inline int PlayerSound(int num, int flags, DSWPlayer* pp) { return _PlayerSound(num, pp); }
+void StopPlayerSound(DSWPlayer* pp, int which = -1);
  bool SoundValidAndActive(DSWActor* spr, int channel);
 
 
 struct BREAK_INFO;
 int SpawnShrap(DSWActor*, DSWActor*, int = -1, BREAK_INFO* breakinfo = nullptr);
 
-void PlayerUpdateHealth(PLAYER* pp, short value);
-void PlayerUpdateAmmo(PLAYER* pp, short WeaponNum, short value);
-void PlayerUpdateWeapon(PLAYER* pp, short WeaponNum);
-void PlayerUpdateKills(PLAYER* pp, short value);
-void RefreshInfoLine(PLAYER* pp);
+void PlayerUpdateHealth(DSWPlayer* pp, short value);
+void PlayerUpdateAmmo(DSWPlayer* pp, short WeaponNum, short value);
+void PlayerUpdateWeapon(DSWPlayer* pp, short WeaponNum);
+void PlayerUpdateKills(DSWPlayer* pp, short value);
+void RefreshInfoLine(DSWPlayer* pp);
 
 void DoAnim(int numtics);
 void AnimDelete(int animtype, int animindex, DSWActor*);
@@ -1521,7 +1520,7 @@ extern bool NewGame;
 extern uint8_t CommPlayers;
 extern bool CommEnabled;
 extern int LastFrameTics;
-extern char ds[];
+extern char ds[645];
 extern short Skill;
 extern int GodMode;
 
@@ -1572,8 +1571,8 @@ extern int16_t StatDamageList[STAT_DAMAGE_LIST_SIZE];
 //
 ///////////////////////////////////////////////////////////////
 
-extern void SetFadeAmt(PLAYER* pp, short damage, uint8_t startcolor);
-extern void DoPaletteFlash(PLAYER* pp);
+extern void SetFadeAmt(DSWPlayer* pp, short damage, uint8_t startcolor);
+extern void DoPaletteFlash(DSWPlayer* pp);
 extern bool NightVision;
 
 
@@ -1609,9 +1608,9 @@ void InitSetup(void);   // setup.c
 void LoadKVXFromScript(TilesetBuildInfo& info, const char *filename); // scrip2.c
 void LoadCustomInfoFromScript(const char *filename);  // scrip2.c
 
-int PlayerInitChemBomb(PLAYER* pp); // jweapon.c
-int PlayerInitFlashBomb(PLAYER* pp);    // jweapon.c
-int PlayerInitCaltrops(PLAYER* pp); // jweapon.c
+int PlayerInitChemBomb(DSWPlayer* pp); // jweapon.c
+int PlayerInitFlashBomb(DSWPlayer* pp);    // jweapon.c
+int PlayerInitCaltrops(DSWPlayer* pp); // jweapon.c
 int InitPhosphorus(DSWActor*);    // jweapon.c
 void SpawnFloorSplash(DSWActor*); // jweapon.c
 
@@ -1657,8 +1656,6 @@ void LoadSaveMsg(const char *msg);
 void UpdateStatusBar();
 int32_t registerosdcommands(void);
 
-extern short LevelSecrets;
-extern int TotalKillable;
 extern int OrigCommPlayers;
 
 extern uint8_t PlayerGravity;
@@ -1679,9 +1676,18 @@ END_SW_NS
 
 BEGIN_SW_NS
 
-struct PLAYER
+class DSWPlayer final : public DCorePlayer
 {
-    DSWActor* actor;    // this may not be a TObjPtr!
+    DECLARE_CLASS(DSWPlayer, DCorePlayer)
+    HAS_OBJECT_POINTERS
+    DSWPlayer() = default;
+public:
+    void Clear();
+    DSWPlayer(uint8_t p);
+    DSWPlayer& operator=(DSWPlayer&) = delete;
+    DSWPlayer(DSWPlayer&) = delete;
+    void OnDestroy() override;
+    void Serialize(FSerializer& arc) override;
     TObjPtr<DSWActor*> lowActor, highActor;
     TObjPtr<DSWActor*> remoteActor;
     TObjPtr<DSWActor*> PlayerUnderActor;
@@ -1706,7 +1712,6 @@ struct PLAYER
     sectortype* hi_sectp, *lo_sectp;
 
     double circle_camera_dist;
-    DVector3 si; // save player interp position for PlayerSprite
 
     DVector2 vect, ovect, slide_vect; // these need floatification, but must be done together. vect is in 14.18 format!
 
@@ -1728,7 +1733,6 @@ struct PLAYER
     bool insector() const { return cursector != nullptr; }
 
     // variables that do not fit into sprite structure
-    PlayerAngles Angles;
     double recoil_amt;
     int16_t recoil_speed;
     int16_t recoil_ndx;
@@ -1738,8 +1742,6 @@ struct PLAYER
     DAngle RevolveDeltaAng;
     DAngle RevolveAng;
 
-    int16_t pnum; // carry along the player number
-
     sectortype* LadderSector;
     DVector2 LadderPosition; // ladder x and y
 
@@ -1748,10 +1750,6 @@ struct PLAYER
     int16_t bob_ndx;
     int16_t bcnt; // bob count
     double bob_z, obob_z;
-
-    //Multiplayer variables
-    InputPacket input;
-    InputPacket lastinput;
 
     // must start out as 0
     int playerreadyflag;
@@ -1763,17 +1761,11 @@ struct PLAYER
     SECTOR_OBJECT* sop_control; // sector object pointer
     SECTOR_OBJECT* sop_riding; // sector object pointer
 
-    struct
-    {
-        PANEL_SPRITE* Next, *Prev;
-    } PanelSpriteList;
+    DPanelSprite* PanelSpriteList; // this is just a sentinel object that does not do anything. No read barrier here as this is strictly owned by the player.
 
-    // hack stuff to get a working pointer to this list element without running into type punning warnings with GCC.
-    // The list uses itself as sentinel element despite the type mismatch.
-    PANEL_SPRITE* GetPanelSpriteList()
+    DPanelSprite* GetPanelSpriteList()
     {
-        void* p = &PanelSpriteList;
-        return reinterpret_cast<PANEL_SPRITE*>(p);
+        return PanelSpriteList;
     }
 
     // Key stuff
@@ -1785,9 +1777,9 @@ struct PLAYER
     int WpnFlags;
     int16_t WpnAmmo[MAX_WEAPONS];
     int16_t WpnNum;
-    PANEL_SPRITE* CurWpn;
-    PANEL_SPRITE* Wpn[MAX_WEAPONS];
-    PANEL_SPRITE* Chops;
+    TObjPtr<DPanelSprite*> CurWpn;
+    TObjPtr<DPanelSprite*> Wpn[MAX_WEAPONS];
+    TObjPtr<DPanelSprite*> Chops;
     uint8_t WpnRocketType; // rocket type
     uint8_t WpnRocketHeat; // 5 to 0 range
     uint8_t WpnRocketNuke; // 1, you have it, or you don't
@@ -1810,9 +1802,7 @@ struct PLAYER
 
     // Death stuff
     uint16_t DeathType;
-    int16_t Kills;
     int16_t KilledPlayer[MAX_SW_PLAYERS_REG];
-    int16_t SecretsFound;
 
     // Health
     int16_t Armor;
@@ -1855,13 +1845,43 @@ struct PLAYER
 
     uint8_t WpnReloadState;
 
+    double GetMaxInputVel() const override
+    {
+        return (380401538. / 36022361.);
+    }
+
+    const DVector2& GetInputVelocity() const override
+    {
+        return vect;
+    }
+
+    bool canSlopeTilt() const override
+    {
+        return (cmd.ucmd.actions & SB_AIMMODE) && !(Flags & (PF_FLYING|PF_SWIMMING|PF_DIVING|PF_CLIMBING|PF_JUMPING|PF_FALLING));
+    }
+
+    inline DSWActor* GetActor() override
+    {
+        return static_cast<DSWActor*>(actor);
+    }
+
     void posZset(const double val)
     {
-        actor->spr.pos.Z = val - actor->viewzoffset;
+        GetActor()->spr.pos.Z = val - GetActor()->viewzoffset;
+    }
+
+    unsigned getCrouchFlags() const override
+    {
+        const bool crouchable = true;
+        const bool disableToggle = (Flags & (PF_JUMPING|PF_FALLING|PF_CLIMBING|PF_DIVING|PF_DEAD)) || sop;
+        return (CS_CANCROUCH * crouchable) | (CS_DISABLETOGGLE * disableToggle);
     }
 };
 
-extern PLAYER Player[MAX_SW_PLAYERS_REG+1];
+inline DSWPlayer* getPlayer(int index)
+{
+    return static_cast<DSWPlayer*>(PlayerArray[index]);
+}
 
 
 struct GameInterface : public ::GameInterface
@@ -1892,7 +1912,6 @@ struct GameInterface : public ::GameInterface
     void NextLevel(MapRecord *map, int skill) override;
     void NewGame(MapRecord *map, int skill, bool) override;
     bool DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac) override;
-    DCoreActor* getConsoleActor() override { return Player[myconnectindex].actor; }
     void ToggleThirdPerson() override;
     void SwitchCoopView() override;
     void processSprites(tspriteArray& tsprites, const DVector3& view, DAngle viewang, double smoothRatio) override;
@@ -1902,15 +1921,11 @@ struct GameInterface : public ::GameInterface
     void ExitFromMenu() override;
     int GetCurrentSkill() override;
     void StartSoundEngine() override;
-    void reapplyInputBits(InputPacket* const input) override { input->actions |= Player[myconnectindex].input.actions & SB_CENTERVIEW; }
-    void doPlayerMovement(const float scaleAdjust) override
+    void doPlayerMovement() override
     {
-        const auto pp = &Player[myconnectindex];
-        gameInput.processMovement(&pp->Angles, scaleAdjust, 0, !pp->sop, pp->sop_control ? (3.f / 1.40625f) : 1.f);
+        const auto pp = getPlayer(myconnectindex);
+        gameInput.processMovement(!pp->sop_control ? 1 : (3. / 1.40625), !pp->sop);
     }
-
-
-    GameStats getStats() override;
 };
 
 
@@ -1925,9 +1940,9 @@ inline bool SectorIsUnderwaterArea(sectortype* sect)
     return sect && sect->extra & (SECTFX_UNDERWATER | SECTFX_UNDERWATER2);
 }
 
-inline bool PlayerFacingRange(PLAYER* pp, DSWActor* a, DAngle range)
+inline bool PlayerFacingRange(DSWPlayer* pp, DSWActor* a, DAngle range)
 {
-    return absangle((a->spr.pos.XY() - pp->actor->spr.pos.XY()).Angle(), pp->actor->spr.Angles.Yaw) < range;
+    return absangle((a->spr.pos.XY() - pp->GetActor()->spr.pos.XY()).Angle(), pp->GetActor()->spr.Angles.Yaw) < range;
 }
 
 inline bool FacingRange(DSWActor* a1, DSWActor* a2, DAngle range)
@@ -2080,7 +2095,7 @@ inline bool SpriteInUnderwaterArea(DSWActor* a)
 
 
 // just determine if the player is moving
-inline bool PLAYER_MOVING(PLAYER* pp)
+inline bool PLAYER_MOVING(DSWPlayer* pp)
 {
     return !pp->vect.isZero();
 }
@@ -2134,6 +2149,7 @@ struct ANIM
         case ANIM_Spritez:
             if (animactor == nullptr) return;
             animactor->spr.pos.Z = value;
+            break;
         case ANIM_Userz:
             if (animactor == nullptr) return;
             animactor->user.pos.Z = value;

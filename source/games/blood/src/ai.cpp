@@ -114,7 +114,7 @@ static bool isImmune(DBloodActor* actor, int dmgType, int minScale)
 			return (thingInfo[type - kThingBase].dmgControl[dmgType] <= minScale);
 		else if (actor->IsDudeActor())
 		{
-			if (actor->IsPlayerActor()) return (gPlayer[type - kDudePlayer1].godMode || gPlayer[type - kDudePlayer1].damageControl[dmgType] <= minScale);
+			if (actor->IsPlayerActor()) return (getPlayer(type - kDudePlayer1)->godMode || getPlayer(type - kDudePlayer1)->damageControl[dmgType] <= minScale);
 			else return (dudeInfo[type - kDudeBase].damageVal[dmgType] <= minScale);
 		}
 	}
@@ -971,7 +971,7 @@ int aiDamageSprite(DBloodActor* source, DBloodActor* actor, DAMAGE_TYPE nDmgType
 			{
 				aiPatrolStop(actor, source, actor->xspr.dudeAmbush);
 
-				PLAYER* pPlayer = getPlayerById(source->spr.type);
+				DBloodPlayer* pPlayer = getPlayerById(source->spr.type);
 				if (!pPlayer) return nDamage;
 				//if (powerupCheck(pPlayer, kPwUpShadowCloak)) pPlayer->pwUpTime[kPwUpShadowCloak] = 0;
 				if (readyForCrit(source, actor)) 
@@ -987,7 +987,7 @@ int aiDamageSprite(DBloodActor* source, DBloodActor* actor, DAMAGE_TYPE nDmgType
 						}
 					}
 
-					DPrintf(DMSG_SPAMMY, "Player #%d does the critical damage to patrol dude #%d!", pPlayer->nPlayer + 1, actor->GetIndex());
+					DPrintf(DMSG_SPAMMY, "Player #%d does the critical damage to patrol dude #%d!", pPlayer->pnum + 1, actor->GetIndex());
 				}
 
 				return nDamage;
@@ -1491,12 +1491,12 @@ void aiThinkTarget(DBloodActor* actor)
 	{
 		for (int p = connecthead; p >= 0; p = connectpoint2[p])
 		{
-			PLAYER* pPlayer = &gPlayer[p];
-			if (actor->GetOwner() == pPlayer->actor || pPlayer->actor->xspr.health == 0 || powerupCheck(pPlayer, kPwUpShadowCloak) > 0)
+			DBloodPlayer* pPlayer = getPlayer(p);
+			if (actor->GetOwner() == pPlayer->GetActor() || pPlayer->GetActor()->xspr.health == 0 || powerupCheck(pPlayer, kPwUpShadowCloak) > 0)
 				continue;
-			auto ppos = pPlayer->actor->spr.pos;
+			auto ppos = pPlayer->GetActor()->spr.pos;
 			auto dvec = ppos.XY() - actor->spr.pos.XY();
-			auto pSector = pPlayer->actor->sector();
+			auto pSector = pPlayer->GetActor()->sector();
 
 			double nDist = dvec.Length();
 			if (nDist > pDudeInfo->SeeDist() && nDist > pDudeInfo->HearDist())
@@ -1508,7 +1508,7 @@ void aiThinkTarget(DBloodActor* actor)
 			DAngle nDeltaAngle = absangle(actor->spr.Angles.Yaw, dvec.Angle());
 			if (nDist < pDudeInfo->SeeDist() && nDeltaAngle <= pDudeInfo->Periphery())
 			{
-				aiSetTarget(actor, pPlayer->actor);
+				aiSetTarget(actor, pPlayer->GetActor());
 				aiActivateDude(actor);
 				return;
 			}
@@ -1536,12 +1536,12 @@ void aiLookForTarget(DBloodActor* actor)
 	{
 		for (int p = connecthead; p >= 0; p = connectpoint2[p])
 		{
-			PLAYER* pPlayer = &gPlayer[p];
-			if (actor->GetOwner() == pPlayer->actor || pPlayer->actor->xspr.health == 0 || powerupCheck(pPlayer, kPwUpShadowCloak) > 0)
+			DBloodPlayer* pPlayer = getPlayer(p);
+			if (actor->GetOwner() == pPlayer->GetActor() || pPlayer->GetActor()->xspr.health == 0 || powerupCheck(pPlayer, kPwUpShadowCloak) > 0)
 				continue;
-			auto ppos = pPlayer->actor->spr.pos;
+			auto ppos = pPlayer->GetActor()->spr.pos;
 			auto dvec = ppos.XY() - actor->spr.pos.XY();
-			auto pSector = pPlayer->actor->sector();
+			auto pSector = pPlayer->GetActor()->sector();
 
 			double nDist = dvec.Length();
 			if (nDist > pDudeInfo->SeeDist() && nDist > pDudeInfo->HearDist())
@@ -1552,7 +1552,7 @@ void aiLookForTarget(DBloodActor* actor)
 			DAngle nDeltaAngle = absangle(actor->spr.Angles.Yaw, dvec.Angle());
 			if (nDist < pDudeInfo->SeeDist() && nDeltaAngle <= pDudeInfo->Periphery())
 			{
-				aiSetTarget(actor, pPlayer->actor);
+				aiSetTarget(actor, pPlayer->GetActor());
 				aiActivateDude(actor);
 				return;
 			}
@@ -1731,13 +1731,13 @@ void aiInitSprite(DBloodActor* actor)
 	{
 		pDudeExtraE->thinkTime = 0;
 		aiNewState(actor, &zombieSIdle);
-		actor->spr.flags &= ~1;
+		actor->spr.flags &= ~kPhysMove;
 		break;
 	}
 	case kDudeZombieAxeBuried: {
 		pDudeExtraE->thinkTime = 0;
 		aiNewState(actor, &zombieEIdle);
-		actor->spr.flags &= ~1;
+		actor->spr.flags &= ~kPhysMove;
 		break;
 	}
 	case kDudeGargoyleFlesh:
@@ -1857,24 +1857,25 @@ void aiInitSprite(DBloodActor* actor)
 	case kDudeSpiderBrown:
 	case kDudeSpiderRed:
 	case kDudeSpiderBlack:
-		if (actor->spr.cstat & CSTAT_SPRITE_YFLIP) actor->spr.flags |= 9;
-		else actor->spr.flags = 15;
+		if (actor->spr.cstat & CSTAT_SPRITE_YFLIP) actor->spr.flags |= kPhysMove | kHitagAutoAim;
+		else actor->spr.flags = kPhysMove | kPhysGravity | kPhysFalling | kHitagAutoAim;
 		break;
 	case kDudeGargoyleFlesh:
 	case kDudeGargoyleStone:
 	case kDudePhantasm:
 	case kDudeBoneEel:
 	case kDudeBat:
-		actor->spr.flags |= 9;
+		actor->spr.flags |= kPhysMove | kHitagAutoAim;
 		break;
 	case kDudeGillBeast:
-		if (pXSector && pXSector->Underwater) actor->spr.flags |= 9;
-		else actor->spr.flags = 15;
+		if (pXSector && pXSector->Underwater) actor->spr.flags |= kPhysMove | kHitagAutoAim;
+		else actor->spr.flags = kPhysMove | kPhysGravity | kPhysFalling | kHitagAutoAim;
 		break;
 	case kDudeZombieAxeBuried:
 	case kDudeZombieAxeLaying:
-		actor->spr.flags = 7;
+		actor->spr.flags = kPhysMove | kPhysGravity | kPhysFalling;
 		break;
+
 #ifdef NOONE_EXTENSIONS
 	case kDudePodMother: // FakeDude type
 		if (gModernMap) break;
@@ -1894,7 +1895,7 @@ void aiInitSprite(DBloodActor* actor)
 		// go default
 #endif
 	default:
-		actor->spr.flags = 15;
+		actor->spr.flags = kPhysMove | kPhysGravity | kPhysFalling | kHitagAutoAim;
 		break;
 	}
 

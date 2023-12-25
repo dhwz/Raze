@@ -47,6 +47,8 @@
 #include "gamestruct.h"
 #include "statusbar.h"
 #include "coreactor.h"
+#include "d_net.h"
+#include "coreplayer.h"
 
 CVARD(Bool, cl_crosshair, true, CVAR_ARCHIVE, "enable/disable crosshair");
 CVARD(Bool, cl_automsg, false, CVAR_ARCHIVE, "enable/disable automatically sending messages to all players") // Not implemented for Blood
@@ -69,7 +71,7 @@ CVARD(Bool, cl_idplayers, true, CVAR_ARCHIVE, "enable/disable name display when 
 CVARD(Bool, cl_weaponsway, true, CVAR_ARCHIVE|CVAR_GLOBALCONFIG, "enable/disable player weapon swaying")
 
 // Todo: Consolidate these to be consistent across games?
-CUSTOM_CVARD(Int, cl_viewbob, 1, CVAR_ARCHIVE|CVAR_GLOBALCONFIG, "enable/disable player head bobbing")
+CUSTOM_CVARD(Int, cl_viewbob, 1, CVAR_ARCHIVE, "enable/disable player head bobbing")
 {
 	if (self < 0) self = 0;
 	else if (self > 2) self = 2;
@@ -244,22 +246,12 @@ CUSTOM_CVARD(Int, r_drawweapon, 1, CVAR_ARCHIVE|CVAR_GLOBALCONFIG, "enable/disab
 
 ADD_STAT(fps)
 {
-	return gi->statFPS();
-}
-
-ADD_STAT(coord)
-{
-	FString out;
-	if (const auto pActor = gi->getConsoleActor())
-	{
-		out.AppendFormat("X: %.4f  ", pActor->spr.pos.X);
-		out.AppendFormat("Y: %.4f  ", pActor->spr.pos.Y);
-		out.AppendFormat("Z: %.4f\n", pActor->spr.pos.Z);
-		out.AppendFormat("Yaw: %.4f  ", pActor->spr.Angles.Yaw.Degrees());
-		out.AppendFormat("Pitch: %.4f  ", pActor->spr.Angles.Pitch.Degrees());
-		out.AppendFormat("Roll: %.4f\n", pActor->spr.Angles.Roll.Degrees());
-	}
-	return out;
+	FString output;
+	output.AppendFormat("Actor think time: %.3f ms\n", actortime.TimeMS());
+	output.AppendFormat("Total think time: %.3f ms\n", thinktime.TimeMS());
+	output.AppendFormat("Game Update: %.3f ms\n", gameupdatetime.TimeMS());
+	output.AppendFormat("Draw time: %.3f ms\n", drawtime.TimeMS());
+	return output;
 }
 
 CUSTOM_CVARD(Int, r_showfps, 0, 0, "show the frame rate counter")

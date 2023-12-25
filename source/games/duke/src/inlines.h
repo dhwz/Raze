@@ -5,9 +5,15 @@
 #include "models/modeldata.h"
 #include "texinfo.h"
 #include "funct.h"
+#include "mapinfo.h"
 
 // all inline functions.
 BEGIN_DUKE_NS
+
+inline DDukePlayer* getPlayer(int index)
+{
+	return static_cast<DDukePlayer*>(PlayerArray[index]);
+}
 
 inline int rnd(int X)
 {
@@ -72,13 +78,13 @@ inline bool isablockdoor(FTextureID dapic)
 	return tileflags(dapic) & TFLAG_BLOCKDOOR;
 }
 
-
-
 inline int checkcursectnums(sectortype* se)
 {
-	int i;
-	for(i=connecthead;i>=0;i=connectpoint2[i])
-		if(ps[i].GetActor() && ps[i].GetActor()->sector() == se ) return i;
+	for (int i = connecthead; i >= 0; i = connectpoint2[i])
+	{
+		const auto pact = getPlayer(i)->GetActor();
+		if (pact && pact->sector() == se) return i;
+	}
 	return -1;
 }
 
@@ -99,67 +105,15 @@ inline bool isIn(int value, const std::initializer_list<int>& list)
 	return false;
 }
 
-// these are mainly here to avoid directly accessing the input data so that it can be more easily refactored later.
-inline bool PlayerInput(int pl, ESyncBits bit)
-{
-	return (!!((ps[pl].sync.actions) & bit));
-}
-
-inline ESyncBits PlayerInputBits(int pl, ESyncBits bits)
-{
-	return (ps[pl].sync.actions & bits);
-}
-
-inline void PlayerSetInput(int pl, ESyncBits bit)
-{
-	ps[pl].sync.actions |= bit;
-}
-
-
-inline int PlayerNewWeapon(int pl)
-{
-	return ps[pl].sync.getNewWeapon();
-}
-
-inline void PlayerSetItemUsed(int pl, int num)
-{
-	ps[pl].sync.setItemUsed(num - 1);
-}
-
-inline bool PlayerUseItem(int pl, int num)
-{
-	return ps[pl].sync.isItemUsed(num - 1);
-}
-
-inline float PlayerInputSideVel(int pl)
-{
-	return ps[pl].sync.svel;
-}
-
-inline float PlayerInputForwardVel(int pl)
-{
-	return ps[pl].sync.fvel;
-}
-
-inline float PlayerInputAngVel(int pl)
-{
-	return ps[pl].sync.avel;
-}
-
-inline DAngle GetPlayerHorizon(int pl)
-{
-	return DAngle::fromDeg(ps[pl].sync.horz);
-}
-
 inline void clearfriction()
 {
 	for (int i = 0; i != -1; i = connectpoint2[i])
 	{
-		ps[i].fric.X = ps[i].fric.Y = 0;
+		getPlayer(i)->fric.Zero();
 	}
 }
 
-inline void SetPlayerPal(player_struct* p, PalEntry pe)
+inline void SetPlayerPal(DDukePlayer* p, PalEntry pe)
 {
 	p->pals = pe;
 }
@@ -167,11 +121,6 @@ inline void SetPlayerPal(player_struct* p, PalEntry pe)
 inline bool playrunning()
 {
 	return (paused == 0 || (paused == 1 && (ud.recstat == 2 || ud.multimode > 1)));
-}
-
-inline void doslopetilting(player_struct* p)
-{
-	p->Angles.doViewPitch(p->aim_mode == 0 && p->on_ground && p->cursector->lotag != ST_2_UNDERWATER);
 }
 
 //---------------------------------------------------------------------------
@@ -270,14 +219,10 @@ inline int monsterCheatCheck(DDukeActor* self)
 	return false;
 }
 
-inline void processinputvel(int snum)
+inline void rotateInputVel(DDukePlayer* const p)
 {
-	const auto p = &ps[snum];
-	const auto velvect = DVector2(p->sync.fvel, p->sync.svel).Rotated(p->GetActor()->spr.Angles.Yaw) + p->fric;
-	p->sync.fvel = (float)velvect.X;
-	p->sync.svel = (float)velvect.Y;
+	p->cmd.ucmd.vel.XY() = p->cmd.ucmd.vel.XY().Rotated(p->GetActor()->spr.Angles.Yaw) + p->fric;
 }
-
 
 inline const ActorInfo* DDukeActor::conInfo() const
 {
@@ -314,7 +259,7 @@ inline void addtokills(DDukeActor* actor)
 {
 	if (actor->flags1 & SFLAG_KILLCOUNT)
 	{
-		ps[myconnectindex].max_actors_killed++;
+		Level.addKillCount(1);
 		actor->spr.cstat2 |= CSTAT2_SPRITE_COUNTKILL;
 	}
 }
@@ -323,7 +268,7 @@ inline void addkill(DDukeActor* actor)
 {
 	if ((actor->flags1 & SFLAG_KILLCOUNT) && (actor->spr.cstat2 & CSTAT2_SPRITE_COUNTKILL))
 	{
-		ps[myconnectindex].actors_killed++;
+		Level.addKill(myconnectindex);
 		actor->spr.cstat2 &= ~CSTAT2_SPRITE_COUNTKILL;
 	}
 }
@@ -332,12 +277,12 @@ inline void subkill(DDukeActor* actor)
 {
 	if ((actor->flags1 & SFLAG_KILLCOUNT) && !(actor->spr.cstat2 & CSTAT2_SPRITE_COUNTKILL))
 	{
-		ps[myconnectindex].actors_killed--;
+		Level.addKill(-1, -1); // only deduct from global, not from player kills
 		actor->spr.cstat2 |= CSTAT2_SPRITE_COUNTKILL;
 	}
 }
 
-inline void dokill(player_struct* p, DDukeActor* g_ac, int amount)
+inline void dokill(DDukePlayer* p, DDukeActor* g_ac, int amount)
 {
 	if (g_ac->spriteextra < 1 || g_ac->spriteextra == 128 || !isRR())
 	{

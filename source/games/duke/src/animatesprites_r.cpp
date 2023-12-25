@@ -39,7 +39,6 @@ BEGIN_DUKE_NS
 
 void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle viewang, double interpfrac)
 {
-	int k, p;
 	tspritetype* t;
 	DDukeActor* h;
 
@@ -50,7 +49,7 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 		t = tsprites.get(j);
 		h = static_cast<DDukeActor*>(t->ownerActor);
 
-		if (!(h->flags2 & SFLAG2_FORCESECTORSHADE) && ((t->cstat & CSTAT_SPRITE_ALIGNMENT_WALL)) || badguy(static_cast<DDukeActor*>(t->ownerActor)) || t->statnum == STAT_PLAYER)
+		if ((!(h->flags2 & SFLAG2_FORCESECTORSHADE) && (t->cstat & CSTAT_SPRITE_ALIGNMENT_WALL)) || badguy(static_cast<DDukeActor*>(t->ownerActor)) || t->statnum == STAT_PLAYER)
 		{
 			if (h->sector()->shadedsector == 1 && h->spr.statnum != 1)
 			{
@@ -79,12 +78,15 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 			}
 			else
 				t->scale = DVector2(0, 0);
-			break;
+			continue;
 		}
 
 		if (t->statnum == STAT_TEMP) continue;
-		auto pp = &ps[h->PlayerIndex()];
-		if (h->spr.statnum != STAT_ACTOR && h->isPlayer() && pp->newOwner == nullptr && h->GetOwner())
+
+		const auto p = getPlayer(h->PlayerIndex());
+		const auto spp = getPlayer(screenpeek);
+
+		if (h->spr.statnum != STAT_ACTOR && h->isPlayer() && p->newOwner == nullptr && h->GetOwner())
 		{
 			t->pos = h->interpolatedpos(interpfrac);
 			t->Angles.Yaw = h->interpolatedyaw(interpfrac);
@@ -116,11 +118,9 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 
 		if (h->isPlayer())
 		{
-			p = h->PlayerIndex();
-
 			if (t->pal == 1) t->pos.Z -= 18;
 
-			if (ps[p].over_shoulder_on > 0 && ps[p].newOwner == nullptr)
+			if (p->over_shoulder_on > 0 && p->newOwner == nullptr)
 			{
 				t->cstat |= CSTAT_SPRITE_TRANSLUCENT;
 #if 0 // multiplayer only
@@ -133,7 +133,7 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 #endif
 			}
 
-			if ((display_mirror == 1 || screenpeek != p || !h->GetOwner()) && ud.multimode > 1 && cl_showweapon && ps[p].GetActor()->spr.extra > 0 && ps[p].curr_weapon > 0)
+			if ((display_mirror == 1 || spp != p || !h->GetOwner()) && ud.multimode > 1 && cl_showweapon && h->spr.extra > 0 && p->curr_weapon > 0)
 			{
 				auto newtspr = tsprites.newTSprite();
 				*newtspr = *t;
@@ -146,7 +146,7 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 				newtspr->cstat = 0;
 
 				const char* texname = nullptr;
-				switch (ps[p].curr_weapon)
+				switch (p->curr_weapon)
 				{
 				case PISTOL_WEAPON:           texname = "FIRSTGUNSPRITE";       break;
 				case SHOTGUN_WEAPON:          texname = "SHOTGUNSPRITE";        break;
@@ -164,13 +164,13 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 				}
 				t->setspritetexture(TexMan.CheckForTexture(texname, ETextureType::Any));
 
-				if (h->GetOwner()) newtspr->pos.Z = ps[p].GetActor()->getOffsetZ() - 12;
+				if (h->GetOwner()) newtspr->pos.Z = h->getOffsetZ() - 12;
 				else newtspr->pos.Z = h->spr.pos.Z - 51;
-				if (ps[p].curr_weapon == HANDBOMB_WEAPON)
+				if (p->curr_weapon == HANDBOMB_WEAPON)
 				{
 					newtspr->scale = DVector2(0.15625, 0.15625);
 				}
-				else if (ps[p].OnMotorcycle || ps[p].OnBoat)
+				else if (p->OnMotorcycle || p->OnBoat)
 				{
 					newtspr->scale = DVector2(0, 0);
 				}
@@ -181,17 +181,17 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 				newtspr->pal = 0;
 			}
 
-			if (ps[p].on_crane == nullptr && (h->sector()->lotag & 0x7ff) != 1)
+			if (p->on_crane == nullptr && (h->sector()->lotag & 0x7ff) != 1)
 			{
-				double v = h->spr.pos.Z - ps[p].GetActor()->floorz + 3;
+				double v = h->spr.pos.Z - h->floorz + 3;
 				if (v > 4 && h->spr.scale.Y > 0.5 && h->spr.extra > 0)
 					h->spr.yoffset = (int8_t)(v / h->spr.scale.Y);
 				else h->spr.yoffset = 0;
 			}
 
-			if (ud.cameraactor == nullptr && ps[p].newOwner == nullptr)
-				if (h->GetOwner() && display_mirror == 0 && ps[p].over_shoulder_on == 0)
-					if (ud.multimode < 2 || (ud.multimode > 1 && p == screenpeek))
+			if (ud.cameraactor == nullptr && p->newOwner == nullptr)
+				if (h->GetOwner() && display_mirror == 0 && p->over_shoulder_on == 0)
+					if (ud.multimode < 2 || (ud.multimode > 1 && p == spp))
 					{
 						t->ownerActor = nullptr;
 						t->scale = DVector2(0, 0);
@@ -201,14 +201,14 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 			if (t->pos.Z > h->floorz && t->scale.X < 0.5)
 				t->pos.Z = h->floorz;
 
-			if (ps[p].OnMotorcycle && p == screenpeek)
+			if (p->OnMotorcycle && p == spp)
 			{
 				t->setspritetexture(TexMan.CheckForTexture("PLAYERONBIKEBACK", ETextureType::Any));
 				t->scale = DVector2(0.28125, 0.28125);
 				drawshadows(tsprites, t, h);
 				continue;
 			}
-			else if (ps[p].OnMotorcycle)
+			else if (p->OnMotorcycle)
 			{
 				t->setspritetexture(TexMan.CheckForTexture("PLAYERONBIKE", ETextureType::Any));
 				applyRotation2(h, t, viewang);
@@ -216,17 +216,16 @@ void animatesprites_r(tspriteArray& tsprites, const DVector2& viewVec, DAngle vi
 				drawshadows(tsprites, t, h);
 				continue;
 			}
-			else if (ps[p].OnBoat && p == screenpeek)
+			else if (p->OnBoat && p == spp)
 			{
 				t->setspritetexture(TexMan.CheckForTexture("PLAYERONBOATBACK", ETextureType::Any));
 				t->scale = DVector2(0.5, 0.5);
 				drawshadows(tsprites, t, h);
 				continue;
 			}
-			else if (ps[p].OnBoat)
+			else if (p->OnBoat)
 			{
 				t->setspritetexture(TexMan.CheckForTexture("PLAYERONBOAT", ETextureType::Any));
-				k = angletorotation2(h->spr.Angles.Yaw, viewang);
 				applyRotation2(h, t, viewang);
 				t->scale = DVector2(0.5, 0.5);
 				drawshadows(tsprites, t, h);

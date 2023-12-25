@@ -109,7 +109,7 @@ void MoveThings()
     {
         if (nFreeze == 1 || nFreeze == 2)
         {
-            setForcedSyncInput(nLocalPlayer);
+            gameInput.ForceInputSync(nLocalPlayer);
             DoSpiritHead();
         }
     }
@@ -173,7 +173,7 @@ static int BelowNear(DExhumedActor* pActor, const Collision& loHit, double walld
                 {
                     if (!search.Check(wal.nextSector()))
                     {
-                        if (IsCloseToWall(pActor->spr.pos, &wal, walldist) != EClose::Outside)
+                        if (IsCloseToWall(pActor->spr.pos.XY(), &wal, walldist) != EClose::Outside)
                         {
                             search.Add(wal.nextSector());
                         }
@@ -208,7 +208,7 @@ static int BelowNear(DExhumedActor* pActor, const Collision& loHit, double walld
         pActor->vel.Z = 0;
 
         if (pActor->spr.statnum == 100)
-            PlayerList[GetPlayerFromActor(pActor)].bTouchFloor = true;
+            getPlayer(GetPlayerFromActor(pActor))->bTouchFloor = true;
 
         return kHitAux2;
     }
@@ -231,9 +231,10 @@ Collision movespritez(DExhumedActor* pActor, double z, double height, double cli
 
     *overridesect = pSector;
     const auto pSect2 = pSector;
+    const auto pPlayer = (pActor->spr.statnum == 100) ? getPlayer(GetPlayerFromActor(pActor)) : nullptr;
 
-    if (pActor->spr.statnum == 100)
-        PlayerList[GetPlayerFromActor(pActor)].bTouchFloor = false;
+    if (pPlayer)
+        pPlayer->bTouchFloor = false;
 
     // backup cstat
     const auto cstat = pActor->spr.cstat;
@@ -271,7 +272,7 @@ Collision movespritez(DExhumedActor* pActor, double z, double height, double cli
 
         if (pSect2->Flag & kSectUnderwater)
         {
-            if (pActor == PlayerList[nLocalPlayer].pActor) {
+            if (pActor == getPlayer(nLocalPlayer)->GetActor()) {
                 D3PlayFX(StaticSound[kSound2], pActor);
             }
 
@@ -305,8 +306,8 @@ Collision movespritez(DExhumedActor* pActor, double z, double height, double cli
     {
         if (z > 0)
         {
-            if (pActor->spr.statnum == 100)
-                PlayerList[GetPlayerFromActor(pActor)].bTouchFloor = true;
+            if (pPlayer)
+                pPlayer->bTouchFloor = true;
 
             if (loHit.type == kHitSprite)
             {
@@ -420,32 +421,36 @@ Collision movesprite(DExhumedActor* pActor, DVector2 vect, double dz, double flo
 	auto spos = pActor->spr.pos;
     double nSpriteHeight = GetActorHeight(pActor);
     auto pSector = pActor->sector();
-    assert(pSector);
+    Collision nRet{};
 
-	double floorZ = pSector->floorz;
+    if (!pSector)
+    {
+        assert(pSector);
+        return nRet;
+    }
 
-    if ((pSector->Flag & kSectUnderwater) || (floorZ < spos.Z))
+    if ((pSector->Flag & kSectUnderwater) || (pSector->floorz < spos.Z))
     {
         vect *= 0.5;
     }
 
     sectortype* overridesect;
-    Collision nRet = movespritez(pActor, dz, nSpriteHeight, pActor->clipdist, &overridesect);
+    nRet = movespritez(pActor, dz, nSpriteHeight, pActor->clipdist, &overridesect);
 
     pSector = pActor->sector(); // modified in movespritez so re-grab this variable
 
     if (pActor->spr.statnum == 100)
     {
-        int nPlayer = GetPlayerFromActor(pActor);
+        const auto pPlayer = getPlayer(GetPlayerFromActor(pActor));
         DVector2 thrust(0, 0);
 
         CheckSectorFloor(overridesect, pActor->spr.pos.Z, thrust);
         if (!thrust.isZero())
         {
-            PlayerList[nPlayer].nThrust = thrust;
+            pPlayer->nThrust = thrust;
         }
 
-        vect += PlayerList[nPlayer].nThrust;
+        vect += pPlayer->nThrust;
     }
     else
     {
@@ -585,10 +590,10 @@ double PlotCourseToSprite(DExhumedActor* pActor1, DExhumedActor* pActor2)
 {
     if (pActor1 == nullptr || pActor2 == nullptr)
         return -1;
-	
-	auto vect = pActor2->spr.pos.XY() - pActor1->spr.pos.XY();
-	pActor1->spr.Angles.Yaw = vect.Angle();
-	return vect.Length();
+
+    auto vect = pActor2->spr.pos.XY() - pActor1->spr.pos.XY();
+    pActor1->spr.Angles.Yaw = vect.Angle();
+    return vect.Length();
 
 }
 
@@ -605,7 +610,7 @@ DExhumedActor* FindPlayer(DExhumedActor* pActor, int nDistance, bool dontengage)
     if (nDistance < 0)
         nDistance = 100;
 
-	auto pSector =pActor->sector();
+    auto pSector =pActor->sector();
     nDistance <<= 4;
 
     DExhumedActor* pPlayerActor = nullptr;
@@ -616,7 +621,7 @@ DExhumedActor* FindPlayer(DExhumedActor* pActor, int nDistance, bool dontengage)
         if (i >= nTotalPlayers)
             return nullptr;
 
-        pPlayerActor = PlayerList[i].pActor;
+        pPlayerActor = getPlayer(i)->GetActor();
 
         if ((pPlayerActor->spr.cstat & CSTAT_SPRITE_BLOCK_ALL) && (!(pPlayerActor->spr.cstat & CSTAT_SPRITE_INVISIBLE)))
         {
@@ -930,16 +935,17 @@ void SetQuake(DExhumedActor* pActor, int nVal)
 {
     for (int i = 0; i < nTotalPlayers; i++)
     {
-        auto nSqrt = ((PlayerList[i].pActor->spr.pos.XY() - pActor->spr.pos.XY()) * (1. / 16.)).Length();
+        const auto pPlayer = getPlayer(i);
+        auto nSqrt = ((pPlayer->GetActor()->spr.pos.XY() - pActor->spr.pos.XY()) * (1. / 16.)).Length();
 
         if (nSqrt)
         {
             nVal = clamp(int(nVal / nSqrt), 0, 15);
         }
 
-        if (nVal > PlayerList[i].nQuake)
+        if (nVal > pPlayer->nQuake)
         {
-            PlayerList[i].nQuake = nVal;
+            pPlayer->nQuake = nVal;
         }
     }
 }
@@ -1013,9 +1019,9 @@ Collision AngleChase(DExhumedActor* pActor, DExhumedActor* pActor2, int threshol
 //
 //---------------------------------------------------------------------------
 
-DVector3 WheresMyMouth(int nPlayer, sectortype **sectnum)
+DVector3 WheresMyMouth(DExhumedPlayer* const pPlayer, sectortype **sectnum)
 {
-    auto pActor = PlayerList[nPlayer].pActor;
+    auto pActor = pPlayer->GetActor();
     double height = GetActorHeight(pActor) * 0.5;
 
     *sectnum = pActor->sector();
@@ -1284,15 +1290,15 @@ void AICreatureChunk::Tick(RunListEvent* ev)
 //
 //---------------------------------------------------------------------------
 
-DExhumedActor* UpdateEnemy(DExhumedActor** ppEnemy)
+DExhumedActor* UpdateEnemy(DExhumedActor* ppEnemy)
 {
-    if (*ppEnemy)
+    if (ppEnemy)
     {
-        if (!((*ppEnemy)->spr.cstat & CSTAT_SPRITE_BLOCK_ALL)) {
-            *ppEnemy = nullptr;
+        if (!(ppEnemy->spr.cstat & CSTAT_SPRITE_BLOCK_ALL)) 
+        {
+            return nullptr;
         }
     }
-
-    return *ppEnemy;
+    return ppEnemy;
 }
 END_PS_NS

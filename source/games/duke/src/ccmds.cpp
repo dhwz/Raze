@@ -107,10 +107,8 @@ static int ccmd_spawn(CCmdFuncPtr parm)
 		return CCMD_SHOWHELP;
 	}
 
-	DDukeActor* spawned;
-	if (!cls) spawned = spawnsprite(ps[myconnectindex].GetActor(), picno);
-	else spawned = spawn(ps[myconnectindex].GetActor(), cls);
-	if (spawned)
+	const auto pact = getPlayer(myconnectindex)->GetActor();
+	if (DDukeActor* spawned = !cls ? spawnsprite(pact, picno) : spawn(pact, cls))
 	{
 		if (set & 1) spawned->spr.pal = (uint8_t)pal;
 		if (set & 2) spawned->spr.cstat = ESpriteFlags::FromInt(cstat);
@@ -131,17 +129,18 @@ static int ccmd_spawn(CCmdFuncPtr parm)
 void GameInterface::ToggleThirdPerson()
 {
 	if (gamestate != GS_LEVEL) return;
-	if (!isRRRA() || (!ps[myconnectindex].OnMotorcycle && !ps[myconnectindex].OnBoat))
+	const auto p = getPlayer(myconnectindex);
+	if (!isRRRA() || (!p->OnMotorcycle && !p->OnBoat))
 	{
-		if (ps[myconnectindex].over_shoulder_on)
-			ps[myconnectindex].over_shoulder_on = 0;
+		if (p->over_shoulder_on)
+			p->over_shoulder_on = 0;
 		else
 		{
-			ps[myconnectindex].over_shoulder_on = 1;
+			p->over_shoulder_on = 1;
 			cameradist = 0;
 			cameraclock = INT_MIN;
 		}
-		FTA(QUOTE_VIEW_MODE_OFF + ps[myconnectindex].over_shoulder_on, &ps[myconnectindex]);
+		FTA(QUOTE_VIEW_MODE_OFF + p->over_shoulder_on, p);
 	}
 }
 
@@ -159,12 +158,12 @@ void GameInterface::ToggleShowWeapon()
 {
 	if (gamestate != GS_LEVEL) return;
 	cl_showweapon = cl_showweapon == 0;
-	FTA(QUOTE_WEAPON_MODE_OFF - cl_showweapon, &ps[screenpeek]);
+	FTA(QUOTE_WEAPON_MODE_OFF - cl_showweapon, getPlayer(screenpeek));
 }
 
 bool GameInterface::WantEscape() 
 { 
-	return ps[myconnectindex].newOwner != nullptr;
+	return getPlayer(myconnectindex)->newOwner != nullptr;
 }
 
 

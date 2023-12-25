@@ -39,7 +39,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_BLD_NS
 
-void fakePlayerProcess(PLAYER* pPlayer, InputPacket* pInput);
+void fakePlayerProcess(DBloodPlayer* pPlayer, InputPacket* pInput);
 void fakeActProcessSprites(void);
 
 bool gPrediction = true;
@@ -72,7 +72,6 @@ void viewInitializePrediction(void)
 	predict.Kills = gMe->bobAmp;
 	predict.bobHeight = gMe->bobHeight;
 	predict.bobWidth = gMe->bobWidth;
-	predict.swayPhase = gMe->swayPhase;
 	predict.swayAmp = gMe->swayAmp;
 	predict.shakeBobY = gMe->swayHeight;
 	predict.shakeBobX = gMe->swayWidth;
@@ -99,7 +98,7 @@ void viewUpdatePrediction(InputPacket* pInput)
 #endif
 }
 
-static void fakeProcessInput(PLAYER* pPlayer, InputPacket* pInput)
+static void fakeProcessInput(DBloodPlayer* pPlayer, InputPacket* pInput)
 {
 #if 0
 	POSTURE* pPosture = &pPlayer->pPosture[pPlayer->lifeMode][predict.posture];
@@ -254,7 +253,7 @@ static void fakeProcessInput(PLAYER* pPlayer, InputPacket* pInput)
 #endif
 }
 
-void fakePlayerProcess(PLAYER* pPlayer, InputPacket* pInput)
+void fakePlayerProcess(DBloodPlayer* pPlayer, InputPacket* pInput)
 {
 #if 0
 	auto pSprite = pPlayer->actor;

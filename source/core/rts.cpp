@@ -82,10 +82,11 @@ bool RTS_IsInitialized()
 {
 	if (LumpInfo.Size() > 0) return true;
 	if (RTSName.IsEmpty()) return false;
-	auto fr = fileSystem.OpenFileReader(RTSName);
+	auto fr = fileSystem.OpenFileReader(RTSName.GetChars());
 	RTSName = "";	// don't try ever again.
 	if (!fr.isOpen()) return false;
-	RTSFile = fr.Read();
+	RTSFile.Resize((unsigned)fr.GetLength());
+	fr.Read(RTSFile.Data(), fr.GetLength());
 	if (RTSFile.Size() >= 28)	// minimum size for one entry
 	{
 		WadInfo *wi = (WadInfo*)RTSFile.Data();
@@ -118,10 +119,12 @@ bool RTS_IsInitialized()
 	{
 		if (li.size > 0)
 		{
-			FStringf rts("rts%02d", i);
-			int lump = fileSystem.AddFromBuffer(rts, "rts", (char*)RTSFile.Data() + li.position, li.size, -1, 0);
+			char rts[16];
+			snprintf(rts, 16, "rts%02d.rts", i);
+			int lump = fileSystem.AddFromBuffer(rts, (char*)RTSFile.Data() + li.position, li.size, -1, 0);
 			li.sid = soundEngine->AddSoundLump(rts, lump, 0, -1);
 		}
+		i++;
 	}
 	return false;
 }

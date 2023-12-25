@@ -23,8 +23,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "sound.h"
 #include <assert.h>
 
-CVARD(Bool, cl_exdamagepush, false, CVAR_ARCHIVE, "enables player damage pushback from explosions, etc.")
-
 BEGIN_PS_NS
 
 enum
@@ -245,7 +243,7 @@ void runlist_InitRun()
     NewRun = nRun;
 
     for (i = 0; i < kMaxPlayers; i++) {
-        PlayerList[i].nRun = -1;
+        getPlayer(i)->nRun = -1;
     }
 
     pRadialActor = nullptr;
@@ -1776,22 +1774,13 @@ int runlist_CheckRadialDamage(DExhumedActor* pActor)
         {
             if ((nPush = max((nRadialDamage * (nDamageRadius - nDist)) / nDamageRadius, 0.)) > 20)
             {
-                const auto nVel = DVector3(pos.Angle().ToVector(), -24 * (1. / 256.)) * nPush;
-                pActor->vel.Z += nVel.Z;
+                pActor->vel += DVector3(pos.Angle().ToVector() * 0.125, -24 * (1. / 256.)) * nPush;
 
                 if (pActor->vel.Z < -14)
 					pActor->vel.Z = -14;
 
                 if (pActor->spr.statnum == 100)
-                {
-                    // The player's max vel is 15.25 for reference.
-                    pActor->vel.XY() += nVel.XY() * 0.1875 * cl_exdamagepush;
-                    PlayerList[GetPlayerFromActor(pActor)].bJumping = true;
-                }
-                else
-                {
-                    pActor->vel.XY() += nVel.XY() * 128.;
-                }
+                    getPlayer(GetPlayerFromActor(pActor))->bJumping = true;
             }
         }
 
@@ -1842,7 +1831,7 @@ void runlist_DamageEnemy(DExhumedActor* pActor, DExhumedActor* pActor2, int nDam
         return;
     }
 
-    int nPreCreaturesKilled = nCreaturesKilled;
+    int nPreCreaturesKilled = Level.kills.got;
 
     RunListEvent ev{};
     ev.pOtherActor = pActor2;
@@ -1850,33 +1839,36 @@ void runlist_DamageEnemy(DExhumedActor* pActor, DExhumedActor* pActor2, int nDam
     runlist_SendMessage(nRun, -1, &ExhumedAI::Damage, &ev);
 
     // is there now one less creature? (has one died)
-    if (nPreCreaturesKilled < nCreaturesKilled && pActor2 != nullptr)
+    if (nPreCreaturesKilled < Level.kills.got && pActor2 != nullptr)
     {
         if (pActor2->spr.statnum != 100) {
             return;
         }
 
-        int nPlayer = GetPlayerFromActor(pActor2);
-        PlayerList[nPlayer].nTauntTimer--;
+        const auto pPlayer = getPlayer(GetPlayerFromActor(pActor2));
+        // Due to the horrible setup we can award the kill to the player only here. Yuck!
+        Level.kills.player[pPlayer->pnum]++;
 
-        if (PlayerList[nPlayer].nTauntTimer <= 0)
+        pPlayer->nTauntTimer--;
+
+        if (pPlayer->nTauntTimer <= 0)
         {
             // Do a taunt
-            auto pPlayerActor = PlayerList[nPlayer].pActor;
+            auto pPlayerActor = pPlayer->GetActor();
             auto pSector = pPlayerActor->sector();
 
             if (!(pSector->Flag & kSectUnderwater))
             {
                 int ebx = 0x4000;
 
-                if (nPlayer == nLocalPlayer) {
+                if (pPlayer->pnum == nLocalPlayer) {
                     ebx = 0x6000;
                 }
 
-                D3PlayFX(StaticSound[kSoundTauntStart + (RandomSize(3) % 5)], PlayerList[nPlayer].pDoppleSprite, ebx);
+                D3PlayFX(StaticSound[kSoundTauntStart + (RandomSize(3) % 5)], pPlayer->pDoppleSprite, ebx);
             }
 
-            PlayerList[nPlayer].nTauntTimer = RandomSize(3) + 3;
+            pPlayer->nTauntTimer = RandomSize(3) + 3;
         }
     }
 }

@@ -140,11 +140,11 @@ public:
             case kFrameSound:
             {
                 auto buffer = fp.Read(nSize);
-                assert(buffer.Size() == kSampleSize);
+                assert(buffer.size() == kSampleSize);
                 auto wbuffer = audio.samples + audio.nWrite * kSampleSize;
                 for (int i = 0; i < 2205; i++)
                 {
-                    wbuffer[i] = (buffer[i] - 128) << 8;
+                    wbuffer[i] = (buffer.bytes()[i] - 128) << 8;
                 }
                 audio.nWrite++;
                 if (audio.nWrite >= numAudioBlocks) audio.nWrite = 0;
@@ -238,7 +238,7 @@ public:
 
 int IdentifyLMF(const FString* fn)
 {
-    auto fp = fileSystem.OpenFileReader(*fn);
+    auto fp = fileSystem.OpenFileReader(fn->GetChars());
     if (!fp.isOpen()) return false;
     char buffer[4];
     fp.Read(buffer, 4);
@@ -249,7 +249,7 @@ DEFINE_ACTION_FUNCTION(_LMFDecoder, Create)
 {
     PARAM_PROLOGUE;
     PARAM_STRING(fn);
-    ACTION_RETURN_POINTER(new LMFPlayer(fn));
+    ACTION_RETURN_POINTER(new LMFPlayer(fn.GetChars()));
 }
 
 DEFINE_ACTION_FUNCTION_NATIVE(_LMFDecoder, Identify, IdentifyLMF)

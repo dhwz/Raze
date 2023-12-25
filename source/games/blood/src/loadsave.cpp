@@ -1,6 +1,6 @@
 //-------------------------------------------------------------------------
 /*
-Copyright (C) 2020 - Christoph Oelckers
+Copyright (C) 2020-2022 Christoph Oelckers
 
 This file is part of Raze
 
@@ -14,9 +14,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 //-------------------------------------------------------------------------
 
@@ -717,11 +714,9 @@ void SerializeSequences(FSerializer& arc);
 void SerializeWarp(FSerializer& arc);
 void SerializeTriggers(FSerializer& arc);
 void SerializeActor(FSerializer& arc);
-void SerializeGameStats(FSerializer& arc);
 void SerializePlayers(FSerializer& arc);
 void SerializeView(FSerializer& arc);
 void SerializeNNExts(FSerializer& arc);
-void SerializeMirrors(FSerializer& arc);
 
 //---------------------------------------------------------------------------
 //
@@ -745,9 +740,7 @@ void GameInterface::SerializeGameState(FSerializer& arc)
 	SerializeActor(arc);
 	SerializePlayers(arc);
 	SerializeEvents(arc);
-	SerializeGameStats(arc);
 	SerializeSequences(arc);
-	SerializeMirrors(arc);
 	SerializeWarp(arc);
 	SerializeTriggers(arc);
 	SerializeView(arc);
@@ -760,11 +753,11 @@ void GameInterface::SerializeGameState(FSerializer& arc)
 		InitSectorFX();
 		viewInitializePrediction();
 		PreloadCache();
-		if (!gPlayer[myconnectindex].packSlots[1].isActive) // if diving suit is not active, turn off reverb sound effect
+		if (!getPlayer(myconnectindex)->packSlots[1].isActive) // if diving suit is not active, turn off reverb sound effect
 			sfxSetReverb(0);
 		ambInit();
 		for (int i = 0; i < gNetPlayers; i++)
-			playerSetRace(&gPlayer[i], gPlayer[i].lifeMode);
+			playerSetRace(getPlayer(i), getPlayer(i)->lifeMode);
 		viewSetErrorMessage("");
 		paused = 0;
 		Mus_ResumeSaved();

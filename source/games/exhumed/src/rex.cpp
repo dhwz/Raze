@@ -91,7 +91,7 @@ void BuildRex(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector, D
     // this isn't stored anywhere.
     runlist_AddRunRec(NewRun, pActor, 0x180000);
 
-    nCreaturesTotal++;
+    Level.addKillCount();
 }
 
 //---------------------------------------------------------------------------
@@ -148,7 +148,7 @@ void AIRex::Damage(RunListEvent* ev)
 
                 pActor->nHealth = 0;
 
-                nCreaturesKilled++;
+                Level.addKill(-1);
 
                 if (nAction < 6)
                 {
@@ -364,7 +364,7 @@ void AIRex::Tick(RunListEvent* ev)
                     if (pHitActor->spr.statnum == 100)
                     {
                         auto nPlayer = GetPlayerFromActor(nMov.actor());
-                        PlayerList[nPlayer].nThrust += vel / 4096;
+                        getPlayer(nPlayer)->nThrust += vel / 4096;
                         pHitActor->vel.Z = -14;
                     }
                     else

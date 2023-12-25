@@ -1,13 +1,12 @@
 //-------------------------------------------------------------------------
 /*
-Copyright (C) 2010-2019 EDuke32 developers and contributors
-Copyright (C) 2019 Nuke.YKT
+Copyright (C) 2020-2022 Christoph Oelckers
 
-This file is part of NBlood.
+This file is part of Raze
 
-NBlood is free software; you can redistribute it and/or
+Raze is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License version 2
-as published by the Free Software Foundation.
+of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -15,11 +14,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 //-------------------------------------------------------------------------
+
 #include "ns.h"	// Must come before everything else!
 
 #include "build.h"
@@ -79,17 +76,17 @@ static void S_AddBloodSFX(int lumpnum)
 	}
 
 	auto sfxlump = fileSystem.ReadFile(lumpnum);
-	SFX* sfx = (SFX*)sfxlump.GetMem();
+	SFX* sfx = (SFX*)sfxlump.data();
 	ByteSwapSFX(sfx);
 
 	FStringf rawname("%s.raw", sfx->rawName);
-	auto rawlump = fileSystem.FindFile(rawname);
+	auto rawlump = fileSystem.FindFile(rawname.GetChars());
 
 	if (rawlump != -1)
 	{
 		if (!sfxnum.isvalid())
 		{
-			sfxnum = soundEngine->AddSoundLump(FStringf("SfxSound@%04d", resid), rawlump, 0, resid, 6);	// use a generic name here in case sound replacements are being used.
+			sfxnum = soundEngine->AddSoundLump(FStringf("SfxSound@%04d", resid).GetChars(), rawlump, 0, resid, 6);	// use a generic name here in case sound replacements are being used.
 			soundfx = soundEngine->GetWritableSfx(sfxnum);
 		}
 		if (sfx->format < 5 || sfx->format > 12)
@@ -144,7 +141,7 @@ void sndInit(void)
 		}
 		else if (!stricmp(type, "WAV") || !stricmp(type, "OGG") || !stricmp(type, "FLAC") || !stricmp(type, "VOC"))
 		{
-			if (fileSystem.GetFileNamespace(i) != ns_music)
+			if (fileSystem.GetFileNamespace(i) != FileSys::ns_music)
 				soundEngine->AddSoundLump(fileSystem.GetFileFullName(i), i, 0, fileSystem.GetResourceId(i) | 0x40000000, 6); // mark the resource ID as special.
 		}
 	}
@@ -234,7 +231,7 @@ void sndStartWavDisk(const char* pzFile, int nVolume, int nChannel)
 {
 	FString name = pzFile;
 	FixPathSeperator(name);
-	return sndStartSample(name, nVolume, nChannel);
+	return sndStartSample(name.GetChars(), nVolume, nChannel);
 }
 
 void sndKillAllSounds(void)

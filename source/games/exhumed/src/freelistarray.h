@@ -69,13 +69,19 @@ public:
 
     Type& operator[](size_t index)
     {
-        return DataList[index];
+        return DataList[std::min(index, (size_t)count-1)];
     }
 
     void Serialize(FSerializer& arc, const char* key)
     {
         if (arc.BeginObject(key))
         {
+            arc("freecount", freecount)
+                .Array("freelist", FreeList, size)
+                .Array("data", DataList, size);
+
+            /*
+              
             FixedBitArray<size> check;
 
             if (arc.isWriting())
@@ -95,6 +101,7 @@ public:
                     if (!check[i]) FreeList[freecount++] = i;
                 }
             }
+            */
             arc.EndObject();
         }
     }

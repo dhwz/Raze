@@ -4,7 +4,9 @@
 #include "gamefuncs.h"
 #include "tiletexture.h"
 #include "s_soundinternal.h"
+#include "palettecontainer.h"
 
+class FGameTexture;
 // extended texture info for which there is no room in the texture manager.
 
 enum AnimFlags
@@ -93,6 +95,7 @@ struct TexExtInfo
 		uint8_t tileshade;		// Blood's shade.dat
 	};
 	int16_t tiletovox;	// engine-side voxel index
+	int16_t voxoffs;
 	picanm_t picanm;	// tile-based animation data.
 	uint32_t flags;		// contents are game dependent.
 	TileOffs hiofs;

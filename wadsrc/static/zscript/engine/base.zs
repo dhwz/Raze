@@ -184,6 +184,7 @@ struct Vector3
 struct _ native	// These are the global variables, the struct is only here to avoid extending the parser for this.
 {
 	native readonly Array<class> AllClasses;
+    native internal readonly Map<Name , Service> AllServices;
 	native readonly bool multiplayer;
 	native @KeyBindings Bindings;
 	native @KeyBindings AutomapBindings;
@@ -466,6 +467,7 @@ enum DrawTextureTags
 	DTA_Indexed,			// Use an indexed texture combined with the given translation.
 	DTA_CleanTop,			// Like DTA_Clean but aligns to the top of the screen instead of the center.
 	DTA_NoOffset,			// Ignore 2D drawer's offset.
+	DTA_Localize,		// localize drawn string, for DrawText only
 
 };
 
@@ -645,9 +647,9 @@ struct Font native
 	// native Font(const Name name);
 
 	native int GetCharWidth(int code);
-	native int StringWidth(String code);
-	native int GetMaxAscender(String code);
-	native bool CanPrint(String code);
+	native int StringWidth(String code, bool localize = true);
+	native int GetMaxAscender(String code, bool localize = true);
+	native bool CanPrint(String code, bool localize = true);
 	native int GetHeight();
 	native int GetDisplacement();
 	native String GetCursor();
@@ -693,6 +695,31 @@ struct CVar native
 	native int ResetToDefault();
 }
 
+class CustomIntCVar abstract
+{
+    abstract int ModifyValue(Name CVarName, int val);
+}
+
+class CustomFloatCVar abstract
+{
+    abstract double ModifyValue(Name CVarName, double val);
+}
+
+class CustomStringCVar abstract
+{
+    abstract String ModifyValue(Name CVarName, String val);
+}
+
+class CustomBoolCVar abstract
+{
+    abstract bool ModifyValue(Name CVarName, bool val);
+}
+
+class CustomColorCVar abstract
+{
+    abstract Color ModifyValue(Name CVarName, Color val);
+}
+
 struct GIFont version("2.4")
 {
 	Name fontname;
@@ -726,10 +753,13 @@ class Object native
 	private native static void BuiltinRandomSeed(voidptr rng, int seed);
 	private native static Class<Object> BuiltinNameToClass(Name nm, Class<Object> filter);
 	private native static Object BuiltinClassCast(Object inptr, Class<Object> test);
+	private native static Function<void> BuiltinFunctionPtrCast(Function<void> inptr, voidptr newtype);
 	
 	native static uint MSTime();
 	native static double MSTimeF();
 	native vararg static void ThrowAbortException(String fmt, ...);
+
+	native static Function<void> FindFunction(Class<Object> cls, Name fn);
 
 	native virtualscope void Destroy();
 
@@ -837,6 +867,7 @@ struct Wads	// todo: make FileSystem an alias to 'Wads'
 	native static int FindLump(string name, int startlump = 0, FindLumpNamespace ns = GlobalNamespace);
 	native static int FindLumpFullName(string name, int startlump = 0, bool noext = false);
 	native static string ReadLump(int lump);
+	native static int GetLumpLength(int lump);
 
 	native static int GetNumLumps();
 	native static string GetLumpName(int lump);
@@ -886,15 +917,18 @@ struct StringStruct native
 	native int CodePointCount() const;
 	native int, int GetNextCodePoint(int position) const;
 	native void Substitute(String str, String replace);
+	native void StripLeft(String junk = "");
 	native void StripRight(String junk = "");
+	native void StripLeftRight(String junk = "");
 }
 
 struct Translation version("2.4")
 {
-	static int MakeID(int group, int num)
-	{
-		return (group << 16) + num;
-	}
+	Color colors[256];
+	
+	//native TranslationID AddTranslation(); // this still needs work.
+	native static TranslationID MakeID(int group, int num);
+	native static TranslationID GetID(Name transname);
 }
 
 // Convenient way to attach functions to Quat

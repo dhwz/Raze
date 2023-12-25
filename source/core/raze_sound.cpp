@@ -52,16 +52,16 @@ static int LastReverb;
 
 CUSTOM_CVAR(Bool, snd_reverb, true, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 {
-	FX_SetReverb(-1);
+	S_SetReverb(-1);
 }
 
 // This is for testing reverb settings.
 CUSTOM_CVAR(Int, snd_reverbtype, -1, 0)
 {
-	FX_SetReverb(-1);
+	S_SetReverb(-1);
 }
 
-void FX_SetReverb(int strength)
+void S_SetReverb(int strength)
 {
 	if (strength == -1) strength = LastReverb;
 	if (snd_reverbtype > -1) 
@@ -82,6 +82,21 @@ void FX_SetReverb(int strength)
 	else ForcedEnvironment = nullptr;
 }
 
+
+//==========================================================================
+//
+//
+// 
+//==========================================================================
+
+TArray<uint8_t> RazeSoundEngine::ReadSound(int lumpnum)
+{
+	auto wlump = fileSystem.OpenFileReader(lumpnum);
+	TArray<uint8_t> buffer(wlump.GetLength(), true);
+	auto len = wlump.Read(buffer.data(), buffer.size());
+	buffer.Resize((unsigned)len);
+	return buffer;
+}
 
 //==========================================================================
 //
@@ -145,10 +160,10 @@ int S_LookupSound(const char* fn)
 	if (snd_extendedlookup)
 	{
 		auto newfn = StripExtension(fn);
-		int lump = fileSystem.FindFileWithExtensions(newfn, sndformats, countof(sndformats));
+		int lump = fileSystem.FindFileWithExtensions(newfn.GetChars(), sndformats, countof(sndformats));
 		if (lump >= 0) return lump;
 		newfn = "sound/" + newfn;
-		lump = fileSystem.FindFileWithExtensions(newfn, sndformats, countof(sndformats));
+		lump = fileSystem.FindFileWithExtensions(newfn.GetChars(), sndformats, countof(sndformats));
 		if (lump >= 0) return lump;
 	}
 	return fileSystem.FindFile(fn);
@@ -334,17 +349,3 @@ CCMD(playsoundid)
 	}
 }
 
-//==========================================================================
-//
-// CCMD listsounds
-//
-//==========================================================================
-
-CCMD(listsounds)
-{
-	for (unsigned i = 0; i < soundEngine->GetNumSounds(); i++)
-	{
-		auto sfx = soundEngine->GetSfx(FSoundID::fromInt(i));
-		Printf("%4d: name = %s, resId = %d, lumpnum = %d\n", i, sfx->name.GetChars(), sfx->ResourceId, sfx->lumpnum);
-	}
-}

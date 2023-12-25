@@ -250,10 +250,10 @@ void genDudeAttack1(int, DBloodActor* actor)
 						aiActivateDude(spawned);
 				}
 
-				gKillMgr.AddKillCount(spawned);
+				if (AllowedKillType(spawned)) Level.addKillCount();
 				pExtra->slave[pExtra->slaveCount++] = spawned;
 				if (!playGenDudeSound(actor, kGenDudeSndAttackNormal))
-					sfxPlay3DSoundCP(actor, 379, 1, 0, 0x10000 - Random3(0x3000));
+					sfxPlay3DSoundVolume(actor, 379, 1, 0, 0x10000 - Random3(0x3000));
 			}
 		}
 	}
@@ -461,7 +461,7 @@ static void unicultThinkChase(DBloodActor* actor)
 
 	if (target->xspr.health <= 0) // target is dead
 	{
-		PLAYER* pPlayer = NULL;
+		DBloodPlayer* pPlayer = NULL;
 		if ((!target->IsPlayerActor()) || ((pPlayer = getPlayerById(target->spr.type)) != NULL && pPlayer->fragger == actor))
 		{
 			playGenDudeSound(actor, kGenDudeSndTargetDead);
@@ -486,7 +486,7 @@ static void unicultThinkChase(DBloodActor* actor)
 	if (inAttack(actor->xspr.aiState))
 		velocity.X = velocity.Y = max(actor->clipdist, 0.5) / 32768;
 
-	aiGenDudeChooseDirection(actor, nAngle, velocity);
+	aiGenDudeChooseDirection(actor, nAngle, velocity.XY());
 
 	GENDUDEEXTRA* pExtra = &actor->genDudeExtra;
 	if (!pExtra->canAttack)
@@ -498,7 +498,7 @@ static void unicultThinkChase(DBloodActor* actor)
 	}
 	else if (target->IsPlayerActor())
 	{
-		PLAYER* pPlayer = &gPlayer[target->spr.type - kDudePlayer1];
+		DBloodPlayer* pPlayer = getPlayer(target->spr.type - kDudePlayer1);
 		if (powerupCheck(pPlayer, kPwUpShadowCloak) > 0)
 		{
 			if (spriteIsUnderwater(actor, false)) aiGenDudeNewState(actor, &genDudeSearchShortW);
@@ -1391,7 +1391,7 @@ void removeLeech(DBloodActor* actLeech, bool delSprite)
 			effectactor->spr.scale = DVector2(repeat, repeat);
 		}
 
-		sfxPlay3DSoundCP(actLeech, 490, -1, 0, 60000);
+		sfxPlay3DSoundVolume(actLeech, 490, -1, 0, 60000);
 
 		if (actLeech->GetOwner())
 			actLeech->GetOwner()->genDudeExtra.pLifeLeech = nullptr;
@@ -1412,7 +1412,7 @@ void killDudeLeech(DBloodActor* actLeech)
 	if (actLeech != NULL)
 	{
 		actDamageSprite(actLeech->GetOwner(), actLeech, kDamageExplode, 65535);
-		sfxPlay3DSoundCP(actLeech, 522, -1, 0, 60000);
+		sfxPlay3DSoundVolume(actLeech, 522, -1, 0, 60000);
 
 		if (actLeech->GetOwner() != nullptr)
 			actLeech->GetOwner()->genDudeExtra.pLifeLeech = nullptr;
@@ -1758,7 +1758,7 @@ void dudeLeechOperate(DBloodActor* actor, const EVENT& event)
 		{
 			if (actTarget->IsPlayerActor())
 			{
-				PLAYER* pPlayer = &gPlayer[actTarget->spr.type - kDudePlayer1];
+				DBloodPlayer* pPlayer = getPlayer(actTarget->spr.type - kDudePlayer1);
 				if (powerupCheck(pPlayer, kPwUpShadowCloak) > 0) return;
 			}
 			double top, bottom;
@@ -1919,7 +1919,7 @@ DBloodActor* genDudeSpawn(DBloodActor* source, DBloodActor* actor, double nDist)
 		spawned->spr.scale = source->spr.scale;
 	}
 
-	gKillMgr.AddKillCount(spawned);
+	if (AllowedKillType(spawned)) Level.addKillCount();
 	aiInitSprite(spawned);
 	return spawned;
 }
@@ -2483,7 +2483,7 @@ void genDudePostDeath(DBloodActor* actor, DAMAGE_TYPE damageType, int damage)
 			fxSpawnBlood(actor, damage);
 	}
 
-	gKillMgr.AddKill(actor);
+	AddKill(actor, actor);
 
 	actor->spr.type = kThingBloodChunks;
 	actPostSprite(actor, kStatThing);

@@ -59,6 +59,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_BLD_NS
 
+constexpr int BMAX_PATH = 260;
+
 struct INIDESCRIPTION {
 	const char* pzName;
 	const char* pzFilename;
@@ -83,15 +85,6 @@ void ProcessFrame(void);
 void ScanINIFiles(void);
 void EndLevel(bool);
 
-struct MIRROR
-{
-	int type;
-	int link;
-	DVector3 diff;
-	int mynum;
-};
-
-extern MIRROR mirror[16];
 extern int mirrorcnt, mirrorsector, mirrorwall[4];
 
 inline bool DemoRecordStatus(void)
@@ -113,7 +106,6 @@ struct GameInterface : public ::GameInterface
 	void loadPalette() override;
 	bool GenerateSavePic() override;
 	void FreeLevelData() override;
-	void FreeGameData() override;
 	FSavegameInfo GetSaveSig() override;
 	void MenuOpened() override;
 	void MenuClosed() override;
@@ -130,7 +122,6 @@ struct GameInterface : public ::GameInterface
 	bool DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac) override;
 	DAngle playerPitchMin() override { return DAngle::fromDeg(54.575); }
 	DAngle playerPitchMax() override { return DAngle::fromDeg(-43.15); }
-	DCoreActor* getConsoleActor() override { return gPlayer[myconnectindex].actor; }
 	void ToggleThirdPerson() override;
 	void SwitchCoopView() override;
 	void ToggleShowWeapon() override;
@@ -144,10 +135,6 @@ struct GameInterface : public ::GameInterface
 	void AddQAVInterpProps(const int res_id, const FString& interptype, const bool loopable, const TMap<int, TArray<int>>&& ignoredata) override;
 	void RemoveQAVInterpProps(const int res_id) override;
 	void StartSoundEngine() override;
-	void reapplyInputBits(InputPacket* const input) override { input->actions |= gPlayer[myconnectindex].input.actions & (~(SB_BUTTON_MASK | SB_RUN | SB_WEAPONMASK_BITS) | SB_CENTERVIEW); }
-	void doPlayerMovement(const float scaleAdjust) override { gameInput.processMovement(&gPlayer[myconnectindex].Angles, scaleAdjust); }
-
-	GameStats getStats() override;
 };
 
 END_BLD_NS

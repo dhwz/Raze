@@ -401,6 +401,13 @@ int SetupEel(DSWActor* actor)
     return 0;
 }
 
+DEFINE_ACTION_FUNCTION(DSWEel, Initialize)
+{
+    PARAM_SELF_PROLOGUE(DSWActor);
+    SetupEel(self);
+    return 0;
+}
+
 
 //---------------------------------------------------------------------------
 //
@@ -542,7 +549,7 @@ int DoEelDeath(DSWActor* actor)
         DoActorSlide(actor);
 
     // slide while falling
-	auto vec = actor->spr.Angles.Yaw.ToVector() * actor->vel.X;
+    auto vec = actor->spr.Angles.Yaw.ToVector() * actor->vel.X;
 
     actor->user.coll = move_sprite(actor, DVector3(vec, 0), actor->user.ceiling_dist, actor->user.floor_dist, CLIPMASK_MISSILE, ACTORMOVETICS);
     DoFindGroundPoint(actor);

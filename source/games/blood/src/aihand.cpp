@@ -47,7 +47,7 @@ void HandJumpSeqCallback(int, DBloodActor* actor)
 	auto target = actor->GetTarget();
 	if (target->IsPlayerActor())
 	{
-		PLAYER* pPlayer = &gPlayer[target->spr.type - kDudePlayer1];
+		DBloodPlayer* pPlayer = getPlayer(target->spr.type - kDudePlayer1);
 		if (!pPlayer->hand)
 		{
 			pPlayer->hand = 1;
@@ -96,7 +96,7 @@ static void handThinkChase(DBloodActor* actor)
 		aiNewState(actor, &handSearch);
 		return;
 	}
-	if (target->IsPlayerActor() && powerupCheck(&gPlayer[target->spr.type - kDudePlayer1], kPwUpShadowCloak) > 0)
+	if (target->IsPlayerActor() && powerupCheck(getPlayer(target->spr.type - kDudePlayer1), kPwUpShadowCloak) > 0)
 	{
 		aiNewState(actor, &handSearch);
 		return;

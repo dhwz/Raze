@@ -49,6 +49,31 @@ DAngle random_angles[16][3];
 
 // to allow quick replacement later
 
+bool IsPlayerSprite(tspritetype const* const pSprite)
+{
+	return pSprite->type >= kDudePlayer1 && pSprite->type <= kDudePlayer8;
+}
+
+bool IsDudeSprite(tspritetype const* const pSprite)
+{
+	return pSprite->type >= kDudeBase && pSprite->type < kDudeMax;
+}
+
+bool IsItemSprite(tspritetype const* const pSprite)
+{
+	return pSprite->type >= kItemBase && pSprite->type < kItemMax;
+}
+
+bool IsWeaponSprite(tspritetype const* const pSprite)
+{
+	return pSprite->type >= kItemWeaponBase && pSprite->type < kItemWeaponMax;
+}
+
+bool IsAmmoSprite(tspritetype const* const pSprite)
+{
+	return pSprite->type >= kItemAmmoBase && pSprite->type < kItemAmmoMax;
+}
+
 //---------------------------------------------------------------------------
 //
 //
@@ -465,7 +490,7 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 	case kViewEffectShowWeapon:
 	{
 		assert(pTSprite->type >= kDudePlayer1 && pTSprite->type <= kDudePlayer8);
-		PLAYER* pPlayer = &gPlayer[pTSprite->type - kDudePlayer1];
+		DBloodPlayer* pPlayer = getPlayer(pTSprite->type - kDudePlayer1);
 		WEAPONICON weaponIcon = gWeaponIcon[pPlayer->curWeapon];
 		auto nTex = weaponIcon.textureID();
 		if (!nTex.isValid()) break;
@@ -480,12 +505,12 @@ static tspritetype* viewAddEffect(tspriteArray& tsprites, int nTSprite, VIEW_EFF
 		int nVoxel = GetExtInfo(nTex).tiletovox;
 		if (cl_showweapon == 2 && r_voxels && nVoxel != -1)
 		{
-			auto gView = &gPlayer[gViewIndex];
-			pNSprite->Angles.Yaw = gView->actor->spr.Angles.Yaw + DAngle90; // always face viewer
+			auto gView = getPlayer(gViewIndex);
+			pNSprite->Angles.Yaw = gView->GetActor()->spr.Angles.Yaw + DAngle90; // always face viewer
 			pNSprite->cstat &= ~CSTAT_SPRITE_YFLIP;
 			if (pPlayer->curWeapon == kWeapLifeLeech) // position lifeleech behind player
 			{
-				pNSprite->pos.XY() += gView->actor->spr.Angles.Yaw.ToVector() * 8;
+				pNSprite->pos.XY() += gView->GetActor()->spr.Angles.Yaw.ToVector() * 8;
 			}
 			if ((pPlayer->curWeapon == kWeapLifeLeech) || (pPlayer->curWeapon == kWeapVoodooDoll))  // make lifeleech/voodoo doll always face viewer like sprite
 				pNSprite->Angles.Yaw += DAngle90;
@@ -530,7 +555,7 @@ static int GetOctant(const DVector2& dPos)
 
 void viewProcessSprites(tspriteArray& tsprites, const DVector3& cPos, DAngle cA, double interpfrac)
 {
-	PLAYER* pPlayer = &gPlayer[gViewIndex];
+	DBloodPlayer* pPlayer = getPlayer(gViewIndex);
 	int nViewSprites = tsprites.Size();
 	// shift before interpolating to increase precision.
 	DAngle myclock = DAngle::fromBuild((PlayClock << 3) + (4 << 3) * interpfrac);
@@ -637,7 +662,8 @@ void viewProcessSprites(tspriteArray& tsprites, const DVector3& cPos, DAngle cA,
 				{
 					pTSprite->cstat &= ~(CSTAT_SPRITE_XFLIP | CSTAT_SPRITE_YFLIP);
 					auto tex = TexMan.GetGameTexture(pTSprite->spritetexture());
-					pTSprite->yoffset += (uint8_t)tex->GetDisplayTopOffset();
+					auto ofs = GetExtInfo(nTex).voxoffs;
+					pTSprite->yoffset += ofs;
 					if (nAnimType == 7)
 					{
 						pTSprite->Angles.Yaw = myclock.Normalized360();
@@ -774,7 +800,7 @@ void viewProcessSprites(tspriteArray& tsprites, const DVector3& cPos, DAngle cA,
 			case kMissileFlareRegular:
 			case kMissileFlareAlt:
 				if (pTSprite->statnum == kStatFlare) {
-					if (owneractor->GetTarget() == pPlayer->actor)
+					if (owneractor->GetTarget() == pPlayer->GetActor())
 					{
 						pTSprite->scale = DVector2(0, 0);
 						break;
@@ -816,7 +842,7 @@ void viewProcessSprites(tspriteArray& tsprites, const DVector3& cPos, DAngle cA,
 			if (powerupCheck(pPlayer, kPwUpBeastVision) > 0) pTSprite->shade = -128;
 
 			if (IsPlayerSprite(pTSprite)) {
-				PLAYER* thisPlayer = &gPlayer[pTSprite->type - kDudePlayer1];
+				DBloodPlayer* thisPlayer = getPlayer(pTSprite->type - kDudePlayer1);
 				if (powerupCheck(thisPlayer, kPwUpShadowCloak) && !powerupCheck(pPlayer, kPwUpBeastVision)) {
 					pTSprite->cstat |= CSTAT_SPRITE_TRANSLUCENT;
 					pTSprite->pal = 5;
@@ -837,12 +863,12 @@ void viewProcessSprites(tspriteArray& tsprites, const DVector3& cPos, DAngle cA,
 					viewAddEffect(tsprites, nTSprite, kViewEffectShowWeapon);
 				}
 
-				if (thisPlayer->flashEffect && (pPlayer != thisPlayer || gViewPos != VIEWPOS_0)) {
+				if (thisPlayer->flashEffect && (pPlayer != thisPlayer || gViewPos != viewFirstPerson)) {
 					auto pNTSprite = viewAddEffect(tsprites, nTSprite, kViewEffectShoot);
 					if (pNTSprite) {
 						POSTURE* pPosture = &thisPlayer->pPosture[thisPlayer->lifeMode][thisPlayer->posture];
 						pNTSprite->pos.XY() += pTSprite->Angles.Yaw.ToVector() * pPosture->xOffset;
-						pNTSprite->pos.Z = thisPlayer->actor->spr.pos.Z - pPosture->zOffset;
+						pNTSprite->pos.Z = thisPlayer->GetActor()->spr.pos.Z - pPosture->zOffset;
 					}
 				}
 
@@ -866,7 +892,7 @@ void viewProcessSprites(tspriteArray& tsprites, const DVector3& cPos, DAngle cA,
 				}
 			}
 
-			if (pTSprite->ownerActor != pPlayer->actor || gViewPos != VIEWPOS_0) {
+			if (pTSprite->ownerActor != pPlayer->GetActor() || gViewPos != viewFirstPerson) {
 				if (getflorzofslopeptr(pTSprite->sectp, pTSprite->pos) >= cPos.Z)
 				{
 					viewAddEffect(tsprites, nTSprite, kViewEffectShadow);

@@ -1,5 +1,7 @@
 build-vs2019/
 /source/gitinfo.h
-/build2
-/build
+/build*
+/AppDir
+/appimage-build
+*.AppImage
 .DS_Store

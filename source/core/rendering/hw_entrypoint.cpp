@@ -206,10 +206,10 @@ FRenderViewpoint SetupViewpoint(DCoreActor* cam, const DVector3& position, int s
 	r_viewpoint.SectNums = nullptr;
 	r_viewpoint.SectCount = sectnum;
 	r_viewpoint.Pos = { position.X, -position.Y, -position.Z };
-	r_viewpoint.HWAngles.Yaw = FAngle::fromDeg(-90.f + (float)angles.Yaw.Degrees());
+	r_viewpoint.HWAngles.Yaw = FAngle::fromDeg(-90. + angles.Yaw.Degrees());
 	r_viewpoint.HWAngles.Pitch = FAngle::fromDeg(ClampViewPitch(angles.Pitch).Degrees());
-	r_viewpoint.HWAngles.Roll = FAngle::fromDeg((float)angles.Roll.Degrees());
-	r_viewpoint.FieldOfView = FAngle::fromDeg(fov > 0? fov :  (float)r_fov);
+	r_viewpoint.HWAngles.Roll = FAngle::fromDeg(angles.Roll.Degrees());
+	r_viewpoint.FieldOfView = FAngle::fromDeg(fov > 0? fov :  r_fov);
 	r_viewpoint.RotAngle = angles.Yaw.BAMs();
 	double FocalTangent = tan(r_viewpoint.FieldOfView.Radians() / 2);
 	DAngle an = DAngle::fromDeg(270. - r_viewpoint.HWAngles.Yaw.Degrees());
@@ -283,11 +283,10 @@ void RenderToSavePic(FRenderViewpoint& vp, FileWriter* file, int width, int heig
 
 
 	int numpixels = width * height;
-	uint8_t* scr = (uint8_t*)M_Malloc(numpixels * 3);
-	screen->CopyScreenToBuffer(width, height, scr);
+	TArray<uint8_t> scr(numpixels * 3, true);
+	screen->CopyScreenToBuffer(width, height, scr.Data());
 
-	DoWriteSavePic(file, scr, width, height, screen->FlipSavePic());
-	M_Free(scr);
+	DoWriteSavePic(file, scr.Data(), width, height, screen->FlipSavePic());
 
 	// Switch back the screen render buffers
 	screen->SetViewportRects(nullptr);

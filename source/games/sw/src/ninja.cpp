@@ -1863,6 +1863,14 @@ int SetupNinja(DSWActor* actor)
     return 0;
 }
 
+DEFINE_ACTION_FUNCTION(DSWNinja, Initialize)
+{
+    PARAM_SELF_PROLOGUE(DSWActor);
+    SetupNinja(self);
+    return 0;
+}
+
+
 //---------------------------------------------------------------------------
 //
 //
@@ -2101,7 +2109,7 @@ void InitAllPlayerSprites(const DVector3& spawnpos, const DAngle startang)
 
     TRAVERSE_CONNECT(i)
     {
-        InitPlayerSprite(Player + i, spawnpos, startang);
+        InitPlayerSprite(getPlayer(i), spawnpos, startang);
     }
 }
 
@@ -2112,9 +2120,9 @@ void InitAllPlayerSprites(const DVector3& spawnpos, const DAngle startang)
 //
 //---------------------------------------------------------------------------
 
-void PlayerLevelReset(PLAYER* pp)
+void PlayerLevelReset(DSWPlayer* pp)
 {
-    DSWActor* actor = pp->actor;
+    DSWActor* actor = pp->GetActor();
 
     if (gNet.MultiGameType == MULTI_GAME_COMMBAT)
     {
@@ -2127,12 +2135,10 @@ void PlayerLevelReset(PLAYER* pp)
 
     COVER_SetReverb(0); // Turn off any echoing that may have been going before
     pp->Reverb = 0;
-    pp->SecretsFound = 0;
     pp->WpnFirstType = WPN_SWORD;
     //PlayerUpdateHealth(pp, 500);
     //pp->Armor = 0;
     //PlayerUpdateArmor(pp, 0);
-    pp->Kills = 0;
     pp->KillerActor = nullptr;;
     pp->NightVision = false;
     pp->StartColor = 0;
@@ -2157,9 +2163,9 @@ void PlayerLevelReset(PLAYER* pp)
 //
 //---------------------------------------------------------------------------
 
-void PlayerDeathReset(PLAYER* pp)
+void PlayerDeathReset(DSWPlayer* pp)
 {
-    DSWActor* actor = pp->actor;
+    DSWActor* actor = pp->GetActor();
 
     if (pp->Flags & (PF_DIVING))
         DoPlayerStopDiveNoWarp(pp);
@@ -2235,11 +2241,11 @@ void PlayerPanelSetup(void)
     //for (pp = Player; pp < &Player[numplayers]; pp++)
     TRAVERSE_CONNECT(pnum)
     {
-        auto pp = Player + pnum;
+        auto pp = getPlayer(pnum);
 
-        ASSERT(pp->actor->hasU());
+        ASSERT(pp->GetActor()->hasU());
 
-        PlayerUpdateWeapon(pp, pp->actor->user.WeaponNum);
+        PlayerUpdateWeapon(pp, pp->GetActor()->user.WeaponNum);
     }
 }
 
@@ -2249,9 +2255,9 @@ void PlayerPanelSetup(void)
 //
 //---------------------------------------------------------------------------
 
-void PlayerGameReset(PLAYER* pp)
+void PlayerGameReset(DSWPlayer* pp)
 {
-    DSWActor* actor = pp->actor;
+    DSWActor* actor = pp->GetActor();
 
     COVER_SetReverb(0); // Turn off any echoing that may have been going before
     pp->Reverb = 0;
@@ -2269,7 +2275,6 @@ void PlayerGameReset(PLAYER* pp)
     pp->TestNukeInit = false;
     pp->InitingNuke = false;
     pp->NukeInitialized = false;
-    pp->SecretsFound = 0;
     pp->WpnReloadState = 2;
 
     pp->WpnAmmo[WPN_STAR] = 30;
@@ -2287,7 +2292,7 @@ void PlayerGameReset(PLAYER* pp)
     PlayerUpdateArmor(pp, 0);
     pp->KillerActor = nullptr;;
 
-    if (pp == Player+screenpeek)
+    if (pp == getPlayer(screenpeek))
     {
         videoFadePalette(0,0,0,0);
     }
@@ -2314,9 +2319,9 @@ extern ACTOR_ACTION_SET PlayerNinjaActionSet;
 //
 //---------------------------------------------------------------------------
 
-void InitPlayerSprite(PLAYER* pp, const DVector3& spawnpos, const DAngle startang)
+void InitPlayerSprite(DSWPlayer* pp, const DVector3& spawnpos, const DAngle startang)
 {
-    int pnum = int(pp - Player);
+    int pnum = int(pp->pnum);
     double fz,cz;
     extern bool NewGame;
 
@@ -2336,8 +2341,7 @@ void InitPlayerSprite(PLAYER* pp, const DVector3& spawnpos, const DAngle startan
     pp->actor = actor;
     pp->pnum = pnum;
 
-    pp->Angles = {};
-    pp->Angles.initialize(pp->actor);
+    pp->InitAngles();
 
     actor->spr.cstat |= (CSTAT_SPRITE_BLOCK | CSTAT_SPRITE_BLOCK_HITSCAN);
     actor->spr.extra |= (SPRX_PLAYER_OR_ENEMY);
@@ -2364,7 +2368,7 @@ void InitPlayerSprite(PLAYER* pp, const DVector3& spawnpos, const DAngle startan
     actor->spr.pal = PALETTE_PLAYER0 + pp->pnum;
     actor->user.spal = actor->spr.pal;
 
-    pp->actor->setStateGroup(NAME_Run);
+    pp->GetActor()->setStateGroup(NAME_Run);
 
     pp->PlayerUnderActor = nullptr;
 
@@ -2383,7 +2387,7 @@ void InitPlayerSprite(PLAYER* pp, const DVector3& spawnpos, const DAngle startan
 
     memset(pp->InventoryTics,0,sizeof(pp->InventoryTics));
 
-    if (pp == Player+screenpeek)
+    if (pp == getPlayer(screenpeek))
     {
         videoFadePalette(0,0,0,0);
     }
@@ -2400,14 +2404,14 @@ void InitPlayerSprite(PLAYER* pp, const DVector3& spawnpos, const DAngle startan
 //
 //---------------------------------------------------------------------------
 
-void SpawnPlayerUnderSprite(PLAYER* pp)
+void SpawnPlayerUnderSprite(DSWPlayer* pp)
 {
-    DSWActor* plActor = pp->actor;
+    DSWActor* plActor = pp->GetActor();
 
-    int pnum = int(pp - Player);
+    int pnum = int(pp->pnum);
 
     pp->PlayerUnderActor = SpawnActor(STAT_PLAYER_UNDER0 + pnum,
-                                                 NINJA_RUN_R0, nullptr, pp->cursector, pp->actor->getPosWithOffsetZ(), pp->actor->spr.Angles.Yaw);
+                                                 NINJA_RUN_R0, nullptr, pp->cursector, pp->GetActor()->getPosWithOffsetZ(), pp->GetActor()->spr.Angles.Yaw);
 
     DSWActor* actor = pp->PlayerUnderActor;
 

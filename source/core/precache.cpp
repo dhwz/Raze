@@ -63,7 +63,7 @@ static void doprecache(FTextureID texid, int palette)
 {
    if ((palette < (MAXPALOOKUPS - RESERVEDPALS)) && (!lookups.checkTable(palette))) return;
 
-    int palid = TRANSLATION(Translation_Remap + curbasepal, palette);
+    int palid = TRANSLATION(Translation_Remap + curbasepal, palette).index();
 	auto tex = TexMan.GetGameTexture(texid);
     PrecacheTex(tex, palid);
 
@@ -151,7 +151,7 @@ void precacheMarkedTiles()
 	decltype(cachetexmap)::Pair* pair2;
 	while (it2.NextPair(pair2))
 	{
-		auto tex = TexMan.FindGameTexture(pair2->Key, ETextureType::Any);
+		auto tex = TexMan.FindGameTexture(pair2->Key.GetChars(), ETextureType::Any);
 		if (tex) PrecacheTex(tex, 0);
 	}
 

@@ -58,21 +58,15 @@ void premapcontroller(DDukeActor* ac)
 //
 //---------------------------------------------------------------------------
 
-void pickrandomspot(int snum)
+void pickrandomspot(DDukePlayer* const p)
 {
-	player_struct* p;
-	int i;
+	const auto pact = p->GetActor();
+	const int i = (ud.multimode > 1 && ud.coop != 1) ? (krand() % numplayersprites) : p->pnum;
 
-	p = &ps[snum];
-
-	if( ud.multimode > 1 && ud.coop != 1)
-		i = krand()%numplayersprites;
-	else i = snum;
-
-	p->GetActor()->spr.pos = po[i].opos;
-	p->GetActor()->backuppos();
+	pact->spr.pos = po[i].opos;
+	pact->backuppos();
 	p->setbobpos();
-	p->GetActor()->PrevAngles.Yaw = p->GetActor()->spr.Angles.Yaw = po[i].oa;
+	pact->PrevAngles.Yaw = pact->spr.Angles.Yaw = po[i].oa;
 	p->setCursector(po[i].os);
 }
 
@@ -83,14 +77,10 @@ void pickrandomspot(int snum)
 //
 //---------------------------------------------------------------------------
 
-void resetplayerstats(int snum)
+static void resetplayerstats(DDukePlayer* const p)
 {
-	player_struct* p;
-
-	p = &ps[snum];
-
 	gFullMap = 0; 
-	p->crouch_toggle    = 0;
+	p->pnum             = 0;
 	p->dead_flag        = 0;
 	p->wackedbyactor    = nullptr;
 	p->falling_counter  = 0;
@@ -128,7 +118,7 @@ void resetplayerstats(int snum)
 	p->bobcounter       = 0;
 	p->on_ground        = 0;
 	p->player_par       = 0;
-	p->sync.actions |= SB_CENTERVIEW;
+	p->cmd.ucmd.actions |= SB_CENTERVIEW;
 	p->airleft          = 15*26;
 	p->rapid_fire_hold  = 0;
 	p->toggle_key_flag  = 0;
@@ -260,7 +250,7 @@ void resetplayerstats(int snum)
 //
 //---------------------------------------------------------------------------
 
-void resetweapons(player_struct* p)
+void resetweapons(DDukePlayer* p)
 {
 	for (int weapon = PISTOL_WEAPON; weapon < MAX_WEAPONS; weapon++)
 	{
@@ -294,7 +284,7 @@ void resetweapons(player_struct* p)
 		p->gotweapon[SLINGBLADE_WEAPON] = true;
 		p->ammo_amount[SLINGBLADE_WEAPON] = 1;
 	}
-	OnEvent(EVENT_RESETWEAPONS, int(p - ps), nullptr, -1);
+	OnEvent(EVENT_RESETWEAPONS, p->pnum, nullptr, -1);
 }
 
 //---------------------------------------------------------------------------
@@ -303,7 +293,7 @@ void resetweapons(player_struct* p)
 //
 //---------------------------------------------------------------------------
 
-void resetinventory(player_struct* p)
+void resetinventory(DDukePlayer* p)
 {
 	p->inven_icon = 0;
 	p->boot_amount = 0;
@@ -363,7 +353,7 @@ void resetinventory(player_struct* p)
 		ufocnt = 0;
 		hulkspawn = 2;
 	}
-	OnEvent(EVENT_RESETINVENTORY, int(p - ps), p->GetActor());
+	OnEvent(EVENT_RESETINVENTORY, p->pnum, p->GetActor());
 }
 
 
@@ -373,22 +363,14 @@ void resetinventory(player_struct* p)
 //
 //---------------------------------------------------------------------------
 
-void resetprestat(int snum,int g)
+void resetprestat(DDukePlayer* const p, int g)
 {
-	player_struct* p;
-
-	p = &ps[snum];
-
 	spriteqloc = 0;
 	for(auto& p : spriteq) p = nullptr;
 
 	p->hbomb_on          = 0;
 	p->pals.a         = 0;
 	p->toggle_key_flag   = 0;
-	p->secret_rooms      = 0;
-	p->max_secret_rooms  = 0;
-	p->actors_killed     = 0;
-	p->max_actors_killed = 0;
 	p->lastrandomspot = 0;
 	p->oweapon_pos = p->weapon_pos = 6;
 	p->okickback_pic = p->kickback_pic = 5;
@@ -494,63 +476,66 @@ void resetpspritevars(int g, const DVector3& startpos, const DAngle startang)
 	int aimmode[MAXPLAYERS];
 	STATUSBARTYPE tsbar[MAXPLAYERS];
 
-	auto newActor = CreateActor(ps[0].cursector, startpos,
+	auto newActor = CreateActor(getPlayer(0)->cursector, startpos,
 		DukePlayerPawnClass /*fixme for RR later!*/, 0, DVector2(0, 0), startang, 0., 0., nullptr, 10);
 
 	newActor->spr.Angles.Pitch = DAngle::fromDeg(-17.354);
 	newActor->backuploc();
 
-	if (ud.recstat != 2) for (i = 0; i < MAXPLAYERS; i++)
+	for (i = 0; i < MAXPLAYERS; i++)
 	{
-		aimmode[i] = ps[i].aim_mode;
-		if (ud.multimode > 1 && ud.coop == 1 && ud.last_level >= 0)
+		const auto p = getPlayer(i);
+		const auto ptsbar = &tsbar[i];
+
+		if (ud.recstat != 2)
 		{
-			for (j = 0; j < MAX_WEAPONS; j++)
+			aimmode[i] = p->aim_mode;
+			if (ud.multimode > 1 && ud.coop == 1 && ud.last_level >= 0)
 			{
-				tsbar[i].ammo_amount[j] = ps[i].ammo_amount[j];
-				tsbar[i].gotweapon[j] = ps[i].gotweapon[j];
+				for (j = 0; j < MAX_WEAPONS; j++)
+				{
+					ptsbar->ammo_amount[j] = p->ammo_amount[j];
+					ptsbar->gotweapon[j] = p->gotweapon[j];
+				}
+
+				ptsbar->shield_amount = p->shield_amount;
+				ptsbar->curr_weapon = p->curr_weapon;
+				ptsbar->inven_icon = p->inven_icon;
+
+				ptsbar->firstaid_amount = p->firstaid_amount;
+				ptsbar->steroids_amount = p->steroids_amount;
+				ptsbar->holoduke_amount = p->holoduke_amount;
+				ptsbar->jetpack_amount = p->jetpack_amount;
+				ptsbar->heat_amount = p->heat_amount;
+				ptsbar->scuba_amount = p->scuba_amount;
+				ptsbar->boot_amount = p->boot_amount;
 			}
-
-			tsbar[i].shield_amount = ps[i].shield_amount;
-			tsbar[i].curr_weapon = ps[i].curr_weapon;
-			tsbar[i].inven_icon = ps[i].inven_icon;
-
-			tsbar[i].firstaid_amount = ps[i].firstaid_amount;
-			tsbar[i].steroids_amount = ps[i].steroids_amount;
-			tsbar[i].holoduke_amount = ps[i].holoduke_amount;
-			tsbar[i].jetpack_amount = ps[i].jetpack_amount;
-			tsbar[i].heat_amount = ps[i].heat_amount;
-			tsbar[i].scuba_amount = ps[i].scuba_amount;
-			tsbar[i].boot_amount = ps[i].boot_amount;
 		}
-	}
 
-	resetplayerstats(0);
+		resetplayerstats(p);
 
-	for (i = 1; i < MAXPLAYERS; i++)
-		ps[i] = ps[0];
-
-	if (ud.recstat != 2) for (i = 0; i < MAXPLAYERS; i++)
-	{
-		ps[i].aim_mode = aimmode[i];
-		if (ud.multimode > 1 && ud.coop == 1 && ud.last_level >= 0)
+		if (ud.recstat != 2)
 		{
-			for (j = 0; j < MAX_WEAPONS; j++)
+			p->aim_mode = aimmode[i];
+			if (ud.multimode > 1 && ud.coop == 1 && ud.last_level >= 0)
 			{
-				ps[i].ammo_amount[j] = tsbar[i].ammo_amount[j];
-				ps[i].gotweapon[j] = tsbar[i].gotweapon[j];
-			}
-			ps[i].shield_amount = tsbar[i].shield_amount;
-			ps[i].curr_weapon = tsbar[i].curr_weapon;
-			ps[i].inven_icon = tsbar[i].inven_icon;
+				for (j = 0; j < MAX_WEAPONS; j++)
+				{
+					p->ammo_amount[j] = ptsbar->ammo_amount[j];
+					p->gotweapon[j] = ptsbar->gotweapon[j];
+				}
+				p->shield_amount = ptsbar->shield_amount;
+				p->curr_weapon = ptsbar->curr_weapon;
+				p->inven_icon = ptsbar->inven_icon;
 
-			ps[i].firstaid_amount = tsbar[i].firstaid_amount;
-			ps[i].steroids_amount = tsbar[i].steroids_amount;
-			ps[i].holoduke_amount = tsbar[i].holoduke_amount;
-			ps[i].jetpack_amount = tsbar[i].jetpack_amount;
-			ps[i].heat_amount = tsbar[i].heat_amount;
-			ps[i].scuba_amount = tsbar[i].scuba_amount;
-			ps[i].boot_amount = tsbar[i].boot_amount;
+				p->firstaid_amount = ptsbar->firstaid_amount;
+				p->steroids_amount = ptsbar->steroids_amount;
+				p->holoduke_amount = ptsbar->holoduke_amount;
+				p->jetpack_amount = ptsbar->jetpack_amount;
+				p->heat_amount = ptsbar->heat_amount;
+				p->scuba_amount = ptsbar->scuba_amount;
+				p->boot_amount = ptsbar->boot_amount;
+			}
 		}
 	}
 
@@ -572,6 +557,7 @@ void resetpspritevars(int g, const DVector3& startpos, const DAngle startang)
 		numplayersprites++;
 		if (j >= 0)
 		{
+			const auto p = getPlayer(j);
 			act->SetOwner(act);
 			act->spr.shade = 0;
 			if (isRR()) act->spr.scale = DVector2(0.375, 0.265625);
@@ -580,12 +566,12 @@ void resetpspritevars(int g, const DVector3& startpos, const DAngle startang)
 			act->spr.xoffset = 0;
 			act->clipdist = 16;
 
-			if (ps[j].last_extra == 0)
+			if (p->last_extra == 0)
 			{
-				ps[j].last_extra = gs.max_player_health;
+				p->last_extra = gs.max_player_health;
 				act->spr.extra = gs.max_player_health;
 			}
-			else act->spr.extra = ps[j].last_extra;
+			else act->spr.extra = p->last_extra;
 
 			act->spr.yint = j;
 
@@ -593,25 +579,24 @@ void resetpspritevars(int g, const DVector3& startpos, const DAngle startang)
 			{
 				if (act->spr.pal == 0)
 				{
-					act->spr.pal = ps[j].palookup = which_palookup;
+					act->spr.pal = p->palookup = which_palookup;
 					ud.user_pals[j] = which_palookup;
 					which_palookup++;
 					if (which_palookup == 17) which_palookup = 9;
 				}
-				else ud.user_pals[j] = ps[j].palookup = act->spr.pal;
+				else ud.user_pals[j] = p->palookup = act->spr.pal;
 			}
 			else
-				act->spr.pal = ps[j].palookup = ud.user_pals[j];
+				act->spr.pal = p->palookup = ud.user_pals[j];
 
-			ps[j].actor = act;
-			ps[j].Angles = {};
-			ps[j].Angles.initialize(ps[j].actor, (currentLevel->levelNumber & 1)? DAngle90 : -DAngle90);
-			ps[j].frag_ps = j;
+			p->actor = act;
+			p->InitAngles((currentLevel->levelNumber & 1)? DAngle90 : -DAngle90);
+			p->frag_ps = j;
 			act->SetOwner(act);
 
-			ps[j].setbobpos();
+			p->setbobpos();
 
-			updatesector(act->spr.pos, &ps[j].cursector);
+			updatesector(act->spr.pos, &p->cursector);
 
 			j = connectpoint2[j];
 
@@ -629,9 +614,10 @@ void lava_cleararrays();
 
 void prelevel_common(int g)
 {
+	Level.clearStats();
 	if (isRRRA()) ud.mapflags = MFLAG_ALLSECTORTYPES;
 	else if (isRR()) ud.mapflags = MFLAG_SECTORTYPE800;
-	auto p = &ps[screenpeek];
+	auto p = getPlayer(screenpeek);
 	p->sea_sick_stat = 0;
 	ud.ufospawnsminion = 0;
 	ud.pistonsound = 0;
@@ -655,7 +641,8 @@ void prelevel_common(int g)
 	// RRRA E2L1 fog handling.
 	ud.fogactive = 0;
 
-	resetprestat(0, g);
+	const auto firstp = getPlayer(0);
+	resetprestat(firstp, g);
 	numclouds = 0;
 
 	memset(geosectorwarp, -1, sizeof(geosectorwarp));
@@ -680,19 +667,19 @@ void prelevel_common(int g)
 			if (tilesurface(sectp->ceilingtexture) == TSURF_SCROLLSKY && numclouds < 127)
 				clouds[numclouds++] = sectp;
 
-			if (ps[0].one_parallax_sectnum == nullptr)
-				ps[0].one_parallax_sectnum = sectp;
+			if (firstp->one_parallax_sectnum == nullptr)
+				firstp->one_parallax_sectnum = sectp;
 		}
 
 		if (sectp->lotag == 32767) //Found a secret room
 		{
-			ps[0].max_secret_rooms++;
+			Level.addSecretCount();
 			continue;
 		}
 
 		if (sectp->lotag == -1)
 		{
-			ps[0].Exit = sectp->walls[0].pos;
+			firstp->Exit = sectp->walls[0].pos;
 			continue;
 		}
 	}
@@ -783,7 +770,7 @@ void resettimevars(void)
 
 void donewgame(MapRecord* map, int sk)
 {
-	auto p = &ps[0];
+	auto p = getPlayer(0);
 	show_shareware = 26 * 34;
 
 	ud.player_skill = sk;
@@ -801,13 +788,13 @@ void donewgame(MapRecord* map, int sk)
 		{
 			for (int i = 0; i < 12/*MAX_WEAPONS*/; i++) // aboive 12 have no data defined and would crash.
 			{
-				if (aplWeaponWorksLike(i, 0) == PISTOL_WEAPON)
+				if (aplWeaponWorksLike(i, p) == PISTOL_WEAPON)
 				{
 					p->curr_weapon = i;
 					p->gotweapon[i] = true;
 					p->ammo_amount[i] = 48;
 				}
-				else if (aplWeaponWorksLike(i, 0) == KNEE_WEAPON || aplWeaponWorksLike(i, 0) == HANDREMOTE_WEAPON)
+				else if (aplWeaponWorksLike(i, p) == KNEE_WEAPON || aplWeaponWorksLike(i, p) == HANDREMOTE_WEAPON)
 				{
 					p->gotweapon[i] = true;
 				}
@@ -1063,7 +1050,7 @@ void cacheit(void)
 //
 //---------------------------------------------------------------------------
 
-static int LoadTheMap(MapRecord *mi, player_struct*p, int gamemode)
+static int LoadTheMap(MapRecord *mi, DDukePlayer*p, int gamemode)
 {
 	int16_t lbang;
 	if (isShareware() && (mi->flags & MI_USERMAP))
@@ -1075,12 +1062,12 @@ static int LoadTheMap(MapRecord *mi, player_struct*p, int gamemode)
 	sectortype* sect;
 	SpawnSpriteDef sprites;
 	DVector3 pos;
-	loadMap(mi->fileName, isShareware(), &pos, &lbang, &sect, sprites);
+	loadMap(mi->fileName.GetChars(), isShareware(), &pos, &lbang, &sect, sprites);
 	p->cursector = sect;
 
-	SECRET_SetMapName(mi->DisplayName(), mi->name);
-	STAT_NewLevel(mi->fileName);
-	TITLE_InformName(mi->name);
+	SECRET_SetMapName(mi->DisplayName(), mi->name.GetChars());
+	STAT_NewLevel(mi->fileName.GetChars());
+	TITLE_InformName(mi->name.GetChars());
 
 	auto actorlist = spawnactors(sprites);
 
@@ -1090,7 +1077,10 @@ static int LoadTheMap(MapRecord *mi, player_struct*p, int gamemode)
 	for (auto& sect : sector)
 	{
 		if (tilesurface(sect.ceilingtexture) == TSURF_THUNDERSKY)
+		{
+			addthundersector(&sect);
 			thunderon = 1;
+		}
 	}
 
 	SpawnPortals();
@@ -1118,8 +1108,9 @@ static void clearfrags(void)
 {
 	for (int i = 0; i < ud.multimode; i++)
 	{
-		ps[i].frag = ps[i].fraggedself = 0;
-		memset(ps[i].frags, 0, sizeof(ps[i].frags));
+		const auto p = getPlayer(i);
+		p->frag = p->fraggedself = 0;
+		memset(p->frags, 0, sizeof(p->frags));
 	}
 }
 
@@ -1142,15 +1133,16 @@ void enterlevel(MapRecord *mi, int gamemode)
 	ud.ffire = ud.m_ffire;
 	lastlevel = 0;
 
-	OnEvent(EVENT_ENTERLEVEL);
+	for (int i = connecthead; i >= 0; i = connectpoint2[i])
+	{
+		OnEvent(EVENT_ENTERLEVEL, i);
+	}
 
 	// Stop all sounds
 	FX_StopAllSounds();
-	FX_SetReverb(0);
+	S_SetReverb(0);
 
-	auto p = &ps[0];
-
-	LoadTheMap(mi, p, gamemode);
+	LoadTheMap(mi, getPlayer(0), gamemode);
 
 	// Try this first so that it can disable the CD player if no tracks are found.
 	if (isRR())
@@ -1163,30 +1155,30 @@ void enterlevel(MapRecord *mi, int gamemode)
 
 	for (int i = connecthead; i >= 0; i = connectpoint2[i])
 	{
+		const auto p = getPlayer(i);
 		bool clearweapon = !!(currentLevel->flags & LEVEL_CLEARWEAPONS);
-		auto pn = ps[i].GetActor()->sector()->floortexture;
-		if (tileflags(pn) & TFLAG_CLEARINVENTORY)
+		if (tileflags(p->GetActor()->sector()->floortexture) & TFLAG_CLEARINVENTORY)
 		{
-			resetinventory(&ps[i]);
+			resetinventory(p);
 			clearweapon = true;
 		}
 		if (clearweapon)
 		{
-			resetweapons(&ps[i]);
-			ps[i].gotweapon[PISTOL_WEAPON] = false;
-			ps[i].ammo_amount[PISTOL_WEAPON] = 0;
-			ps[i].curr_weapon = KNEE_WEAPON;
-			ps[i].kickback_pic = 0;
-			ps[i].okickback_pic = ps[i].kickback_pic = 0;
+			resetweapons(p);
+			p->gotweapon[PISTOL_WEAPON] = false;
+			p->ammo_amount[PISTOL_WEAPON] = 0;
+			p->curr_weapon = KNEE_WEAPON;
+			p->kickback_pic = 0;
+			p->okickback_pic = p->kickback_pic = 0;
 		}
-		if (currentLevel->flags & LEVEL_CLEARINVENTORY) resetinventory(&ps[i]);
+		if (currentLevel->flags & LEVEL_CLEARINVENTORY) resetinventory(p);
 	}
 	resetmys();
 
 	global_random = 0;
 
 	ud.last_level = 1;
-	ps[myconnectindex].over_shoulder_on = 0;
+	getPlayer(myconnectindex)->over_shoulder_on = 0;
 	clearfrags();
 	resettimevars();  // Here we go
 	setLevelStarted(mi);
@@ -1207,11 +1199,12 @@ void GameInterface::NewGame(MapRecord* map, int skill, bool)
 {
 	for (int i = 0; i != -1; i = connectpoint2[i])
 	{
-		resetweapons(&ps[i]);
-		resetinventory(&ps[i]);
+		const auto p = getPlayer(i);
+		resetweapons(p);
+		resetinventory(p);
 	}
 
-	ps[0].last_extra = gs.max_player_health;
+	getPlayer(0)->last_extra = gs.max_player_health;
 
 
 	if (skill == -1) skill = ud.player_skill;
@@ -1225,7 +1218,7 @@ void GameInterface::NewGame(MapRecord* map, int skill, bool)
 
 	donewgame(map, skill);
 	enterlevel(map, 0);
-	if (isShareware() && ud.recstat != 2) FTA(QUOTE_F1HELP, &ps[myconnectindex]);
+	if (isShareware() && ud.recstat != 2) FTA(QUOTE_F1HELP, getPlayer(myconnectindex));
 
 	PlayerColorChanged();
 }
@@ -1273,7 +1266,7 @@ int setnextmap(bool checksecretexit)
 	if (map)
 	{
 		// If the map doesn't exist, abort with a meaningful message instead of crashing.
-		if (fileSystem.FindFile(map->fileName) < 0)
+		if (fileSystem.FindFile(map->fileName.GetChars()) < 0)
 		{
 			I_Error("Trying to open non-existent %s", map->fileName.GetChars());
 		}
@@ -1297,11 +1290,7 @@ void exitlevel(MapRecord* nextlevel)
 
 	SummaryInfo info{};
 
-	info.kills = ps[0].actors_killed;
-	info.maxkills = ps[0].max_actors_killed;
-	info.secrets = ps[0].secret_rooms;
-	info.maxsecrets = ps[0].max_secret_rooms;
-	info.time = ps[0].player_par / GameTicRate;
+	Level.fillSummary(info);
 	info.endofgame = endofgame;
 	Mus_Stop();
 

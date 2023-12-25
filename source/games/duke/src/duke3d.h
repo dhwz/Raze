@@ -19,8 +19,6 @@
 
 BEGIN_DUKE_NS
 
-extern player_struct ps[MAXPLAYERS];
-
 struct GameInterface : public ::GameInterface
 {
 	const char* Name() override { return "Duke"; }
@@ -30,7 +28,6 @@ struct GameInterface : public ::GameInterface
 	void SetupSpecialTextures(TilesetBuildInfo& info) override;
 	bool GenerateSavePic() override;
 	void PlayHudSound() override;
-	GameStats getStats() override;
 	void MenuOpened() override;
 	void MenuSound(EMenuSounds snd) override;
 	bool CanSave() override;
@@ -40,8 +37,7 @@ struct GameInterface : public ::GameInterface
 	void SerializeGameState(FSerializer& arc) override;
 	void ExitFromMenu() override;
 	void DrawPlayerSprite(const DVector2& origin, bool onteam) override;
-	void reapplyInputBits(InputPacket* const input) override { input->actions |= ps[myconnectindex].sync.actions & SB_CENTERVIEW; }
-	void doPlayerMovement(const float scaleAdjust) override;
+	void doPlayerMovement() override;
 	void UpdateSounds() override;
 	void Startup() override;
 	void DrawBackground() override;
@@ -53,7 +49,6 @@ struct GameInterface : public ::GameInterface
 	void NewGame(MapRecord* map, int skill, bool) override;
 	void LevelCompleted(MapRecord* map, int skill) override;
 	bool DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac) override;
-	DCoreActor* getConsoleActor() override { return ps[myconnectindex].GetActor(); }
 	void ToggleThirdPerson() override;
 	void SwitchCoopView() override;
 	void ToggleShowWeapon() override;
@@ -74,21 +69,20 @@ struct Dispatcher
 	// sectors_?.cpp
 	void (*think)();
 	void (*movetransports)();
-	bool (*checkaccessswitch)(int snum, int switchpal, DDukeActor* act, walltype* w);
+	bool (*checkaccessswitch)(DDukePlayer* const p, int switchpal, DDukeActor* act, walltype* w);
 	void (*activatebysector)(sectortype* sect, DDukeActor* j);
-	void (*checksectors)(int low);
+	void (*checksectors)(DDukePlayer* const p);
 
-	void (*addweapon)(player_struct *p, int weapon, bool wswitch);
+	void (*addweapon)(DDukePlayer *p, int weapon, bool wswitch);
 	int  (*ifhitbyweapon)(DDukeActor* sectnum);
 
 	// player
-	void (*incur_damage)(player_struct* p);
-	void (*selectweapon)(int snum, int j);
-	int (*doincrements)(player_struct* p);
-	void (*checkweapons)(player_struct* p);
-	void (*processinput)(int snum);
-	void (*displayweapon)(int snum, double interpfrac);
-	void (*displaymasks)(int snum, int p, double interpfrac);
+	void (*selectweapon)(DDukePlayer* const p, int j);
+	int (*doincrements)(DDukePlayer* p);
+	void (*checkweapons)(DDukePlayer* p);
+	void (*processinput)(DDukePlayer* const p);
+	void (*displayweapon)(DDukePlayer* const p, double interpfrac);
+	void (*displaymasks)(DDukePlayer* const p, int pal, double interpfrac);
 
 	void (*animatesprites)(tspriteArray& tsprites, const DVector2& viewVec, DAngle viewang, double interpfrac);
 
@@ -102,18 +96,18 @@ void CallTick(DDukeActor* actor);
 bool CallOperate(DDukeActor* actor, int plnum);
 void CallAction(DDukeActor* actor);
 void checkhitsprite(DDukeActor* actor, DDukeActor* hitter);
-void CallOnHurt(DDukeActor* actor, player_struct* hitter);
-void CallOnTouch(DDukeActor* actor, player_struct* hitter);
-bool CallOnUse(DDukeActor* actor, player_struct* user);
-void CallOnMotoSmash(DDukeActor* actor, player_struct* hitter);
+void CallOnHurt(DDukeActor* actor, DDukePlayer* hitter);
+void CallOnTouch(DDukeActor* actor, DDukePlayer* hitter);
+bool CallOnUse(DDukeActor* actor, DDukePlayer* user);
+void CallOnMotoSmash(DDukeActor* actor, DDukePlayer* hitter);
 void CallOnRespawn(DDukeActor* actor, int low);
 bool CallAnimate(DDukeActor* actor, tspritetype* hitter);
 bool CallShootThis(DDukeActor* clsdef, DDukeActor* actor, int pn, const DVector3& spos, DAngle sang);
 void CallStaticSetup(DDukeActor* actor);
 void CallPlayFTASound(DDukeActor* actor, int mode = 0);
-void CallStandingOn(DDukeActor* actor, player_struct* p);
+void CallStandingOn(DDukeActor* actor, DDukePlayer* p);
 void CallRunState(DDukeActor* actor);
-int CallTriggerSwitch(DDukeActor* actor, player_struct* p);
+int CallTriggerSwitch(DDukeActor* actor, DDukePlayer* p);
 PClassActor* CallGetRadiusDamageType(DDukeActor* actor, int targhealth);
 
 

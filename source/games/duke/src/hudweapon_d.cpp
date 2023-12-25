@@ -39,9 +39,9 @@ source as it is released.
 
 BEGIN_DUKE_NS 
 
-inline static double getavel(int snum)
+inline static double getavel(DDukePlayer* const p, const double interpfrac)
 {
-	return PlayerInputAngVel(snum) * (2048. / 360.);
+	return interpolatedvalue(p->lastcmd.ucmd.ang.Yaw, p->cmd.ucmd.ang.Yaw, interpfrac).Degrees() * (2048. / 360.);
 }
 
 //---------------------------------------------------------------------------
@@ -61,7 +61,7 @@ inline static void hud_drawpal(double x, double y, const char* tilenum, int shad
 //
 //---------------------------------------------------------------------------
 
-static void displayloogie(player_struct* p, double const interpfrac)
+static void displayloogie(DDukePlayer* p, double const interpfrac)
 {
 	if (p->loogcnt == 0) return;
 
@@ -72,7 +72,7 @@ static void displayloogie(player_struct* p, double const interpfrac)
 	{
 		const double a = fabs(BobVal((loogi + i) * 32.) * 90);
 		const double z = 4096. + ((loogi + i) * 512.);
-		const double x = -getavel(p->GetPlayerNum()) + BobVal((loogi + i) * 64.) * 16;
+		const double x = -getavel(p, interpfrac) + BobVal((loogi + i) * 64.) * 16;
 
 		hud_drawsprite((p->loogie[i].X + x), (200 + p->loogie[i].Y - y), (z - (i << 8)) / 65536., a - 22.5, TexMan.CheckForTexture("LOOGIE", ETextureType::Any), 0, 0, 0);
 	}
@@ -84,7 +84,7 @@ static void displayloogie(player_struct* p, double const interpfrac)
 //
 //---------------------------------------------------------------------------
 
-static bool animatefist(int gs, player_struct* p, double xoffset, double yoffset, int fistpal, double const interpfrac)
+static bool animatefist(int gs, DDukePlayer* p, double xoffset, double yoffset, int fistpal, double const interpfrac)
 {
 	const double fisti = min(interpolatedvalue<double>(p->ofist_incs, p->fist_incs, interpfrac), 32.);
 	if (fisti <= 0) return false;
@@ -103,7 +103,7 @@ static bool animatefist(int gs, player_struct* p, double xoffset, double yoffset
 //
 //---------------------------------------------------------------------------
 
-static bool animateknee(int gs, player_struct* p, double xoffset, double yoffset, int pal, double const interpfrac, DAngle angle)
+static bool animateknee(int gs, DDukePlayer* p, double xoffset, double yoffset, int pal, double const interpfrac, DAngle angle)
 {
 	if (p->knee_incs > 11 || p->knee_incs == 0 || p->GetActor()->spr.extra <= 0) return false;
 
@@ -121,7 +121,7 @@ static bool animateknee(int gs, player_struct* p, double xoffset, double yoffset
 //
 //---------------------------------------------------------------------------
 
-static bool animateknuckles(int gs, player_struct* p, double xoffset, double yoffset, int pal, DAngle angle)
+static bool animateknuckles(int gs, DDukePlayer* p, double xoffset, double yoffset, int pal, DAngle angle)
 {
 	if (isWW2GI() || p->over_shoulder_on != 0 || p->knuckle_incs == 0 || p->GetActor()->spr.extra <= 0) return false;
 	static const char* const frames[] = { "CRACKKNUCKLES0", "CRACKKNUCKLES1", "CRACKKNUCKLES2", "CRACKKNUCKLES3" };
@@ -139,16 +139,16 @@ static bool animateknuckles(int gs, player_struct* p, double xoffset, double yof
 //
 //---------------------------------------------------------------------------
 
-void displaymasks_d(int snum, int p, double interpfrac)
+void displaymasks_d(DDukePlayer* const p, int pal, double interpfrac)
 {
-	if (ps[snum].scuba_on)
+	if (p->scuba_on)
 	{
 		auto scuba0 = TexMan.CheckForTexture("SCUBAMASK", ETextureType::Any);
 		auto tex0 = TexMan.GetGameTexture(scuba0);
 
 		double y = 200 - tex0->GetDisplayHeight();
-		hud_drawsprite(44, y, 1., 0, scuba0, 0, p, 2 + 16);
-		hud_drawsprite((320 - 43), y, 1, 0, scuba0, 0, p, 2 + 4 + 16);
+		hud_drawsprite(44, y, 1., 0, scuba0, 0, pal, 2 + 16);
+		hud_drawsprite((320 - 43), y, 1, 0, scuba0, 0, pal, 2 + 4 + 16);
 	}
 }
 
@@ -158,7 +158,7 @@ void displaymasks_d(int snum, int p, double interpfrac)
 //
 //---------------------------------------------------------------------------
 
-static bool animatetip(int gs, player_struct* p, double xoffset, double yoffset, int pal, double const interpfrac, DAngle angle)
+static bool animatetip(int gs, DDukePlayer* p, double xoffset, double yoffset, int pal, double const interpfrac, DAngle angle)
 {
 	if (p->tipincs == 0) return false;
 
@@ -177,7 +177,7 @@ static bool animatetip(int gs, player_struct* p, double xoffset, double yoffset,
 //
 //---------------------------------------------------------------------------
 
-static bool animateaccess(int gs, player_struct* p, double xoffset, double yoffset, double const interpfrac, DAngle angle)
+static bool animateaccess(int gs, DDukePlayer* p, double xoffset, double yoffset, double const interpfrac, DAngle angle)
 {
 	if (p->access_incs == 0 || p->GetActor()->spr.extra <= 0) return false;
 
@@ -201,10 +201,10 @@ static bool animateaccess(int gs, player_struct* p, double xoffset, double yoffs
 //
 //---------------------------------------------------------------------------
 
-void animateshrunken(player_struct* p, double xoffset, double yoffset, int8_t shade, int o, double interpfrac)
+void animateshrunken(DDukePlayer* p, double xoffset, double yoffset, int8_t shade, int o, double interpfrac)
 {
 	const double fistsign = BobVal(interpolatedvalue<double>(p->ofistsign, p->fistsign, interpfrac)) * 16;
-	int pal = ps[screenpeek].cursector->floorpal;
+	int pal = getPlayer(screenpeek)->cursector->floorpal;
 	if (p->jetpack_on == 0)	yoffset += 32 - (p->GetActor()->vel.X * 8);
 	hud_drawpal(250 + fistsign + xoffset, 258 - fabs(fistsign * 4) + yoffset, "FIST", shade, o, pal, nullAngle);
 	hud_drawpal(40 - fistsign + xoffset, 200 + fabs(fistsign * 4) + yoffset, "FIST", shade, o | 4, pal, nullAngle);
@@ -217,12 +217,12 @@ void animateshrunken(player_struct* p, double xoffset, double yoffset, int8_t sh
 //
 //---------------------------------------------------------------------------
 
-void displayweapon_d(int snum, double interpfrac)
+void displayweapon_d(DDukePlayer* const p, double interpfrac)
 {
 	int pal, pal2;
-	player_struct* p = &ps[snum];
+	const auto pact = p->GetActor();
 
-	if (p->newOwner != nullptr || ud.cameraactor != nullptr || p->over_shoulder_on > 0 || (p->GetActor()->spr.pal != 1 && p->GetActor()->spr.extra <= 0))
+	if (p->newOwner != nullptr || ud.cameraactor != nullptr || p->over_shoulder_on > 0 || (pact->spr.pal != 1 && pact->spr.extra <= 0))
 		return;
 
 	double weapon_sway, gun_pos, kickback_pic, random_club_frame, hard_landing;
@@ -247,17 +247,17 @@ void displayweapon_d(int snum, double interpfrac)
 	}
 
 	hard_landing *= 8.;
-	gun_pos -= fabs(p->GetActor()->spr.scale.X < 0.5 ? BobVal(weapon_sway * 4.) * 32 : BobVal(weapon_sway * 0.5) * 16) + hard_landing;
+	gun_pos -= fabs(pact->spr.scale.X < 0.5 ? BobVal(weapon_sway * 4.) * 32 : BobVal(weapon_sway * 0.5) * 16) + hard_landing;
 
-	auto offpair = p->Angles.getWeaponOffsets(interpfrac);
+	auto offpair = p->getWeaponOffsets(interpfrac);
 	auto offsets = offpair.first;
-	auto pitchoffset = 16. * (p->Angles.getRenderAngles(interpfrac).Pitch / DAngle90);
-	auto yawinput = getavel(snum) * (1. / 16.);
+	auto pitchoffset = 16. * (p->getRenderAngles(interpfrac).Pitch / DAngle90);
+	auto yawinput = getavel(p, interpfrac) * (1. / 16.);
 	auto angle = offpair.second;
 	auto weapon_xoffset = 160 - 90 - (BobVal(512 + weapon_sway * 0.5) * (16384. / 1536.)) - 58 - p->weapon_ang;
-	auto shade = min(p->GetActor()->spr.shade, (int8_t)24);
+	auto shade = min(pact->spr.shade, (int8_t)24);
 
-	pal2 = pal = !p->insector() ? 0 : p->GetActor()->spr.pal == 1 ? 1 : p->cursector->floorpal;
+	pal2 = pal = !p->insector() ? 0 : pact->spr.pal == 1 ? 1 : p->cursector->floorpal;
 	if (pal2 == 0) pal2 = p->palookup;
 
 	auto animoffs = offsets + DVector2(yawinput, -hard_landing + pitchoffset);
@@ -277,7 +277,7 @@ void displayweapon_d(int snum, double interpfrac)
 	offsets.Y -= gun_pos;
 
 	int cw = p->last_weapon >= 0 ? p->last_weapon : p->curr_weapon;
-	if (isWW2GI()) cw = aplWeaponWorksLike(cw, snum);
+	if (isWW2GI()) cw = aplWeaponWorksLike(cw, p);
 
 	// onevent should go here..
 	// rest of code should be moved to CON..
@@ -295,7 +295,7 @@ void displayweapon_d(int snum, double interpfrac)
 		}
 	}
 
-	if (p->GetActor()->spr.scale.X < 0.625)
+	if (pact->spr.scale.X < 0.625)
 	{
 		//shrunken..
 		animateshrunken(p, offsets.X, offsets.Y + gun_pos, shade, o, interpfrac);
@@ -305,9 +305,9 @@ void displayweapon_d(int snum, double interpfrac)
 		int weapTotalTime = 0, weapFireDelay = 0, weapReload = 0;
 		if (isWW2GI())
 		{
-			weapTotalTime = aplWeaponTotalTime(p->curr_weapon, snum);
-			weapFireDelay = aplWeaponFireDelay(p->curr_weapon, snum);
-			weapReload = aplWeaponReload(p->curr_weapon, snum);
+			weapTotalTime = aplWeaponTotalTime(p->curr_weapon, p);
+			weapFireDelay = aplWeaponFireDelay(p->curr_weapon, p);
+			weapReload = aplWeaponReload(p->curr_weapon, p);
 		}
 
 		//---------------------------------------------------------------------------
@@ -411,7 +411,7 @@ void displayweapon_d(int snum, double interpfrac)
 			if (*kb > 0)
 				offsets.Y += BobVal(kickback_pic * 128.) * 4;
 
-			if (*kb > 0 && p->GetActor()->spr.pal != 1)
+			if (*kb > 0 && pact->spr.pal != 1)
 				offsets.X += 1 - (rand() & 3);
 
 			const char* pic = "SHOTGUN";
@@ -519,7 +519,7 @@ void displayweapon_d(int snum, double interpfrac)
 			if (*kb > 0)
 				offsets.Y += BobVal(kickback_pic * 128.) * 4;
 
-			if (*kb > 0 && p->GetActor()->spr.pal != 1)
+			if (*kb > 0 && pact->spr.pal != 1)
 				offsets.X += 1 - (rand() & 3);
 
 			if (*kb == 0)
@@ -592,7 +592,7 @@ void displayweapon_d(int snum, double interpfrac)
 			if (*kb > 0)
 				offsets.Y += BobVal(kickback_pic * 128.) * 4;
 
-			if (*kb > 0 && p->GetActor()->spr.pal != 1)
+			if (*kb > 0 && pact->spr.pal != 1)
 				offsets.X += 1 - (rand() & 3);
 
 			hud_drawpal(168 + offsets.X, 260 + offsets.Y, "CHAINGUN", shade, o, pal, angle);
@@ -605,10 +605,10 @@ void displayweapon_d(int snum, double interpfrac)
 				default:
 					if (*kb > 4 && *kb < 12)
 					{
-						auto rnd = p->GetActor()->spr.pal != 1 ? rand() & 7 : 0;
+						auto rnd = pact->spr.pal != 1 ? rand() & 7 : 0;
 						hud_drawpal(136 + offsets.X + rnd, 208 + offsets.Y + rnd - (kickback_pic * 0.5), flashframes[((*kb - 4) / 5)], shade, o, pal, angle);
 
-						if (p->GetActor()->spr.pal != 1) rnd = rand() & 7;
+						if (pact->spr.pal != 1) rnd = rand() & 7;
 						hud_drawpal(180 + offsets.X + rnd, 208 + offsets.Y + rnd - (kickback_pic * 0.5), flashframes[((*kb - 4) / 5)], shade, o, pal, angle);
 					}
 
@@ -841,7 +841,7 @@ void displayweapon_d(int snum, double interpfrac)
 				static const char* const cat[] = { "FREEZECAT0", "FREEZECAT1", "FREEZECAT2" };
 				static constexpr uint8_t cat_frames[] = { 0,0,1,1,2,2 };
 
-				if (p->GetActor()->spr.pal != 1)
+				if (pact->spr.pal != 1)
 				{
 					offsets.X += rand() & 3;
 					offsets.Y += rand() & 3;
@@ -887,7 +887,7 @@ void displayweapon_d(int snum, double interpfrac)
 			else
 			{
 				// the 'active' display.
-				if (p->GetActor()->spr.pal != 1)
+				if (pact->spr.pal != 1)
 				{
 					offsets.X += rand() & 3;
 					offsets.Y -= rand() & 3;
@@ -937,7 +937,7 @@ void displayweapon_d(int snum, double interpfrac)
 			}
 			else
 			{
-				if (p->GetActor()->spr.pal != 1)
+				if (pact->spr.pal != 1)
 				{
 					offsets.X += rand() & 3;
 					offsets.Y -= rand() & 3;
@@ -987,7 +987,7 @@ void displayweapon_d(int snum, double interpfrac)
 			}
 			else
 			{
-				if (p->GetActor()->spr.pal != 1)
+				if (pact->spr.pal != 1)
 				{
 					offsets.X += rand() & 3;
 					offsets.Y -= rand() & 3;
@@ -1016,7 +1016,7 @@ void displayweapon_d(int snum, double interpfrac)
 			}
 			else
 			{
-				if (p->GetActor()->spr.pal != 1)
+				if (pact->spr.pal != 1)
 				{
 					offsets.X += rand() & 3;
 					offsets.Y -= rand() & 3;
@@ -1045,7 +1045,7 @@ void displayweapon_d(int snum, double interpfrac)
 				static const char* const cat[] = { "FLAMETHROWERCAT0", "FLAMETHROWERCAT1", "FLAMETHROWERCAT2" };
 				static constexpr uint8_t cat_frames[] = { 0, 0, 1, 1, 2, 2 };
 
-				if (p->GetActor()->spr.pal != 1)
+				if (pact->spr.pal != 1)
 				{
 					offsets.X += krand() & 1;
 					offsets.Y += krand() & 1;

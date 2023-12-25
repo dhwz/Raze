@@ -37,6 +37,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "texinfo.h"
 #include "player.h"
 #include "texids.h"
+#include "mapinfo.h"
 
 BEGIN_PS_NS
 
@@ -90,8 +91,8 @@ void InitEnergyTile();
 
 void setvalidpic(DExhumedActor* actor)
 {
-    // all we want here is setting it to something that passes renderer validation. This is never used to draw the sprite.
-    actor->spr.setspritetexture(aTexIds[kTexTorch1]);
+    // gross hack from the original game. :(
+    actor->spr.setspritetexture(aTexIds[kTexOne]);
 }
 
 extern int EndLevel;
@@ -106,8 +107,6 @@ extern int nNetPlayerCount;
 extern int nNetTime;
 
 extern int nTotalPlayers;
-
-extern int nCreaturesTotal, nCreaturesKilled;
 
 extern int lLocalButtons;
 
@@ -194,8 +193,6 @@ public:
 };
 
 
-extern char g_modDir[BMAX_PATH];
-
 void G_LoadGroupsInDir(const char* dirname);
 void G_DoAutoload(const char* dirname);
 void DrawRel(FGameTexture* tile, double x, double y, int shade = 0);
@@ -237,15 +234,10 @@ struct GameInterface : public ::GameInterface
     bool DrawAutomapPlayer(const DVector2& mxy, const DVector2& cpos, const DAngle cang, const DVector2& xydim, const double czoom, double const interpfrac) override;
     DAngle playerPitchMin() override { return DAngle::fromDeg(49.5); }
     DAngle playerPitchMax() override { return DAngle::fromDeg(-49.5); }
-    DCoreActor* getConsoleActor() override { return PlayerList[nLocalPlayer].pActor; }
     void ToggleThirdPerson() override;
     void processSprites(tspriteArray& tsprites, const DVector3& view, DAngle viewang, double interpfrac) override;
     int GetCurrentSkill() override;
     void StartSoundEngine() override;
-    void reapplyInputBits(InputPacket* const input) override { input->actions |= PlayerList[nLocalPlayer].input.actions & SB_CENTERVIEW; }
-    void doPlayerMovement(const float scaleAdjust) override { gameInput.processMovement(&PlayerList[nLocalPlayer].Angles, scaleAdjust); }
-
-	::GameStats getStats() override;
 };
 
 

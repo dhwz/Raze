@@ -15,7 +15,7 @@ static void OutputJitLog(const asmjit::StringLogger &logger);
 JitFuncPtr JitCompile(VMScriptFunction *sfunc)
 {
 #if 0
-	if (strcmp(sfunc->PrintableName.GetChars(), "StatusScreen.drawNum") != 0)
+	if (strcmp(sfunc->PrintableName, "StatusScreen.drawNum") != 0)
 		return nullptr;
 #endif
 
@@ -44,6 +44,13 @@ void JitDumpLog(FILE *file, VMScriptFunction *sfunc)
 {
 	using namespace asmjit;
 	StringLogger logger;
+
+	if(sfunc->VarFlags & VARF_Abstract)
+	{
+		// Printf(TEXTCOLOR_ORANGE "Skipping abstract function during JIT dump: %s\n", sfunc->PrintableName.GetChars());
+		return;
+	}
+
 	try
 	{
 		ThrowingErrorHandler errorHandler;

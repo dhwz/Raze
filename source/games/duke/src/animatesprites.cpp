@@ -48,8 +48,9 @@ void drawshadows(tspriteArray& tsprites, tspritetype* t, DDukeActor* h)
 		else
 			floorz = h->floorz;
 
+		const auto spactpos = getPlayer(screenpeek)->GetActor()->getPosWithOffsetZ();
 
-		if (h->spr.pos.Z - floorz < 8 && ps[screenpeek].GetActor()->getOffsetZ() < floorz)
+		if (h->spr.pos.Z - floorz < 8 && spactpos.Z < floorz)
 		{
 			auto shadowspr = tsprites.newTSprite();
 			*shadowspr = *t;
@@ -74,7 +75,7 @@ void drawshadows(tspriteArray& tsprites, tspritetype* t, DDukeActor* h)
 			else
 			{
 				// Alter the shadow's position so that it appears behind the sprite itself.
-				auto look = (shadowspr->pos.XY() - ps[screenpeek].GetActor()->spr.pos.XY()).Angle();
+				auto look = (shadowspr->pos.XY() - spactpos.XY()).Angle();
 				shadowspr->pos.XY() += look.ToVector() * 2;
 			}
 		}
@@ -212,8 +213,16 @@ void applyanimations(tspritetype* t, DDukeActor* h, const DVector2& viewVec, DAn
 			if (h->dispictex.isValid())
 				h->dispictex = t->spritetexture();
 		}
-		else if (display_mirror == 1)
-			t->cstat |= CSTAT_SPRITE_XFLIP;
+
+		if (h->flags4 & SFLAG4_FLASHFRAME0)
+		{
+			if (t->spritetexture() == h->spr.spritetexture())
+			{
+				getPlayer(screenpeek)->visibility = -127;
+				lastvisinc = PlayClock + 32;
+			}
+		}
+
 	}
 }
 END_DUKE_NS

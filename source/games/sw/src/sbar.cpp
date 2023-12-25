@@ -84,17 +84,12 @@ void UpdateStatusBar()
     }
 
     SummaryInfo info{};
-    info.kills = Player[screenpeek].Kills;
-    info.maxkills = TotalKillable;
-    info.secrets = Player[screenpeek].SecretsFound;
-    info.maxsecrets = LevelSecrets;
-    info.time = Scale(PlayClock, 1000, 120);
-	info.totaltime = STAT_GetTotalTime();
+    Level.fillSummary(info);
 
     ::UpdateStatusBar(&info);
 
 
-    PLAYER* pp = &Player[screenpeek];
+    DSWPlayer* pp = getPlayer(screenpeek);
     if (pp->cookieTime > 0)
     {
         const int MESSAGE_LINE = 142;    // Used to be 164

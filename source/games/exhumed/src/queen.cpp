@@ -312,7 +312,7 @@ void DestroyAllEggs()
 
 void SetHeadVel(DExhumedActor* pActor)
 {
-	pActor->vel.XY() = pActor->spr.Angles.Yaw.ToVector() * 1024 * (1 << nVelShift);
+	pActor->vel.XY() = pActor->spr.Angles.Yaw.ToVector() * (1 << nVelShift);
 }
 
 //---------------------------------------------------------------------------
@@ -372,7 +372,7 @@ Collision QueenAngleChase(DExhumedActor* pActor, DExhumedActor* pActor2, int thr
 
     double zz = pActor->pitch.Sin() * veclen;
 
-    return movesprite(pActor, vec, zz * 16 + BobVal(PlayerList[GetPlayerFromActor(pActor)].nWeapBob) * 2, 0, CLIPMASK1);
+    return movesprite(pActor, vec, zz * 16 + BobVal(getPlayer(GetPlayerFromActor(pActor))->nWeapBob) * 2, 0, CLIPMASK1);
 }
 
 //---------------------------------------------------------------------------
@@ -476,13 +476,13 @@ void BuildQueenEgg(int nQueen, int nVal)
     pActor2->spr.yoffset = 0;
     pActor2->spr.shade = -12;
     setvalidpic(pActor2);
-    pActor2->spr.Angles.Yaw = pActor->spr.Angles.Yaw + RandomAngle9() - DAngle45;
+    pActor2->spr.Angles.Yaw = (pActor->spr.Angles.Yaw + RandomAngle9() - DAngle45).Normalized360();
     pActor2->backuppos();
 
     if (!nVal)
     {
 		pActor2->spr.scale = DVector2(0.46875, 0.46875);
-		pActor2->vel.XY() = pActor2->spr.Angles.Yaw.ToVector() * 1024;
+		pActor2->vel.XY() = pActor2->spr.Angles.Yaw.ToVector();
         pActor2->vel.Z = -6000 / 256.;
         pActor2->spr.cstat = 0;
     }
@@ -563,10 +563,7 @@ void AIQueenEgg::Tick(RunListEvent* ev)
             bVal = true;
         }
 
-        DExhumedActor* enemy = pEgg->pActor;
-        pTarget = UpdateEnemy(&enemy);
-        pEgg->pActor = enemy;
-        pEgg->pTarget = pTarget;
+        pTarget = UpdateEnemy(pEgg->pTarget);
 
         if (pTarget && (pTarget->spr.cstat & CSTAT_SPRITE_BLOCK_ALL) == 0)
         {
@@ -616,7 +613,7 @@ void AIQueenEgg::Tick(RunListEvent* ev)
             }
 
             pActor->spr.Angles.Yaw = nAngle;
-			pActor->vel.XY() = pActor->spr.Angles.Yaw.ToVector() * 512;
+			pActor->vel.XY() = pActor->spr.Angles.Yaw.ToVector() * 0.5;
         }
 
         break;
@@ -647,7 +644,7 @@ void AIQueenEgg::Tick(RunListEvent* ev)
             }
             [[fallthrough]];
         case kHitWall:
-            pActor->spr.Angles.Yaw = DAngle45 + DAngle90 + RandomAngle9();
+            pActor->spr.Angles.Yaw = (pActor->spr.Angles.Yaw + DAngle45 + DAngle90 + RandomAngle9()).Normalized360();
             pActor->VelFromAngle(-3);
             pActor->vel.Z = (-RandomSize(5)) / 256.;
             break;
@@ -734,6 +731,7 @@ void AIQueenEgg::Draw(RunListEvent* ev)
     const auto nEgg = RunData[ev->nRun].nObjIndex;
     const auto pEgg = &QueenEgg[nEgg];
     const auto eggSeq = &EggSeq[pEgg->nAction];
+    if (pEgg->pActor == nullptr) return;
     seq_PlotSequence(ev->nParam, pEgg->pActor->nSeqFile, eggSeq->nSeqId, pEgg->nFrame, eggSeq->nFlags);
 }
 
@@ -1210,7 +1208,7 @@ void BuildQueen(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector,
 
     runlist_AddRunRec(NewRun, nQueen, 0x1A0000);
 
-    nCreaturesTotal++;
+    Level.addKillCount();
 }
 
 void SetQueenSpeed(DExhumedActor* pActor, int nSpeed)
@@ -1549,7 +1547,7 @@ void AIQueen::Damage(RunListEvent* ev)
                 QueenList[nQueen].nHealth = 0;
                 QueenList[nQueen].nIndex = 5;
 
-                nCreaturesKilled++;
+                Level.addKill(-1);
                 break;
             }
 

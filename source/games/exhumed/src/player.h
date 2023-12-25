@@ -23,13 +23,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 BEGIN_PS_NS
 
-void SetSavePoint(int nPlayer, const DVector3& pos, sectortype* pSector, DAngle nAngle);
-void InitPlayer();
-void InitPlayerKeys(int nPlayer);
-int GrabPlayer();
-void InitPlayerInventory(int nPlayer);
-void RestartPlayer(int nPlayer);
-
 enum
 {
 	kMaxPlayers			= 8,
@@ -47,9 +40,21 @@ struct PlayerSave
     DAngle nAngle;
 };
 
-struct Player
+class DExhumedPlayer final : public DCorePlayer
 {
-    DExhumedActor* pActor;
+    DECLARE_CLASS(DExhumedPlayer, DCorePlayer)
+    HAS_OBJECT_POINTERS
+    DExhumedPlayer() = default;
+public:
+    DExhumedPlayer(uint8_t p) : DCorePlayer(p) {}
+    void Serialize(FSerializer& arc) override;
+    void Clear()
+    {
+        Super::Clear();
+        // Quick'n dirty clear
+        memset(&nHealth, 0, sizeof(DExhumedPlayer) - myoffsetof(DExhumedPlayer, nHealth));
+    }
+
     int16_t nHealth;
     int16_t nLives;
     int16_t nDouble;
@@ -73,8 +78,6 @@ struct Player
     int16_t nLastWeapon;
     int16_t nRun;
 
-    InputPacket input;
-    PlayerAngles Angles;
     sectortype* pPlayerPushSect;
     sectortype* pPlayerViewSect;
 
@@ -92,7 +95,6 @@ struct Player
     uint16_t nPlayerWeapons; // each set bit represents a weapon the player has
     int16_t dVertPan;
     double nQuake;
-    uint8_t nPlayer;
     int16_t nTemperature;
     double nStandHeight;
     PlayerSave sPlayerSave;
@@ -103,7 +105,7 @@ struct Player
     double nIdxBobZ;
     double nPrevWeapBob;
     double nWeapBob;
-    bool crouch_toggle;
+    bool bUnderwater;
     bool bTouchFloor;
     bool bJumping;
     bool bRebound;
@@ -112,26 +114,49 @@ struct Player
     TObjPtr<DExhumedActor*> pDoppleSprite;
     TObjPtr<DExhumedActor*> pTarget;
 
+    inline DExhumedActor* GetActor() override
+    {
+        return static_cast<DExhumedActor*>(actor);
+    }
+
+    double GetMaxInputVel() const override
+    {
+        return 15.25;
+    }
+
+    unsigned getCrouchFlags() const override
+    {
+        return (CS_CANCROUCH * !bUnderwater) | (CS_DISABLETOGGLE * bUnderwater);
+    }
 };
 
 extern int PlayerCount;
 
-extern Player PlayerList[kMaxPlayers];
+inline DExhumedPlayer* getPlayer(int index)
+{
+    return static_cast<DExhumedPlayer*>(PlayerArray[index]);
+}
 
 extern TObjPtr<DExhumedActor*> nNetStartSprite[kMaxPlayers];
 extern int nNetStartSprites;
 extern int nCurStartSprite;
 
+void SetSavePoint(DExhumedPlayer* const pPlayer, const DVector3& pos, sectortype* pSector, DAngle nAngle);
+void InitPlayer();
+void InitPlayerKeys(DExhumedPlayer* const pPlayer);
+int GrabPlayer();
+void InitPlayerInventory(DExhumedPlayer* const pPlayer);
+void RestartPlayer(DExhumedPlayer* const pPlayer);
 int GetPlayerFromActor(DExhumedActor* actor);
-void SetPlayerMummified(int nPlayer, int bIsMummified);
-int AddAmmo(int nPlayer, int nWeapon, int nAmmoAmount);
-void ShootStaff(int nPlayer);
-void updatePlayerTarget(Player* const pPlayer);
+void SetPlayerMummified(DExhumedPlayer* const pPlayer, int bIsMummified);
+int AddAmmo(DExhumedPlayer* const pPlayer, int nWeapon, int nAmmoAmount);
+void ShootStaff(DExhumedPlayer* const pPlayer);
+void updatePlayerTarget(DExhumedPlayer* const pPlayer);
 
-inline void doPlayerVertPanning(Player* const pPlayer, const double nDestVertPan)
+inline void doPlayerVertPanning(DExhumedPlayer* const pPlayer, const double nDestVertPan)
 {
-    const auto nVertPan = (nDestVertPan - pPlayer->Angles.ViewAngles.Pitch.Tan() * 128) * 0.25;
-    pPlayer->Angles.ViewAngles.Pitch += maphoriz(abs(nVertPan) >= 4 ? Sgn(nVertPan) * 4. : nVertPan * 2.);
+    const auto nVertPan = (nDestVertPan - pPlayer->ViewAngles.Pitch.Tan() * 128) * 0.25;
+    pPlayer->ViewAngles.Pitch += maphoriz(abs(nVertPan) >= 4 ? Sgn(nVertPan) * 4. : nVertPan * 2.);
 }
 
 END_PS_NS

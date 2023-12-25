@@ -1,13 +1,12 @@
 //-------------------------------------------------------------------------
 /*
-Copyright (C) 2010-2019 EDuke32 developers and contributors
-Copyright (C) 2019 Nuke.YKT
+Copyright (C) 2020-2022 Christoph Oelckers
 
-This file is part of NBlood.
+This file is part of Raze
 
-NBlood is free software; you can redistribute it and/or
+Raze is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License version 2
-as published by the Free Software Foundation.
+of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -15,11 +14,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 //-------------------------------------------------------------------------
+
 #include "ns.h"	// Must come before everything else!
 
 #include <string.h>
@@ -33,7 +30,6 @@ class BloodSoundEngine : public RazeSoundEngine
 {
 	// client specific parts of the sound engine go in this class.
 	void CalcPosVel(int type, const void* source, const float pt[3], int channum, int chanflags, FSoundID chanSound, FVector3* pos, FVector3* vel, FSoundChan* channel) override;
-	TArray<uint8_t> ReadSound(int lumpnum) override;
 
 public:
 	BloodSoundEngine()
@@ -63,20 +59,14 @@ public:
 // 
 //==========================================================================
 
-TArray<uint8_t> BloodSoundEngine::ReadSound(int lumpnum)
-{
-	auto wlump = fileSystem.OpenFileReader(lumpnum);
-	return wlump.Read();
-}
-
 void BloodSoundEngine::CalcPosVel(int type, const void* source, const float pt[3], int channum, int chanflags, FSoundID chanSound, FVector3* pos, FVector3* vel, FSoundChan*)
 {
 	if (pos != nullptr && type != SOURCE_None)
 	{
-		PLAYER* pPlayer = &gPlayer[myconnectindex];
+		DBloodPlayer* pPlayer = getPlayer(myconnectindex);
 		FVector3 camera;
 
-		if (pPlayer && pPlayer->actor) camera = GetSoundPos(pPlayer->actor->spr.pos);
+		if (pPlayer && pPlayer->GetActor()) camera = GetSoundPos(pPlayer->GetActor()->spr.pos);
 		else camera = { 0, 0, 0 }; // don't crash if there is no player.
 
 		if (vel) vel->Zero();
@@ -115,14 +105,14 @@ void BloodSoundEngine::CalcPosVel(int type, const void* source, const float pt[3
 
 void GameInterface::UpdateSounds()
 {
-	PLAYER* pPlayer = &gPlayer[myconnectindex];
+	DBloodPlayer* pPlayer = getPlayer(myconnectindex);
 	SoundListener listener;
 
-	if (pPlayer->actor)
+	if (pPlayer->GetActor())
 	{
-		listener.angle = float(-pPlayer->actor->spr.Angles.Yaw.Radians());
+		listener.angle = float(-pPlayer->GetActor()->spr.Angles.Yaw.Radians());
 		listener.velocity.Zero();
-		listener.position = GetSoundPos(pPlayer->actor->spr.pos);
+		listener.position = GetSoundPos(pPlayer->GetActor()->spr.pos);
 		listener.valid = true;
 	}
 	else
@@ -191,7 +181,7 @@ void sfxPlay3DSound(const DVector3& pos, int soundId, sectortype* pSector)
 //
 //---------------------------------------------------------------------------
 
-void sfxPlay3DSoundCP(DBloodActor* pActor, int soundId, int playchannel, int playflags, int pitch, int volume)
+void sfxPlay3DSoundVolume(DBloodActor* pActor, int soundId, int playchannel, int playflags, int pitch, int volume)
 {
 	if (!SoundEnabled() || soundId <= 0 || !pActor) return;
 	auto sid = soundEngine->FindSoundByResID(soundId);
@@ -236,7 +226,7 @@ void sfxPlay3DSoundCP(DBloodActor* pActor, int soundId, int playchannel, int pla
 
 void sfxPlay3DSound(DBloodActor* pActor, int soundId, int a3, int a4)
 {
-	sfxPlay3DSoundCP(pActor, soundId, a3, a4, -1);
+	sfxPlay3DSoundVolume(pActor, soundId, a3, a4, -1);
 }
 
 
@@ -283,22 +273,22 @@ void sfxSetReverb(bool toggle)
 {
 	if (toggle)
 	{
-		FX_SetReverb(128);
+		S_SetReverb(128);
 		FX_SetReverbDelay(10);
 	}
 	else
-		FX_SetReverb(0);
+		S_SetReverb(0);
 }
 
 void sfxSetReverb2(bool toggle)
 {
 	if (toggle)
 	{
-		FX_SetReverb(128);
+		S_SetReverb(128);
 		FX_SetReverbDelay(20);
 	}
 	else
-		FX_SetReverb(0);
+		S_SetReverb(0);
 }
 
 END_BLD_NS

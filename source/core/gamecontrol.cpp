@@ -145,7 +145,7 @@ FILE* hashfile;
 
 InputState inputState;
 int ShowStartupWindow(TArray<GrpEntry> &);
-TArray<FString> GetGameFronUserFiles();
+std::vector<std::string> GetGameFronUserFiles();
 void InitFileSystem(TArray<GrpEntry>&);
 void I_SetWindowTitle(const char* caption);
 void S_ParseSndInfo();
@@ -166,6 +166,7 @@ void HudScaleChanged();
 bool M_SetSpecialMenu(FName& menu, int param);
 void OnMenuOpen(bool makeSound);
 void DestroyAltHUD();
+void MarkPlayers();
 
 DStatusBarCore* StatusBar;
 
@@ -180,8 +181,6 @@ extern int hud_size_max;
 
 static bool sendPause;
 bool pausedWithKey;
-
-static bool gamesetinput = false;
 
 int PlayClock;
 extern int nextwipe;
@@ -358,7 +357,7 @@ void UserConfig::ProcessOptions()
 		toBeDeleted.Push("turd66.anm*turdmov.anm");
 		toBeDeleted.Push("turd66.voc*turdmov.voc");
 		toBeDeleted.Push("end66.anm*rr_outro.anm");
-		toBeDeleted.Push("end66.voc*rr_outro.voc");
+		toBeDeleted.Push("end66.voc*ln_final.voc");
 	}
 	else if (Args->CheckParm("-cryptic"))
 	{
@@ -476,7 +475,7 @@ void UserConfig::ProcessOptions()
 void CheckUserMap()
 {
 	if (userConfig.CommandMap.IsEmpty()) return;
-	if (FindMapByName(userConfig.CommandMap))
+	if (FindMapByName(userConfig.CommandMap.GetChars()))
 	{
 		return;	// we already got a record for this map so no need for further checks.
 	}
@@ -485,7 +484,7 @@ void CheckUserMap()
 	startupMap.Substitute("\\", "/");
 	NormalizeFileName(startupMap);
 
-	if (!fileSystem.FileExists(startupMap))
+	if (!fileSystem.FileExists(startupMap.GetChars()))
 	{
 		Printf(PRINT_HIGH, "Level \"%s\" not found.\n", startupMap.GetChars());
 		startupMap = "";
@@ -632,15 +631,19 @@ int GameMain()
 		r = -1;
 	}
 	//DeleteScreenJob();
-	if (gi) gi->FreeLevelData();
+	if (gi)
+	{
+		gi->FreeLevelData();
+		for (int i = 0; i < MAXPLAYERS; i++)
+		{
+			PlayerArray[i]->Destroy();
+			PlayerArray[i] = nullptr;
+		}
+	}
 	DestroyAltHUD();
 	DeinitMenus();
 	if (StatusBar) StatusBar->Destroy();
 	StatusBar = nullptr;
-	if (gi)
-	{
-		gi->FreeGameData();	// Must be done before taking down any subsystems.
-	}
 	S_StopMusic(true);
 	if (soundEngine) delete soundEngine;
 	soundEngine = nullptr;
@@ -732,7 +735,7 @@ static TArray<GrpEntry> SetupGame()
 			int g = 0;
 			for (auto& grp : groups)
 			{
-				if (grp.FileInfo.gameid.CompareNoCase(str) == 0)
+				if (grp.FileInfo.gameid.CompareNoCase(str.c_str()) == 0)
 				{
 					userConfig.gamegrp = grp.FileName;
 					groupno = g;
@@ -797,7 +800,7 @@ static TArray<GrpEntry> SetupGame()
 				for (unsigned i = 0; i < groups.Size(); ++i)
 				{
 					FString& basename = groups[i].FileInfo.name;
-					if (stricmp(basename, defaultiwad) == 0)
+					if (stricmp(basename.GetChars(), defaultiwad) == 0)
 					{
 						pick = i;
 						break;
@@ -811,7 +814,7 @@ static TArray<GrpEntry> SetupGame()
 				{
 					WadStuff stuff;
 					stuff.Name = found.FileInfo.name;
-					stuff.Path = ExtractFileBase(found.FileName);
+					stuff.Path = ExtractFileBase(found.FileName.GetChars());
 					wads.Push(stuff);
 				}
 
@@ -829,7 +832,7 @@ static TArray<GrpEntry> SetupGame()
 					autoloadbrightmaps = !!(flags & 4);
 					autoloadwidescreen = !!(flags & 8);
 					// The newly selected IWAD becomes the new default
-					defaultiwad = groups[pick].FileInfo.name;
+					defaultiwad = groups[pick].FileInfo.name.GetChars();
 				}
 				groupno = pick;
 			}
@@ -866,7 +869,7 @@ static TArray<GrpEntry> SetupGame()
 		if (ugroup.FileInfo.defname.IsNotEmpty()) selectedDef = ugroup.FileInfo.defname;
 
 		// CVAR has priority. This also overwrites the global variable each time. Init here is lazy so this is ok.
-		if (ugroup.FileInfo.rtsname.IsNotEmpty() && **rtsname == 0) RTS_Init(ugroup.FileInfo.rtsname);
+		if (ugroup.FileInfo.rtsname.IsNotEmpty() && **rtsname == 0) RTS_Init(ugroup.FileInfo.rtsname.GetChars());
 
 		// For the game filter the last non-empty one wins.
 		if (ugroup.FileInfo.gamefilter.IsNotEmpty()) LumpFilter = ugroup.FileInfo.gamefilter;
@@ -1038,7 +1041,7 @@ int RunGame()
 
 	if (logfile.IsNotEmpty())
 	{
-		execLogfile(logfile);
+		execLogfile(logfile.GetChars());
 	}
 	I_DetectOS();
 	userConfig.ProcessOptions();
@@ -1084,12 +1087,16 @@ int RunGame()
 		cl_weaponswitch->SetGenericRepDefault(1, CVAR_Int);
 		if (cl_weaponswitch > 1) cl_weaponswitch = 1;
 	}
+	if (isExhumed())
+	{
+		cl_viewbob->SetGenericRepDefault(0, CVAR_Int);	// Exhumed never had this feature, make it optional.
+	}
 	if (g_gameType & (GAMEFLAG_BLOOD|GAMEFLAG_RR))
 	{
 		am_nameontop->SetGenericRepDefault(true, CVAR_Bool);	// Blood and RR show the map name on the top of the screen by default.
 	}
 
-	G_ReadConfig(currentGame);
+	G_ReadConfig(currentGame.GetChars());
 
 	V_InitFontColors();
 	InitLanguages();
@@ -1112,7 +1119,7 @@ int RunGame()
 
 	if (userConfig.CommandName.IsNotEmpty())
 	{
-		playername = userConfig.CommandName;
+		playername = userConfig.CommandName.GetChars();
 	}
 	GameTicRate = 30;
 	CheckUserMap();
@@ -1146,6 +1153,7 @@ int RunGame()
 	StartWindow->Progress();
 
 	GC::AddMarkerFunc(MarkMap);
+	GC::AddMarkerFunc(MarkPlayers);
 	gi->app_init();
 	StartWindow->Progress();
 	G_ParseMapInfo();
@@ -1309,7 +1317,7 @@ FString G_GetDemoPath()
 	FString path = M_GetDemoPath();
 
 	path << LumpFilter << '/';
-	CreatePath(path);
+	CreatePath(path.GetChars());
 
 	return path;
 }
@@ -1519,26 +1527,11 @@ DEFINE_ACTION_FUNCTION_NATIVE(_Raze, GetBuildTime, I_GetBuildTime)
 	ACTION_RETURN_INT(I_GetBuildTime());
 }
 
-bool SyncInput()
-{
-	return gamesetinput || cl_syncinput || cl_capfps;
-}
-
-void setForcedSyncInput(const int playeridx)
-{
-	if (playeridx == myconnectindex) gamesetinput = true;
-}
-
-void resetForcedSyncInput()
-{
-	gamesetinput = false;
-}
-
-DEFINE_ACTION_FUNCTION_NATIVE(_Raze, forceSyncInput, setForcedSyncInput)
+DEFINE_ACTION_FUNCTION(_Raze, forceSyncInput)
 {
 	PARAM_PROLOGUE;
 	PARAM_INT(playeridx);
-	setForcedSyncInput(playeridx);
+	gameInput.ForceInputSync(playeridx);
 	return 0;
 }
 
@@ -1547,7 +1540,7 @@ DEFINE_ACTION_FUNCTION(_Raze, PickTexture)
 	PARAM_PROLOGUE;
 	PARAM_INT(texid);
 	TexturePick pick;
-	if (PickTexture(TexMan.GetGameTexture(FSetTextureID(texid)), TRANSLATION(Translation_Remap, 0), pick))
+	if (PickTexture(TexMan.GetGameTexture(FSetTextureID(texid)), TRANSLATION(Translation_Remap, 0).index(), pick))
 	{
 		ACTION_RETURN_INT(pick.texture->GetID().GetIndex());
 	}
@@ -1649,7 +1642,7 @@ void I_UpdateWindowTitle()
 
 	// Strip out any color escape sequences before setting a window title
 	TArray<char> copy(titlestr.Len() + 1);
-	const char* srcp = titlestr;
+	const char* srcp = titlestr.GetChars();
 	char* dstp = copy.Data();
 
 	while (*srcp != 0)

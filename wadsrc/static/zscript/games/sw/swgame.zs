@@ -145,8 +145,9 @@ struct SW native
 }
 
 
-struct SWPlayer native
+class SWPlayer  : CorePlayer native
 {
+    native readonly SWActor actor;
     // variable that fit in the sprite or user structure
 	/*
     union
@@ -182,13 +183,10 @@ struct SWPlayer native
     SECTOR_OBJECTp sop_control; // sector object pointer
     SECTOR_OBJECTp sop_riding; // sector object pointer
 
-    struct
-    {
-        PANEL_SPRITEp Next, Prev;
-    } PanelSpriteList;
-    PANEL_SPRITEp CurWpn;
-    PANEL_SPRITEp Wpn[SW.MAX_WEAPONS];
-    PANEL_SPRITEp Chops;
+    PanelSprite PanelSpriteList;
+    PanelSprite CurWpn;
+    PanelSprite Wpn[SW.MAX_WEAPONS];
+    PanelSprite Chops;
 	*/
     native voidptr sop_remote;	// the status bar needs to check this - remove once the underlying type can be supported.
 
@@ -202,7 +200,6 @@ struct SWPlayer native
     native int friction;
     native int16 slide_ang;
     native int slide_dec;
-    native float drive_avel;
 
     native double circle_camera_ang;
     native int16 camera_check_time_delay;
@@ -216,8 +213,6 @@ struct SWPlayer native
     native double recoil_horizoff;
 
     native double RevolveDeltaAng;
-
-    native int16 pnum; // carry along the player number
 
     //native int16 LadderSector;
     native int16 JumpDuration;
@@ -263,10 +258,8 @@ struct SWPlayer native
 
     // Death stuff
     native uint16 DeathType;
-    native int16 Kills;
     //native int16 Killer;  //who killed me
     //native int16 KilledPlayer[MAX_SW_PLAYERS_REG];
-    native int16 SecretsFound;
 
     // Health
     native int16 Armor;

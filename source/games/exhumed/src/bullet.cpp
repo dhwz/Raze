@@ -391,6 +391,7 @@ MOVEEND:
                     hitactor = coll.actor();
                     goto HITSPRITE;
                 }
+                break;
             default:
                 if (coll.exbits)
                     goto HITSECT;
@@ -448,11 +449,11 @@ MOVEEND:
 HITSPRITE:
             if (pActor->spr.pal == 5 && hitactor->spr.statnum == 100)
             {
-                int nPlayer = GetPlayerFromActor(hitactor);
-                if (!PlayerList[nPlayer].bIsMummified)
+                const auto pPlayer = getPlayer(GetPlayerFromActor(hitactor));
+                if (!pPlayer->bIsMummified)
                 {
-                    PlayerList[nPlayer].bIsMummified = true;
-                    SetNewWeapon(nPlayer, kWeaponMummified);
+                    pPlayer->bIsMummified = true;
+                    SetNewWeapon(pPlayer, kWeaponMummified);
                 }
             }
             else
@@ -598,7 +599,7 @@ DExhumedActor* BuildBullet(DExhumedActor* pActor, int nType, double fZOffset, DA
 
     if (pActor->spr.statnum == 100)
     {
-        pSector = PlayerList[GetPlayerFromActor(pActor)].pPlayerViewSect;
+        pSector = getPlayer(GetPlayerFromActor(pActor))->pPlayerViewSect;
     }
     else
     {

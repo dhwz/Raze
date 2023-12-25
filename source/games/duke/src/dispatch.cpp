@@ -32,31 +32,29 @@ BEGIN_DUKE_NS
 //
 //---------------------------------------------------------------------------
 
-bool checkaccessswitch_d(int snum, int pal, DDukeActor *act, walltype* w);
-bool checkaccessswitch_r(int snum, int pal, DDukeActor* act, walltype* w);
+bool checkaccessswitch_d(DDukePlayer* const p, int pal, DDukeActor *act, walltype* w);
+bool checkaccessswitch_r(DDukePlayer* const p, int pal, DDukeActor* act, walltype* w);
 void activatebysector_d(sectortype* sect, DDukeActor* j);
 void activatebysector_r(sectortype* sect, DDukeActor* j);
-void checksectors_d(int snum);
-void checksectors_r(int snum);
+void checksectors_d(DDukePlayer* const p);
+void checksectors_r(DDukePlayer* const p);
 
-void addweapon_d(player_struct* p, int weapon, bool wswitch);
-void addweapon_r(player_struct* p, int weapon, bool wswitch);
+void addweapon_d(DDukePlayer* p, int weapon, bool wswitch);
+void addweapon_r(DDukePlayer* p, int weapon, bool wswitch);
 int ifhitbyweapon_r(DDukeActor* sn);
 int ifhitbyweapon_d(DDukeActor* sn);
-void incur_damage_d(player_struct* p);
-void incur_damage_r(player_struct* p);
-void selectweapon_d(int snum, int j);
-void selectweapon_r(int snum, int j);
-int doincrements_d(player_struct* p);
-int doincrements_r(player_struct* p);
-void checkweapons_d(player_struct* p);
-void checkweapons_r(player_struct* p);
-void processinput_d(int snum);
-void processinput_r(int snum);
-void displayweapon_d(int snum, double interpfrac);
-void displayweapon_r(int snum, double interpfrac);
-void displaymasks_d(int snum, int p, double interpfrac);
-void displaymasks_r(int snum, int p, double interpfrac);
+void selectweapon_d(DDukePlayer* const p, int j);
+void selectweapon_r(DDukePlayer* const p, int j);
+int doincrements_d(DDukePlayer* p);
+int doincrements_r(DDukePlayer* p);
+void checkweapons_d(DDukePlayer* p);
+void checkweapons_r(DDukePlayer* p);
+void processinput_d(DDukePlayer* const p);
+void processinput_r(DDukePlayer* const p);
+void displayweapon_d(DDukePlayer* const p, double interpfrac);
+void displayweapon_r(DDukePlayer* const p, double interpfrac);
+void displaymasks_d(DDukePlayer* const p, int pal, double interpfrac);
+void displaymasks_r(DDukePlayer* const p, int pal, double interpfrac);
 void think_d();
 void think_r();
 void movetransports_d();
@@ -80,7 +78,6 @@ void SetDispatcher()
 		addweapon_d,
 		ifhitbyweapon_d,
 
-		incur_damage_d,
 		selectweapon_d,
 		doincrements_d,
 		checkweapons_d,
@@ -102,7 +99,6 @@ void SetDispatcher()
 		addweapon_r,
 		ifhitbyweapon_r,
 
-		incur_damage_r,
 		selectweapon_r,
 		doincrements_r,
 		checkweapons_r,

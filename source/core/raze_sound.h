@@ -24,7 +24,7 @@ inline void FX_StopAllSounds(void)
 	soundEngine->StopAllChannels();
 }
 
-void FX_SetReverb(int strength);
+void S_SetReverb(int strength);
 
 inline void FX_SetReverbDelay(int delay) 
 { 
@@ -47,4 +47,5 @@ public:
 	virtual bool SourceIsActor(FSoundChan* chan) { return chan->SourceType == SOURCE_Actor; }
 	virtual int SoundSourceIndex(FSoundChan* chan) { return 0; }
 	virtual void SetSource(FSoundChan* chan, int index) {}
+	TArray<uint8_t> ReadSound(int lumpnum) override;
 };

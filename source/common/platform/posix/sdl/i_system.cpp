@@ -51,7 +51,6 @@
 #include <asm/unistd.h>
 #include <linux/perf_event.h>
 #include <sys/mman.h>
-#include "printf.h"
 #endif
 
 #include <SDL.h>
@@ -65,11 +64,12 @@
 #include "c_cvars.h"
 #include "palutil.h"
 #include "st_start.h"
+#include "printf.h"
 
 
 #ifndef NO_GTK
 bool I_GtkAvailable ();
-int I_PickIWad_Gtk (WadStuff *wads, int numwads, bool showwin, int defaultiwad);
+int I_PickIWad_Gtk (WadStuff *wads, int numwads, bool showwin, int defaultiwad, int& autoloadflags);
 void I_ShowFatalError_Gtk(const char* errortext);
 #elif defined(__APPLE__)
 int I_PickIWad_Cocoa (WadStuff *wads, int numwads, bool showwin, int defaultiwad);
@@ -118,7 +118,7 @@ void Unix_I_FatalError(const char* errortext)
 		FString cmd;
 		cmd << "kdialog --title \"" GAMENAME " " << GetVersionString()
 			<< "\" --msgbox \"" << errortext << "\"";
-		popen(cmd, "r");
+		popen(cmd.GetChars(), "r");
 	}
 #ifndef NO_GTK
 	else if (I_GtkAvailable())
@@ -131,7 +131,7 @@ void Unix_I_FatalError(const char* errortext)
 		FString title;
 		title << GAMENAME " " << GetVersionString();
 
-		if (SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, title, errortext, NULL) < 0)
+		if (SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, title.GetChars(), errortext, NULL) < 0)
 		{
 			printf("\n%s\n", errortext);
 		}
@@ -218,20 +218,21 @@ void RedrawProgressBar(int CurPos, int MaxPos)
 	CleanProgressBar();
 	struct winsize sizeOfWindow;
 	ioctl(STDOUT_FILENO, TIOCGWINSZ, &sizeOfWindow);
+	int windowColClamped = std::min((int)sizeOfWindow.ws_col, 512);
 	double progVal = std::clamp((double)CurPos / (double)MaxPos,0.0,1.0);
-	int curProgVal = std::clamp(int(sizeOfWindow.ws_col * progVal),0,(int)sizeOfWindow.ws_col);
+	int curProgVal = std::clamp(int(windowColClamped * progVal),0,windowColClamped);
 
 	char progressBuffer[512];
 	memset(progressBuffer,'.',512);
-	progressBuffer[sizeOfWindow.ws_col - 1] = 0;
+	progressBuffer[windowColClamped - 1] = 0;
 	int lengthOfStr = 0;
 
 	while (curProgVal-- > 0)
 	{
 		progressBuffer[lengthOfStr++] = '=';
-		if (lengthOfStr >= sizeOfWindow.ws_col - 1) break;
+		if (lengthOfStr >= windowColClamped - 1) break;
 	}
-	fprintf(stdout, "\0337\033[%d;%dH\033[2K[%s\033[%d;%dH]\0338", sizeOfWindow.ws_row, 0, progressBuffer, sizeOfWindow.ws_row, sizeOfWindow.ws_col);
+	fprintf(stdout, "\0337\033[%d;%dH\033[2K[%s\033[%d;%dH]\0338", sizeOfWindow.ws_row, 0, progressBuffer, sizeOfWindow.ws_row, windowColClamped);
 	fflush(stdout);
 	ProgressBarCurPos = CurPos;
 	ProgressBarMaxPos = MaxPos;
@@ -297,7 +298,7 @@ void I_PrintStr(const char *cp)
 	if (StartWindow) RedrawProgressBar(ProgressBarCurPos,ProgressBarMaxPos);
 }
 
-int I_PickIWad (WadStuff *wads, int numwads, bool showwin, int defaultiwad, int&)
+int I_PickIWad (WadStuff *wads, int numwads, bool showwin, int defaultiwad, int& autoloadflags)
 {
 	int i;
 
@@ -316,9 +317,9 @@ int I_PickIWad (WadStuff *wads, int numwads, bool showwin, int defaultiwad, int&
 
 		for(i = 0; i < numwads; ++i)
 		{
-			const char *filepart = strrchr(wads[i].Path, '/');
+			const char *filepart = strrchr(wads[i].Path.GetChars(), '/');
 			if(filepart == NULL)
-				filepart = wads[i].Path;
+				filepart = wads[i].Path.GetChars();
 			else
 				filepart++;
 			// Menu entries are specified in "tag" "item" pairs, where when a
@@ -329,15 +330,15 @@ int I_PickIWad (WadStuff *wads, int numwads, bool showwin, int defaultiwad, int&
 
 		if(defaultiwad >= 0 && defaultiwad < numwads)
 		{
-			const char *filepart = strrchr(wads[defaultiwad].Path, '/');
+			const char *filepart = strrchr(wads[defaultiwad].Path.GetChars(), '/');
 			if(filepart == NULL)
-				filepart = wads[defaultiwad].Path;
+				filepart = wads[defaultiwad].Path.GetChars();
 			else
 				filepart++;
 			cmd.AppendFormat(" --default \"%s (%s)\"", wads[defaultiwad].Name.GetChars(), filepart);
 		}
 
-		FILE *f = popen(cmd, "r");
+		FILE *f = popen(cmd.GetChars(), "r");
 		if(f != NULL)
 		{
 			char gotstr[16];
@@ -361,7 +362,7 @@ int I_PickIWad (WadStuff *wads, int numwads, bool showwin, int defaultiwad, int&
 #ifndef NO_GTK
 	if (I_GtkAvailable())
 	{
-		return I_PickIWad_Gtk (wads, numwads, showwin, defaultiwad);
+		return I_PickIWad_Gtk (wads, numwads, showwin, defaultiwad, autoloadflags);
 	}
 #endif
 
@@ -377,9 +378,9 @@ int I_PickIWad (WadStuff *wads, int numwads, bool showwin, int defaultiwad, int&
 	printf ("Please select a game wad (or 0 to exit):\n");
 	for (i = 0; i < numwads; ++i)
 	{
-		const char *filepart = strrchr (wads[i].Path, '/');
+		const char *filepart = strrchr (wads[i].Path.GetChars(), '/');
 		if (filepart == NULL)
-			filepart = wads[i].Path;
+			filepart = wads[i].Path.GetChars();
 		else
 			filepart++;
 		printf ("%d. %s (%s)\n", i+1, wads[i].Name.GetChars(), filepart);
@@ -408,7 +409,7 @@ FString I_GetFromClipboard (bool use_primary_selection)
 
 FString I_GetCWD()
 {
-	char* curdir = get_current_dir_name();
+	char* curdir = getcwd(NULL,0);
 	if (!curdir) 
 	{
 		return "";
@@ -447,7 +448,7 @@ unsigned int I_MakeRNGSeed()
 
 void I_OpenShellFolder(const char* infolder)
 {
-	char* curdir = get_current_dir_name();
+	char* curdir = getcwd(NULL,0);
 
 	if (!chdir(infolder))
 	{

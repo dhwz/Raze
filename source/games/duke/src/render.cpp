@@ -72,7 +72,7 @@ void GameInterface::UpdateCameras(double smoothratio)
 	if (camsprite == nullptr)
 		return;
 
-	auto p = &ps[screenpeek];
+	auto p = getPlayer(screenpeek);
 	if (p->newOwner != nullptr) camsprite->SetOwner(p->newOwner);
 
 	if (camsprite->GetOwner() && (p->GetActor()->spr.pos - camsprite->spr.pos).Length() < VIEWSCREEN_ACTIVE_DISTANCE)
@@ -129,7 +129,7 @@ bool GameInterface::GetGeoEffect(GeoEffect* eff, sectortype* viewsector)
 //---------------------------------------------------------------------------
 int DrugTimer;
 
-static int getdrugmode(player_struct *p, int oyrepeat)
+static int getdrugmode(DDukePlayer *p, int oyrepeat)
 {
 	int now = I_GetBuildTime() >> 1;	// this function works on a 60 fps setup.
 	if (playrunning() && p->DrugMode > 0)
@@ -218,10 +218,10 @@ void displayrooms(int snum, double interpfrac, bool sceneonly)
 	DVector3 cpos;
 	DRotator cangles;
 
-	player_struct* p = &ps[snum];
+	DDukePlayer* p = getPlayer(snum);
 
 	// update render angles.
-	p->Angles.updateCameraAngles(interpfrac);
+	p->updateCameraAngles(interpfrac);
 
 	if (automapMode == am_full || !p->insector())
 		return;
@@ -281,7 +281,7 @@ void displayrooms(int snum, double interpfrac, bool sceneonly)
 		else
 		{
 			cpos = viewer->getRenderPos(interpfrac);
-			cangles = p->Angles.getRenderAngles(interpfrac);
+			cangles = p->getRenderAngles(interpfrac);
 		}
 
 		if (p->newOwner != nullptr)

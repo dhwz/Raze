@@ -69,24 +69,23 @@ static bool    tokenready;                     // only true if UnGetToken was ju
 
 TArray<uint8_t> LoadScriptFile(const char *filename)
 {
+    TArray<uint8_t> ret;
     FileReader fp;
 
 	if (!(fp = fileSystem.OpenFileReader(filename)).isOpen())
 	{
 		// If there's no script file, forget it.
-		return TArray<uint8_t>();
+		return ret;
 	}
 
-    auto scriptbuffer = fp.Read();
-
-    if (scriptbuffer.Size() != 0)
+    ret.Resize((unsigned)fp.GetLength() + 1);
+    if (fp.Read(ret.Data(), fp.GetLength()) < fp.GetLength())
     {
-        scriptbuffer.Push(0);
         scriptline = 1;
         endofscript = false;
         tokenready = false;
     }
-    return scriptbuffer;
+    return ret;
 }
 
 
@@ -194,12 +193,12 @@ void LoadKVXFromScript(TilesetBuildInfo& info, const char* filename)
 
     // Load the file
     auto buffer = LoadScriptFile(filename);
-    if (!buffer.Size())
+    if (!buffer.size())
     {
         return;
     }
-    script_p = (char*)buffer.Data();
-    scriptend_p = (char*)&buffer.Last();
+    script_p = (char*)buffer.data();
+    scriptend_p = (char*)&buffer.back();
 
     do
     {
@@ -652,7 +651,7 @@ void LoadCustomInfoFromScript(const char *filename)
             if (in == -1) break;
             if (name.IsNotEmpty())
             {
-                quoteMgr.InitializeQuote(QUOTE_INVENTORY + in, name);
+                quoteMgr.InitializeQuote(QUOTE_INVENTORY + in, name.GetChars());
             }
             if (amt >= 0)
             {
@@ -728,7 +727,7 @@ void LoadCustomInfoFromScript(const char *filename)
                 if (maxammo >= 0) DamageData[id].max_ammo = maxammo;
                 if (name.IsNotEmpty())
                 {
-                    quoteMgr.InitializeQuote(QUOTE_WPNFIST + in, name);
+                    quoteMgr.InitializeQuote(QUOTE_WPNFIST + in, name.GetChars());
                 }
                 if (wpickup >= 0) DamageData[id].weapon_pickup = wpickup;
             }
@@ -736,7 +735,7 @@ void LoadCustomInfoFromScript(const char *filename)
             {
                 if (ammo.IsNotEmpty())
                 {
-                    quoteMgr.InitializeQuote(QUOTE_AMMOFIST + in, ammo);
+                    quoteMgr.InitializeQuote(QUOTE_AMMOFIST + in, ammo.GetChars());
                 }
                 if (pickup >= 0) DamageData[id].ammo_pickup = pickup;
             }

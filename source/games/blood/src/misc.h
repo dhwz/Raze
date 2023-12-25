@@ -48,16 +48,16 @@ void processSpritesOnOtherSideOfPortal(int x, int y, int interpolation);
 void DrawMirrors(int x, int y, int z, fixed_t a, fixed_t horiz, int smooth, int viewPlayer);
 int qanimateoffs(int a1, int a2);
 
-struct PLAYER;
+class DBloodPlayer;
 
-bool checkLitSprayOrTNT(PLAYER* pPlayer);
+bool checkLitSprayOrTNT(DBloodPlayer* pPlayer);
 void WeaponInit(void);
-void WeaponDraw(PLAYER* pPlayer, int shade, double xpos, double ypos, int palnum, DAngle angle);
-void WeaponRaise(PLAYER* pPlayer);
-void WeaponLower(PLAYER* pPlayer);
-int WeaponUpgrade(PLAYER* pPlayer, int newWeapon);
-void WeaponProcess(PLAYER* pPlayer);
-void WeaponUpdateState(PLAYER* pPlayer);
+void WeaponDraw(DBloodPlayer* pPlayer, int shade, double xpos, double ypos, int palnum, DAngle angle);
+void WeaponRaise(DBloodPlayer* pPlayer);
+void WeaponLower(DBloodPlayer* pPlayer);
+int WeaponUpgrade(DBloodPlayer* pPlayer, int newWeapon);
+void WeaponProcess(DBloodPlayer* pPlayer);
+void WeaponUpdateState(DBloodPlayer* pPlayer);
 void teslaHit(DBloodActor* pMissile, int a2);
 void WeaponPrecache();
 

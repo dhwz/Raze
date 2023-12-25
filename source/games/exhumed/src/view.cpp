@@ -34,7 +34,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 BEGIN_PS_NS
 
 bool bSubTitles = true;
-DVector3 nCamerapos;
 bool bTouchFloor;
 int nChunkTotal = 0;
 int nViewTop;
@@ -72,14 +71,15 @@ void DrawView(double interpfrac, bool sceneonly)
 
     DoInterpolations(interpfrac);
 
-    auto pPlayer = &PlayerList[nLocalPlayer];
-    auto pPlayerActor = pPlayer->pActor;
+    auto pPlayer = getPlayer(nLocalPlayer);
+    auto pPlayerActor = pPlayer->GetActor();
     auto nPlayerOldCstat = pPlayerActor->spr.cstat;
     auto pDop = pPlayer->pDoppleSprite;
     auto nDoppleOldCstat = pDop->spr.cstat;
+    DVector3 nCamerapos;
 
     // update render angles.
-    pPlayer->Angles.updateCameraAngles(interpfrac);
+    pPlayer->updateCameraAngles(interpfrac);
 
     if (nSnakeCam >= 0 && !sceneonly)
     {
@@ -107,11 +107,11 @@ void DrawView(double interpfrac, bool sceneonly)
     {
         nCamerapos = pPlayerActor->getRenderPos(interpfrac);
 
-        pSector = PlayerList[nLocalPlayer].pPlayerViewSect;
+        pSector = pPlayer->pPlayerViewSect;
         updatesector(nCamerapos, &pSector);
-        if (pSector == nullptr) pSector = PlayerList[nLocalPlayer].pPlayerViewSect;
+        if (pSector == nullptr) pSector = pPlayer->pPlayerViewSect;
 
-        nCameraangles = PlayerList[nLocalPlayer].Angles.getRenderAngles(interpfrac);
+        nCameraangles = pPlayer->getRenderAngles(interpfrac);
 
         if (!bCamera)
         {
@@ -125,6 +125,7 @@ void DrawView(double interpfrac, bool sceneonly)
         }
     }
 
+    pPlayer->CameraPos = nCamerapos;
     const auto ampos = nCamerapos.XY();
 
     if (nSnakeCam >= 0 && !sceneonly)
@@ -224,7 +225,7 @@ void DrawView(double interpfrac, bool sceneonly)
                     if (bSubTitles)
                     {
                         subtitleOverlay.Start(I_GetTimeNS() * (120. / 1'000'000'000));
-                        subtitleOverlay.ReadyCinemaText(currentLevel->ex_ramses_text);
+                        subtitleOverlay.ReadyCinemaText(currentLevel->ex_ramses_text.GetChars());
                     }
                     inputState.ClearAllInput();
                     gameInput.Clear();
@@ -339,8 +340,7 @@ void SerializeView(FSerializer& arc)
 {
     if (arc.BeginObject("view"))
     {
-        arc("camerapos", nCamerapos)
-            ("chunktotal", nChunkTotal)
+        arc("chunktotal", nChunkTotal)
             ("camera", bCamera)
             .EndObject();
     }

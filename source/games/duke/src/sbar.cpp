@@ -101,12 +101,7 @@ void DrawStatusBar()
 
 	SummaryInfo info{};
 
-	info.kills = ps[0].actors_killed;
-	info.maxkills = ps[0].max_actors_killed;
-	info.secrets = ps[0].secret_rooms;
-	info.maxsecrets = ps[0].max_secret_rooms;
-	info.time = Scale(PlayClock, 1000, 120);
-	info.totaltime = STAT_GetTotalTime();
+	Level.fillSummary(info);
 	UpdateStatusBar(&info);
 }
 

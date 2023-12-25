@@ -472,7 +472,7 @@ bool P_ClipLineToPortal(walltype* line, walltype* portal, DVector2 view)
 
 int HWLinePortal::ClipSeg(walltype *seg, const DVector3 &viewpos)
 {
-	return P_ClipLineToPortal(seg, line, viewpos) ? PClip_InFront : PClip_Inside;
+	return P_ClipLineToPortal(seg, line, viewpos.XY()) ? PClip_InFront : PClip_Inside;
 }
 
 int HWLinePortal::ClipSector(sectortype *sub)
@@ -539,7 +539,7 @@ bool HWMirrorPortal::Setup(HWDrawInfo *di, FRenderState &rstate, Clipper *clippe
 	double newx = x * 2 + dx * i / j - view.X;
 	double newy = y * 2 + dy * i / j - view.Y;
 
-	auto myan = RAD2BAM(atan2(dy, dx));
+	auto myan = VecToAngle(dx, dy).BAMs();
 	auto newan = myan + myan - vp.RotAngle;
 
 	vp.RotAngle = newan;
@@ -563,8 +563,8 @@ bool HWMirrorPortal::Setup(HWDrawInfo *di, FRenderState &rstate, Clipper *clippe
 
 	ClearClipper(di, clipper);
 
-	auto startan = RAD2BAM(atan2(line->pos.Y - newy, line->pos.X - newx));
-	auto endan = RAD2BAM(atan2(line->point2Wall()->pos.Y - newy, line->point2Wall()->pos.X - newx));
+	auto startan = VecToAngle(line->pos.X - newx, line->pos.Y - newy).BAMs();
+	auto endan = VecToAngle(line->point2Wall()->pos.X - newx, line->point2Wall()->pos.Y - newy).BAMs();
 	clipper->RestrictVisibleRange(endan, startan);  // we check the line from the backside so angles are reversed.
 	return true;
 }
@@ -607,7 +607,7 @@ bool HWLineToLinePortal::Setup(HWDrawInfo *di, FRenderState &rstate, Clipper *cl
 	auto destcenter = line->center();
 	destcenter.Y = -destcenter.Y;
 
-	DVector2 npos = vp.Pos - srccenter + destcenter;
+	DVector2 npos = vp.Pos.XY() - srccenter + destcenter;
 
 #if 0 // Blood does not rotate these. Needs map checking to make sure it can be added.
 	int dx = origin->point2Wall()->x - origin->x;
@@ -636,8 +636,8 @@ bool HWLineToLinePortal::Setup(HWDrawInfo *di, FRenderState &rstate, Clipper *cl
 
 	ClearClipper(di, clipper);
 
-	auto startan = RAD2BAM(atan2(origin->pos.Y + oldvp.Y, origin->pos.X - oldvp.X));
-	auto endan = RAD2BAM(atan2(origin->point2Wall()->pos.Y + oldvp.Y, origin->point2Wall()->pos.X - oldvp.X));
+	auto startan = VecToAngle(origin->pos.X - oldvp.X, origin->pos.Y + oldvp.Y).BAMs();
+	auto endan = VecToAngle(origin->point2Wall()->pos.X - oldvp.X, origin->point2Wall()->pos.Y + oldvp.Y).BAMs();
 	clipper->RestrictVisibleRange(startan, endan);
 	return true;
 }
@@ -674,7 +674,7 @@ bool HWLineToSpritePortal::Setup(HWDrawInfo* di, FRenderState& rstate, Clipper* 
 	auto srccenter = origin->center();
 	srccenter.Y = -srccenter.Y;
 	DVector2 destcenter = { camera->spr.pos.X, -camera->spr.pos.Y };
-	DVector2 npos = vp.Pos - srccenter + destcenter;
+	DVector2 npos = vp.Pos.XY() - srccenter + destcenter;
 
 	double origx = vp.Pos.X;
 	double origy = vp.Pos.Y;
@@ -689,8 +689,8 @@ bool HWLineToSpritePortal::Setup(HWDrawInfo* di, FRenderState& rstate, Clipper* 
 
 	ClearClipper(di, clipper);
 
-	auto startan = RAD2BAM(atan2(origin->pos.Y - origy, origin->pos.X - origx));
-	auto endan = RAD2BAM(atan2(origin->point2Wall()->pos.Y - origy, origin->point2Wall()->pos.X - origx));
+	auto startan = VecToAngle(origin->pos.X - origx, origin->pos.Y - origy).BAMs();
+	auto endan = VecToAngle(origin->point2Wall()->pos.X - origx, origin->point2Wall()->pos.Y - origy).BAMs();
 	clipper->RestrictVisibleRange(startan, endan);
 	return true;
 }

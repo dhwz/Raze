@@ -58,6 +58,14 @@ IMPLEMENT_POINTERS_START(DExhumedActor)
 IMPLEMENT_POINTER(pTarget)
 IMPLEMENT_POINTERS_END
 
+IMPLEMENT_CLASS(DExhumedPlayer, false, true)
+IMPLEMENT_POINTERS_START(DExhumedPlayer)
+IMPLEMENT_POINTER(pTarget)
+IMPLEMENT_POINTER(pDoppleSprite)
+IMPLEMENT_POINTER(pPlayerFloorSprite)
+IMPLEMENT_POINTER(pPlayerGrenade)
+IMPLEMENT_POINTERS_END
+
 size_t MarkMove();
 size_t MarkBullets();
 size_t MarkItems();
@@ -115,8 +123,6 @@ void LoadStatus();
 void MySetView(int x1, int y1, int x2, int y2);
 
 char sHollyStr[40];
-
-int nCreaturesKilled = 0, nCreaturesTotal = 0;
 
 int nFreeze;
 
@@ -321,13 +327,12 @@ void GameInterface::Ticker()
     else if (EndLevel == 0)
     {
         // disable synchronised input if set by game.
-        resetForcedSyncInput();
+        gameInput.ResetInputSync();
 
         for (int i = connecthead; i >= 0; i = connectpoint2[i])
         {
-            const auto pPlayer = &PlayerList[i];
-            pPlayer->Angles.resetCameraAngles();
-            pPlayer->input = playercmds[i].ucmd;
+            const auto pPlayer = getPlayer(i);
+            pPlayer->resetCameraAngles();
             updatePlayerTarget(pPlayer);
         }
 
@@ -419,6 +424,13 @@ void GameInterface::SetupSpecialTextures(TilesetBuildInfo& info)
 
 void GameInterface::app_init()
 {
+    // Initialise player array.
+    for (unsigned i = 0; i < MAXPLAYERS; i++)
+    {
+        PlayerArray[i] = Create<DExhumedPlayer>(i);
+        GC::WriteBarrier(PlayerArray[i]);
+    }
+
     GC::AddMarkerFunc(markgcroots);
 	InitTextureIDs();
 
@@ -526,11 +538,6 @@ bool GameInterface::CanSave()
     return !bRecord && !bPlayback && !bInDemo && nTotalPlayers == 1 && nFreeze == 0;
 }
 
-::GameStats GameInterface::getStats()
-{
-    return { nCreaturesKilled, nCreaturesTotal, 0, 0, PlayClock / 120, 0 };
-}
-
 ::GameInterface* CreateInterface()
 {
     return new GameInterface;
@@ -581,9 +588,7 @@ void SerializeState(FSerializer& arc)
             InitEnergyTile();
     }
 
-        arc ("creaturestotal", nCreaturesTotal)
-            ("creatureskilled", nCreaturesKilled)
-            ("freeze", nFreeze)
+        arc ("freeze", nFreeze)
             ("snakecam", nSnakeCam)
             ("clockval", nClockVal)
             ("redticks", nRedTicks)

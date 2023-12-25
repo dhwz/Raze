@@ -56,7 +56,7 @@ enum SICommands
 	SI_MusicVolume,
 	SI_MidiDevice,
 	SI_MusicAlias,
-	SI_ConReserve,
+	SI_ResourceID,
 	SI_Alias,
 	SI_Limit,
 	SI_Singular,
@@ -96,7 +96,7 @@ static const char *SICommandStrings[] =
 	"$musicvolume",
 	"$mididevice",
 	"$musicalias",
-	"$conreserve",
+	"$resourceid",
 	"$alias",
 	"$limit",
 	"$singular",
@@ -158,7 +158,7 @@ static FSoundID S_AddSound(const char* logicalname, int lumpnum, FScanner* sc)
 
 FSoundID S_AddSound(const char* logicalname, const char* lumpname, FScanner* sc)
 {
-	int lump = fileSystem.CheckNumForFullName(lumpname, true, ns_sounds);
+	int lump = fileSystem.CheckNumForFullName(lumpname, true, FileSys::ns_sounds);
 	if (lump == -1 && sc && fileSystem.GetFileContainer(sc->LumpNum) > fileSystem.GetMaxIwadNum())
 		sc->ScriptMessage("%s: sound file not found", sc->String);
 	return S_AddSound(logicalname, lump, sc);
@@ -241,7 +241,7 @@ static void S_AddSNDINFO (int lump)
 				sc.MustGetString();
 				int mlump = fileSystem.FindFile(sc.String);
 				if (mlump < 0)
-					mlump = fileSystem.FindFile(FStringf("music/%s", sc.String));
+					mlump = fileSystem.FindFile(FStringf("music/%s", sc.String).GetChars());
 				if (mlump >= 0)
 				{
 					// do not set the alias if a later WAD defines its own music of this name
@@ -456,14 +456,21 @@ static void S_AddSNDINFO (int lump)
 				break;
 			}
 
-			case SI_ConReserve: {
-				// $conreserve <logical name> <resource id>
+			case SI_ResourceID: {
+				// $resourceid <logical name> <resource id>
 				// Assigns a resource ID to the given sound.
 				sc.MustGetString();
 				FSoundID sfx = soundEngine->FindSoundTentative(sc.String, DEFAULT_LIMIT);
-				auto sfxp = soundEngine->GetWritableSfx(sfx);
 
 				sc.MustGetNumber();
+				// remove resource ID from any previously defined sound.
+				for (unsigned i = 0; i < soundEngine->GetNumSounds(); i++)
+				{
+					auto sfxp = soundEngine->GetWritableSfx(FSoundID::fromInt(i));
+					if (sfxp->ResourceId == sc.Number) sfxp->ResourceId = -1;
+
+				}
+				auto sfxp = soundEngine->GetWritableSfx(sfx);
 				sfxp->ResourceId = sc.Number;
 				break;
 				}
@@ -583,7 +590,7 @@ static void S_AddSNDINFO (int lump)
 				}
 
 				sc.MustGetString ();
-				S_AddSound (name, sc.String, &sc);
+				S_AddSound (name.GetChars(), sc.String, &sc);
 			}
 
 			}

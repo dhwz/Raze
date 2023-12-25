@@ -41,6 +41,7 @@
 #include "gamecontrol.h"
 #include "raze_sound.h"
 #include "zstring.h"
+#include "statistics.h"
 
 FString gSkillNames[MAXSKILLS];
 int gDefaultVolume = 0, gDefaultSkill = 1;
@@ -50,15 +51,15 @@ TArray<ClusterDef> clusters;
 TArray<VolumeRecord> volumes;
 TArray<TPointer<MapRecord>> mapList;	// must be allocated as pointers because it can whack the currentlLevel pointer if this was a flat array.
 static TMap<FString, FString> musicReplacements;
-MapRecord *currentLevel;	// level that is currently played.
-MapRecord* lastLevel;		// Same here, for the last level.
+MapRecord* currentLevel;	// level that is currently played.
+MapLocals Level;
 
 
 CCMD(listmaps)
 {
 	for (auto& map : mapList)
 	{
-		int lump = fileSystem.FindFile(map->fileName);
+		int lump = fileSystem.FindFile(map->fileName.GetChars());
 		if (lump >= 0)
 		{
 			int rfnum = fileSystem.GetFileContainer(lump);
@@ -155,7 +156,7 @@ MapRecord* FindNextMap(MapRecord* thismap)
 {
 	MapRecord* next = nullptr;
 	if (!thismap->NextMap.Compare("-")) return nullptr;	// '-' means to forcibly end the game here.
-	if (thismap->NextMap.IsNotEmpty()) next = FindMapByName(thismap->NextMap);
+	if (thismap->NextMap.IsNotEmpty()) next = FindMapByName(thismap->NextMap.GetChars());
 	if (!next) next = FindMapByLevelNum(thismap->levelNumber + 1);
 	return next;
 }
@@ -164,7 +165,7 @@ MapRecord* FindNextSecretMap(MapRecord* thismap)
 {
 	MapRecord* next = nullptr;
 	if (!thismap->NextSecret.Compare("-")) return nullptr;	// '-' means to forcibly end the game here.
-	if (thismap->NextSecret.IsNotEmpty()) next = FindMapByName(thismap->NextSecret);
+	if (thismap->NextSecret.IsNotEmpty()) next = FindMapByName(thismap->NextSecret.GetChars());
 	return next? next : FindNextMap(thismap);
 }
 
@@ -181,7 +182,7 @@ void ReplaceMusics(bool namehack)
 	{
 		FString mapname = pair->Key;
 		FString music = pair->Value;
-		SetMusicForMap(mapname, music, namehack);
+		SetMusicForMap(mapname.GetChars(), music.GetChars(), namehack);
 	}
 	musicReplacements.Clear();
 }
@@ -262,4 +263,15 @@ MapRecord* SetupUserMap(const char* boardfilename, const char *defaultmusic)
 	if (lookup >= 0) map->music = fileSystem.GetFileFullName(lookup);
 	else map->music = defaultmusic;
 	return map;
+}
+
+void MapLocals::fillSummary(SummaryInfo& sum)
+{
+	sum.kills = kills.got;
+	sum.maxkills = kills.max;
+	sum.secrets = secrets.got;
+	sum.maxsecrets = std::max(secrets.got, secrets.max); // If we found more than there are, increase the total. Blood's secret maintenance is too broken to get right.
+	sum.supersecrets = superSecrets.got;
+	sum.time = PlayClock;
+	// todo: centralize the remaining info as well.
 }

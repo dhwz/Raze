@@ -87,7 +87,7 @@ void BuildMummy(DExhumedActor* pActor, const DVector3& pos, sectortype* pSector,
 
     pActor->nSeqFile = "mummy";
 
-    nCreaturesTotal++;
+    Level.addKillCount();
 }
 
 //---------------------------------------------------------------------------
@@ -133,9 +133,8 @@ void AIMummy::Tick(RunListEvent* ev)
     auto pActor = ev->pObjActor;
     if (!pActor) return;
 
-    DExhumedActor* targ = pActor->pTarget;
-    auto pTarget = UpdateEnemy(&targ);
-    pActor->pTarget = targ;
+    auto pTarget = UpdateEnemy(pActor->pTarget);
+    pActor->pTarget = pTarget;
 
     int nAction = pActor->nAction;
 
@@ -379,7 +378,7 @@ void AIMummy::Tick(RunListEvent* ev)
             pActor->nHealth = 300;
             pActor->pTarget = nullptr;
 
-            nCreaturesTotal++;
+            Level.addKillCount();
         }
         return;
     }
@@ -465,7 +464,7 @@ void AIMummy::Damage(RunListEvent* ev)
     {
         pActor->nHealth = 0;
         pActor->spr.cstat &= ~CSTAT_SPRITE_BLOCK_ALL;
-        nCreaturesKilled++;
+        Level.addKill(-1);
 
         DropMagic(pActor);
 

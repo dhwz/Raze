@@ -77,7 +77,7 @@ void BunchDrawer::Init(HWDrawInfo *_di, Clipper* c, const DVector2& view, angle_
 		DVector2 vv;
 		vv.X = w.pos.X - view.X;
 		vv.Y = w.pos.Y + view.Y; // beware of different coordinate systems!
-		w.clipangle = RAD2BAM(atan2(vv.Y, vv.X));
+		w.clipangle = vv.Angle().BAMs();
 	}
 	memset(sectionstartang.Data(), -1, sectionstartang.Size() * sizeof(sectionstartang[0]));
 	memset(sectionendang.Data(), -1, sectionendang.Size() * sizeof(sectionendang[0]));
@@ -272,34 +272,35 @@ int BunchDrawer::ClipLine(int aline, bool portal)
 
 	if (!portal && !clipper->IsRangeVisible(startAngle, endAngle))
 	{
+		//Printf("\nWall %d from %2.3f - %2.3f (clipped away)\n", line, DAngle::fromBam(startAngle).Degrees(), DAngle::fromBam(endAngle).Degrees());
 		return CL_Skip;
 	}
 
-	if (line < 0)
-		return CL_Pass;
-
 	float topclip = 0, bottomclip = 0;
-	if (cline->partner == -1 || (wall[line].cstat & CSTAT_WALL_1WAY) || CheckClip(&wall[line], &topclip, &bottomclip))
+	if (line >= 0 && (cline->partner == -1 || (wall[line].cstat & CSTAT_WALL_1WAY) || CheckClip(&wall[line], &topclip, &bottomclip)))
 	{
 		// one-sided
 		if (!portal && !dontclip && !(sector[sections[section].sector].exflags & SECTOREX_DONTCLIP))
 		{
 			clipper->AddClipRange(startAngle, endAngle);
-			//Printf("\nWall %d from %2.3f - %2.3f (blocking)\n", line, bamang(startAngle).asdeg(), bamang(endAngle).asdeg());
+			//Printf("\nWall %d from %2.3f - %2.3f (blocking)\n", line, DAngle::fromBam(startAngle).Degrees(), DAngle::fromBam(endAngle).Degrees());
 			//clipper->DumpClipper();
 		}
 		return CL_Draw;
 	}
 	else
 	{
-		if (portal) clipper->RemoveClipRange(startAngle, endAngle);
-		else
+		if (line > 0)
 		{
-			if ((topclip < FLT_MAX || bottomclip > -FLT_MAX) && !dontclip)
+			if (portal) clipper->RemoveClipRange(startAngle, endAngle);
+			else
 			{
-				clipper->AddWindowRange(startAngle, endAngle, topclip, bottomclip, viewz);
-				//Printf("\nWall %d from %2.3f - %2.3f, (%2.3f, %2.3f) (passing)\n", line, bamang(startAngle).asdeg(), bamang(endAngle).asdeg(), topclip, bottomclip);
-				//clipper->DumpClipper();
+				if ((topclip < FLT_MAX || bottomclip > -FLT_MAX) && !dontclip)
+				{
+					clipper->AddWindowRange(startAngle, endAngle, topclip, bottomclip, viewz);
+					//Printf("\nWall %d from %2.3f - %2.3f, (%2.3f, %2.3f) (passing)\n", line, DAngle::fromBam(startAngle).Degrees(), DAngle::fromBam(endAngle).Degrees(), topclip, bottomclip);
+					//clipper->DumpClipper();
+				}
 			}
 		}
 
@@ -316,7 +317,7 @@ int BunchDrawer::ClipLine(int aline, bool portal)
 			if (endAngle > sectionendang[nsection]) sectionendang[nsection] = endAngle;
 		}
 
-		return dontclip? CL_Draw : CL_Draw | CL_Pass;
+		return line < 0? CL_Pass : dontclip? CL_Draw : CL_Draw | CL_Pass;
 	}
 }
 
@@ -347,6 +348,7 @@ void BunchDrawer::ProcessBunch(int bnch)
 
 				if (!gotwall[i])
 				{
+					//Printf("\nWall %d processed\n", i);
 					gotwall.Set(i);
 					ClipWall.Unclock();
 					Bsp.Unclock();
@@ -649,7 +651,7 @@ int BunchDrawer::FindClosestBunch()
 	int nsection = sectionLines[Bunches[closest].startline].section;
 	Printf("\n=====================================\npicked bunch starting at sector %d, wall %d - Range at (%2.3f - %2.3f)\n",
 		sections[nsection].sector, Bunches[closest].startline,
-		bamang(sectionstartang[nsection]).asdeg(), bamang(sectionendang[nsection]).asdeg());
+		DAngle::fromBam(sectionstartang[nsection]).Degrees(), DAngle::fromBam(sectionendang[nsection]).Degrees());
 	*/
 	return closest;
 }
@@ -683,7 +685,7 @@ void BunchDrawer::ProcessSection(int sectionnum, bool portal)
 			auto tex = actor->spr.spritetexture();
 			if (!tex.isValid()) continue;
 			auto tx = TexMan.GetGameTexture(tex);
-			if (tx->GetUseType() == ETextureType::FirstDefined) continue;
+			if (tx->GetUseType() == ETextureType::FirstDefined && (actor->spr.cstat & CSTAT_SPRITE_ALIGNMENT_MASK) == CSTAT_SPRITE_ALIGNMENT_FACING) continue;
 
 			auto viewvec = actor->spr.pos.XY() - DVector2(viewx, -viewy); // note that viewy is in render coordinates
 

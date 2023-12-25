@@ -287,16 +287,16 @@ void loadMapHack(const char* filename, const uint8_t* md4, SpawnSpriteDef& sprit
 	{
 		internal.AppendFormat("%02x", md4[j]);
 	}
-	LoadMapHack(internal + ".mhk", sprites);
+	LoadMapHack((internal + ".mhk").GetChars(), sprites);
 	FString hack = StripExtension(filename) + ".mhk";
 
-	if (LoadMapHack(hack, sprites))
+	if (LoadMapHack(hack.GetChars(), sprites))
 	{
 		for (auto& mhk : usermaphacks)
 		{
 			if (!memcmp(md4, mhk.md4, 16))
 			{
-				LoadMapHack(mhk.mhkfile, sprites);
+				LoadMapHack(mhk.mhkfile.GetChars(), sprites);
 			}
 		}
 	}
@@ -320,7 +320,7 @@ CCMD(md4sum)
 		{
 			auto data = fr.Read();
 			uint8_t digest[16];
-			md4once(data.Data(), data.Size(), digest);
+			md4once(data.bytes(), (uint32_t)data.size(), digest);
 			for (int j = 0; j < 16; ++j)
 			{
 				Printf("%02x", digest[j]);

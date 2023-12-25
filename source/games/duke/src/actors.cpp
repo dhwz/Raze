@@ -50,18 +50,17 @@ This file is a combination of code from the following sources:
 BEGIN_DUKE_NS
 
 
-void moveactor(DDukeActor* actor, int p, double pdist)
+static void moveactor(DDukeActor* actor, DDukePlayer* const pp, double pdist, const int killit_flag)
 {
-	if (actor->killit_flag == 1)
+	if (killit_flag == 1)
 	{
 		// if player was set to squish, first stop that..
-		if (ps[p].actorsqu == actor)
-			ps[p].actorsqu = nullptr;
+		if (pp->actorsqu == actor) pp->actorsqu = nullptr;
 		actor->flags2 |= SFLAG2_DIENOW;
 	}
 	else
 	{
-		move(actor, p, pdist);
+		move(actor, pp, pdist);
 
 		if (actor->spr.statnum == STAT_ACTOR)
 		{
@@ -95,22 +94,23 @@ void TickActor(DDukeActor* self)
 	if (self->spr.statnum == STAT_ACTOR || self->spr.statnum == STAT_PLAYER || (self->flags3 & SFLAG3_FORCERUNCON))
 	{
 		double pdist;
-		int p;
+		int pnum;
 		
 		if (self->spr.statnum != STAT_PLAYER)
 		{
-			p = findplayer(self, &pdist);
+			pnum = findplayer(self, &pdist);
 		}
 		else
 		{
 			if (ud.multimode > 1)
-				p = findotherplayer(self->PlayerIndex(), &pdist);
+				pnum = findotherplayer(self->PlayerIndex(), &pdist);
 			else
 			{
-				p = self->PlayerIndex();
+				pnum = self->PlayerIndex();
 				pdist = 0;
 			}
 		}
+		const auto p = getPlayer(pnum);
 
 		// Run sprite animations.
 		if (self->curAction->name != NAME_None)
@@ -131,20 +131,21 @@ void TickActor(DDukeActor* self)
 				self->curframe = 0;
 		}
 
-		self->killit_flag = 0;
-		bool conres = execute(self, p, pdist);
+		int killit_flag = 0;
+		bool conres = execute(self, p, pdist, &killit_flag);
 		if (!conres && (self->flags4 & SFLAG4_CONOVERRIDE))
 		{
 			self->flags4 |= SFLAG4_INRUNSTATE;
 			IFVIRTUALPTR(self, DDukeActor, RunState)
 			{
-				VMValue val[] = { self, &ps[p], pdist};
+				VMValue val[] = { self, p, pdist};
 				try
 				{
 					VMCall(func, val, 3, nullptr, 0);
 				}
 				catch(const CDukeKillEvent& ev)
 				{ 
+					killit_flag = 1;
 					if (ev.Type() == 1)
 					{
 						self->Destroy();
@@ -156,7 +157,7 @@ void TickActor(DDukeActor* self)
 			conres = true;
 		}
 		// moveactor gets only called for actors with a scripted runner.
-		if (conres) moveactor(self, p, pdist);
+		if (conres) moveactor(self, p, pdist, killit_flag);
 	}
 }
 
@@ -211,7 +212,7 @@ void RANDOMSCRAP(DDukeActor* origin)
 //
 //---------------------------------------------------------------------------
 
-void addammo(int weapon, player_struct* player, int amount)
+void addammo(int weapon, DDukePlayer* player, int amount)
 {
 	player->ammo_amount[weapon] += amount;
 
@@ -225,7 +226,7 @@ void addammo(int weapon, player_struct* player, int amount)
 //
 //---------------------------------------------------------------------------
 
-void checkavailinven(player_struct* player)
+void checkavailinven(DDukePlayer* player)
 {
 
 	if (player->firstaid_amount > 0)
@@ -251,9 +252,9 @@ void checkavailinven(player_struct* player)
 //
 //---------------------------------------------------------------------------
 
-void checkavailweapon(player_struct* player)
+void checkavailweapon(DDukePlayer* player)
 {
-	int i, snum;
+	int i;
 	int weap;
 
 	if (player->wantweaponfire >= 0)
@@ -268,20 +269,18 @@ void checkavailweapon(player_struct* player)
 			return;
 		}
 	}
-
 	weap = player->curr_weapon;
+
 	if (player->gotweapon[weap])
 	{
-		if (player->ammo_amount[weap] > 0 || (WeaponSwitch(player - ps) & 2) == 0)
+		if (player->ammo_amount[weap] > 0 || (WeaponSwitch(player->pnum) & 2) == 0)
 			return;
 	}
-
-	snum = player->GetPlayerNum();
 
 	int max = MAX_WEAPON;
 	for (i = 0; i <= max; i++)
 	{
-		weap = ud.wchoice[snum][i];
+		weap = ud.wchoice[player->pnum][i];
 		if ((g_gameType & GAMEFLAG_SHAREWARE) && weap > 6) continue;
 
 		if (weap == 0) weap = max;
@@ -300,16 +299,18 @@ void checkavailweapon(player_struct* player)
 	player->curr_weapon = weap;
 	if (isWW2GI())
 	{
-		SetGameVarID(g_iWeaponVarID, player->curr_weapon, player->GetActor(), snum); // snum is player index!
+		const auto pact = player->GetActor();
+		SetGameVarID(g_iWeaponVarID, player->curr_weapon, pact, player->pnum); // snum is player index!
+
 		if (player->curr_weapon >= 0)
 		{
-			SetGameVarID(g_iWorksLikeVarID, aplWeaponWorksLike(player->curr_weapon, snum), player->GetActor(), snum);
+			SetGameVarID(g_iWorksLikeVarID, aplWeaponWorksLike(player->curr_weapon, player), pact, player->pnum);
 		}
 		else
 		{
-			SetGameVarID(g_iWorksLikeVarID, -1, player->GetActor(), snum);
+			SetGameVarID(g_iWorksLikeVarID, -1, pact, player->pnum);
 		}
-		OnEvent(EVENT_CHANGEWEAPON, snum, player->GetActor(), -1);
+		OnEvent(EVENT_CHANGEWEAPON, player->pnum, pact, -1);
 	}
 
 	player->okickback_pic = player->kickback_pic = 0;
@@ -327,11 +328,12 @@ void checkavailweapon(player_struct* player)
 //
 //---------------------------------------------------------------------------
 
-void clearcamera(player_struct* ps)
+void clearcamera(DDukePlayer* ps)
 {
+	const auto pact = ps->GetActor();
 	ps->newOwner = nullptr;
-	ps->GetActor()->restoreloc();
-	updatesector(ps->GetActor()->getPosWithOffsetZ(), &ps->cursector);
+	pact->restoreloc();
+	updatesector(pact->getPosWithOffsetZ(), &ps->cursector);
 
 	DukeStatIterator it(STAT_ACTOR);
 	while (auto k = it.Next())
@@ -469,27 +471,26 @@ void addcycler(sectortype* sector, int lotag, int shade, int shade2, int hitag, 
 
 void movedummyplayers(void)
 {
-	int p;
-
 	DukeStatIterator iti(STAT_DUMMYPLAYER);
 	while (auto act = iti.Next())
 	{
 		if (!act->GetOwner()) continue;
-		p = act->GetOwner()->PlayerIndex();
+		const auto p = getPlayer(act->GetOwner()->PlayerIndex());
+		const auto pact = p->GetActor();
 
-		if ((!isRR() && ps[p].on_crane != nullptr) || !ps[p].insector() || ps[p].cursector->lotag != 1 || ps->GetActor()->spr.extra <= 0)
+		if ((!isRR() && p->on_crane != nullptr) || !p->insector() || p->cursector->lotag != 1 || getPlayer(0)->GetActor()->spr.extra <= 0)
 		{
-			ps[p].dummyplayersprite = nullptr;
+			p->dummyplayersprite = nullptr;
 			act->Destroy();
 			continue;
 		}
 		else
 		{
-			if (ps[p].on_ground && ps[p].on_warping_sector == 1 && ps[p].cursector->lotag == 1)
+			if (p->on_ground && p->on_warping_sector == 1 && p->cursector->lotag == 1)
 			{
 				act->spr.cstat = CSTAT_SPRITE_BLOCK_ALL;
 				act->spr.pos.Z = act->sector()->ceilingz + 27;
-				act->spr.Angles.Yaw = ps[p].GetActor()->spr.Angles.Yaw;
+				act->spr.Angles.Yaw = pact->spr.Angles.Yaw;
 				if (act->counter == 8)
 					act->counter = 0;
 				else act->counter++;
@@ -501,7 +502,7 @@ void movedummyplayers(void)
 			}
 		}
 
-		act->spr.pos.XY() += ps[p].GetActor()->spr.pos.XY() - ps[p].GetActor()->opos.XY();
+		act->spr.pos.XY() += pact->spr.pos.XY() - pact->opos.XY();
 		SetActor(act, act->spr.pos);
 	}
 }
@@ -520,15 +521,13 @@ void moveplayers(void)
 	while (auto act = iti.Next())
 	{
 		int pn = act->PlayerIndex();
-		auto p = &ps[pn];
+		auto p = getPlayer(pn);
 
 		if (act->GetOwner())
 		{
 			if (p->newOwner != nullptr) //Looking thru the camera
 			{
-				act->restorepos();
-				act->backupz();
-				act->spr.Angles.Yaw = p->GetActor()->PrevAngles.Yaw;
+				act->restoreloc();
 				SetActor(act, act->spr.pos);
 			}
 			else
@@ -537,7 +536,8 @@ void moveplayers(void)
 				if (ud.multimode > 1)
 				{
 					otherp = findotherplayer(pn, &other);
-					auto psp = ps[otherp].GetActor();
+					auto psp = getPlayer(otherp)->GetActor();
+
 					if (psp->spr.extra > 0)
 					{
 						if (act->spr.scale.Y > 0.5 && psp->spr.scale.Y < 0.5)
@@ -546,7 +546,7 @@ void moveplayers(void)
 							{
 								p->knee_incs = 1;
 								p->weapon_pos = -1;
-								p->actorsqu = ps[otherp].GetActor();
+								p->actorsqu = psp;
 							}
 						}
 					}
@@ -561,7 +561,7 @@ void moveplayers(void)
 
 				if (p->actorsqu != nullptr)
 				{
-					p->GetActor()->spr.Angles.Yaw += deltaangle(p->GetActor()->spr.Angles.Yaw, (p->actorsqu->spr.pos.XY() - p->GetActor()->spr.pos.XY()).Angle()) * 0.25;
+					act->spr.Angles.Yaw += deltaangle(act->spr.Angles.Yaw, (p->actorsqu->spr.pos.XY() - act->spr.pos.XY()).Angle()) * 0.25;
 				}
 
 				if (act->spr.extra > 0)
@@ -576,12 +576,12 @@ void moveplayers(void)
 				}
 				else
 				{
-					p->GetActor()->spr.pos.Z += 20;
+					act->spr.pos.Z += 20;
 					p->newOwner = nullptr;
 
 					if (p->wackedbyactor != nullptr && p->wackedbyactor->spr.statnum < MAXSTATUS)
 					{
-						p->GetActor()->spr.Angles.Yaw += deltaangle(p->GetActor()->spr.Angles.Yaw, (p->wackedbyactor->spr.pos.XY() - p->GetActor()->spr.pos.XY()).Angle()) * 0.5;
+						act->spr.Angles.Yaw += deltaangle(act->spr.Angles.Yaw, (p->wackedbyactor->spr.pos.XY() - act->spr.pos.XY()).Angle()) * 0.5;
 					}
 				}
 			}
@@ -746,7 +746,7 @@ void checkdive(DDukeActor* transporter, DDukeActor* transported)
 	int onfloorz = transporter->temp_data[4];
 	Collision coll;
 
-	double ll = abs(transported->vel.Z), ll2;
+	double ll = abs(transported->vel.Z), ll2 = 0;
 	if (transported->vel.Z >= 0)
 		warpdir = 2;
 	else
@@ -1021,7 +1021,7 @@ void gutsdir(DDukeActor* actor, PClassActor* gtype, int n, int p)
 		auto zvel = -krandf(8) - 2;
 
 		// TRANSITIONAL: owned by a player???
-		CreateActor(actor->sector(), DVector3(actor->spr.pos.XY(), gutz), gtype, -32, DVector2(scale, scale), a, vel, zvel, ps[p].GetActor(), 5);
+		CreateActor(actor->sector(), DVector3(actor->spr.pos.XY(), gutz), gtype, -32, DVector2(scale, scale), a, vel, zvel, getPlayer(p)->GetActor(), 5);
 	}
 }
 
@@ -1173,16 +1173,16 @@ void hitradius(DDukeActor* actor, int  r, int  hp1, int  hp2, int  hp3, int  hp4
 					{
 						if (act2->isPlayer())
 						{
-							int p = act2->PlayerIndex();
+							const auto p = getPlayer(act2->PlayerIndex());
 
 							if (act2->attackertype == DukeFlamethrowerFlameClass && Owner->isPlayer())
 							{
-								ps[p].numloogs = -1 - actor->spr.yint;
+								p->numloogs = -1 - actor->spr.yint;
 							}
 
-							if (ps[p].newOwner != nullptr)
+							if (p->newOwner != nullptr)
 							{
-								clearcamera(&ps[p]);
+								clearcamera(p);
 							}
 						}
 						act2->SetHitOwner(actor->GetOwner());
@@ -1222,7 +1222,7 @@ int movesprite_ex(DDukeActor* actor, const DVector3& change, unsigned int clipty
 	if (bg)
 	{
 		if (actor->spr.scale.X > 0.9375)
-			clipmove(ppos, &dasectp, change * 0.5, 64., 4., 4., cliptype, result);
+			clipmove(ppos, &dasectp, change.XY() * 0.5, 64., 4., 4., cliptype, result);
 		else
 		{
 			// todo: move this mess to the actor definitions once we have them all available.
@@ -1235,7 +1235,7 @@ int movesprite_ex(DDukeActor* actor, const DVector3& change, unsigned int clipty
 					clipdist = 12;
 			}
 
-			clipmove(ppos, &dasectp, change * 0.5, clipdist, 4., 4., cliptype, result);
+			clipmove(ppos, &dasectp, change.XY() * 0.5, clipdist, 4., 4., cliptype, result);
 		}
 
 		// conditional code from hell...
@@ -1260,9 +1260,9 @@ int movesprite_ex(DDukeActor* actor, const DVector3& change, unsigned int clipty
 	else
 	{
 		if (actor->spr.statnum == STAT_PROJECTILE)
-			clipmove(ppos, &dasectp, change * 0.5, 0.5, 4., 4., cliptype, result);
+			clipmove(ppos, &dasectp, change.XY() * 0.5, 0.5, 4., 4., cliptype, result);
 		else
-			clipmove(ppos, &dasectp, change * 0.5, actor->clipdist, 4., 4., cliptype, result);
+			clipmove(ppos, &dasectp, change.XY() * 0.5, actor->clipdist, 4., 4., cliptype, result);
 	}
 	actor->spr.pos.XY() = ppos.XY();
 
@@ -1284,7 +1284,7 @@ int movesprite_ex(DDukeActor* actor, const DVector3& change, unsigned int clipty
 //
 //---------------------------------------------------------------------------
 
-void move(DDukeActor* actor, int pnum, double pdist)
+void move(DDukeActor* actor, DDukePlayer* const p, double pdist)
 {
 	DAngle goalang, angdif;
 	double daxvel;
@@ -1295,11 +1295,13 @@ void move(DDukeActor* actor, int pnum, double pdist)
 
 	actor->counter++;
 
+	const auto pact = p->GetActor();
+
 	if (a & face_player)
 	{
-		if (ps[pnum].newOwner != nullptr)
-			goalang = (ps[pnum].GetActor()->opos.XY() - actor->spr.pos.XY()).Angle();
-		else goalang = (ps[pnum].GetActor()->spr.pos.XY() - actor->spr.pos.XY()).Angle();
+		if (p->newOwner != nullptr)
+			goalang = (pact->opos.XY() - actor->spr.pos.XY()).Angle();
+		else goalang = (pact->spr.pos.XY() - actor->spr.pos.XY()).Angle();
 		angdif = deltaangle(actor->spr.Angles.Yaw, goalang) * 0.25;
 		if (angdif > -DAngle22_5 / 16 && angdif < nullAngle) angdif = nullAngle;
 		actor->spr.Angles.Yaw += angdif;
@@ -1310,18 +1312,18 @@ void move(DDukeActor* actor, int pnum, double pdist)
 
 	if (a & face_player_slow)
 	{
-		if (ps[pnum].newOwner != nullptr)
-			goalang = (ps[pnum].GetActor()->opos.XY() - actor->spr.pos.XY()).Angle();
-		else goalang = (ps[pnum].GetActor()->spr.pos.XY() - actor->spr.pos.XY()).Angle();
+		if (p->newOwner != nullptr)
+			goalang = (pact->opos.XY() - actor->spr.pos.XY()).Angle();
+		else goalang = (pact->spr.pos.XY() - actor->spr.pos.XY()).Angle();
 		angdif = DAngle22_5 * 0.25 * Sgn(deltaangle(actor->spr.Angles.Yaw, goalang).Degrees()); // this looks very wrong...
 		actor->spr.Angles.Yaw += angdif;
 	}
 
 	if (a & antifaceplayerslow)
 	{
-		if (ps[pnum].newOwner != nullptr)
-			goalang = ((ps[pnum].GetActor()->opos.XY() - actor->spr.pos.XY()).Angle() + DAngle180);
-		else goalang = ((ps[pnum].GetActor()->spr.pos.XY() - actor->spr.pos.XY()).Angle() + DAngle180);
+		if (p->newOwner != nullptr)
+			goalang = ((pact->opos.XY() - actor->spr.pos.XY()).Angle() + DAngle180);
+		else goalang = ((pact->spr.pos.XY() - actor->spr.pos.XY()).Angle() + DAngle180);
 		angdif = DAngle22_5 * 0.25 * Sgn(deltaangle(actor->spr.Angles.Yaw, goalang).Degrees()); // this looks very wrong...
 		actor->spr.Angles.Yaw += angdif;
 	}
@@ -1350,7 +1352,7 @@ void move(DDukeActor* actor, int pnum, double pdist)
 
 	if (a & face_player_smart)
 	{
-		DVector2 newpos = ps[pnum].GetActor()->spr.pos.XY() + (ps[pnum].vel.XY() * (4. / 3.));
+		DVector2 newpos = pact->spr.pos.XY() + (p->vel.XY() * (4. / 3.));
 		goalang = (newpos - actor->spr.pos.XY()).Angle();
 		angdif = deltaangle(actor->spr.Angles.Yaw, goalang) * 0.25;
 		if (angdif > -DAngle22_5 / 16 && angdif < nullAngle) angdif = nullAngle;
@@ -1392,7 +1394,7 @@ void move(DDukeActor* actor, int pnum, double pdist)
 		dodge(actor);
 
 	if (!actor->isPlayer())
-		alterang(a, actor, pnum);
+		alterang(a, actor, p);
 
 	if (abs(actor->vel.X) < 6 / 16.) actor->vel.X = 0;
 
@@ -1448,16 +1450,16 @@ void move(DDukeActor* actor, int pnum, double pdist)
 			{
 
 				daxvel = -(64 - pdist);
-				angdif = (ps[pnum].GetActor()->spr.pos.XY() - actor->spr.pos.XY()).Angle();
+				angdif = (pact->spr.pos.XY() - actor->spr.pos.XY()).Angle();
 
 				if (pdist < 32)
 				{
-					ps[pnum].vel.X = 0;
-					ps[pnum].vel.Y = 0;
+					p->vel.X = 0;
+					p->vel.Y = 0;
 				}
 				else
 				{
-					ps[pnum].vel.XY() *= gs.playerfriction - 0.125;
+					p->vel.XY() *= gs.playerfriction - 0.125;
 				}
 			}
 			else if (!(actor->flags2 & SFLAG2_FLOATING))
@@ -1466,12 +1468,12 @@ void move(DDukeActor* actor, int pnum, double pdist)
 				{
 					if (actor->opos.Z != actor->spr.pos.Z || (ud.multimode < 2 && ud.player_skill < 2))
 					{
-						if ((actor->counter & 1) || ps[pnum].actorsqu == actor) return;
+						if ((actor->counter & 1) || p->actorsqu == actor) return;
 						else daxvel *= 2;
 					}
 					else
 					{
-						if ((actor->counter & 3) || ps[pnum].actorsqu == actor) return;
+						if ((actor->counter & 3) || p->actorsqu == actor) return;
 						else daxvel *= 4;
 					}
 				}
@@ -1624,20 +1626,20 @@ void handle_se00(DDukeActor* actor)
 
 	if (direction && (sect->floorstat & CSTAT_SECTOR_ALIGN))
 	{
-		int p;
-		for (p = connecthead; p >= 0; p = connectpoint2[p])
+		for (int i = connecthead; i >= 0; i = connectpoint2[i])
 		{
-			if (ps[p].cursector == actor->sector() && ps[p].on_ground == 1)
+			const auto p = getPlayer(i);
+
+			if (p->cursector == actor->sector() && p->on_ground == 1)
 			{
-				ps[p].GetActor()->spr.Angles.Yaw += ang_amount * direction;
+				const auto pact = p->GetActor();
 
-				ps[p].GetActor()->spr.pos.Z += zchange;
+				pact->spr.Angles.Yaw += ang_amount * direction;
+				pact->spr.pos.Z += zchange;
 
-				auto result = rotatepoint(Owner->spr.pos, ps[p].GetActor()->spr.pos.XY(), ang_amount * direction);
-
-				ps[p].bobpos += (result - ps[p].GetActor()->spr.pos.XY());
-
-				ps[p].GetActor()->spr.pos.XY() = result;
+				auto result = rotatepoint(Owner->spr.pos.XY(), pact->spr.pos.XY(), ang_amount * direction);
+				p->bobpos += (result - pact->spr.pos.XY());
+				pact->spr.pos.XY() = result;
 			}
 		}
 		DukeSectIterator itp(actor->sector());
@@ -1655,7 +1657,7 @@ void handle_se00(DDukeActor* actor)
 
 				act2->spr.pos.Z += zchange;
 
-				auto pos = rotatepoint(Owner->spr.pos, act2->spr.pos.XY(), ang_amount * direction);
+				auto pos = rotatepoint(Owner->spr.pos.XY(), act2->spr.pos.XY(), ang_amount * direction);
 				act2->spr.pos.X = pos.X;
 				act2->spr.pos.Y = pos.Y;
 			}
@@ -1753,11 +1755,12 @@ void handle_se14(DDukeActor* actor, bool checkstat, PClassActor* RPG)
 			if ((!checkstat || !statstate) && (ud.monsters_off == 0 && sc->floorpal == 0 && (sc->floorstat & CSTAT_SECTOR_SKY) && rnd(8)))
 			{
 				double dist2;
-				int p = findplayer(actor, &dist2);
+				const auto p = getPlayer(findplayer(actor, &dist2));
+
 				if (dist2 < 1280)//20480)
 				{
 					auto saved_angle = actor->spr.Angles.Yaw;
-					actor->spr.Angles.Yaw = (actor->spr.pos.XY() - ps[p].GetActor()->spr.pos.XY()).Angle();
+					actor->spr.Angles.Yaw = (actor->spr.pos.XY() - p->GetActor()->spr.pos.XY()).Angle();
 					shoot(actor, RPG);
 					actor->spr.Angles.Yaw = saved_angle;
 				}
@@ -1767,57 +1770,58 @@ void handle_se14(DDukeActor* actor, bool checkstat, PClassActor* RPG)
 		if (actor->vel.X <= 4 && statstate)
 			S_StopSound(actor->tempsound, actor);
 
-		if ((sc->floorz - sc->ceilingz) < 108)
+		if (((sc->floorz - sc->ceilingz) < 108) && (ud.clipping == 0 && actor->vel.X >= 12))
 		{
-			if (ud.clipping == 0 && actor->vel.X >=  12)
-				for (int p = connecthead; p >= 0; p = connectpoint2[p])
-				{
-					auto psp = ps[p].GetActor();
-					if (psp->spr.extra > 0)
-					{
-						auto sect = ps[p].cursector;
-						updatesector(ps[p].GetActor()->getPosWithOffsetZ(), &sect);
-						if ((sect == nullptr && ud.clipping == 0) || (sect == actor->sector() && ps[p].cursector != actor->sector()))
-						{
-							ps[p].GetActor()->spr.pos.XY() = actor->spr.pos.XY();
-							ps[p].setCursector(actor->sector());
+			for (int i = connecthead; i >= 0; i = connectpoint2[i])
+			{
+				const auto p = getPlayer(i);
+				const auto pact = p->GetActor();
 
-							SetActor(ps[p].GetActor(), actor->spr.pos);
-							quickkill(&ps[p]);
-						}
+				if (pact->spr.extra > 0)
+				{
+					auto sect = p->cursector;
+					updatesector(pact->getPosWithOffsetZ(), &sect);
+					if ((sect == nullptr && ud.clipping == 0) || (sect == actor->sector() && p->cursector != actor->sector()))
+					{
+						pact->spr.pos.XY() = actor->spr.pos.XY();
+						p->setCursector(actor->sector());
+
+						SetActor(pact, actor->spr.pos);
+						quickkill(p);
 					}
 				}
+			}
 		}
 
 		auto vec = actor->spr.Angles.Yaw.ToVector() * actor->vel.X;
 
-		for (int p = connecthead; p >= 0; p = connectpoint2[p])
+		for (int i = connecthead; i >= 0; i = connectpoint2[i])
 		{
-			auto psp = ps[p].GetActor();
-			if (ps[p].insector() && ps[p].cursector->lotag != 2)
+			const auto p = getPlayer(i);
+			const auto pact = p->GetActor();
+
+			if (p->insector() && p->cursector->lotag != 2)
 			{
-				if (po[p].os == actor->sector())
+				if (po[i].os == actor->sector())
 				{
-					po[p].opos += vec;
+					po[i].opos += vec;
 				}
 
-				if (actor->sector() == psp->sector())
+				if (actor->sector() == pact->sector())
 				{
-					auto result = rotatepoint(actor->spr.pos.XY(), ps[p].GetActor()->spr.pos.XY(), diffangle);
+					auto result = rotatepoint(actor->spr.pos.XY(), pact->spr.pos.XY(), diffangle);
+					pact->spr.pos.XY() = result + vec;
 
-					ps[p].GetActor()->spr.pos.XY() = result + vec;
-
-					ps[p].bobpos += vec;
-
-					ps[p].GetActor()->spr.Angles.Yaw += diffangle;
+					p->bobpos += vec;
+					pact->spr.Angles.Yaw += diffangle;
 
 					if (numplayers > 1)
 					{
-						ps[p].GetActor()->backupvec2();
+						pact->backupvec2();
 					}
-					if (psp->spr.extra <= 0)
+					if (pact->spr.extra <= 0)
 					{
-						psp->spr.pos.XY() = ps[p].GetActor()->spr.pos.XY();
+						pact->spr.pos.XY() = pact->spr.pos.XY();
 					}
 				}
 			}
@@ -1843,26 +1847,28 @@ void handle_se14(DDukeActor* actor, bool checkstat, PClassActor* RPG)
 		// I have no idea why this is here, but the SE's sector must never, *EVER* change, or the map will corrupt.
 		//SetActor(actor, actor->spr.pos);
 
-		if ((sc->floorz - sc->ceilingz) < 108)
+		if (((sc->floorz - sc->ceilingz) < 108) && (ud.clipping == 0 && actor->vel.X >= 12))
 		{
-			if (ud.clipping == 0 && actor->vel.X >=  12)
-				for (int p = connecthead; p >= 0; p = connectpoint2[p])
-				{
-					if (ps[p].GetActor()->spr.extra > 0)
-					{
-						auto k = ps[p].cursector;
-						updatesector(ps[p].GetActor()->getPosWithOffsetZ(), &k);
-						if ((k == nullptr && ud.clipping == 0) || (k == actor->sector() && ps[p].cursector != actor->sector()))
-						{
-							ps[p].GetActor()->spr.pos.XY() = actor->spr.pos.XY();
-							ps[p].GetActor()->backupvec2();
-							ps[p].setCursector(actor->sector());
+			for (int i = connecthead; i >= 0; i = connectpoint2[i])
+			{
+				const auto p = getPlayer(i);
+				const auto pact = p->GetActor();
 
-							SetActor(ps[p].GetActor(), actor->spr.pos);
-							quickkill(&ps[p]);
-						}
+				if (pact->spr.extra > 0)
+				{
+					auto k = p->cursector;
+					updatesector(pact->getPosWithOffsetZ(), &k);
+					if ((k == nullptr && ud.clipping == 0) || (k == actor->sector() && p->cursector != actor->sector()))
+					{
+						pact->spr.pos.XY() = actor->spr.pos.XY();
+						pact->backupvec2();
+						p->setCursector(actor->sector());
+
+						SetActor(pact, actor->spr.pos);
+						quickkill(p);
 					}
 				}
+			}
 
 			auto actOwner = actor->GetOwner();
 			if (actOwner)
@@ -1900,8 +1906,8 @@ void handle_se14(DDukeActor* actor, bool checkstat, PClassActor* RPG)
 void handle_se30(DDukeActor *actor)
 {
 	auto sc = actor->sector();
-
 	auto Owner = actor->GetOwner();
+
 	if (Owner == nullptr)
 	{
 		actor->temp_data[3] = !actor->temp_data[3];
@@ -1946,43 +1952,49 @@ void handle_se30(DDukeActor *actor)
 	{
 		auto vect = actor->spr.Angles.Yaw.ToVector() * actor->vel.X;
 
-		if ((sc->floorz - sc->ceilingz) < 108)
-			if (ud.clipping == 0)
-				for (int p = connecthead; p >= 0; p = connectpoint2[p])
-					{
-					auto psp = ps[p].GetActor();
-					if (psp->spr.extra > 0)
-					{
-						auto k = ps[p].cursector;
-						updatesector(ps[p].GetActor()->getPosWithOffsetZ(), &k);
-						if ((k == nullptr && ud.clipping == 0) || (k == actor->sector() && ps[p].cursector != actor->sector()))
-						{
-							ps[p].GetActor()->spr.pos.XY() = actor->spr.pos.XY();
-							ps[p].setCursector(actor->sector());
+		if (((sc->floorz - sc->ceilingz) < 108) && (ud.clipping == 0))
+		{
+			for (int i = connecthead; i >= 0; i = connectpoint2[i])
+			{
+				const auto p = getPlayer(i);
+				const auto pact = p->GetActor();
 
-							SetActor(ps[p].GetActor(), actor->spr.pos);
-							quickkill(&ps[p]);
-						}
+				if (pact->spr.extra > 0)
+				{
+					auto k = p->cursector;
+					updatesector(pact->getPosWithOffsetZ(), &k);
+					if ((k == nullptr && ud.clipping == 0) || (k == actor->sector() && p->cursector != actor->sector()))
+					{
+						pact->spr.pos.XY() = actor->spr.pos.XY();
+						p->setCursector(actor->sector());
+
+						SetActor(pact, actor->spr.pos);
+						quickkill(p);
 					}
 				}
-		for (int p = connecthead; p >= 0; p = connectpoint2[p])
+			}
+		}
+
+		for (int i = connecthead; i >= 0; i = connectpoint2[i])
 		{
-			auto psp = ps[p].GetActor();
-			if (psp->sector() == actor->sector())
+			const auto p = getPlayer(i);
+			const auto pact = p->GetActor();
+
+			if (pact->sector() == actor->sector())
 			{
-				ps[p].GetActor()->spr.pos.XY() += vect;
+				pact->spr.pos.XY() += vect;
 
 				if (numplayers > 1)
 				{
-					ps[p].GetActor()->backupvec2();
+					pact->backupvec2();
 				}
 
-				ps[p].bobpos += vect;
+				p->bobpos += vect;
 			}
 
-			if (po[p].os == actor->sector())
+			if (po[i].os == actor->sector())
 			{
-				po[p].opos += vect;
+				po[i].opos += vect;
 			}
 		}
 
@@ -2006,22 +2018,29 @@ void handle_se30(DDukeActor *actor)
 		if ((sc->floorz - sc->ceilingz) < 108)
 		{
 			if (ud.clipping == 0)
-				for (int p = connecthead; p >= 0; p = connectpoint2[p])
-					if (ps[p].GetActor()->spr.extra > 0)
+			{
+				for (int i = connecthead; i >= 0; i = connectpoint2[i])
+				{
+					const auto p = getPlayer(i);
+					const auto pact = p->GetActor();
+
+					if (pact->spr.extra > 0)
 					{
-						auto k = ps[p].cursector;
-						updatesector(ps[p].GetActor()->getPosWithOffsetZ(), &k);
-						if ((k == nullptr && ud.clipping == 0) || (k == actor->sector() && ps[p].cursector != actor->sector()))
+						auto k = p->cursector;
+						updatesector(pact->getPosWithOffsetZ(), &k);
+						if ((k == nullptr && ud.clipping == 0) || (k == actor->sector() && p->cursector != actor->sector()))
 						{
-							ps[p].GetActor()->spr.pos.XY() = actor->spr.pos.XY();
-							ps[p].GetActor()->backupvec2();
+							pact->spr.pos.XY() = actor->spr.pos.XY();
+							pact->backupvec2();
 
-							ps[p].setCursector(actor->sector());
+							p->setCursector(actor->sector());
 
-							SetActor(ps[p].GetActor(), actor->spr.pos);
-							quickkill(&ps[p]);
+							SetActor(pact, actor->spr.pos);
+							quickkill(p);
 						}
 					}
+				}
+			}
 
 			if (Owner)
 			{
@@ -2084,7 +2103,7 @@ void handle_se02(DDukeActor* actor)
 			if ((actor->counter & 31) == 8)
 			{
 				ud.earthquaketime = 48;
-				S_PlayActorSound(EARTHQUAKE, ps[screenpeek].GetActor());
+				S_PlayActorSound(EARTHQUAKE, getPlayer(screenpeek)->GetActor());
 			}
 
 			if (abs(sc->floorheinum - actor->temp_data[0]) < 8)
@@ -2094,12 +2113,16 @@ void handle_se02(DDukeActor* actor)
 
 		auto vect = actor->spr.Angles.Yaw.ToVector() * actor->vel.X;
 
-		for (int p = connecthead; p >= 0; p = connectpoint2[p])
-			if (ps[p].cursector == actor->sector() && ps[p].on_ground)
+		for (int i = connecthead; i >= 0; i = connectpoint2[i])
+		{
+			const auto p = getPlayer(i);
+
+			if (p->cursector == actor->sector() && p->on_ground)
 			{
-				ps[p].GetActor()->spr.pos.XY() += vect;
-				ps[p].bobpos += vect;
+				p->GetActor()->spr.pos.XY() += vect;
+				p->bobpos += vect;
 			}
+		}
 
 		DukeSectIterator it(actor->sector());
 		while (auto a2 = it.Next())
@@ -2239,11 +2262,13 @@ void handle_se05(DDukeActor* actor)
 	int j;
 
 	double x;
-	int p = findplayer(actor, &x);
+	const auto p = getPlayer(findplayer(actor, &x));
+	const auto pact = p->GetActor();
+
 	if (x < 512)
 	{
 		auto ang = actor->spr.Angles.Yaw;
-		actor->spr.Angles.Yaw = (actor->spr.pos.XY() - ps[p].GetActor()->spr.pos.XY()).Angle();
+		actor->spr.Angles.Yaw = (actor->spr.pos.XY() - pact->spr.pos.XY()).Angle();
 		shoot(actor, isRR()? RedneckFirelaserClass : DukeFirelaserClass);
 		actor->spr.Angles.Yaw = ang;
 	}
@@ -2258,7 +2283,7 @@ void handle_se05(DDukeActor* actor)
 			auto NewOwner = LocateTheLocator(actor->temp_data[4], nullptr);
 			if (NewOwner == nullptr) break;
 
-			double dist = (ps[p].GetActor()->spr.pos.XY() - NewOwner->spr.pos.XY()).LengthSquared();
+			double dist = (pact->spr.pos.XY() - NewOwner->spr.pos.XY()).LengthSquared();
 
 			if (maxdist > dist)
 			{
@@ -2297,8 +2322,7 @@ void handle_se05(DDukeActor* actor)
 	}
 	else
 	{
-		actor->temp_angle +=
-			deltaangle(actor->temp_angle + DAngle90, (ps[p].GetActor()->spr.pos.XY() - actor->spr.pos.XY()).Angle()) * 0.25;
+		actor->temp_angle += deltaangle(actor->temp_angle + DAngle90, (pact->spr.pos.XY() - actor->spr.pos.XY()).Angle()) * 0.25;
 		sc->ceilingshade = 0;
 	}
 	j = fi.ifhitbyweapon(actor);
@@ -2308,7 +2332,7 @@ void handle_se05(DDukeActor* actor)
 		if (actor->temp_data[3] == 5)
 		{
 			actor->vel.Z += 4;
-			FTA(7, &ps[myconnectindex]);
+			FTA(7, getPlayer(myconnectindex));
 		}
 	}
 
@@ -2419,7 +2443,7 @@ void handle_se10(DDukeActor* actor, const int* specialtags)
 		if ((sc->lotag & 0xff) != ST_27_STRETCH_BRIDGE)
 			for (int p = connecthead; p >= 0; p = connectpoint2[p])
 				if (sc->lotag != ST_30_ROTATE_RISE_BRIDGE && sc->lotag != ST_31_TWO_WAY_TRAIN && sc->lotag != ST_0_NO_EFFECT)
-					if (actor->sector() == ps[p].GetActor()->sector())
+					if (actor->sector() == getPlayer(p)->GetActor()->sector())
 						j = 0;
 
 		if (j == 1)
@@ -2633,11 +2657,12 @@ void handle_se13(DDukeActor* actor)
 					wal.shade = actor->spr.shade;
 
 				sc->floorshade = actor->spr.shade;
+				const auto p = getPlayer(0);
 
-				if (ps[0].one_parallax_sectnum != nullptr)
+				if (p->one_parallax_sectnum != nullptr)
 				{
-					sc->setceilingtexture(ps[0].one_parallax_sectnum->ceilingtexture);
-					sc->ceilingshade = ps[0].one_parallax_sectnum->ceilingshade;
+					sc->setceilingtexture(p->one_parallax_sectnum->ceilingtexture);
+					sc->ceilingshade = p->one_parallax_sectnum->ceilingshade;
 				}
 			}
 		}
@@ -2757,10 +2782,10 @@ void handle_se17(DDukeActor* actor)
 	{
 		if (act1->spr.statnum == STAT_PLAYER && act1->GetOwner())
 		{
-			int p = act1->spr.yint;
-			ps[p].GetActor()->spr.pos.Z += q;
-			ps[p].truefz += q;
-			ps[p].truecz += q;
+			const auto p = getPlayer(act1->PlayerIndex());
+			p->GetActor()->spr.pos.Z += q;
+			p->truefz += q;
+			p->truecz += q;
 		}
 		if (act1->spr.statnum != STAT_EFFECTOR && act1->spr.statnum != STAT_PLAYER)
 		{
@@ -2805,26 +2830,26 @@ void handle_se17(DDukeActor* actor)
 		{
 			if (act3->spr.statnum == STAT_PLAYER && act3->GetOwner())
 			{
-				int p = act3->PlayerIndex();
+				const auto p = getPlayer(act3->PlayerIndex());
 
 				act3->opos -= act3->spr.pos;
 				act3->spr.pos.XY() += act2->spr.pos.XY() - actor->spr.pos.XY();
 				act3->spr.pos.Z += act2->sector()->floorz - sc->floorz;
 				act3->opos += act3->spr.pos;
 
-				if (q > 0) ps[p].GetActor()->backupz();
+				if (q > 0) act3->backupz();
 
 				act3->floorz = act2->sector()->floorz;
 				act3->ceilingz = act2->sector()->ceilingz;
 
-				ps[p].setbobpos();
+				p->setbobpos();
 
-				ps[p].truefz = act3->floorz;
-				ps[p].truecz = act3->ceilingz;
-				ps[p].bobcounter = 0;
+				p->truefz = act3->floorz;
+				p->truecz = act3->ceilingz;
+				p->bobcounter = 0;
 
 				ChangeActorSect(act3, act2->sector());
-				ps[p].setCursector(act2->sector());
+				p->setCursector(act2->sector());
 			}
 			else if (act3->spr.statnum != STAT_EFFECTOR)
 			{
@@ -2882,7 +2907,8 @@ void handle_se18(DDukeActor *actor, bool morecheck)
 					{
 						if (a2->isPlayer() && a2->GetOwner())
 						{
-							if (ps[a2->PlayerIndex()].on_ground == 1) ps[a2->PlayerIndex()].GetActor()->spr.pos.Z += extra;
+							const auto p = getPlayer(a2->PlayerIndex());
+							if (p->on_ground == 1) a2->spr.pos.Z += extra;
 						}
 						if (a2->vel.Z == 0 && a2->spr.statnum != STAT_EFFECTOR && a2->spr.statnum != STAT_PROJECTILE)
 						{
@@ -2921,7 +2947,8 @@ void handle_se18(DDukeActor *actor, bool morecheck)
 					{
 						if (a2->isPlayer() && a2->GetOwner())
 						{
-							if (ps[a2->PlayerIndex()].on_ground == 1) ps[a2->PlayerIndex()].GetActor()->spr.pos.Z -= extra;
+							const auto p = getPlayer(a2->PlayerIndex());
+							if (p->on_ground == 1) a2->spr.pos.Z -= extra;
 						}
 						if (a2->vel.Z == 0 && a2->spr.statnum != STAT_EFFECTOR && a2->spr.statnum != STAT_PROJECTILE)
 						{
@@ -3024,7 +3051,7 @@ void handle_se19(DDukeActor *actor)
 		auto hitter = ifhitsectors(actor->sector());
 		if (hitter)
 		{
-			FTA(8, &ps[myconnectindex]);
+			FTA(8, getPlayer(myconnectindex));
 
 			DukeStatIterator it(STAT_EFFECTOR);
 			while (auto ac = it.Next())
@@ -3104,14 +3131,18 @@ void handle_se20(DDukeActor* actor)
 		dragpoint(wal[0], wal[0]->pos + vec);
 		dragpoint(wal[1], wal[1]->pos + vec);
 
-		for (int p = connecthead; p >= 0; p = connectpoint2[p])
-			if (ps[p].cursector == actor->sector() && ps[p].on_ground)
-			{
-				ps[p].GetActor()->spr.pos.XY() += vec;
-				ps[p].GetActor()->backupvec2();
+		for (int i = connecthead; i >= 0; i = connectpoint2[i])
+		{
+			const auto p = getPlayer(i);
+			const auto pact = p->GetActor();
 
-				SetActor(ps[p].GetActor(), ps[p].GetActor()->spr.pos);
+			if (p->cursector == actor->sector() && p->on_ground)
+			{
+				pact->spr.pos.XY() += vec;
+				pact->backupvec2();
+				SetActor(pact, pact->spr.pos);
 			}
+		}
 
 		sc->addfloorxpan(-(float)vec.X * 2);
 		sc->addfloorypan(-(float)vec.Y * 2);
@@ -3215,13 +3246,18 @@ void handle_se26(DDukeActor* actor)
 		}
 	}
 
-	for (int p = connecthead; p >= 0; p = connectpoint2[p])
-		if (ps[p].GetActor()->sector() == actor->sector() && ps[p].on_ground)
+	for (int i = connecthead; i >= 0; i = connectpoint2[i])
+	{
+		const auto p = getPlayer(i);
+		const auto pact = p->GetActor();
+
+		if (pact->sector() == actor->sector() && p->on_ground)
 		{
-			ps[p].fric.X += vect.X;
-			ps[p].fric.Y += vect.Y;
-			ps[p].GetActor()->spr.pos.Z += zvel;
+			p->fric.X += vect.X;
+			p->fric.Y += vect.Y;
+			pact->spr.pos.Z += zvel;
 		}
+	}
 
 	movesector(actor, actor->temp_data[1], nullAngle);
 	//SetActor(actor, actor->spr.pos);
@@ -3236,31 +3272,32 @@ void handle_se26(DDukeActor* actor)
 void handle_se27(DDukeActor* actor)
 {
 	int sh = actor->spr.hitag;
-	int p;
 	double xx;
 
 	if (ud.recstat == 0) return;
 
 	actor->temp_angle = actor->spr.Angles.Yaw;
 
-	p = findplayer(actor, &xx);
-	if (ps[p].GetActor()->spr.extra > 0 && myconnectindex == screenpeek)
+	const auto p = getPlayer(findplayer(actor, &xx));
+	const auto pact = p->GetActor();
+
+	if (pact->spr.extra > 0 && myconnectindex == screenpeek)
 	{
 		if (actor->counter < 0)
 		{
 			ud.cameraactor = actor;
 			actor->counter++;
 		}
-		else if (ud.recstat == 2 && ps[p].newOwner == nullptr)
+		else if (ud.recstat == 2 && p->newOwner == nullptr)
 		{
-			if (cansee(actor->spr.pos, actor->sector(), ps[p].GetActor()->getPosWithOffsetZ(), ps[p].cursector))
+			if (cansee(actor->spr.pos, actor->sector(), pact->getPosWithOffsetZ(), p->cursector))
 			{
 				if (xx < sh * maptoworld)
 				{
 					ud.cameraactor = actor;
 					actor->counter = 999;
-					actor->spr.Angles.Yaw += deltaangle(actor->spr.Angles.Yaw, (ps[p].GetActor()->spr.pos.XY() - actor->spr.pos.XY()).Angle()) * 0.125;
-					actor->spr.yint = 100 + int((actor->spr.pos.Z - ps[p].GetActor()->getOffsetZ()) * (256. / 257.));
+					actor->spr.Angles.Yaw += deltaangle(actor->spr.Angles.Yaw, (pact->spr.pos.XY() - actor->spr.pos.XY()).Angle()) * 0.125;
+					actor->spr.yint = 100 + int((actor->spr.pos.Z - pact->getOffsetZ()) * (256. / 257.));
 
 				}
 				else if (actor->counter == 999)
@@ -3274,7 +3311,7 @@ void handle_se27(DDukeActor* actor)
 			}
 			else
 			{
-				actor->spr.Angles.Yaw = (ps[p].GetActor()->spr.pos.XY() - actor->spr.pos.XY()).Angle();
+				actor->spr.Angles.Yaw = (pact->spr.pos.XY() - actor->spr.pos.XY()).Angle();
 
 				if (actor->counter == 999)
 				{
@@ -3335,13 +3372,16 @@ void handle_se24(DDukeActor *actor, bool scroll, double mult)
 		}
 	}
 
-	for (auto p = connecthead; p >= 0; p = connectpoint2[p])
+	for (auto i = connecthead; i >= 0; i = connectpoint2[i])
 	{
-		if (ps[p].cursector == actor->sector() && ps[p].on_ground)
+		const auto p = getPlayer(i);
+		const auto pact = p->GetActor();
+
+		if (p->cursector == actor->sector() && p->on_ground)
 		{
-			if (abs(ps[p].GetActor()->getOffsetZ() - ps[p].truefz) < gs.playerheight + 9)
+			if (abs(pact->getOffsetZ() - p->truefz) < gs.playerheight + 9)
 			{
-				ps[p].fric += vec * (1. / 8.); // keeping the original velocity. to match the animation it should be ~1/24.
+				p->fric += vec * (1. / 8.); // keeping the original velocity. to match the animation it should be ~1/24.
 			}
 		}
 	}
@@ -3648,8 +3688,8 @@ void handle_se31(DDukeActor* actor, bool choosedir)
 					while (auto a2 = it.Next())
 					{
 						if (a2->isPlayer() && a2->GetOwner())
-							if (ps[a2->PlayerIndex()].on_ground == 1)
-								ps[a2->PlayerIndex()].GetActor()->spr.pos.Z += l;
+							if (getPlayer(a2->PlayerIndex())->on_ground == 1)
+								a2->spr.pos.Z += l;
 						if (a2->vel.Z == 0 && a2->spr.statnum != STAT_EFFECTOR && (!choosedir || a2->spr.statnum != STAT_PROJECTILE))
 						{
 							if (!a2->isPlayer()) a2->spr.pos.Z += l;
@@ -3677,8 +3717,8 @@ void handle_se31(DDukeActor* actor, bool choosedir)
 					while (auto a2 = it.Next())
 					{
 						if (a2->isPlayer() && a2->GetOwner())
-							if (ps[a2->PlayerIndex()].on_ground == 1)
-								ps[a2->PlayerIndex()].GetActor()->spr.pos.Z += l;
+							if (getPlayer(a2->PlayerIndex())->on_ground == 1)
+								a2->spr.pos.Z += l;
 						if (a2->vel.Z == 0 && a2->spr.statnum != STAT_EFFECTOR && (!choosedir || a2->spr.statnum != STAT_PROJECTILE))
 						{
 							if (!a2->isPlayer()) a2->spr.pos.Z += l;
@@ -3708,8 +3748,8 @@ void handle_se31(DDukeActor* actor, bool choosedir)
 				while (auto a2 = it.Next())
 				{
 					if (a2->isPlayer() && a2->GetOwner())
-						if (ps[a2->PlayerIndex()].on_ground == 1)
-							ps[a2->PlayerIndex()].GetActor()->spr.pos.Z += l;
+						if (getPlayer(a2->PlayerIndex())->on_ground == 1)
+							a2->spr.pos.Z += l;
 					if (a2->vel.Z == 0 && a2->spr.statnum != STAT_EFFECTOR && (!choosedir || a2->spr.statnum != STAT_PROJECTILE))
 					{
 						if (!a2->isPlayer()) a2->spr.pos.Z += l;
@@ -3736,8 +3776,8 @@ void handle_se31(DDukeActor* actor, bool choosedir)
 				while (auto a2 = it.Next())
 				{
 					if (a2->isPlayer() && a2->GetOwner())
-						if (ps[a2->PlayerIndex()].on_ground == 1)
-							ps[a2->PlayerIndex()].GetActor()->spr.pos.Z -= l;
+						if (getPlayer(a2->PlayerIndex())->on_ground == 1)
+							a2->spr.pos.Z -= l;
 					if (a2->vel.Z == 0 && a2->spr.statnum != STAT_EFFECTOR && (!choosedir || a2->spr.statnum != STAT_PROJECTILE))
 					{
 						if (!a2->isPlayer()) a2->spr.pos.Z -= l;
@@ -3959,12 +3999,13 @@ int furthestcanseepoint(DDukeActor *actor, DDukeActor* tosee, DVector2& pos)
 //
 //---------------------------------------------------------------------------
 
-void alterang(int ang, DDukeActor* actor, int playernum)
+void alterang(int ang, DDukeActor* actor, DDukePlayer* const p)
 {
 	DAngle goalang, aang, angdif;
 	int j;
 	int ticselapsed;
 
+	const auto pact = p->GetActor();
 	auto moveptr = &ScriptCode[actor->temp_data[1]];
 
 	ticselapsed = (actor->counter) & 31;
@@ -3981,13 +4022,13 @@ void alterang(int ang, DDukeActor* actor, int playernum)
 		actor->spr.Angles.Yaw = WindDir;
 	else if (ang & seekplayer)
 	{
-		DDukeActor* holoduke = !isRR()? ps[playernum].holoduke_on.Get() : nullptr;
+		DDukeActor* holoduke = !isRR()? p->holoduke_on.Get() : nullptr;
 
 		// NOTE: looks like 'Owner' is set to target sprite ID...
 
 		if (holoduke && cansee(holoduke->spr.pos, holoduke->sector(), actor->spr.pos, actor->sector()))
 			actor->SetOwner(holoduke);
-		else actor->SetOwner(ps[playernum].GetActor());
+		else actor->SetOwner(pact);
 
 		auto Owner = actor->GetOwner();
 		if (Owner->isPlayer())
@@ -4025,7 +4066,7 @@ void alterang(int ang, DDukeActor* actor, int playernum)
 		{
 			goalang = furthestangle(actor, j);
 			actor->spr.Angles.Yaw = goalang;
-			actor->SetOwner(ps[playernum].GetActor());
+			actor->SetOwner(pact);
 		}
 
 		if (ang & fleeenemy)
@@ -4229,7 +4270,7 @@ DDukeActor *LocateTheLocator(int n, sectortype* sect)
 void movefta(void)
 {
 	double xx;
-	int canseeme, p;
+	int canseeme;
 	sectortype* psect, * ssect;
 
 	auto check_fta_sounds = [](DDukeActor* act)
@@ -4241,12 +4282,12 @@ void movefta(void)
 	DukeStatIterator it(STAT_ZOMBIEACTOR);
 	while (auto act = it.Next())
 	{
-		p = findplayer(act, &xx);
+		const auto p = getPlayer(findplayer(act, &xx));
+		const auto pact = p->GetActor();
 		canseeme = 0;
-
 		ssect = psect = act->sector();
 
-		if (ps[p].GetActor()->spr.extra > 0)
+		if (pact->spr.extra > 0)
 		{
 			if (xx < 30000 / 16.)
 			{
@@ -4256,8 +4297,8 @@ void movefta(void)
 					if (badguy(act))
 					{
 						auto xyrand = []() -> double { return (64 - (krand() & 127)) * maptoworld; };
-						double px = ps[p].GetActor()->opos.X - xyrand();
-						double py = ps[p].GetActor()->opos.Y - xyrand();
+						double px = pact->opos.X - xyrand();
+						double py = pact->opos.Y - xyrand();
 						updatesector(DVector3(px, py, 0), &psect);
 						if (psect == nullptr)
 						{
@@ -4274,14 +4315,14 @@ void movefta(void)
 						{
 							double r1 = zrand(32);
 							double r2 = zrand(52);
-							canseeme = cansee({ sx, sy, act->spr.pos.Z - r2 }, act->sector(), { px, py, ps[p].GetActor()->getPrevOffsetZ() - r1 }, ps[p].cursector);
+							canseeme = cansee({ sx, sy, act->spr.pos.Z - r2 }, act->sector(), { px, py, pact->getPrevOffsetZ() - r1 }, p->cursector);
 						}
 					}
 					else
 					{
 						int r1 = krand();
 						int r2 = krand();
-						canseeme = cansee(act->spr.pos.plusZ(-(r2 & 31)), act->sector(), ps[p].GetActor()->getPrevPosWithOffsetZ().plusZ(-(r1 & 31)), ps[p].cursector);
+						canseeme = cansee(act->spr.pos.plusZ(-(r2 & 31)), act->sector(), pact->getPrevPosWithOffsetZ().plusZ(-(r1 & 31)), p->cursector);
 					}
 
 

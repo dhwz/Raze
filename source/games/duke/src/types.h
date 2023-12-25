@@ -79,7 +79,6 @@ public:
 	short tempval, basepicnum;
 	unsigned short timetosleep;
 	bool mapSpawned;
-	uint8_t killit_flag;
 	DVector2 ovel;
 	DAngle hitang;
 	double floorz, ceilingz;
@@ -225,15 +224,22 @@ struct player_orig
 	sectortype* os;
 };
 
-struct player_struct
+class DDukePlayer final : public DCorePlayer
 {
+	DECLARE_CLASS(DDukePlayer, DCorePlayer)
+	HAS_OBJECT_POINTERS
+	size_t PropagateMark() override;
+	DDukePlayer() = default;
+public:
+	DDukePlayer(uint8_t p) : DCorePlayer(p) {}
+	DDukePlayer& operator=(DDukePlayer&) = delete;
+	DDukePlayer(DDukePlayer&) = delete;
+	void Serialize(FSerializer& arc) override;
+	TArray<GameVarValue> uservars;
 	DVector3 vel;
 	DVector2 bobpos;
 	DVector2 fric;
 	DVector2 Exit;
-
-	// player's horizon and angle structs.
-	PlayerAngles Angles;
 
 	uint16_t frags[MAXPLAYERS];
 
@@ -272,7 +278,7 @@ struct player_struct
 	sectortype* cursector;
 	sectortype* one_parallax_sectnum; // wall + sector references.
 	walltype* access_wall;
-	DDukeActor* actor;
+	DDukeActor* GetActor() override;
 	TObjPtr<DDukeActor*> actorsqu, wackedbyactor, on_crane, holoduke_on, somethingonplayer, access_spritenum, dummyplayersprite, newOwner;
 
 	short last_extra, subweapon;
@@ -313,8 +319,6 @@ struct player_struct
 	uint8_t walking_snd_toggle, palookup;
 	bool quick_kick_msg;
 
-	int max_secret_rooms, secret_rooms, max_actors_killed, actors_killed;
-
 	// Redneck Rampage additions. Those which did not have names in the reconstructed source got one from either RedneckGDX or RedNukem.
 	// Items were reordered by size.
 	int stairs;
@@ -349,14 +353,6 @@ struct player_struct
 	uint8_t moto_do_bump, moto_bump_fast, moto_on_oil, moto_on_mud;
 	double MotoSpeed;
 
-	TArray<GameVarValue> uservars;
-
-	bool crouch_toggle;
-
-	// input stuff.
-	InputPacket sync;
-
-	DDukeActor* GetActor();
 	int GetPlayerNum();
 
 	void apply_seasick();
@@ -365,43 +361,71 @@ struct player_struct
 	void checkhardlanding();
 	void playerweaponsway(double xvel);
 
-	float adjustavel(float avel)
+	double GetMaxInputVel() const override
 	{
-		return (psectlotag == ST_2_UNDERWATER)? avel * 0.875f : avel;
+		return (117351124. / 10884538.);
 	}
 
-	void setCursector(sectortype* sect)
+	const DVector2& GetInputVelocity() const override
+	{
+		return vel.XY();
+	}
+
+	inline void setCursector(sectortype* sect)
 	{
 		cursector = sect;
 	}
 
-	bool insector() const
+	inline bool insector() const
 	{
 		return cursector != nullptr;
 	}
 
-	void setbobpos()
+	inline void setbobpos()
 	{
 		bobpos = GetActor()->spr.pos.XY();
 	}
 
-	void updatecentering(const int snum)
+	void updatecentering()
 	{
-		if (!(sync.actions & SB_CENTERVIEW))
+		if (!(cmd.ucmd.actions & SB_CENTERVIEW))
 			return;
 
 		const bool returnlock = cl_dukepitchmode & kDukePitchLockReturn;
 		const bool centertest = abs(GetActor()->spr.Angles.Pitch.Degrees()) > 2.2370; // Build horizon value of 5.
 
-		if ((centertest && returnlock) || !sync.horz)
+		if ((centertest && returnlock) || !cmd.ucmd.ang.Pitch.Degrees())
 		{
-			setForcedSyncInput(snum);
-			sync.horz = 0;
+			gameInput.ForceInputSync(pnum);
+			cmd.ucmd.ang.Pitch = nullAngle;
 		}
 		else
 		{
-			sync.actions &= ~SB_CENTERVIEW;
+			cmd.ucmd.actions &= ~SB_CENTERVIEW;
 		}
+	}
+
+	bool canSlopeTilt() const override
+	{
+		return aim_mode == 0 && on_ground && cursector->lotag != ST_2_UNDERWATER;
+	}
+
+	inline bool itemUsed(int num)
+	{
+		return cmd.ucmd.isItemUsed(num - 1);
+	}
+
+	inline void useItem(int num)
+	{
+		cmd.ucmd.setItemUsed(num - 1);
+	}
+
+	unsigned getCrouchFlags() const override
+	{
+		const int sectorLotag = insector() ? cursector->lotag : 0;
+		const int crouchable = sectorLotag != ST_2_UNDERWATER && (sectorLotag != ST_1_ABOVE_WATER || spritebridge) && !jetpack_on;
+		const int disableToggle = (!crouchable && on_ground) || jetpack_on || (isRRRA() && (OnMotorcycle || OnBoat));
+		return (CS_CANCROUCH * crouchable) | (CS_DISABLETOGGLE * disableToggle);
 	}
 };
 
