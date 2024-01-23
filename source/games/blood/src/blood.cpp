@@ -434,13 +434,9 @@ void GameInterface::Ticker()
 		const auto mciPlayer = getPlayer(myconnectindex);
 		const auto mciActor = mciPlayer->GetActor();
 
-		// disable synchronised input if set by game.
-		gameInput.ResetInputSync();
-
 		for (int i = connecthead; i >= 0; i = connectpoint2[i])
 		{
 			const auto pPlayer = getPlayer(i);
-			pPlayer->resetCameraAngles();
 			viewBackupView(pPlayer);
 			playerProcess(pPlayer);
 		}

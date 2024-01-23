@@ -89,6 +89,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "buildtiles.h"
 
 void LoadHexFont(const char* filename);
+void InitWidgetResources(const char* basewad);
+void CloseWidgetResources();
 
 CVAR(Bool, autoloadlights, true, CVAR_ARCHIVE|CVAR_GLOBALCONFIG)
 CVAR(Bool, autoloadbrightmaps, true, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
@@ -662,6 +664,7 @@ int GameMain()
 		gi = nullptr;
 	}
 	DeleteStartupScreen();
+	CloseWidgetResources();
 	PClass::StaticShutdown();
 	C_UninitCVars();
 	if (Args) delete Args;
@@ -900,12 +903,6 @@ static TArray<GrpEntry> SetupGame()
 //
 //==========================================================================
 
-void InitLanguages()
-{
-	GStrings.LoadStrings(language);
-}
-
-
 void CreateStatusBar()
 {
 	auto stbarclass = PClass::FindClass(globalCutscenes.StatusBarClass);
@@ -1029,6 +1026,13 @@ int RunGame()
 		I_FatalError("Cannot find " ENGINERES_FILE);
 	}
 	LoadHexFont(wad);	// load hex font early so we have it during startup.
+	InitWidgetResources(wad);
+
+	// load strings for picker window.
+	FileSys::FileSystem lang_fs;
+	std::vector<std::string> base_fn = { wad };
+	lang_fs.InitMultipleFiles(base_fn);
+	GStrings.LoadStrings(lang_fs, language);
 
 	// Set up the console before anything else so that it can receive text.
 	C_InitConsole(1024, 768, true);
@@ -1047,6 +1051,10 @@ int RunGame()
 	userConfig.ProcessOptions();
 	GetGames();
 	auto usedgroups = SetupGame();
+
+	V_InitScreenSize();
+	V_InitScreen();
+	V_Init2();
 
 	bool colorset = false;
 	for (int i = usedgroups.Size()-1; i >= 0; i--)
@@ -1099,7 +1107,7 @@ int RunGame()
 	G_ReadConfig(currentGame.GetChars());
 
 	V_InitFontColors();
-	InitLanguages();
+	GStrings.LoadStrings(fileSystem, language);
 
 
 	CheckCPUID(&CPU);
@@ -1107,9 +1115,7 @@ int RunGame()
 	auto ci = DumpCPUInfo(&CPU);
 	Printf("%s", ci.GetChars());
 
-	V_InitScreenSize();
-	V_InitScreen();
-	StartWindow = FStartupScreen::CreateInstance(8, true);
+	StartWindow = FStartupScreen::CreateInstance(8);
 	StartWindow->Progress();
 
 	if (!GameConfig->IsInitialized())
@@ -1171,7 +1177,6 @@ int RunGame()
 	I_UpdateWindowTitle();
 	DeleteStartupScreen();
 
-	V_Init2();
 	while (!screen->CompileNextShader())
 	{
 		// here we can do some visual updates later

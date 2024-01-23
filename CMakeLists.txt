@@ -266,7 +266,7 @@ if( MSVC )
 	# String pooling
 	# Function-level linking
 	# Disable run-time type information
-	set( ALL_C_FLAGS "/GF /Gy /permissive-" )
+	set( ALL_C_FLAGS "/GF /Gy /permissive- /utf-8" )
 
 	if ( HAVE_VULKAN )
 		set( ALL_C_FLAGS "${ALL_C_FLAGS} /DHAVE_VULKAN" )
@@ -298,6 +298,13 @@ if( MSVC )
 
 	# These must be silenced because the code is full of them. Expect some of undefined behavior hidden in this mess. :(
 	#set( ALL_C_FLAGS "${ALL_C_FLAGS} /wd4244 /wd4018 /wd4267" )
+
+	# annoying intellisense warnings that are virtually always false positives and mostly happen in third party code.
+	#6297: overflow when shifting
+	#6386: Buffer overrun when writing (i.e. missing range check for array writes)
+	#6385: Reading invalid data (i.e. missing range check for array reads)
+	#6308: missing null check on realloc
+	set( ALL_C_FLAGS "${ALL_C_FLAGS} /wd6297 /wd6386 /wd6385 /wd6308" ) 
 
 
 	# Most of these need to be cleaned out. The source is currently infested with far too much conditional compilation which is a constant source of problems.
@@ -380,6 +387,8 @@ mark_as_advanced( FORCE_INTERNAL_ASMJIT )
 if (HAVE_VULKAN)
 	add_subdirectory( libraries/ZVulkan )
 endif()
+
+add_subdirectory( libraries/ZWidget )
 
 add_subdirectory( libraries/discordrpc EXCLUDE_FROM_ALL )
 set( DRPC_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libraries/discordrpc/include" )

@@ -42,11 +42,14 @@
 #include "s_music.h"
 #include "sc_man.h"
 #include "s_soundinternal.h"
+#include "i_music.h"
+
 #include "gamecontrol.h"
 #include <zmusic.h>
 
 #include "raze_music.h"
 #include "games/duke/src/sounds.h"
+
 
 // MACROS ------------------------------------------------------------------
 
@@ -158,7 +161,7 @@ static FSoundID S_AddSound(const char* logicalname, int lumpnum, FScanner* sc)
 
 FSoundID S_AddSound(const char* logicalname, const char* lumpname, FScanner* sc)
 {
-	int lump = fileSystem.CheckNumForFullName(lumpname, true, FileSys::ns_sounds);
+	int lump = S_LookupSound(lumpname);
 	if (lump == -1 && sc && fileSystem.GetFileContainer(sc->LumpNum) > fileSystem.GetMaxIwadNum())
 		sc->ScriptMessage("%s: sound file not found", sc->String);
 	return S_AddSound(logicalname, lump, sc);
@@ -231,9 +234,16 @@ static void S_AddSNDINFO (int lump)
 
 			case SI_MusicVolume: {
 				sc.MustGetString();
-				FName musname (sc.String);
-				sc.MustGetFloat();
-				MusicVolumes[musname] = (float)sc.Float;
+				int lumpnum = mus_cb.FindMusic(sc.String);
+				if (!sc.CheckFloat())
+				{
+					sc.MustGetString();
+					char* p;
+					double f = strtod(sc.String, &p);
+					if (!stricmp(p, "db")) sc.Float = dBToAmplitude((float)sc.Float);
+					else sc.ScriptError("Bad value for music volume: %s", sc.String);
+				}
+				if (lumpnum >= 0) MusicVolumes[lumpnum] = (float)sc.Float;
 				}
 				break;
 
@@ -267,7 +277,7 @@ static void S_AddSNDINFO (int lump)
 
 			case SI_MidiDevice: {
 				sc.MustGetString();
-				FName nm = sc.String;
+				int lumpnum = mus_cb.FindMusic(sc.String);
 				FScanner::SavedPos save = sc.SavePos();
 
 				sc.SetCMode(true);
@@ -300,7 +310,7 @@ static void S_AddSNDINFO (int lump)
 					sc.RestorePos(save);
 					sc.MustGetString();
 				}
-				MidiDevices[nm] = devset;
+				if (lumpnum >= 0) MidiDevices[lumpnum] = devset;
 				}
 				break;
 

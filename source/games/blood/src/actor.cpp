@@ -5152,8 +5152,8 @@ void MoveDude(DBloodActor* actor)
 			nDrag -= Scale(gDudeDrag, actor->xspr.height, 256);
 
 		// this cannot be floatified due to the effect of mulscale16r on the value.
-		actor->vel.X += FixedToFloat(-mulscale16r(FloatToFixed(actor->vel.X), nDrag));
-		actor->vel.Y += FixedToFloat(-mulscale16r(FloatToFixed(actor->vel.Y), nDrag));
+		actor->vel.X -= FixedToFloat(mulscale16r(FloatToFixed(actor->vel.X), nDrag));
+		actor->vel.Y -= FixedToFloat(mulscale16r(FloatToFixed(actor->vel.Y), nDrag));
 
 		if (actor->vel.XY().Length() < 0.0625)
 		{
@@ -6055,7 +6055,7 @@ static void actCheckDudes()
 				nDrag -= Scale(nDrag, (double)actor->xspr.height, 256.);
 
 			pPlayer->doRollInput(false);
-			pPlayer->StrafeVel -= pPlayer->StrafeVel * nDrag;
+			pPlayer->RollVel -= pPlayer->RollVel * nDrag;
 		}
 
 		if ((actor->spr.flags & 4) || !actor->vel.isZero() || actor->sector()->velFloor || actor->sector()->velCeil)

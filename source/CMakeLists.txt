@@ -323,6 +323,8 @@ if (HAVE_VULKAN)
 	list( APPEND PROJECT_LIBRARIES "zvulkan" )
 endif()
 
+list( APPEND PROJECT_LIBRARIES "zwidget" )
+
 # ZMUSIC
 
 if( MSVC )
@@ -614,6 +616,7 @@ file( GLOB HEADER_FILES
 	games/sw/src/*.h
 	games/exhumed/src/*.h
 
+	launcher/*.h
 	build/src/*.h
 	platform/win32/*.h
 	platform/posix/*.h
@@ -1018,6 +1021,11 @@ set (PCH_SOURCES
 
 	core/console/c_notifybuffer.cpp
 	core/console/d_event.cpp
+	launcher/launcherwindow.cpp
+	launcher/launcherbanner.cpp
+	launcher/launcherbuttonbar.cpp
+	launcher/playgamepage.cpp
+	launcher/settingspage.cpp
 
 	common/audio/sound/i_sound.cpp
 	common/audio/sound/oalsound.cpp
@@ -1033,6 +1041,7 @@ set (PCH_SOURCES
 	common/2d/v_drawtext.cpp
 	common/2d/v_draw.cpp
 	common/2d/wipe.cpp
+	common/thirdparty/animlib.cpp
 	common/thirdparty/gain_analysis.cpp
 	common/thirdparty/sfmt/SFMT.cpp
 	common/startscreen/startscreen.cpp
@@ -1041,6 +1050,9 @@ set (PCH_SOURCES
 	common/startscreen/startscreen_strife.cpp
 	common/startscreen/startscreen_generic.cpp
 	common/startscreen/endoom.cpp
+	common/widgets/errorwindow.cpp
+	common/widgets/netstartwindow.cpp
+	common/widgets/widgetresourcedata.cpp
 	common/fonts/singlelumpfont.cpp
 	common/fonts/singlepicfont.cpp
 	common/fonts/specialfont.cpp
@@ -1061,7 +1073,6 @@ set (PCH_SOURCES
 	common/textures/skyboxtexture.cpp
 	common/textures/animtexture.cpp
 	common/textures/v_collection.cpp
-	common/textures/animlib.cpp
 	common/textures/formats/automaptexture.cpp
 	common/textures/formats/brightmaptexture.cpp
 	common/textures/formats/buildtexture.cpp
@@ -1377,7 +1388,9 @@ include_directories(
 	common/scripting/interface
 	common/scripting/frontend
 	common/scripting/backend
+	launcher
 	../libraries/ZVulkan/include
+	../libraries/ZWidget/include
 	${SYSTEM_SOURCES_DIR}
 )
 
@@ -1569,6 +1582,7 @@ source_group("Utility\\Third Party" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_
 source_group("Utility\\Third Party Headers" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/include/.+")
 source_group("Utility\\Third Party Sources" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/src/.+")
 source_group("Utility\\RapidJSON" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/utility/rapidjson/.+")
+source_group("Launcher" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/launcher/.+")
 source_group("Build Engine" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/build/.+")
 source_group("Build Engine\\Headers" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/build/include/.+")
 source_group("Build Engine\\Sources" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/build/src/.+")

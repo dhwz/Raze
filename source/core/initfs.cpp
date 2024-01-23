@@ -428,10 +428,12 @@ void InitFileSystem(TArray<GrpEntry>& groups)
 	LumpFilterInfo lfi;
 	lfi.reservedFolders = { "textures/", "hires/", "sounds/", "music/", "maps/" };
 	for (auto p = iwad_reserved(); *p; p++) lfi.requiredPrefixes.push_back(*p);
+#if 0
 	if (isBlood())
 	{
 		lfi.embeddings = { "blood.rff", "sounds.rff" };
 	}
+#endif
 
 	if (isDukeEngine()) lfi.gameTypeFilter.push_back("DukeEngine");
 	if (isDukeLike()) lfi.gameTypeFilter.push_back("DukeLike");
@@ -447,8 +449,8 @@ void InitFileSystem(TArray<GrpEntry>& groups)
 		FILE* f = fopen("filesystem.dir", "wb");
 		for (int num = 0; num < fileSystem.GetNumEntries(); num++)
 		{
-			int64_t fd = fileSystem.FileLength(num);
-			fprintf(f, "%.50s   %60s  %lld\n", fileSystem.GetFileFullName(num), fileSystem.GetResourceFileFullName(fileSystem.GetFileContainer(num)), fd);
+			auto fd = fileSystem.FileLength(num);
+			fprintf(f, "%.50s   %60s  %td\n", fileSystem.GetFileFullName(num), fileSystem.GetResourceFileFullName(fileSystem.GetFileContainer(num)), fd);
 		}
 		fclose(f);
 	}

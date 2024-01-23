@@ -1094,8 +1094,8 @@ static void updatePlayerVelocity(DExhumedPlayer* const pPlayer)
         {
             pPlayerActor->vel.XY() += inputvect;
             pPlayerActor->vel.XY() *= 0.953125;
-            pPlayer->StrafeVel += pInput->vel.Y * 0.375;
-            pPlayer->StrafeVel *= 0.953125;
+            pPlayer->RollVel += pInput->vel.Y * 0.375;
+            pPlayer->RollVel *= 0.953125;
         }
     }
 
@@ -1103,7 +1103,7 @@ static void updatePlayerVelocity(DExhumedPlayer* const pPlayer)
     {
         pPlayerActor->vel.XY().Zero();
         pPlayer->nIdxBobZ = 0;
-        pPlayer->StrafeVel = 0;
+        pPlayer->RollVel = 0;
     }
 }
 
@@ -1533,13 +1533,14 @@ static void doPlayerGravity(DExhumedActor* const pPlayerActor)
 //
 //---------------------------------------------------------------------------
 
-static void doPlayerCameraEffects(DExhumedPlayer* const pPlayer, const double nDestVertPan)
+static void doPlayerCameraEffects(DExhumedPlayer* const pPlayer, const double zDelta)
 {
     const auto pPlayerActor = pPlayer->GetActor();
     const auto nUnderwater = !!(pPlayerActor->sector()->Flag & kSectUnderwater);
 
     // Pitch tilting when player's Z changes (stairs, jumping, etc).
-    doPlayerVertPanning(pPlayer, nDestVertPan * cl_slopetilting);
+    // The default 8x amplification feels very heavy, so add a CVAR to control it.
+    doPlayerVertPanning(pPlayer, zDelta * cl_exvertpanscale * cl_slopetilting);
 
     // Roll tilting effect, either console or Quake-style.
     pPlayer->doRollInput(nUnderwater);
@@ -1813,13 +1814,12 @@ static bool doPlayerInput(DExhumedPlayer* const pPlayer)
             doPlayerMovingBlocks(pPlayer, nMove, spr_vel, spr_sect);
     }
 
-    const auto posdelta = pPlayerActor->opos - pPlayerActor->spr.pos;
+    const auto posdelta = pPlayerActor->spr.pos - pPlayerActor->opos;
     pPlayer->ototalvel = pPlayer->totalvel;
     pPlayer->totalvel = posdelta.XY().Length();
 
     // Effects such as slope tilting, view bobbing, etc.
-    // This should amplified 8x, not 2x, but it feels very heavy. Add a CVAR?
-    doPlayerCameraEffects(pPlayer, -posdelta.Z * 2.);
+    doPlayerCameraEffects(pPlayer, posdelta.Z);
 
     // Most-move updates. Input bit funcs are here because
     // updatePlayerAction() needs access to bUnderwater.
@@ -1928,7 +1928,6 @@ static void doPlayerActionSequence(DExhumedPlayer* const pPlayer)
     const auto pPlayerActor = pPlayer->GetActor();
 
     const auto playerSeq = getSequence(pPlayerActor->nSeqFile, PlayerSeq[pPlayerActor->nAction].nSeqId);
-    if (playerSeq == nullptr) return;
     const auto seqSize = playerSeq->frames.Size();
     if (pPlayerActor->nFrame >= seqSize) pPlayerActor->nFrame = seqSize - 1;
     const auto& seqFrame = playerSeq->frames[pPlayerActor->nFrame];

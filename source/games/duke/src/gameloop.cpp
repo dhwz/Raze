@@ -61,15 +61,6 @@ void GameInterface::Ticker()
 
 		ud.cameraactor = nullptr;
 
-		// this must be done before the view is backed up.
-		for (int i = connecthead; i >= 0; i = connectpoint2[i])
-		{
-			getPlayer(i)->resetCameraAngles();
-		}
-
-		// disable synchronised input if set by game.
-		gameInput.ResetInputSync();
-
 		DukeSpriteIterator it;
 		while (auto ac = it.Next())
 		{

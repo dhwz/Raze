@@ -315,6 +315,7 @@ static void GameTicker()
 			ticcmd_t* cmd = &PlayerArray[i]->cmd;
 			ticcmd_t* newcmd = &netcmds[i][buf];
 			PlayerArray[i]->lastcmd = *cmd;
+			PlayerArray[i]->resetCameraAngles();
 
 			if ((gametic % ticdup) == 0)
 			{
@@ -363,6 +364,7 @@ static void GameTicker()
 	case GS_LEVEL:
 		gameupdatetime.Reset();
 		gameupdatetime.Clock();
+		gameInput.ResetInputSync();
 		gi->Ticker();
 		TickStatusBar();
 		levelTextTime--;
