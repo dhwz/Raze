@@ -11,7 +11,7 @@ goto aftercopyright
 ** Without these items, this script will FAIL! So make sure you have your build environment properly
 ** set up in order for this script to succeed.
 **
-** The purpose of this script is to get someone easily going with a full working compile of GZDoom.
+** The purpose of this script is to get someone easily going with a full working compile of Raze.
 ** This allows anyone to make simple changes or tweaks to the engine as they see fit and easily
 ** compile their own copy without having to follow complex instructions to get it working.
 ** Every build environment is different, and every computer system is different - this should work
@@ -19,7 +19,7 @@ goto aftercopyright
 ** Not guaranteed to work and your mileage will vary.
 **
 **---------------------------------------------------------------------------
-** Copyright 2023 Rachael Alexanderson and the GZDoom team
+** Copyright 2023-2024 Rachael Alexanderson and the GZDoom team
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
