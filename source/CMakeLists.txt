@@ -620,6 +620,7 @@ file( GLOB HEADER_FILES
 	core/textures/*.h
 	core/models/*.h
 	core/textures/formats/*.h
+	core/vmstubs.cpp
 )
 
 
@@ -1010,6 +1011,7 @@ set (PCH_SOURCES
 	core/rendering/scene/hw_lighting.cpp
 
 	core/r_data/gldefs.cpp
+	core/r_data/r_translate.cpp
 	core/models/modeldata.cpp
 
 	core/console/c_notifybuffer.cpp
