@@ -4935,6 +4935,8 @@ void FindMainSector(SECTOR_OBJECT* sop)
     if (sop->op_main_sector == nullptr)
     {
         auto oldpos = sop->pmid;
+        auto oldflags = sop->flags;
+        sop->flags &= ~SOBJ_DONT_ROTATE;    // This flag must be disabled here because it messes with the movement that's intended below.
 
         PlaceSectorObject(sop, { MAXSO, MAXSO });
 
@@ -4944,6 +4946,7 @@ void FindMainSector(SECTOR_OBJECT* sop)
         updatesectorz(oldpos, &sop->op_main_sector);
 
         PlaceSectorObject(sop, oldpos.XY());
+        sop->flags = oldflags;
     }
 }
 
@@ -5602,7 +5605,7 @@ void DoPlayerBeginDie(DSWPlayer* pp)
 
     PlayerSound(PlayerLowHealthPainVocs[choosesnd],v3df_dontpan|v3df_doppler|v3df_follow,pp);
 
-    PutStringInfo(pp, GStrings("TXTS_PRESSSPACE"));
+    PutStringInfo(pp, GStrings.GetString("TXTS_PRESSSPACE"));
 
     if (pp->sop_control)
         DoPlayerStopOperate(pp);

@@ -566,15 +566,15 @@ static void handle_st09(sectortype* sptr, DDukeActor* actor)
 
 	sp = (sptr->extra >> 4) / 16.;
 
-	//first find center point by averaging all points
-	dax = 0, day = 0;
+	//first find center point by averaging all points (in Build coordinate system to ensure the higher precision does not affect the result)
+	int idax = 0, iday = 0;
 	for (auto& wal : sptr->walls)
 	{
-		dax += wal.pos.X;
-		day += wal.pos.Y;
+		idax += int(wal.pos.X * 16);
+		iday += int(wal.pos.Y * 16);
 	}
-	dax /= sptr->walls.Size();
-	day /= sptr->walls.Size();
+	dax = (idax / (int)sptr->walls.Size()) / 16.;
+	day = (iday / (int)sptr->walls.Size()) / 16.;
 
 	//find any points with either same x or same y coordinate
 	//  as center (dax, day) - should be 2 points found.
@@ -598,7 +598,7 @@ static void handle_st09(sectortype* sptr, DDukeActor* actor)
 		auto prevwall = wal - 1;
 		if (prevwall < sptr->walls.Data()) prevwall += sptr->walls.Size();
 
-		if ((wal->pos.X == dax) && (wal->pos.Y == day))
+		if (abs(wal->pos.X - dax) <= (1 / 32.) && abs(wal->pos.Y - day) <= (1 / 32.))
 		{
 			dax2 = ((prevwall->pos.X + wal->point2Wall()->pos.X) * 0.5) - wal->pos.X;
 			day2 = ((prevwall->pos.Y + wal->point2Wall()->pos.Y) * 0.5) - wal->pos.Y;
@@ -1912,11 +1912,13 @@ bool checkhitswitch(DDukePlayer* const p, walltype* wwal, DDukeActor* act)
 
 void animatewalls(void)
 {
-	static FTextureID noise, ff1, ff2;
+	static FTextureID noise[3], ff1, ff2;
 
 	// all that was done here is to open the system up sufficiently to allow replacing the textures being used without having to use ART files.
 	// Custom animated textures are better done with newly written controller actors.
-	if (!noise.isValid()) noise = TexMan.CheckForTexture("SCREENBREAK6", ETextureType::Any);
+	if (!noise[0].isValid()) noise[0] = TexMan.CheckForTexture("SCREENBREAK6", ETextureType::Any);
+	if (!noise[1].isValid()) noise[1] = TexMan.CheckForTexture("SCREENBREAK7", ETextureType::Any);
+	if (!noise[2].isValid()) noise[2] = TexMan.CheckForTexture("SCREENBREAK8", ETextureType::Any);
 	if (!ff1.isValid()) ff1 = TexMan.CheckForTexture("W_FORCEFIELD", ETextureType::Any);
 	if (!ff2.isValid()) ff2 = TexMan.CheckForTexture("W_FORCEFIELD2", ETextureType::Any);
 
@@ -1942,17 +1944,18 @@ void animatewalls(void)
 			{
 				if ((krand() & 255) < 16)
 				{
-					wal->setwalltexture(noise);
+					wal->setwalltexture(noise[0]);
 				}
 			}
 			else if (tileflags(wal->walltexture) & TFLAG_ANIMSCREENNOISE)
 			{
-				if (animwall[p].origtex.isValid())
+				if (animwall[p].origtex.isValid() && !(tileflags(animwall[p].origtex) & TFLAG_ANIMSCREENNOISE))
 					wal->setwalltexture(animwall[p].origtex);
 				else
 				{
-					texid = texid + 1;
-					if (texid.GetIndex() > noise.GetIndex() + 3 || texid.GetIndex() < noise.GetIndex()) texid = noise;
+					if (texid == noise[0]) texid = noise[1];
+					else if (texid == noise[1]) texid = noise[2];
+					else if (texid == noise[2]) texid = noise[0];
 					wal->setwalltexture(texid);
 				}
 			}
